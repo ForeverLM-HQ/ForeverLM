@@ -484,11 +484,7 @@ struct AtlasDeepening: Equatable, Sendable {
 enum AtlasResponse {
     /// The JSON object in a reply, tolerating a fenced block or prose around it.
     static func jsonObject(_ response: String) -> [String: Any]? {
-        var text = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end {
-            text = String(text[start...end])
-        }
-        return (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
+        ModelJSON.object(response)
     }
 
     /// The skeleton call's answer: its name for the topic, and the concepts

@@ -57,7 +57,7 @@ extension KnowledgeMapCanvasView.Coordinator {
         case "ideaHeights":
             // The heights the page draws Ideas at on their own, measured with its fonts.
             if let heights = body["heights"] as? [String: Any] {
-                for (ref, raw) in heights { if let h = Self.number(raw), h > 0 { model.measuredIdeaHeights[ref] = h } }
+                for (ref, raw) in heights { if let h = KnowledgeMapModel.proposalNumber(raw), h > 0 { model.measuredIdeaHeights[ref] = h } }
             }
         case "placementChanged":
             let items = (body["items"] as? [[String: Any]] ?? []).compactMap(Self.placementStyle(from:))
@@ -102,8 +102,8 @@ extension KnowledgeMapCanvasView.Coordinator {
             Task { @MainActor in await actions.vm.openKnowledgeMapItemBeside(ref, in: actions.windowState) }
         case "popup":
             guard let actions, let ref = body["ref"] as? String, let rect = body["rect"] as? [String: Any],
-                  let x = Self.number(rect["x"]), let y = Self.number(rect["y"]),
-                  let w = Self.number(rect["w"]), let h = Self.number(rect["h"]) else { return }
+                  let x = KnowledgeMapModel.proposalNumber(rect["x"]), let y = KnowledgeMapModel.proposalNumber(rect["y"]),
+                  let w = KnowledgeMapModel.proposalNumber(rect["w"]), let h = KnowledgeMapModel.proposalNumber(rect["h"]) else { return }
             actions.vm.showKnowledgeMapPopup(ref, near: CGRect(x: x, y: y, width: w, height: h))
         case "navigate":
             guard let actions, let direction = body["direction"] as? String else { return }
@@ -126,7 +126,7 @@ extension KnowledgeMapCanvasView.Coordinator {
     /// asked, opened for writing in place.
     private func requestIdea(_ body: [String: Any]) {
         guard let actions else { return }
-        let spot = (x: Self.number(body["x"]) ?? 0, y: Self.number(body["y"]) ?? 0)
+        let spot = (x: KnowledgeMapModel.proposalNumber(body["x"]) ?? 0, y: KnowledgeMapModel.proposalNumber(body["y"]) ?? 0)
         let edit = body["edit"] as? Bool ?? false
         Task { @MainActor in
             guard let made = await actions.vm.createKnowledgeMapIdea(
@@ -182,7 +182,7 @@ extension KnowledgeMapCanvasView.Coordinator {
     static func pageChange(_ raw: Any?) -> KnowledgeMapFieldChange<Int> {
         guard let raw else { return .keep }
         if raw is NSNull { return .clear }
-        guard let number = number(raw), number.isFinite, number >= 1, number.rounded() == number else { return .keep }
+        guard let number = KnowledgeMapModel.proposalNumber(raw), number.isFinite, number >= 1, number.rounded() == number else { return .keep }
         return .set(Int(number))
     }
 
@@ -212,14 +212,14 @@ extension KnowledgeMapCanvasView.Coordinator {
     /// Shows the menu for what the page says was right-clicked, at that point.
     func showContextMenu(_ body: [String: Any]) {
         guard let webView, let actions, let kind = body["kind"] as? String,
-              let x = Self.number(body["x"]), let y = Self.number(body["y"]) else { return }
+              let x = KnowledgeMapModel.proposalNumber(body["x"]), let y = KnowledgeMapModel.proposalNumber(body["y"]) else { return }
         let menu = KnowledgeMapCanvasMenu(
             canvas: self,
             model: model,
             vm: actions.vm,
             windowState: actions.windowState,
             view: CGPoint(x: x, y: y),
-            world: (Self.number(body["wx"]) ?? 0, Self.number(body["wy"]) ?? 0)
+            world: (KnowledgeMapModel.proposalNumber(body["wx"]) ?? 0, KnowledgeMapModel.proposalNumber(body["wy"]) ?? 0)
         )
         guard let built = menu.menu(kind: kind, refs: body["refs"] as? [String] ?? [], id: body["id"] as? String) else { return }
         // The page's y runs down from its top; the view's may run up from its bottom.

@@ -459,16 +459,3 @@ extension KnowledgeStore {
         """
     }
 }
-
-extension KnowledgeStore {
-}
-
-// MARK: - Schema 131: lessons become walkthroughs
-
-extension KnowledgeStore {
-}
-
-// MARK: - Schema 164: a notebook is no longer called a project
-
-extension KnowledgeStore {
-}

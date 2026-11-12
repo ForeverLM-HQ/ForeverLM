@@ -103,11 +103,7 @@ enum KnowledgeMapSummaries {
 
     /// The JSON object in a reply, tolerating a fenced block around it.
     private static func jsonObject(_ response: String) -> [String: Any]? {
-        var text = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end {
-            text = String(text[start...end])
-        }
-        return (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]
+        ModelJSON.object(response)
     }
 
     // MARK: The device's cache

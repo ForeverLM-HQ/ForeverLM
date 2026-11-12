@@ -779,3 +779,22 @@ enum CancellableWait {
         }
     }
 }
+
+/// Reading the JSON object out of a model's reply.
+enum ModelJSON {
+    /// The reply trimmed and cut to its outermost `{…}`, which drops a code
+    /// fence or prose around the object; the trimmed reply when it holds no
+    /// such pair of braces.
+    static func objectText(in response: String) -> String {
+        let text = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end {
+            return String(text[start...end])
+        }
+        return text
+    }
+
+    /// The JSON object in a reply as a dictionary; nil when it does not parse.
+    static func object(_ response: String) -> [String: Any]? {
+        (try? JSONSerialization.jsonObject(with: Data(objectText(in: response).utf8))) as? [String: Any]
+    }
+}

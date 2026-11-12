@@ -591,7 +591,7 @@ struct ArticleSpeechContentTests {
         """
 
         #expect(
-            MacArticleSpeechText.reflowedForSpeech(extracted) ==
+            CloudArticleTTS.reflowedForSpeech(extracted) ==
             "Maintaining order at the tissue level is crucial throughout the lifespan, as failure can lead to cancer and an accumulation of molecular and cellular disorders. We argue here that the most consistent and pervasive result of these failures is aging."
         )
     }
@@ -606,7 +606,7 @@ struct ArticleSpeechContentTests {
         """
 
         #expect(
-            MacArticleSpeechText.reflowedForSpeech(extracted) ==
+            CloudArticleTTS.reflowedForSpeech(extracted) ==
             "First paragraph line one first paragraph line two.\n\nSecond paragraph here."
         )
     }
@@ -619,7 +619,7 @@ struct ArticleSpeechContentTests {
         """
 
         #expect(
-            MacArticleSpeechText.reflowedForSpeech(extracted) ==
+            CloudArticleTTS.reflowedForSpeech(extracted) ==
             "driven by abrogation of the endogenous bioelectric signaling."
         )
     }
@@ -629,7 +629,7 @@ struct ArticleSpeechContentTests {
         let paragraph = "See Fig. 3 for details. J. Levin measured a 3.14 cm shift. It worked!"
 
         #expect(
-            MacArticleSpeechText.sentences(in: paragraph) == [
+            CloudArticleTTS.sentences(in: paragraph) == [
                 "See Fig. 3 for details.",
                 "J. Levin measured a 3.14 cm shift.",
                 "It worked!"

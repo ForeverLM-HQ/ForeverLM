@@ -434,10 +434,6 @@ enum SituatedCardDrafting {
 
     /// The JSON object in a reply, tolerating a fenced block around it.
     private static func decode(_ response: String) throws -> ModelAnswer {
-        var text = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end {
-            text = String(text[start...end])
-        }
-        return try JSONDecoder().decode(ModelAnswer.self, from: Data(text.utf8))
+        try JSONDecoder().decode(ModelAnswer.self, from: Data(ModelJSON.objectText(in: response).utf8))
     }
 }

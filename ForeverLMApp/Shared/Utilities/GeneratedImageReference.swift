@@ -143,7 +143,7 @@ enum GeneratedImageStore {
 
     /// Posts `generatedImagesChanged` for `ids`. The sync engine re-sends
     /// each walk that names one, so the pictures it carries
-    /// (`WalkthroughPicturePackage`) follow the change.
+    /// (`StoredPicturePackage`) follow the change.
     static func announceChange(ids: [String]) {
         let unique = Set(ids.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
             .filter(GeneratedImageReference.isValidID)

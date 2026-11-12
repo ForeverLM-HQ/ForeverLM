@@ -64,12 +64,6 @@ extension MCPDataStore {
             }
             return collection
         }
-        func cleanedName() throws -> String {
-            guard let cleaned = NotebookCollections.cleanedName(name ?? "") else {
-                throw MCPError.invalidInput("name is required for action \(action) and cannot be blank.")
-            }
-            return cleaned
-        }
         func setMembership(_ collectionID: String, isMember: Bool) {
             for notebookID in notebookIDs where state.contains(notebookID, in: collectionID) != isMember {
                 let row = state.membershipRow(notebookID: notebookID, setting: collectionID, isMember: isMember)
@@ -82,7 +76,7 @@ extension MCPDataStore {
         var deleted = false
         switch action {
         case "create":
-            let cleaned = try cleanedName()
+            let cleaned = try Self.requiredCleanedName(name, action: action)
             let id = NotebookCollections.newCollectionID()
             NotebookCollectionRows.writeName(cleaned, collectionID: id)
             state = state.settingName(cleaned, for: id)
@@ -90,7 +84,7 @@ extension MCPDataStore {
             setMembership(id, isMember: true)
         case "rename":
             let current = try existing()
-            let cleaned = try cleanedName()
+            let cleaned = try Self.requiredCleanedName(name, action: action)
             NotebookCollectionRows.writeName(cleaned, collectionID: current.id)
             state = state.settingName(cleaned, for: current.id)
             collection = NotebookCollection(id: current.id, name: cleaned)

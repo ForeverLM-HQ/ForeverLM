@@ -43,10 +43,7 @@ enum ScannedPageProofreading {
     }
 
     static func decodedFixes(_ reply: String, lineCount: Int) throws -> [Int: String] {
-        var text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end {
-            text = String(text[start...end])
-        }
+        let text = ModelJSON.objectText(in: reply)
         guard let data = text.data(using: .utf8),
               let decoded = try? JSONDecoder().decode(Reply.self, from: data) else {
             throw AIError.invalidResponse

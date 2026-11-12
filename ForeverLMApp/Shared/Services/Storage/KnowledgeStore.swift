@@ -317,48 +317,64 @@ final class KnowledgeStore: @unchecked Sendable {
 /// They use the Codable round-trip: build a dictionary → encode to JSON → decode to model.
 extension KnowledgeStore {
 
-    func reconstructStudioArticle(
-        id: String, url: String, title: String, domain: String, dateAdded: Date,
-        content: String?, wordCount: Int?, state: StudioArticleState,
-        errorMessage: String?, sourceType: StudioSourceType,
-        artworkURL: String?, discoveryOrigin: DiscoveryOrigin?, parentGroup: String?,
-        localFilePath: String?, podcastWebPageURL: String?, author: String?,
-        publicURL: String? = nil,
-        journal: String? = nil, publishedYear: String? = nil,
-        doi: String? = nil,
-        paperIngestionMethod: PaperIngestionMethod? = nil,
-        courseSortIndex: Int? = nil, lectureGroupId: String? = nil,
-        isHidden: Bool = false
-    ) -> StudioArticle? {
+    /// The `sources` columns `reconstructStudioArticle` turns into a `StudioArticle`.
+    struct StudioArticleRow {
+        var id: String
+        var url: String
+        var title: String
+        var domain: String
+        var dateAdded: Date
+        var content: String?
+        var wordCount: Int?
+        var state: StudioArticleState
+        var errorMessage: String?
+        var sourceType: StudioSourceType
+        var artworkURL: String?
+        var discoveryOrigin: DiscoveryOrigin?
+        var parentGroup: String?
+        var localFilePath: String?
+        var podcastWebPageURL: String?
+        var author: String?
+        var publicURL: String?
+        var journal: String?
+        var publishedYear: String?
+        var doi: String?
+        var paperIngestionMethod: PaperIngestionMethod?
+        var courseSortIndex: Int?
+        var lectureGroupId: String?
+    }
+
+    /// Builds a `StudioArticle` from a row through its decoder, which normalises the title and author.
+    func reconstructStudioArticle(_ row: StudioArticleRow) -> StudioArticle? {
         // Build a JSON dictionary matching StudioArticle's CodingKeys
         var dict: [String: Any] = [
-            "id": id,
-            "url": url,
-            "title": title,
-            "domain": domain,
-            "dateAdded": dateAdded.timeIntervalSinceReferenceDate,
-            "state": state.rawValue,
-            "sourceType": sourceType.rawValue,
+            "id": row.id,
+            "url": row.url,
+            "title": row.title,
+            "domain": row.domain,
+            "dateAdded": row.dateAdded.timeIntervalSinceReferenceDate,
+            "state": row.state.rawValue,
+            "sourceType": row.sourceType.rawValue,
         ]
-        if let content { dict["content"] = content }
-        if let wordCount { dict["wordCount"] = wordCount }
-        if let errorMessage { dict["errorMessage"] = errorMessage }
-        if let artworkURL { dict["artworkURL"] = artworkURL }
-        if let discoveryOrigin { dict["discoveryOrigin"] = discoveryOrigin.rawValue }
-        if let parentGroup { dict["parentGroup"] = parentGroup }
-        if let localFilePath { dict["localFilePath"] = localFilePath }
-        if let publicURL { dict["publicURL"] = publicURL }
-        if let podcastWebPageURL { dict["podcastWebPageURL"] = podcastWebPageURL }
-        if let author { dict["author"] = author }
-        if let journal { dict["journal"] = journal }
-        if let publishedYear { dict["publishedYear"] = publishedYear }
-        if let doi { dict["doi"] = doi }
-        if let paperIngestionMethod { dict["paperIngestionMethod"] = paperIngestionMethod.rawValue }
-        if let courseSortIndex { dict["courseSortIndex"] = courseSortIndex }
-        if let lectureGroupId { dict["lectureGroupId"] = lectureGroupId }
-        dict["isHidden"] = isHidden
+        if let content = row.content { dict["content"] = content }
+        if let wordCount = row.wordCount { dict["wordCount"] = wordCount }
+        if let errorMessage = row.errorMessage { dict["errorMessage"] = errorMessage }
+        if let artworkURL = row.artworkURL { dict["artworkURL"] = artworkURL }
+        if let discoveryOrigin = row.discoveryOrigin { dict["discoveryOrigin"] = discoveryOrigin.rawValue }
+        if let parentGroup = row.parentGroup { dict["parentGroup"] = parentGroup }
+        if let localFilePath = row.localFilePath { dict["localFilePath"] = localFilePath }
+        if let publicURL = row.publicURL { dict["publicURL"] = publicURL }
+        if let podcastWebPageURL = row.podcastWebPageURL { dict["podcastWebPageURL"] = podcastWebPageURL }
+        if let author = row.author { dict["author"] = author }
+        if let journal = row.journal { dict["journal"] = journal }
+        if let publishedYear = row.publishedYear { dict["publishedYear"] = publishedYear }
+        if let doi = row.doi { dict["doi"] = doi }
+        if let paperIngestionMethod = row.paperIngestionMethod { dict["paperIngestionMethod"] = paperIngestionMethod.rawValue }
+        if let courseSortIndex = row.courseSortIndex { dict["courseSortIndex"] = courseSortIndex }
+        if let lectureGroupId = row.lectureGroupId { dict["lectureGroupId"] = lectureGroupId }
+        dict["isHidden"] = false
 
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+                guard let jsonData = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .deferredToDate
         return try? decoder.decode(StudioArticle.self, from: jsonData)

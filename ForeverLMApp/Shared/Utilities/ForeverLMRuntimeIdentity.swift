@@ -192,6 +192,14 @@ enum ForeverLMRuntimeIdentity {
         sharedDerivedCacheURL(named: "TTSAudioCache")
     }
 
+    /// The one audio-cache folder this profile keeps to itself: the
+    /// per-profile `TTSAudioCache`, home of `ArticleMarkers/`. A marker asserts
+    /// that this profile's library has a finished export in its own iCloud
+    /// document root, which the production and Dev profiles do not share.
+    static var profileTTSAudioCacheURL: URL {
+        applicationSupportRootURL.appendingPathComponent("TTSAudioCache", isDirectory: true)
+    }
+
     /// Voice samples, keyed by a SHA-256 of model, voice and the fixed sample
     /// text. The repository prewarms every voice in the catalog, so a split
     /// cache means each profile separately pays to generate the same set.

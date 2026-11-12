@@ -209,15 +209,11 @@ struct ReportOptionsSheet: View {
     /// Which sources are not read whole, and which are left out, by name:
     /// the sheet says what the report is written from.
     static func readingDetail(_ plan: ReportPlan) -> String? {
-        var parts: [String] = []
-        let ideas = plan.sources.filter { $0.readAs == .ideas }.map(\.candidate.source.title)
-        let condensed = plan.sources.filter { $0.readAs == .condensed }.map(\.candidate.source.title)
-        if !ideas.isEmpty { parts.append("From their ideas, to fit the model's window: \(ideas.joined(separator: "; ")).") }
-        if !condensed.isEmpty { parts.append("Condensed, to fit: \(condensed.joined(separator: "; ")).") }
-        if !plan.skipped.isEmpty {
-            parts.append("Left out: " + plan.skipped.map { "\($0.title) (\($0.reason.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))))" }.joined(separator: "; ") + ".")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " ")
+        ReportPlan.readingDetail(
+            ideas: plan.sources.filter { $0.readAs == .ideas }.map(\.candidate.source.title),
+            condensed: plan.sources.filter { $0.readAs == .condensed }.map(\.candidate.source.title),
+            skipped: plan.skipped.map { ($0.title, $0.reason) }
+        )
     }
 
     /// Think first's ask (docs/fences-and-think-first-design.md): the

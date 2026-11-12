@@ -1640,7 +1640,7 @@ extension KnowledgeStore {
             return abs.hasPrefix("/") ? (normalizePathForCurrentUser(abs) ?? abs) : lp
         }
 
-        var article = reconstructStudioArticle(
+        var article = reconstructStudioArticle(StudioArticleRow(
             id: id, url: normalizedURL, title: title, domain: domain, dateAdded: dateAdded,
             content: nil, wordCount: wordCount, state: state,
             errorMessage: errorMessage, sourceType: sourceType,
@@ -1650,7 +1650,7 @@ extension KnowledgeStore {
             author: author, publicURL: publicURL, journal: journal, publishedYear: publishedYear,
             doi: doi, paperIngestionMethod: paperIngestionMethod,
             courseSortIndex: courseSortIndex, lectureGroupId: lectureGroupId
-        )
+        ))
         article?.isPaywalled = isPaywalledVal
         article?.status = sourceStatus
         article?.archivedAt = archivedAt

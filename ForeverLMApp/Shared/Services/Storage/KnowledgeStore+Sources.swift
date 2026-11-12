@@ -111,6 +111,60 @@ extension KnowledgeStore {
         let incomingReadableContent = article.content?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty == false
+        let (persistedState, persistedErrorMessage) = try Self.persistedStateAndError(
+            for: article,
+            incomingReadableContent: incomingReadableContent,
+            storedHasReadableContent: { try self.hasReadableSourceContent(article.id) }
+        )
+        try validateReadyToPersist(article, incomingReadableContent: incomingReadableContent)
+
+        let values = Self.persistedSourceValues(for: article)
+        let (persistedLocator, persistedReadAt) = try progressKeepingWatchedMark(for: article)
+        // Generation 2 keeps reading values in reading_states only; a new source's go there once.
+        let seedsReadingState = try scalarInteger("SELECT EXISTS(SELECT 1 FROM sources WHERE id = ?)", [.text(article.id)]) != 1
+        let hasPublicURLColumn = try tableColumnNames("sources").contains("public_url")
+        try upsertSourcesRow(
+            article,
+            persistedState: persistedState,
+            persistedErrorMessage: persistedErrorMessage,
+            publicURL: values.publicURL,
+            persistedLocator: persistedLocator,
+            persistedReadAt: persistedReadAt,
+            hasPublicURLColumn: hasPublicURLColumn
+        )
+
+        if seedsReadingState {
+            try seedReadingState(sourceID: article.id, page: article.readingPositionPage, macLocator: persistedLocator, readAt: persistedReadAt)
+        }
+        try persistTextAndListenablePreparation(for: article)
+
+        try deleteSubtypeRows(for: article.id, except: article.sourceType)
+        try upsertSubtypeRow(article, values, publishedDOI: publishedDOI)
+
+        try syncPaperSideTables(for: article, persistLocalPath: values.persistLocalPath)
+        try writeGroupMembership(for: article)
+        try dropArchivedSourceFromGoals(article)
+        try applyHiddenSourceState(article)
+        try retireSourceReviewGuidePreparation(sourceID: article.id)
+        _ = try reconcileMemoryItemSourceAnchors(forSourceID: article.id)
+        _ = try reconcileScheduledSourcePlacements(forSourceID: article.id)
+        // Generation 2 keeps the source's work keys with every save; they only ever add (§4.2).
+        try addWorkKeys(workKeys(for: article, hashingFile: false), to: article.id)
+        // A show, channel or playlist first met after the activation gets its Collection now: the
+        // activation's derivations ran once, and the Source names it by id (§4.4).
+        try deriveSourceCollections(onlySource: article.id)
+        try derivePlaylistCollections(onlySource: article.id)
+        noteStoreChanged()
+        return keptStored
+    }
+
+    /// The state and error message a save stores. A podcast whose transcript is already stored stays ready;
+    /// `storedHasReadableContent` is asked only when the copy carries no readable text itself.
+    private static func persistedStateAndError(
+        for article: StudioArticle,
+        incomingReadableContent: Bool,
+        storedHasReadableContent: () throws -> Bool
+    ) rethrows -> (state: StudioArticleState, errorMessage: String?) {
         let podcastStateCanBeDemoted = article.sourceType == .podcast
             && (article.state == .queued || article.state == .fetching)
         let podcastAlreadyHasReadableContent: Bool
@@ -118,7 +172,7 @@ extension KnowledgeStore {
             if incomingReadableContent {
                 podcastAlreadyHasReadableContent = true
             } else {
-                podcastAlreadyHasReadableContent = try hasReadableSourceContent(article.id)
+                podcastAlreadyHasReadableContent = try storedHasReadableContent()
             }
         } else {
             podcastAlreadyHasReadableContent = false
@@ -135,6 +189,12 @@ extension KnowledgeStore {
             persistedState = article.state
             persistedErrorMessage = article.errorMessage
         }
+        return (persistedState, persistedErrorMessage)
+    }
+
+    /// Refuses a save that would make a source ready without the text, the paper attestation or the
+    /// content preparation that readiness requires.
+    private func validateReadyToPersist(_ article: StudioArticle, incomingReadableContent: Bool) throws {
         if article.state == .ready, !incomingReadableContent {
             if article.content != nil {
                 throw KnowledgeStoreError.invalidData(
@@ -163,7 +223,20 @@ extension KnowledgeStore {
                 "Paper ingestion requires successful Source Content Cleanup before the source can become ready."
             )
         }
+    }
 
+    /// The values every per-type row of a source is written with.
+    private struct PersistedSourceValues {
+        let title: String
+        let author: String?
+        let persistURL: String
+        let persistLocalPath: String?
+        let normalizedURL: String
+        let publicURL: String?
+    }
+
+    /// The title, author, paths and public address a save writes, cleaned the way the store guarantees.
+    private static func persistedSourceValues(for article: StudioArticle) -> PersistedSourceValues {
         let title = Self.persistedTitle(for: article)
         // An author is a name. Markup, a web address or a "name" longer than
         // any name is some other field a reader misread (two articles once
@@ -180,6 +253,18 @@ extension KnowledgeStore {
         let normalizedURL = URLNormalizer.normalize(article.url)
         let cleanPublicURL = article.publicURL?.trimmingCharacters(in: .whitespacesAndNewlines)
         let publicURL = cleanPublicURL?.isEmpty == false ? cleanPublicURL : Self.defaultPublicURL(for: article)
+        return PersistedSourceValues(
+            title: title,
+            author: author,
+            persistURL: persistURL,
+            persistLocalPath: persistLocalPath,
+            normalizedURL: normalizedURL,
+            publicURL: publicURL
+        )
+    }
+
+    /// The reading position and read stamp to store: a stored Mark as Not Watched is not undone by an older copy.
+    private func progressKeepingWatchedMark(for article: StudioArticle) throws -> (locator: String?, readAt: Date?) {
         // A copy of a video taken before a Mark as Not Watched this row already
         // holds (a transcript or metadata save racing the mark) must not bring
         // the watching, or the read stamp the mark cleared, back. A row without
@@ -198,9 +283,19 @@ extension KnowledgeStore {
                 persistedReadAt = stored.readAt
             }
         }
-        // Generation 2 keeps reading values in reading_states only; a new source's go there once.
-        let seedsReadingState = try scalarInteger("SELECT EXISTS(SELECT 1 FROM sources WHERE id = ?)", [.text(article.id)]) != 1
-        let hasPublicURLColumn = try tableColumnNames("sources").contains("public_url")
+        return (persistedLocator, persistedReadAt)
+    }
+
+    /// Writes the `sources` row, with the `public_url` column when the table has it.
+    private func upsertSourcesRow(
+        _ article: StudioArticle,
+        persistedState: StudioArticleState,
+        persistedErrorMessage: String?,
+        publicURL: String?,
+        persistedLocator: String?,
+        persistedReadAt: Date?,
+        hasPublicURLColumn: Bool
+    ) throws {
         if hasPublicURLColumn {
             try execBind("""
                 INSERT INTO sources
@@ -286,10 +381,11 @@ extension KnowledgeStore {
                 bind(stmt, 12, article.connectorLabel)
             }
         }
+    }
 
-        if seedsReadingState {
-            try seedReadingState(sourceID: article.id, page: article.readingPositionPage, macLocator: persistedLocator, readAt: persistedReadAt)
-        }
+    /// Stores the canonical text a save carries, and keeps its index, publication and narration queue
+    /// in step with whether the text was replaced.
+    private func persistTextAndListenablePreparation(for article: StudioArticle) throws {
         // A save that rewrites the text (an MCP client's `update_source_content`, an edit, a fetch over an
         // older text) owes what every writer of a source's text owes: the index goes and the text is
         // published again. Some branches below do it themselves; the plain ones (a book chapter, a course
@@ -320,291 +416,370 @@ extension KnowledgeStore {
                 }
             }
         }
+    }
 
-        try deleteSubtypeRows(for: article.id, except: article.sourceType)
+    /// Writes the `articles` row of a web article, manual or unclassified source.
+    private func upsertArticleRow(_ article: StudioArticle, _ values: PersistedSourceValues) throws {
+        let title = values.title
+        let author = values.author
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        try execBind("""
+            INSERT INTO articles
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, author)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url,
+                author = excluded.author
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, article.wordCount)
+            bind(stmt, 9, article.artworkURL)
+            bind(stmt, 10, author)
+        }
+    }
 
+    /// Writes the `papers` row of a paper source.
+    private func upsertPaperRow(_ article: StudioArticle, _ values: PersistedSourceValues, publishedDOI: String?) throws {
+        let title = values.title
+        let author = values.author
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        // A locally resolved published DOI and one arriving from sync are the
+        // same fact, and either may be the only one present. The ON CONFLICT
+        // clause coalesces on top of this, so a save that knows neither can
+        // never erase a value another path already established.
+        let localPublishedDOI = article.publishedDOI?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let resolvedPublishedDOI = publishedDOI
+            ?? (localPublishedDOI?.isEmpty == false ? localPublishedDOI : nil)
+        try execBind("""
+            INSERT INTO papers
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, author, doi, published_doi, journal, published_year, is_paywalled, paper_ingestion_method, paywall_suspicion)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url,
+                author = excluded.author,
+                doi = excluded.doi,
+                published_doi = COALESCE(excluded.published_doi, papers.published_doi),
+                journal = excluded.journal,
+                published_year = excluded.published_year,
+                is_paywalled = excluded.is_paywalled,
+                paper_ingestion_method = excluded.paper_ingestion_method,
+                paywall_suspicion = excluded.paywall_suspicion
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, article.wordCount)
+            bind(stmt, 9, article.artworkURL)
+            bind(stmt, 10, author)
+            bind(stmt, 11, article.doi?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased())
+            bind(stmt, 12, resolvedPublishedDOI)
+            bind(stmt, 13, article.journal)
+            bind(stmt, 14, article.publishedYear)
+            sqlite3_bind_int(stmt, 15, article.isPaywalled ? 1 : 0)
+            bind(stmt, 16, article.paperIngestionMethod?.rawValue)
+            bind(stmt, 17, article.paywallSuspicion)
+        }
+    }
+
+    /// Writes the `podcasts` row of a podcast source.
+    private func upsertPodcastRow(_ article: StudioArticle, _ values: PersistedSourceValues) throws {
+        let title = values.title
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        // The count is the stored transcript's. A save carrying the text
+        // counts what it just stored; one without it (the in-memory text is
+        // let go after every ingest) keeps the count stored with the text,
+        // which the in-memory copy may never have seen: hydration, a
+        // refetch and every transcript rewrite count it in the store.
+        let podcastWordCount: Int?
+        if let content = article.content {
+            podcastWordCount = Self.storedWordCount(of: content)
+        } else {
+            let stored = try scalarInteger("""
+                SELECT p.word_count FROM podcasts p
+                JOIN source_content sc ON sc.source_id = p.source_id
+                WHERE p.source_id = ?
+            """, [.text(article.id)])
+            podcastWordCount = stored.flatMap { $0 > 0 ? Int($0) : nil } ?? article.wordCount
+        }
+        try execBind("""
+            INSERT INTO podcasts
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, show_name, web_page_url, raw_ttml)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url,
+                show_name = excluded.show_name,
+                web_page_url = excluded.web_page_url,
+                raw_ttml = COALESCE(excluded.raw_ttml, podcasts.raw_ttml)
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, podcastWordCount)
+            bind(stmt, 9, article.artworkURL)
+            bind(stmt, 10, article.domain)
+            bind(stmt, 11, article.podcastWebPageURL)
+            bind(stmt, 12, nil as String?)
+        }
+    }
+
+    /// Writes the `book_sources` row of a book source.
+    private func upsertBookRow(_ article: StudioArticle, _ values: PersistedSourceValues) throws {
+        let title = values.title
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        try execBind("""
+            INSERT INTO book_sources
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, page_start, page_count)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url,
+                page_start = excluded.page_start,
+                page_count = excluded.page_count
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, article.wordCount)
+            bind(stmt, 9, article.artworkURL)
+            bind(stmt, 10, article.bookPages?.lowerBound)
+            bind(stmt, 11, article.bookPages?.count)
+        }
+    }
+
+    /// Writes the `course_sources` row of a course source.
+    private func upsertCourseRow(_ article: StudioArticle, _ values: PersistedSourceValues) throws {
+        let title = values.title
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        try execBind("""
+            INSERT INTO course_sources
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url)
+            VALUES (?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, article.wordCount)
+            bind(stmt, 9, article.artworkURL)
+        }
+    }
+
+    /// Writes the `meeting_sources` row of a meeting source.
+    private func upsertMeetingRow(_ article: StudioArticle, _ values: PersistedSourceValues) throws {
+        let title = values.title
+        let author = values.author
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        try execBind("""
+            INSERT INTO meeting_sources
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, occurred_at, transcript_status, presenter)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url,
+                occurred_at = excluded.occurred_at,
+                transcript_status = excluded.transcript_status,
+                presenter = excluded.presenter
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, article.wordCount)
+            bind(stmt, 9, article.artworkURL)
+            sqlite3_bind_double(stmt, 10, article.dateAdded.timeIntervalSinceReferenceDate)
+            bind(stmt, 11, article.state == .ready ? "ready" : "missing")
+            bind(stmt, 12, author)
+        }
+    }
+
+    /// Writes the `videos` row of a video source.
+    private func upsertVideoRow(_ article: StudioArticle, _ values: PersistedSourceValues) throws {
+        let title = values.title
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        try execBind("""
+            INSERT INTO videos
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, platform, liked_at, video_published_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url,
+                platform = excluded.platform,
+                -- A save that doesn't carry the feed dates (a rename, a
+                -- transcript write, an inbound CloudKit row from a peer that
+                -- hasn't re-synced yet) must not blank dates we already have.
+                liked_at = COALESCE(excluded.liked_at, videos.liked_at),
+                video_published_at = COALESCE(excluded.video_published_at, videos.video_published_at)
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, article.wordCount)
+            bind(stmt, 9, article.artworkURL)
+            bind(stmt, 10, nil as String?)
+            bind(stmt, 11, article.likedAt?.timeIntervalSinceReferenceDate)
+            bind(stmt, 12, article.videoPublishedAt?.timeIntervalSinceReferenceDate)
+        }
+    }
+
+    /// Writes the `x_posts` row of a post source.
+    private func upsertXPostRow(_ article: StudioArticle, _ values: PersistedSourceValues) throws {
+        let author = values.author
+        let persistURL = values.persistURL
+        let persistLocalPath = values.persistLocalPath
+        let normalizedURL = values.normalizedURL
+        try execBind("""
+            INSERT INTO x_posts
+            (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, author_handle, post_text, author)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                url = excluded.url,
+                local_file_path = excluded.local_file_path,
+                normalized_url = excluded.normalized_url,
+                title = excluded.title,
+                domain = excluded.domain,
+                discovery_origin = excluded.discovery_origin,
+                word_count = excluded.word_count,
+                artwork_url = excluded.artwork_url,
+                author_handle = excluded.author_handle,
+                post_text = excluded.post_text,
+                author = excluded.author
+        """) { stmt in
+            bind(stmt, 1, article.id)
+            bind(stmt, 2, persistURL)
+            bind(stmt, 3, persistLocalPath)
+            bind(stmt, 4, normalizedURL)
+            bind(stmt, 5, article.title)
+            bind(stmt, 6, article.domain)
+            bind(stmt, 7, article.discoveryOrigin?.rawValue)
+            bind(stmt, 8, article.wordCount)
+            bind(stmt, 9, article.artworkURL)
+            bind(stmt, 10, nil as String?)
+            bind(stmt, 11, article.content)
+            // The display name the author backfill looks up; the projection
+            // reads it back as `author`, which is what keeps a named post
+            // named across reloads.
+            bind(stmt, 12, author)
+        }
+    }
+
+    /// Writes the row of the source's own type.
+    private func upsertSubtypeRow(_ article: StudioArticle, _ values: PersistedSourceValues, publishedDOI: String?) throws {
         switch article.sourceType {
         case .article, .manual, .unclassified:
-            try execBind("""
-                INSERT INTO articles
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, author)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url,
-                    author = excluded.author
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
-                bind(stmt, 9, article.artworkURL)
-                bind(stmt, 10, author)
-            }
+            try upsertArticleRow(article, values)
         case .paper:
-            // A locally resolved published DOI and one arriving from sync are the
-            // same fact, and either may be the only one present. The ON CONFLICT
-            // clause coalesces on top of this, so a save that knows neither can
-            // never erase a value another path already established.
-            let localPublishedDOI = article.publishedDOI?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            let resolvedPublishedDOI = publishedDOI
-                ?? (localPublishedDOI?.isEmpty == false ? localPublishedDOI : nil)
-            try execBind("""
-                INSERT INTO papers
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, author, doi, published_doi, journal, published_year, is_paywalled, paper_ingestion_method, paywall_suspicion)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url,
-                    author = excluded.author,
-                    doi = excluded.doi,
-                    published_doi = COALESCE(excluded.published_doi, papers.published_doi),
-                    journal = excluded.journal,
-                    published_year = excluded.published_year,
-                    is_paywalled = excluded.is_paywalled,
-                    paper_ingestion_method = excluded.paper_ingestion_method,
-                    paywall_suspicion = excluded.paywall_suspicion
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
-                bind(stmt, 9, article.artworkURL)
-                bind(stmt, 10, author)
-                bind(stmt, 11, article.doi?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .lowercased())
-                bind(stmt, 12, resolvedPublishedDOI)
-                bind(stmt, 13, article.journal)
-                bind(stmt, 14, article.publishedYear)
-                sqlite3_bind_int(stmt, 15, article.isPaywalled ? 1 : 0)
-                bind(stmt, 16, article.paperIngestionMethod?.rawValue)
-                bind(stmt, 17, article.paywallSuspicion)
-            }
+            try upsertPaperRow(article, values, publishedDOI: publishedDOI)
         case .podcast:
-            // The count is the stored transcript's. A save carrying the text
-            // counts what it just stored; one without it (the in-memory text is
-            // let go after every ingest) keeps the count stored with the text,
-            // which the in-memory copy may never have seen: hydration, a
-            // refetch and every transcript rewrite count it in the store.
-            let podcastWordCount: Int?
-            if let content = article.content {
-                podcastWordCount = Self.storedWordCount(of: content)
-            } else {
-                let stored = try scalarInteger("""
-                    SELECT p.word_count FROM podcasts p
-                    JOIN source_content sc ON sc.source_id = p.source_id
-                    WHERE p.source_id = ?
-                """, [.text(article.id)])
-                podcastWordCount = stored.flatMap { $0 > 0 ? Int($0) : nil } ?? article.wordCount
-            }
-            try execBind("""
-                INSERT INTO podcasts
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, show_name, web_page_url, raw_ttml)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url,
-                    show_name = excluded.show_name,
-                    web_page_url = excluded.web_page_url,
-                    raw_ttml = COALESCE(excluded.raw_ttml, podcasts.raw_ttml)
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, podcastWordCount)
-                bind(stmt, 9, article.artworkURL)
-                bind(stmt, 10, article.domain)
-                bind(stmt, 11, article.podcastWebPageURL)
-                bind(stmt, 12, nil as String?)
-            }
+            try upsertPodcastRow(article, values)
         case .book:
-            try execBind("""
-                INSERT INTO book_sources
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, page_start, page_count)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url,
-                    page_start = excluded.page_start,
-                    page_count = excluded.page_count
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
-                bind(stmt, 9, article.artworkURL)
-                bind(stmt, 10, article.bookPages?.lowerBound)
-                bind(stmt, 11, article.bookPages?.count)
-            }
+            try upsertBookRow(article, values)
         case .course:
-            try execBind("""
-                INSERT INTO course_sources
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url)
-                VALUES (?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
-                bind(stmt, 9, article.artworkURL)
-            }
+            try upsertCourseRow(article, values)
         case .meeting:
-            try execBind("""
-                INSERT INTO meeting_sources
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, occurred_at, transcript_status, presenter)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url,
-                    occurred_at = excluded.occurred_at,
-                    transcript_status = excluded.transcript_status,
-                    presenter = excluded.presenter
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
-                bind(stmt, 9, article.artworkURL)
-                sqlite3_bind_double(stmt, 10, article.dateAdded.timeIntervalSinceReferenceDate)
-                bind(stmt, 11, article.state == .ready ? "ready" : "missing")
-                bind(stmt, 12, author)
-            }
+            try upsertMeetingRow(article, values)
         case .video:
-            try execBind("""
-                INSERT INTO videos
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, platform, liked_at, video_published_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url,
-                    platform = excluded.platform,
-                    -- A save that doesn't carry the feed dates (a rename, a
-                    -- transcript write, an inbound CloudKit row from a peer that
-                    -- hasn't re-synced yet) must not blank dates we already have.
-                    liked_at = COALESCE(excluded.liked_at, videos.liked_at),
-                    video_published_at = COALESCE(excluded.video_published_at, videos.video_published_at)
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
-                bind(stmt, 9, article.artworkURL)
-                bind(stmt, 10, nil as String?)
-                bind(stmt, 11, article.likedAt?.timeIntervalSinceReferenceDate)
-                bind(stmt, 12, article.videoPublishedAt?.timeIntervalSinceReferenceDate)
-            }
+            try upsertVideoRow(article, values)
         case .xPost:
-            try execBind("""
-                INSERT INTO x_posts
-                (source_id, url, local_file_path, normalized_url, title, domain, discovery_origin, word_count, artwork_url, author_handle, post_text, author)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    url = excluded.url,
-                    local_file_path = excluded.local_file_path,
-                    normalized_url = excluded.normalized_url,
-                    title = excluded.title,
-                    domain = excluded.domain,
-                    discovery_origin = excluded.discovery_origin,
-                    word_count = excluded.word_count,
-                    artwork_url = excluded.artwork_url,
-                    author_handle = excluded.author_handle,
-                    post_text = excluded.post_text,
-                    author = excluded.author
-            """) { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, persistURL)
-                bind(stmt, 3, persistLocalPath)
-                bind(stmt, 4, normalizedURL)
-                bind(stmt, 5, article.title)
-                bind(stmt, 6, article.domain)
-                bind(stmt, 7, article.discoveryOrigin?.rawValue)
-                bind(stmt, 8, article.wordCount)
-                bind(stmt, 9, article.artworkURL)
-                bind(stmt, 10, nil as String?)
-                bind(stmt, 11, article.content)
-                // The display name the author backfill looks up; the projection
-                // reads it back as `author`, which is what keeps a named post
-                // named across reloads.
-                bind(stmt, 12, author)
-            }
+            try upsertXPostRow(article, values)
         }
+    }
 
+    /// Queues the paper's figure index and reference read, or drops them when the source is not a paper.
+    private func syncPaperSideTables(for article: StudioArticle, persistLocalPath: String?) throws {
         if article.sourceType == .paper, let persistLocalPath, !persistLocalPath.isEmpty {
             try enqueuePaperFigureIndexIfNeeded(
                 sourceID: article.id,
@@ -628,7 +803,10 @@ extension KnowledgeStore {
                 bind(stmt, 1, article.id)
             }
         }
+    }
 
+    /// Rewrites the source's group membership and enforces the whole-book self-group invariant.
+    private func writeGroupMembership(for article: StudioArticle) throws {
         try execBind("DELETE FROM group_members WHERE source_id = ?") { stmt in
             bind(stmt, 1, article.id)
         }
@@ -670,7 +848,10 @@ extension KnowledgeStore {
                 )
             }
         }
+    }
 
+    /// An archived source leaves the learning goals that listed it.
+    private func dropArchivedSourceFromGoals(_ article: StudioArticle) throws {
         if article.status == .archived {
             var affectedGoalIDs: [String] = []
             try queryBind(
@@ -689,7 +870,10 @@ extension KnowledgeStore {
                 try touchLearningGoal(goalID, at: now)
             }
         }
+    }
 
+    /// Stores a hide the copy or a pending hide asks for, once, keeping the date of a hide already stored.
+    private func applyHiddenSourceState(_ article: StudioArticle) throws {
         let pendingHiddenAt = try loadPendingHiddenSourceDate(article.id)
         // Generation 2: a hide the store already holds keeps its date. `hidden_at` feeds
         // `Mark(hidden).at`, so dating it again sent the Mark to every device on each save of a
@@ -711,17 +895,6 @@ extension KnowledgeStore {
                 sqlite3_bind_double(stmt, 2, (pendingHiddenAt ?? Date()).timeIntervalSinceReferenceDate)
             }
         }
-        try retireSourceReviewGuidePreparation(sourceID: article.id)
-        _ = try reconcileMemoryItemSourceAnchors(forSourceID: article.id)
-        _ = try reconcileScheduledSourcePlacements(forSourceID: article.id)
-        // Generation 2 keeps the source's work keys with every save; they only ever add (§4.2).
-        try addWorkKeys(workKeys(for: article, hashingFile: false), to: article.id)
-        // A show, channel or playlist first met after the activation gets its Collection now: the
-        // activation's derivations ran once, and the Source names it by id (§4.4).
-        try deriveSourceCollections(onlySource: article.id)
-        try derivePlaylistCollections(onlySource: article.id)
-        noteStoreChanged()
-        return keptStored
     }
 
     /// The copy `persistSourceRows` writes: under generation 2, a copy read from the store merged over

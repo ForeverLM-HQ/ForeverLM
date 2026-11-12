@@ -27,20 +27,20 @@ enum FreeModelsSetup {
 
     static let preferredChat = [
         recommendedID,
-        "google/gemma-4-31b-it:free",
-        "qwen/qwen3.8-27b:free",
-        "nvidia/nemotron-3-super-120b-a12b:free",
+        AIModelDefaults.freeGemma31B,
+        AIModelDefaults.freeQwen27B,
+        AIModelDefaults.freeNemotronSuper,
     ]
     static let preferredBackground = [
         recommendedID,
-        "google/gemma-4-26b-a4b-it:free",
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "google/gemma-4-31b-it:free",
+        AIModelDefaults.freeGemma26B,
+        AIModelDefaults.freeNemotronSuper,
+        AIModelDefaults.freeGemma31B,
     ]
     static let preferredVision = [
         recommendedID,
-        "google/gemma-4-31b-it:free",
-        "qwen/qwen3.8-27b:free",
+        AIModelDefaults.freeGemma31B,
+        AIModelDefaults.freeQwen27B,
     ]
 
     static let openRouterPrivacyURL = AIFreeModels.openRouterPrivacyURL
@@ -286,12 +286,12 @@ enum RecommendedModels {
     static let region: OpenRouterHostPreference.Region = .us
 
     /// Chat's model: the first that qualifies (`qualifying`).
-    static let preferredChat = ["z-ai/glm-5.3-flash", "google/gemma-4-31b-it", "openai/gpt-oss-120b"]
+    static let preferredChat = [AIModelDefaults.recommendedGLMFlash, AIModelDefaults.recommendedGemma31B, AIModelDefaults.recommendedGPTOSS120B]
     /// The backup background work moves to when the free models fail, run
     /// on its cheapest host in the region: the first that qualifies.
-    static let preferredBackup = ["z-ai/glm-5.3-flash", "deepseek/deepseek-v4-flash", "openai/gpt-oss-120b"]
+    static let preferredBackup = [AIModelDefaults.recommendedGLMFlash, AIModelDefaults.recommendedDeepSeekFlash, AIModelDefaults.recommendedGPTOSS120B]
     /// The same for background work that reads images.
-    static let preferredImagesBackup = ["z-ai/glm-5.3-flash", "google/gemma-4-31b-it"]
+    static let preferredImagesBackup = [AIModelDefaults.recommendedGLMFlash, AIModelDefaults.recommendedGemma31B]
     /// Hosts in the region a model needs, so one that is down leaves another.
     static let minimumRegionHosts = 2
 

@@ -129,17 +129,15 @@ struct RemotePDFReaderView: View {
         }
     }
 
-    /// Polls while the pipeline is fetching this paper, up to a bound that
+    /// Waits while the pipeline is fetching this paper, up to a bound that
     /// covers a slow download plus the reader-session fallback; a fetch still
     /// running after that is left to finish on its own.
     @MainActor
     private func waitForPipelineDownload() async {
-        let deadline = ContinuousClock.now + .seconds(120)
-        while vm.sourceFetchIsInFlight(articleId),
-              vm.articles.first(where: { $0.id == articleId })?.cachedResolvedPDFPath == nil,
-              ContinuousClock.now < deadline,
-              !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(400))
+        let articleId = articleId
+        let vm = vm
+        _ = await vm.waitForSourceFetch(articleId, timeout: .seconds(120)) {
+            vm.articles.first(where: { $0.id == articleId })?.cachedResolvedPDFPath != nil
         }
     }
 

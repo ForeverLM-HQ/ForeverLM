@@ -459,7 +459,7 @@ struct PaperTextToSpeechPreparationService: Sendable {
 
         output.append(contentsOf: deferredSpokenText)
 
-        let narration = MacArticleSpeechText.reflowedForSpeech(output.joined(separator: "\n"))
+        let narration = CloudArticleTTS.reflowedForSpeech(output.joined(separator: "\n"))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard MacArticleSpeechText.containsLetterOrDigit(narration) else {
             throw AIError.apiError("Text-to-Speech Preparation returned no narratable text.")

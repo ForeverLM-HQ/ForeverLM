@@ -996,11 +996,7 @@ struct WebViewReader: NSViewRepresentable {
                 // this page finishes. Let it answer first: if it succeeds the
                 // page is not needed, and if it is blocked the page is the
                 // only copy there is.
-                var waitedSeconds = 0
-                while !Task.isCancelled, waitedSeconds < 90, vm.sourceFetchIsInFlight(articleId) {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    waitedSeconds += 1
-                }
+                _ = await vm.waitForSourceFetch(articleId, timeout: .seconds(90))
                 guard !Task.isCancelled,
                       let webView,
                       webView.url?.isFileURL != true,

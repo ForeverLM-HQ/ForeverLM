@@ -90,8 +90,8 @@ extension KnowledgeMapCanvasView.Coordinator {
         case "reviewAnchor":
             guard let ref = body["ref"] as? String else { return }
             if let rect = body["rect"] as? [String: Any],
-               let x = Self.number(rect["x"]), let y = Self.number(rect["y"]),
-               let w = Self.number(rect["w"]), let h = Self.number(rect["h"]), w > 0, h > 0 {
+               let x = KnowledgeMapModel.proposalNumber(rect["x"]), let y = KnowledgeMapModel.proposalNumber(rect["y"]),
+               let w = KnowledgeMapModel.proposalNumber(rect["w"]), let h = KnowledgeMapModel.proposalNumber(rect["h"]), w > 0, h > 0 {
                 review.setAnchor(ref: ref, rect: CGRect(x: x, y: y, width: w, height: h))
             } else {
                 review.setAnchor(ref: ref, rect: nil)

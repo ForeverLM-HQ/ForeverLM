@@ -96,10 +96,7 @@ enum PastedLineJoining {
     /// an empty line. Anything else is not an answer, and throws.
     static func breaks(from response: String, lines: [String]) throws -> [Break] {
         struct Reply: Decodable { let breaks: [String] }
-        var text = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end {
-            text = String(text[start...end])
-        }
+        let text = ModelJSON.objectText(in: response)
         guard let data = text.data(using: .utf8),
               let reply = try? JSONDecoder().decode(Reply.self, from: data) else {
             throw AnswerError.unreadable

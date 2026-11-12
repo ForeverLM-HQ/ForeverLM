@@ -13,6 +13,15 @@ import Foundation
 
 extension MCPDataStore {
 
+    /// The name a create or rename action carries, as a space or collection
+    /// keeps it; blank is an error naming the action.
+    static func requiredCleanedName(_ name: String?, action: String) throws -> String {
+        guard let cleaned = PageSpaces.cleanedName(name ?? "") else {
+            throw MCPError.invalidInput("name is required for action \(action) and cannot be blank.")
+        }
+        return cleaned
+    }
+
     /// Every space, by name, with the pages in it by title. Pages in the
     /// Trash are left out, as the space's list leaves them out. In Screen
     /// record mode only the pages on screen, and only the spaces holding one,
@@ -77,12 +86,6 @@ extension MCPDataStore {
             }
             return space
         }
-        func cleanedName() throws -> String {
-            guard let cleaned = PageSpaces.cleanedName(name ?? "") else {
-                throw MCPError.invalidInput("name is required for action \(action) and cannot be blank.")
-            }
-            return cleaned
-        }
         /// Writes each row a move changes, as `filePages` does, and answers
         /// the pages that moved.
         func move(to spaceID: String?) -> [String] {
@@ -98,7 +101,7 @@ extension MCPDataStore {
         var moved: [String] = []
         switch action {
         case "create":
-            let cleaned = try cleanedName()
+            let cleaned = try Self.requiredCleanedName(name, action: action)
             let id = PageSpaces.newSpaceID()
             PageSpaceRows.writeName(cleaned, spaceID: id)
             state = state.settingName(cleaned, for: id)
@@ -106,7 +109,7 @@ extension MCPDataStore {
             moved = move(to: id)
         case "rename":
             let current = try existing()
-            let cleaned = try cleanedName()
+            let cleaned = try Self.requiredCleanedName(name, action: action)
             PageSpaceRows.writeName(cleaned, spaceID: current.id)
             state = state.settingName(cleaned, for: current.id)
             space = PageSpace(id: current.id, name: cleaned)

@@ -1710,7 +1710,7 @@ private struct ProviderCapsuleLabel: View {
 }
 
 /// Settings › Voice › Voice mode: the voice a conversation speaks in
-/// (`RealtimeVoiceDefaults.voicePreferenceKey`, synced, so the iPhone and
+/// (`Prefs.ReadAloud.voiceModeVoice`, synced, so the iPhone and
 /// CarPlay speak in it too). A change applies to the next conversation; one
 /// under way keeps its voice, as OpenAI holds a session's voice once it has spoken.
 struct VoiceModeVoicePicker: View {

@@ -154,6 +154,18 @@ struct ReportPlan: Sendable {
         if skipped > 0 { parts.append("\(skipped) left out") }
         return parts.joined(separator: " · ")
     }
+
+    /// The options sheets' sentence naming the sources not read whole and the
+    /// ones left out; nil when every source is read whole.
+    static func readingDetail(ideas: [String], condensed: [String], skipped: [(title: String, reason: String)]) -> String? {
+        var parts: [String] = []
+        if !ideas.isEmpty { parts.append("From their ideas, to fit the model's window: \(ideas.joined(separator: "; ")).") }
+        if !condensed.isEmpty { parts.append("Condensed, to fit: \(condensed.joined(separator: "; ")).") }
+        if !skipped.isEmpty {
+            parts.append("Left out: " + skipped.map { "\($0.title) (\($0.reason.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))))" }.joined(separator: "; ") + ".")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
 }
 
 /// Where a run is, for the pending row and `list_running_ai_work`.

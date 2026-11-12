@@ -290,7 +290,7 @@ enum MacArticleTTSClient {
                             reason: reason
                         )
                     }
-                    if attempt < maxAudioRequestAttempts, isRetryableStatusCode(http.statusCode) {
+                    if attempt < maxAudioRequestAttempts, CloudArticleTTS.isRetryable(http.statusCode) {
                         try await sleepBeforeRetry(attempt: attempt, response: http)
                         attempt += 1
                         continue
@@ -455,14 +455,6 @@ enum MacArticleTTSClient {
     /// iPhone's client reads the same list.
     static func isModelRefusal(statusCode: Int) -> Bool {
         AIModelQualification.isSpeechModelRefusal(statusCode: statusCode)
-    }
-
-    private static func isRetryableStatusCode(_ statusCode: Int) -> Bool {
-        statusCode == 408
-            || statusCode == 409
-            || statusCode == 425
-            || statusCode == 429
-            || (500..<600).contains(statusCode)
     }
 
     /// True when the provider's refusal cannot be fixed by retrying: bad or
@@ -753,7 +745,7 @@ enum ArticleSpeechAudioCache {
     /// holds — a false `hasCachedAudio` that suppresses generation and leaves
     /// playback with nothing to play.
     static func markerDirectory() -> URL {
-        SharedDerivedCacheAdoption.profileTTSAudioCacheURL
+        ForeverLMRuntimeIdentity.profileTTSAudioCacheURL
             .appendingPathComponent("ArticleMarkers", isDirectory: true)
     }
 

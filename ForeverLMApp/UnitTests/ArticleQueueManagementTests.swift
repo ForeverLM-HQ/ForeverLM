@@ -1455,4 +1455,44 @@ struct ArticleQueueManagementTests {
         }
     }
 
+    // MARK: Waiting for a source's fetch
+
+    @Test("Waiting for a source fetch returns at once when none is running")
+    func waitForSourceFetchWhenIdle() async {
+        let vm = makeViewModel()
+        #expect(await vm.waitForSourceFetch("idle-source", timeout: .seconds(5)))
+    }
+
+    @Test("Waiting for a source fetch returns true when the fetch ends")
+    func waitForSourceFetchEnds() async {
+        let vm = makeViewModel()
+        vm.contentFetchInFlight.insert("fetching-source")
+        let waiter = Task { @MainActor in
+            await vm.waitForSourceFetch("fetching-source", timeout: .seconds(30))
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        vm.contentFetchInFlight.remove("fetching-source")
+        #expect(await waiter.value)
+    }
+
+    @Test("Waiting for a source fetch returns false at the timeout")
+    func waitForSourceFetchTimesOut() async {
+        let vm = makeViewModel()
+        vm.contentFetchInFlight.insert("stuck-source")
+        let ended = await vm.waitForSourceFetch("stuck-source", timeout: .milliseconds(150))
+        #expect(!ended)
+    }
+
+    @Test("Waiting for a source fetch ends promptly when the task is cancelled")
+    func waitForSourceFetchCancels() async {
+        let vm = makeViewModel()
+        vm.contentFetchInFlight.insert("cancelled-source")
+        let waiter = Task { @MainActor in
+            await vm.waitForSourceFetch("cancelled-source", timeout: .seconds(60))
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        waiter.cancel()
+        #expect(!(await waiter.value))
+    }
+
 }

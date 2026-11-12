@@ -1003,18 +1003,7 @@ private struct SourcesSettingsDetailView: View {
     }
 
     private func readingListBrowserBinding(_ browser: ReadingListBrowser) -> Binding<Bool> {
-        Binding(
-            get: { enabledReadingListBrowsers.contains(browser) },
-            set: { isOn in
-                browser.setEnabled(isOn)
-                if isOn {
-                    enabledReadingListBrowsers.insert(browser)
-                } else {
-                    enabledReadingListBrowsers.remove(browser)
-                }
-                vm.readingListBrowsersDidChange()
-            }
-        )
+        browser.binding(in: $enabledReadingListBrowsers) { vm.readingListBrowsersDidChange() }
     }
 
     // MARK: - Zoom transcripts

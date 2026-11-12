@@ -10,6 +10,41 @@ import Darwin
 
 extension StudioViewModel {
 
+    /// The folder identity and metadata one meeting import resolves before it writes anything.
+    private struct MeetingImportGroup {
+        let importIdentityGroupID: String
+        let groupID: String
+        let previousImportMetadata: MeetingMetadata?
+        let importMetadata: MeetingMetadata
+        let metadata: MeetingMetadata
+        let displayTitle: String
+        let previousMetadata: MeetingMetadata?
+    }
+
+    /// What every session of one meeting import reads while it is staged.
+    private struct MeetingImportContext {
+        let groupID: String
+        let displayTitle: String
+        let title: String
+        let discoveryOrigin: DiscoveryOrigin
+        let localFolderPath: String?
+        let descriptors: [String: (title: String, presenter: String?)]
+        let retriedSessionKeys: Set<String>
+        let ownTranscriptionEnabled: Bool
+    }
+
+    /// The observable state a meeting import keeps private until every durable write has succeeded.
+    private struct MeetingImportStaging {
+        var articles: [StudioArticle]
+        var artifactsBySourceID: [String: [MeetingArtifact]]
+        var added = 0
+        var updated = 0
+        var importedSourceIDs: [String] = []
+    }
+
+    /// Imports one folder's parsed meeting files as sessions of a meeting group, in
+    /// steps: resolve the group, group the files into sessions, name them, stage and
+    /// write each session, fold re-keyed duplicates, then publish once.
     func importMeetingArtifacts(
         _ parsedFiles: [ParsedMeetingArtifact],
         groupTitle title: String,
@@ -19,6 +54,86 @@ extension StudioViewModel {
         emptyMessage: String,
         silent: Bool = false
     ) async throws {
+        let group = resolveMeetingImportGroup(
+            groupTitle: title,
+            driveFolderURL: driveFolderURL,
+            localFolderPath: localFolderPath
+        )
+        let groupID = group.groupID
+        let displayTitle = group.displayTitle
+        if try await hideRemovedMeetingGroupIfSilent(group, silent: silent) { return }
+        try await recordMeetingImportGroup(group, silent: silent)
+
+        guard let grouped = try await groupMeetingSessionsForImport(
+            parsedFiles,
+            groupID: groupID,
+            silent: silent,
+            emptyMessage: emptyMessage
+        ) else { return }
+
+        let (descriptors, retriedSessionKeys) = await describeMeetingSessions(
+            grouped,
+            groupID: groupID,
+            displayTitle: displayTitle,
+            silent: silent
+        )
+
+        let context = MeetingImportContext(
+            groupID: groupID,
+            displayTitle: displayTitle,
+            title: title,
+            discoveryOrigin: discoveryOrigin,
+            localFolderPath: localFolderPath,
+            descriptors: descriptors,
+            retriedSessionKeys: retriedSessionKeys,
+            ownTranscriptionEnabled: Self.isMeetingOwnTranscriptionEnabled
+        )
+        var staging = MeetingImportStaging(
+            articles: articles,
+            artifactsBySourceID: meetingArtifactsBySourceId
+        )
+        for (sessionKey, artifacts) in grouped {
+            try await stageMeetingSession(sessionKey: sessionKey, artifacts: artifacts, context: context, staging: &staging)
+        }
+
+        let foldedSessionIDs = await foldReKeyedMeetingSessions(parsedFiles, groupID: groupID, staging: &staging)
+        await publishStagedMeetingImport(staging, foldedSessionIDs: foldedSessionIDs)
+
+        // Artwork, once the artifacts are stored — the free sources read the
+        // recording this loop just saved. Deliberately unawaited: an icon can
+        // mean downloading a recording, and an import must not sit behind forty
+        // of those before it reports what it brought in.
+        let iconSourceIDs = staging.importedSourceIDs
+        Task { [weak self] in
+            await self?.backfillIconsForImportedMeetings(sourceIDs: iconSourceIDs)
+        }
+
+        if !silent {
+            // Every provider lands in the same place now, so there is no tab to
+            // choose and no way to choose it wrongly. The destination is not
+            // tied to one provider: hardcoding Read AI would drop a learner who
+            // imports a Drive folder on an unrelated empty tab.
+            //
+            // Landing on a tab Studio unpinned for want of evidence: this import
+            // is the evidence, so pin it rather than select a tab the tab bar
+            // does not show.
+            if autoUnpinnedIntegrationTabs.contains(.meetings) {
+                showTab(.meetings)
+            }
+            sidebarTab = .meetings
+            // Whichever provider this import came from, show it rather than
+            // whatever provider was filtered to before.
+            meetingProviderFilter = nil
+            showToast(Self.meetingImportSummary(added: staging.added, updated: staging.updated))
+        }
+    }
+
+    /// Resolves the import identity, canonical group and metadata for this folder, without writing.
+    private func resolveMeetingImportGroup(
+        groupTitle title: String,
+        driveFolderURL: String?,
+        localFolderPath: String?
+    ) -> MeetingImportGroup {
         let trimmedDriveURL = driveFolderURL?.trimmingCharacters(in: .whitespacesAndNewlines)
         let requestedDriveFolderID = trimmedDriveURL.flatMap { try? Self.googleDriveFolderID(from: $0) }
         let linkedDriveGroupID = requestedDriveFolderID.flatMap { folderID in
@@ -66,6 +181,23 @@ extension StudioViewModel {
             metadata.localFolderPath = importMetadata.localFolderPath
         }
         let previousMetadata = meetingMetadata[groupID]
+        return MeetingImportGroup(
+            importIdentityGroupID: importIdentityGroupID,
+            groupID: groupID,
+            previousImportMetadata: previousImportMetadata,
+            importMetadata: importMetadata,
+            metadata: metadata,
+            displayTitle: displayTitle,
+            previousMetadata: previousMetadata
+        )
+    }
+
+    /// A silent import into a group the learner removed keeps it hidden and writes nothing
+    /// else. Returns true when it did, and the import must stop.
+    private func hideRemovedMeetingGroupIfSilent(_ group: MeetingImportGroup, silent: Bool) async throws -> Bool {
+        let groupID = group.groupID
+        let metadata = group.metadata
+        let previousMetadata = group.previousMetadata
         if silent, Self.isMeetingGroupRemoved(groupID: groupID, metadata: metadata) {
             if !Self.hasRecordedMeetingGroupRemovalIdentity(groupID: groupID, metadata: metadata) {
                 Self.recordMeetingGroupRemoval(groupID: groupID, metadata: metadata)
@@ -79,8 +211,20 @@ extension StudioViewModel {
                 meetingMetadata[groupID] = hidden
                 try await storage.saveMeetingGroup(name: groupID, metadata: hidden)
             }
-            return
+            return true
         }
+        return false
+    }
+
+    /// Lifts the removal tombstone for an explicit import, finalises the group's metadata
+    /// and writes it, and the retired-alias identity row when there is one.
+    private func recordMeetingImportGroup(_ group: MeetingImportGroup, silent: Bool) async throws {
+        let importIdentityGroupID = group.importIdentityGroupID
+        let groupID = group.groupID
+        let previousImportMetadata = group.previousImportMetadata
+        let importMetadata = group.importMetadata
+        var metadata = group.metadata
+        let previousMetadata = group.previousMetadata
         // An explicit import is the learner deliberately bringing this exact
         // group/folder back. Background refreshes never lift the tombstone.
         if !silent {
@@ -109,7 +253,16 @@ extension StudioViewModel {
         if previousMetadata != metadata {
             try await storage.saveMeetingGroup(name: groupID, metadata: metadata)
         }
+    }
 
+    /// Groups the parsed files by session and drops (silent) or re-admits (explicit) sessions the
+    /// learner removed. Returns nil, after telling the learner when explicit, if nothing is left.
+    private func groupMeetingSessionsForImport(
+        _ parsedFiles: [ParsedMeetingArtifact],
+        groupID: String,
+        silent: Bool,
+        emptyMessage: String
+    ) async throws -> [String: [ParsedMeetingArtifact]]? {
         var grouped = Dictionary(
             grouping: Self.separatingEmbeddedTranscripts(in: parsedFiles),
             by: \.sessionKey
@@ -136,9 +289,19 @@ extension StudioViewModel {
         }
         guard !grouped.isEmpty else {
             if !silent { showToast(emptyMessage) }
-            return
+            return nil
         }
+        return grouped
+    }
 
+    /// Asks the model once for every new (or still date-titled) session's topic and presenter.
+    /// Returns the descriptors and the session keys that were asked about again.
+    private func describeMeetingSessions(
+        _ grouped: [String: [ParsedMeetingArtifact]],
+        groupID: String,
+        displayTitle: String,
+        silent: Bool
+    ) async -> (descriptors: [String: (title: String, presenter: String?)], retriedSessionKeys: Set<String>) {
         // One call for the whole import, before the write loop, so the session
         // rows land already named. Grouping is already fixed at this point, so a
         // failure here costs the topic and presenter, never the sessions
@@ -189,161 +352,205 @@ extension StudioViewModel {
                 }
             }
         }
+        return (descriptors, retriedSessionKeys)
+    }
 
-        let ownTranscriptionEnabled = Self.isMeetingOwnTranscriptionEnabled
-        // Counted apart, because a refresh walks every session in the folder
-        // whether or not anything about it moved. `importedSourceIDs` stays the
-        // whole set: it feeds the icon backfill, which is about sessions that
-        // still have no picture, not about sessions that arrived just now.
-        var added = 0
-        var updated = 0
-        var importedSourceIDs: [String] = []
-        // A plugin refresh can walk dozens of sessions. Keep its observable
-        // state private until every durable write succeeds, then publish at
-        // most one article snapshot and one artifact snapshot. Mutating either
-        // collection once per session made List reconcile the whole Meetings
-        // outline repeatedly while a silent tab-open refresh was still running,
-        // which presented as rows jittering and flashing even when the provider
-        // returned exactly the data already on screen.
-        var stagedArticles = articles
-        var stagedArtifactsBySourceID = meetingArtifactsBySourceId
-        for (sessionKey, artifacts) in grouped {
-            let sortedArtifacts = artifacts.sorted { $0.kind.sortRank < $1.kind.sortRank }
-            let sourceURL = "meeting://\(groupID)/\(Self.percentEncodedMeetingPathComponent(sessionKey))"
-            let descriptor = descriptors[sessionKey]
-                ?? (title: Self.meetingSessionTitle(from: sessionKey, groupTitle: displayTitle), presenter: nil)
-            let existingArticle = stagedArticles.first { $0.url == sourceURL }
-            var article = existingArticle
-                ?? StudioArticle(
-                    url: sourceURL,
-                    title: descriptor.title,
-                    sourceType: .meeting,
-                    discoveryOrigin: discoveryOrigin,
-                    parentGroup: groupID
-                )
-            article.sourceType = .meeting
-            // A session filed under its date takes the topic it was just read
-            // for. A title the learner wrote never reaches here: it is not a
-            // date, so the session was not asked about.
-            if existingArticle != nil, retriedSessionKeys.contains(sessionKey),
-               let described = descriptors[sessionKey] {
-                article.title = described.title
-            }
-            // Only stamp the origin on sessions this import created. A group may
-            // mix plugins (Drive sessions plus a read.ai session), and
-            // overwriting on every re-import dragged existing sessions into
-            // whichever plugin ran last, emptying the other tab.
-            if article.discoveryOrigin == nil { article.discoveryOrigin = discoveryOrigin }
-            article.parentGroup = groupID
-            // A session's title carries no "<series> - " prefix, which would repeat
-            // the row it already sits under on every line of the folder. Strip
-            // that prefix however this session is titled now: the
-            // group's current and provider names, and the series its own key
-            // spells out, which is the folder name from before a rename.
-            article.title = Self.strippingMeetingSeriesPrefix(
-                from: article.title,
-                series: [displayTitle, title, Self.meetingSeriesTitle(from: sessionKey)].compactMap { $0 }
+    /// Builds one session's article from its files, writes the article and its artifacts, and
+    /// records the result in `staging`.
+    private func stageMeetingSession(
+        sessionKey: String,
+        artifacts: [ParsedMeetingArtifact],
+        context: MeetingImportContext,
+        staging: inout MeetingImportStaging
+    ) async throws {
+        let groupID = context.groupID
+        let displayTitle = context.displayTitle
+        let title = context.title
+        let discoveryOrigin = context.discoveryOrigin
+        let localFolderPath = context.localFolderPath
+        let descriptors = context.descriptors
+        let retriedSessionKeys = context.retriedSessionKeys
+        let ownTranscriptionEnabled = context.ownTranscriptionEnabled
+        let sortedArtifacts = artifacts.sorted { $0.kind.sortRank < $1.kind.sortRank }
+        let sourceURL = "meeting://\(groupID)/\(Self.percentEncodedMeetingPathComponent(sessionKey))"
+        let descriptor = descriptors[sessionKey]
+            ?? (title: Self.meetingSessionTitle(from: sessionKey, groupTitle: displayTitle), presenter: nil)
+        let existingArticle = staging.articles.first { $0.url == sourceURL }
+        var article = existingArticle
+            ?? StudioArticle(
+                url: sourceURL,
+                title: descriptor.title,
+                sourceType: .meeting,
+                discoveryOrigin: discoveryOrigin,
+                parentGroup: groupID
             )
-            article.domain = displayTitle
-            article.localFilePath = localFolderPath
-            if let presenter = descriptor.presenter {
-                article.author = presenter
-            }
-            if let occurredAt = Self.meetingDate(from: sessionKey) {
-                article.dateAdded = occurredAt
-            }
-            let storedPriorArtifacts = (await loggedRead("meeting artifacts") { try await storage.loadMeetingArtifacts(sourceID: article.id) }) ?? []
-            let priorArtifacts = stagedArtifactsBySourceID[article.id] ?? storedPriorArtifacts
-            let generatedTranscriptID = SourceIdentity.stableID(for: "\(article.id):generated:transcript")
-            let priorContent = existingArticle?.content
-            let articleTitle = article.title
-            let preparedContent = await Task.detached(priority: .utility) {
-                let hasImportedTranscript = sortedArtifacts.contains(where: {
-                    $0.kind == .transcript
-                        && $0.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                })
-                let preservedTranscript = hasImportedTranscript
-                    ? nil
-                    : MeetingContent.text(for: .transcript, in: priorContent)
-                var sections = sortedArtifacts.compactMap { artifact -> String? in
-                    guard let text = artifact.text?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !text.isEmpty else { return nil }
-                    return "## \(artifact.kind.label)\n\n\(text)"
-                }
-                if let preservedTranscript {
-                    sections.insert("## Transcript\n\n\(preservedTranscript)", at: 0)
-                }
-                guard !sections.isEmpty else {
-                    return (content: nil as String?, wordCount: nil as Int?, preservedTranscript: preservedTranscript)
-                }
-                let content = "# \(articleTitle)\n\n" + sections.joined(separator: "\n\n")
-                return (content: content as String?, wordCount: content.split(separator: " ").count as Int?, preservedTranscript: preservedTranscript)
-            }.value
-            if preparedContent.content == nil {
-                article.content = nil
-                article.wordCount = nil
-                article.state = .error
-                article.errorMessage = ownTranscriptionEnabled
-                    ? "No transcript, notes, or chat text found. Open the recording to generate its transcript."
-                    : "Google Drive has no transcript, notes, or chat text for this session yet."
+        article.sourceType = .meeting
+        // A session filed under its date takes the topic it was just read
+        // for. A title the learner wrote never reaches here: it is not a
+        // date, so the session was not asked about.
+        if existingArticle != nil, retriedSessionKeys.contains(sessionKey),
+           let described = descriptors[sessionKey] {
+            article.title = described.title
+        }
+        // Only stamp the origin on sessions this import created. A group may
+        // mix plugins (Drive sessions plus a read.ai session), and
+        // overwriting on every re-import dragged existing sessions into
+        // whichever plugin ran last, emptying the other tab.
+        if article.discoveryOrigin == nil { article.discoveryOrigin = discoveryOrigin }
+        article.parentGroup = groupID
+        // A session's title carries no "<series> - " prefix, which would repeat
+        // the row it already sits under on every line of the folder. Strip
+        // that prefix however this session is titled now: the
+        // group's current and provider names, and the series its own key
+        // spells out, which is the folder name from before a rename.
+        article.title = Self.strippingMeetingSeriesPrefix(
+            from: article.title,
+            series: [displayTitle, title, Self.meetingSeriesTitle(from: sessionKey)].compactMap { $0 }
+        )
+        article.domain = displayTitle
+        article.localFilePath = localFolderPath
+        if let presenter = descriptor.presenter {
+            article.author = presenter
+        }
+        if let occurredAt = Self.meetingDate(from: sessionKey) {
+            article.dateAdded = occurredAt
+        }
+        let storedPriorArtifacts = (await loggedRead("meeting artifacts") { try await storage.loadMeetingArtifacts(sourceID: article.id) }) ?? []
+        let priorArtifacts = staging.artifactsBySourceID[article.id] ?? storedPriorArtifacts
+        let generatedTranscriptID = SourceIdentity.stableID(for: "\(article.id):generated:transcript")
+        let priorContent = existingArticle?.content
+        let articleTitle = article.title
+        let preparedContent = await Self.prepareMeetingSessionContent(
+            sortedArtifacts: sortedArtifacts,
+            priorContent: priorContent,
+            articleTitle: articleTitle
+        )
+        if preparedContent.content == nil {
+            article.content = nil
+            article.wordCount = nil
+            article.state = .error
+            article.errorMessage = ownTranscriptionEnabled
+                ? "No transcript, notes, or chat text found. Open the recording to generate its transcript."
+                : "Google Drive has no transcript, notes, or chat text for this session yet."
+        } else {
+            article.content = preparedContent.content
+            article.wordCount = preparedContent.wordCount
+            article.state = .ready
+            article.errorMessage = nil
+        }
+
+        var sessionChanged = false
+        if existingArticle != article {
+            sessionChanged = true
+            try await storage.saveSource(article, syncImmediately: true)
+            if article.state == .ready { MeetingActionItemExtractor.shared.noteTranscriptReady(sourceID: article.id) }
+            if let existingIndex = staging.articles.firstIndex(where: { $0.id == article.id }) {
+                staging.articles[existingIndex] = article
             } else {
-                article.content = preparedContent.content
-                article.wordCount = preparedContent.wordCount
-                article.state = .ready
-                article.errorMessage = nil
-            }
-
-            var sessionChanged = false
-            if existingArticle != article {
-                sessionChanged = true
-                try await storage.saveSource(article, syncImmediately: true)
-                if article.state == .ready { MeetingActionItemExtractor.shared.noteTranscriptReady(sourceID: article.id) }
-                if let existingIndex = stagedArticles.firstIndex(where: { $0.id == article.id }) {
-                    stagedArticles[existingIndex] = article
-                } else {
-                    stagedArticles.append(article)
-                }
-            }
-
-            var savedArtifacts: [MeetingArtifact] = []
-            var existingArtifacts: [String: MeetingArtifact] = [:]
-            for artifact in priorArtifacts {
-                existingArtifacts[artifact.id] = artifact
-            }
-            for (index, parsed) in sortedArtifacts.enumerated() {
-                let artifact = MeetingArtifact(
-                    id: SourceIdentity.stableID(for: "\(article.id):\(parsed.url.absoluteString):\(parsed.kind.rawValue)"),
-                    sourceId: article.id,
-                    groupId: groupID,
-                    kind: parsed.kind,
-                    title: parsed.title,
-                    url: parsed.externalURL,
-                    localFilePath: parsed.localFilePath,
-                    mimeType: parsed.mimeType,
-                    modifiedAt: parsed.modifiedAt,
-                    sortIndex: index
-                )
-                if existingArtifacts[artifact.id] != artifact {
-                    sessionChanged = true
-                    try await storage.saveMeetingArtifact(artifact)
-                }
-                savedArtifacts.append(artifact)
-            }
-            if preparedContent.preservedTranscript != nil,
-               let generated = existingArtifacts[generatedTranscriptID],
-               !savedArtifacts.contains(where: { $0.id == generated.id }) {
-                savedArtifacts.append(generated)
-            }
-            savedArtifacts.sort { $0.sortIndex < $1.sortIndex }
-            stagedArtifactsBySourceID[article.id] = savedArtifacts
-            importedSourceIDs.append(article.id)
-            if existingArticle == nil {
-                added += 1
-            } else if sessionChanged {
-                updated += 1
+                staging.articles.append(article)
             }
         }
 
+        let savedArtifacts = try await saveMeetingSessionArtifacts(
+            sortedArtifacts: sortedArtifacts,
+            priorArtifacts: priorArtifacts,
+            article: article,
+            groupID: groupID,
+            generatedTranscriptID: generatedTranscriptID,
+            preservedTranscript: preparedContent.preservedTranscript,
+            sessionChanged: &sessionChanged
+        )
+        staging.artifactsBySourceID[article.id] = savedArtifacts
+        staging.importedSourceIDs.append(article.id)
+        if existingArticle == nil {
+            staging.added += 1
+        } else if sessionChanged {
+            staging.updated += 1
+        }
+    }
+
+    /// Joins a session's artifact texts into its source content on a utility task, keeping the
+    /// transcript the source already holds when the import brought none.
+    private static func prepareMeetingSessionContent(
+        sortedArtifacts: [ParsedMeetingArtifact],
+        priorContent: String?,
+        articleTitle: String
+    ) async -> (content: String?, wordCount: Int?, preservedTranscript: String?) {
+        return await Task.detached(priority: .utility) {
+            let hasImportedTranscript = sortedArtifacts.contains(where: {
+                $0.kind == .transcript
+                    && $0.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            })
+            let preservedTranscript = hasImportedTranscript
+                ? nil
+                : MeetingContent.text(for: .transcript, in: priorContent)
+            var sections = sortedArtifacts.compactMap { artifact -> String? in
+                guard let text = artifact.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !text.isEmpty else { return nil }
+                return "## \(artifact.kind.label)\n\n\(text)"
+            }
+            if let preservedTranscript {
+                sections.insert("## Transcript\n\n\(preservedTranscript)", at: 0)
+            }
+            guard !sections.isEmpty else {
+                return (content: nil as String?, wordCount: nil as Int?, preservedTranscript: preservedTranscript)
+            }
+            let content = "# \(articleTitle)\n\n" + sections.joined(separator: "\n\n")
+            return (content: content as String?, wordCount: content.split(separator: " ").count as Int?, preservedTranscript: preservedTranscript)
+        }.value
+    }
+
+    /// Writes the artifacts of one session that changed and returns the full sorted set for the session.
+    private func saveMeetingSessionArtifacts(
+        sortedArtifacts: [ParsedMeetingArtifact],
+        priorArtifacts: [MeetingArtifact],
+        article: StudioArticle,
+        groupID: String,
+        generatedTranscriptID: String,
+        preservedTranscript: String?,
+        sessionChanged: inout Bool
+    ) async throws -> [MeetingArtifact] {
+        var savedArtifacts: [MeetingArtifact] = []
+        var existingArtifacts: [String: MeetingArtifact] = [:]
+        for artifact in priorArtifacts {
+            existingArtifacts[artifact.id] = artifact
+        }
+        for (index, parsed) in sortedArtifacts.enumerated() {
+            let artifact = MeetingArtifact(
+                id: SourceIdentity.stableID(for: "\(article.id):\(parsed.url.absoluteString):\(parsed.kind.rawValue)"),
+                sourceId: article.id,
+                groupId: groupID,
+                kind: parsed.kind,
+                title: parsed.title,
+                url: parsed.externalURL,
+                localFilePath: parsed.localFilePath,
+                mimeType: parsed.mimeType,
+                modifiedAt: parsed.modifiedAt,
+                sortIndex: index
+            )
+            if existingArtifacts[artifact.id] != artifact {
+                sessionChanged = true
+                try await storage.saveMeetingArtifact(artifact)
+            }
+            savedArtifacts.append(artifact)
+        }
+        if preservedTranscript != nil,
+           let generated = existingArtifacts[generatedTranscriptID],
+           !savedArtifacts.contains(where: { $0.id == generated.id }) {
+            savedArtifacts.append(generated)
+        }
+        savedArtifacts.sort { $0.sortIndex < $1.sortIndex }
+        return savedArtifacts
+    }
+
+    /// Folds sessions this folder filed a second time into the session that holds their files
+    /// now, archiving the stale rows. Returns the ids folded away.
+    private func foldReKeyedMeetingSessions(
+        _ parsedFiles: [ParsedMeetingArtifact],
+        groupID: String,
+        staging: inout MeetingImportStaging
+    ) async -> [String] {
+        let importedSourceIDs = staging.importedSourceIDs
         // Fold sessions this folder filed a second time into the session that
         // holds their files now.
         //
@@ -365,19 +572,19 @@ extension StudioViewModel {
         let importedFiles = Set(parsedFiles.compactMap(Self.meetingFileIdentity))
         let importedOwnerByFile = Self.meetingArtifactFileOwners(
             sourceIDs: importedSourceIDs,
-            artifacts: stagedArtifactsBySourceID
+            artifacts: staging.artifactsBySourceID
         )
         let otherSeriesOwnerByFile = Self.meetingArtifactFileOwners(
-            sourceIDs: stagedArticles.lazy
+            sourceIDs: staging.articles.lazy
                 .filter { $0.sourceType == .meeting }
                 .filter { $0.parentGroup.map(self.canonicalMeetingGroupID) != groupID }
                 .map(\.id),
-            artifacts: stagedArtifactsBySourceID
+            artifacts: staging.artifactsBySourceID
         )
-        for stale in stagedArticles where stale.sourceType == .meeting
+        for stale in staging.articles where stale.sourceType == .meeting
             && stale.parentGroup.map(canonicalMeetingGroupID) == groupID
             && !importedSourceIDs.contains(stale.id) {
-            let files = stagedArtifactsBySourceID[stale.id] ?? []
+            let files = staging.artifactsBySourceID[stale.id] ?? []
             guard let canonicalID = files.lazy.compactMap({ artifact -> String? in
                 guard let file = Self.meetingArtifactFileIdentity(artifact) else { return nil }
                 if let owner = importedOwnerByFile[file] { return owner }
@@ -395,47 +602,24 @@ extension StudioViewModel {
         }
         if !foldedSessionIDs.isEmpty {
             let folded = Set(foldedSessionIDs)
-            stagedArticles.removeAll { folded.contains($0.id) }
-            for sourceID in folded { stagedArtifactsBySourceID[sourceID] = nil }
+            staging.articles.removeAll { folded.contains($0.id) }
+            for sourceID in folded { staging.artifactsBySourceID[sourceID] = nil }
             logger.notice("Folded \(folded.count) re-keyed meeting session(s) into their current session")
         }
+        return foldedSessionIDs
+    }
 
-        if stagedArticles != articles {
-            articles = stagedArticles
+    /// Publishes the staged articles and artifacts in one assignment each, and reloads
+    /// relationships when sessions were folded.
+    private func publishStagedMeetingImport(_ staging: MeetingImportStaging, foldedSessionIDs: [String]) async {
+        if staging.articles != articles {
+            articles = staging.articles
         }
-        if stagedArtifactsBySourceID != meetingArtifactsBySourceId {
-            meetingArtifactsBySourceId = stagedArtifactsBySourceID
+        if staging.artifactsBySourceID != meetingArtifactsBySourceId {
+            meetingArtifactsBySourceId = staging.artifactsBySourceID
         }
         if !foldedSessionIDs.isEmpty {
             await reloadSourceRelationshipsAfterMerge()
-        }
-
-        // Artwork, once the artifacts are stored — the free sources read the
-        // recording this loop just saved. Deliberately unawaited: an icon can
-        // mean downloading a recording, and an import must not sit behind forty
-        // of those before it reports what it brought in.
-        let iconSourceIDs = importedSourceIDs
-        Task { [weak self] in
-            await self?.backfillIconsForImportedMeetings(sourceIDs: iconSourceIDs)
-        }
-
-        if !silent {
-            // Every provider lands in the same place now, so there is no tab to
-            // choose and no way to choose it wrongly. The destination is not
-            // tied to one provider: hardcoding Read AI would drop a learner who
-            // imports a Drive folder on an unrelated empty tab.
-            //
-            // Landing on a tab Studio unpinned for want of evidence: this import
-            // is the evidence, so pin it rather than select a tab the tab bar
-            // does not show.
-            if autoUnpinnedIntegrationTabs.contains(.meetings) {
-                showTab(.meetings)
-            }
-            sidebarTab = .meetings
-            // Whichever provider this import came from, show it rather than
-            // whatever provider was filtered to before.
-            meetingProviderFilter = nil
-            showToast(Self.meetingImportSummary(added: added, updated: updated))
         }
     }
 

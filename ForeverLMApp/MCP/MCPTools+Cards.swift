@@ -1005,7 +1005,7 @@ extension MCPDataStore {
         }
         await MemoryCardStateStore.loaded(defaults: cardStateDefaults)
         let studio = try await MainActor.run { try AppModelBridge.requireStudio() }
-        await MainActor.run { Self.bringActiveStudioWindowForward() }
+        await MainActor.run { StudioWorkspaceWindowCoordinator.shared.bringActiveWindowForward() }
         let started: StudioViewModel.ChosenCardPracticeStart
         do {
             started = try await studio.startChosenCardPractice(cardIDs: cardIDs, title: title)

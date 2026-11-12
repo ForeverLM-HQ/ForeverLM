@@ -1578,6 +1578,16 @@ final class StudioWorkspaceWindowCoordinator {
         window.makeKeyAndOrderFront(nil)
     }
 
+    /// ForeverLM in front, with the window the learner last used key: where a
+    /// link from outside the app, `open_in_app` and `practice_cards` show what
+    /// they open.
+    func bringActiveWindowForward() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let state = StudioWindowRegistry.shared.activeState, let window = window(for: state) {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
     func updatePlacement(for state: StudioWindowState, window: NSWindow) {
         state.workspacePlacement = placement(for: window)
     }

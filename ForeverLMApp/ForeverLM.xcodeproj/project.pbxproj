@@ -242,7 +242,6 @@
 		18BEDAB79558A090AD0965FD /* String+HTMLEscaped.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E66755BC6DC42E90588AE7 /* String+HTMLEscaped.swift */; };
 		18C8B676F4A88A52C13DC073 /* ChatCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7511BE2AD6F532F1389BBF /* ChatCode.swift */; };
 		18DE68C76215EB9C5F891E49 /* FakeCloudKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8767D5DE1E65D141C973C0 /* FakeCloudKit.swift */; };
-		19297F519A5F145D07F558DC /* SharedDerivedCacheAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA85DCC8212C97646BBC5A6C /* SharedDerivedCacheAdoption.swift */; };
 		1929E6D15C57E4DBB3512EEF /* ScheduleChatNavigationTests+NewChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6D47BA761045E3ECAE667D /* ScheduleChatNavigationTests+NewChat.swift */; };
 		1932F66484003D098D4CE841 /* AudioOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BBC0CB00BC6BCCB75F0A55 /* AudioOverview.swift */; };
 		19406FB9B824A370289D3EE3 /* AIProviderErrorText.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F0FA8DCF234EB0B1C1000A /* AIProviderErrorText.swift */; };
@@ -1371,7 +1370,6 @@
 		911DE2A730E093135C387796 /* SyncPacer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18565BF0083B043CFD1A280 /* SyncPacer.swift */; };
 		9126E3AF219F3E6040F2FEBD /* PodcastTokenHelper in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 964D429A9F92909DBDBE3560 /* PodcastTokenHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		912C8CF9472868D6CC18B458 /* StudioViewModel+Clips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B49A22D1E17086BEC67EAB /* StudioViewModel+Clips.swift */; };
-		9180A24E35A2508EE8F5D3C8 /* SharedDerivedCacheAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA85DCC8212C97646BBC5A6C /* SharedDerivedCacheAdoption.swift */; };
 		91856E41C3DB43E34FF8D83F /* MCPToolRegistry+ExecuteReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 088609C0550B1E5C7900364C /* MCPToolRegistry+ExecuteReview.swift */; };
 		918DCE31ACB7CD9CC1016701 /* SourceReviewGuidePreparationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129E072B71DB6272EDB2117C /* SourceReviewGuidePreparationService.swift */; };
 		91AF787005A151913434F8A5 /* SyncVectorRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76601FE23B9D84E93EE7C6C9 /* SyncVectorRunner.swift */; };
@@ -3959,7 +3957,6 @@
 		BA3A4D10E2BD7CD378C7C71B /* SourceEmbeddingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceEmbeddingText.swift; sourceTree = "<group>"; };
 		BA492D2D1653845D1A5C0FF5 /* StorageService+TeamDocDrafts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorageService+TeamDocDrafts.swift"; sourceTree = "<group>"; };
 		BA6C3D6DE1423F2B0534D419 /* StudioViewModel+CanvasFromSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+CanvasFromSources.swift"; sourceTree = "<group>"; };
-		BA85DCC8212C97646BBC5A6C /* SharedDerivedCacheAdoption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDerivedCacheAdoption.swift; sourceTree = "<group>"; };
 		BA87AF17FB83346CAE2361ED /* BrowserWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserWorkspace.swift; sourceTree = "<group>"; };
 		BA885A7848DAFB6FE8C0A0ED /* GeneratedImageReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedImageReference.swift; sourceTree = "<group>"; };
 		BA899CC319FB7F80A8146735 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -5068,7 +5065,6 @@
 				17812FE8CB43F384DC59A5CA /* PreferenceStore+TypedKeys.swift */,
 				DB2015D520F6433A4DC2A0DC /* RetiredDefaultsCleanup.swift */,
 				3DCACE445703401A791FA5EC /* RetiredQuestionCalibration.swift */,
-				BA85DCC8212C97646BBC5A6C /* SharedDerivedCacheAdoption.swift */,
 				C6CE056973C156BBB1407D1A /* SourceEmbeddingIndexer.swift */,
 				BA3A4D10E2BD7CD378C7C71B /* SourceEmbeddingText.swift */,
 				A2178823D015972C6D75701B /* SourceKeywordSearch.swift */,
@@ -8293,7 +8289,6 @@
 				271523A34EF78CDDEDD82BBE /* SQLiteConnection.swift in Sources */,
 				CBE4E0DA7445AD98AF9D9651 /* SSEByteLines.swift in Sources */,
 				B9D7BC0657E9A6DC821DAC08 /* ShareService.swift in Sources */,
-				9180A24E35A2508EE8F5D3C8 /* SharedDerivedCacheAdoption.swift in Sources */,
 				5922EBEC879A085A7EFE2079 /* SharingRightsAffirmation.swift in Sources */,
 				41883A8FD924012CE3998E47 /* SiteFile.swift in Sources */,
 				D7C4E7B2DF3FF71D80809961 /* SourceHighlight.swift in Sources */,
@@ -9382,7 +9377,6 @@
 				109BCC26929B56CD3AD8C251 /* SettingsWorkingNotes.swift in Sources */,
 				78D1F187C3AD65CAC58CC6CF /* ShareService.swift in Sources */,
 				E41087E9AE30122804E2FABD /* ShareWithTeamMenu.swift in Sources */,
-				19297F519A5F145D07F558DC /* SharedDerivedCacheAdoption.swift in Sources */,
 				10B934029139E4BC7048CB6A /* SharedWebKit.swift in Sources */,
 				44229803873CDD9365A82FFA /* SharingRightsAffirmation.swift in Sources */,
 				3DD0EA667A7A42AEBCE8FD00 /* SharingRightsRow.swift in Sources */,

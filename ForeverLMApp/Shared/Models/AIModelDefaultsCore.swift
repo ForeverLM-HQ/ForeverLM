@@ -28,6 +28,20 @@ enum AIModelDefaults {
     /// recommended free pick (product owner, 2026-09-27).
     static let openRouterFreeRouter = "openrouter/free"
 
+    /// The single free models Setup offers after the router, best first per
+    /// role. Free models come and go: Setup keeps those still listed free.
+    static let freeGemma31B = "google/gemma-4-31b-it:free"
+    static let freeGemma26B = "google/gemma-4-26b-a4b-it:free"
+    static let freeQwen27B = "qwen/qwen3.8-27b:free"
+    static let freeNemotronSuper = "nvidia/nemotron-3-super-120b-a12b:free"
+
+    /// The paid models Setup recommends, in the order it tries them: the
+    /// first that qualifies (open weights, hosts in the region, tools) wins.
+    static let recommendedGLMFlash = "z-ai/glm-5.3-flash"
+    static let recommendedGemma31B = "google/gemma-4-31b-it"
+    static let recommendedGPTOSS120B = "openai/gpt-oss-120b"
+    static let recommendedDeepSeekFlash = "deepseek/deepseek-v4-flash"
+
     /// Voice mode (`RealtimeVoiceController`): OpenAI Realtime, the one model
     /// not reached through OpenRouter, on ForeverLM's own OpenAI credits
     /// (product owner, 2026-11-07). The proxy accepts this and the -mini model.

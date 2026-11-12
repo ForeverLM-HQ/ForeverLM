@@ -754,7 +754,7 @@ extension CKRecord.FieldKey {
 
 /// Pictures from this Mac's image store packed into one CloudKit asset beside
 /// the record that shows them: a course's quizzes (`CourseQuizPicturePackage`,
-/// on the Course record) or a source's walk (`WalkthroughPicturePackage`, on
+/// on the Course record) or a source's walk (`StoredPicturePackage`, on
 /// the Source record).
 ///
 /// A drawn or saved picture lives only in the store of the Mac that holds it

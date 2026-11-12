@@ -137,50 +137,6 @@ final class MobileReviewSpeechService: NSObject, ObservableObject, AVSpeechSynth
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// PDF (and some HTML) extractors emit a hard line break at every visual line
-    /// end, so a single sentence arrives split across several lines. Feeding those
-    /// breaks to the synthesizer reads with an audible stop mid-sentence. Rejoin
-    /// soft-wrapped lines into flowing paragraphs — de-hyphenating words broken
-    /// across a line — while preserving genuine paragraph breaks (blank lines).
-    /// Mirrors `MacArticleSpeechText.reflowedForSpeech` so both platforms narrate
-    /// extracted source text the same way.
-    nonisolated static func reflowedForSpeech(_ text: String) -> String {
-        let lines = text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: "\n")
-
-        var paragraphs: [String] = []
-        var current = ""
-
-        func flush() {
-            let trimmed = current.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty { paragraphs.append(trimmed) }
-            current = ""
-        }
-
-        for rawLine in lines {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty {
-                flush()
-            } else if current.isEmpty {
-                current = line
-            } else if current.hasSuffix("-"),
-                      let previous = current.dropLast().last, previous.isLetter,
-                      let first = line.first, first.isLowercase {
-                // A word hyphenated across the line break (e.g. "abroga-\ntion"):
-                // drop the trailing hyphen and join tight so it reads as one word.
-                current.removeLast()
-                current += line
-            } else {
-                current += " " + line
-            }
-        }
-        flush()
-
-        return paragraphs.joined(separator: "\n\n")
-    }
-
     /// Narration is lossless. Meaning-sensitive condensation belongs in a
     /// configurable AI preparation task, not hand-written text rules.
     nonisolated static func narrationText(from raw: String) -> String {

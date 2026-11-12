@@ -518,11 +518,7 @@ struct BrowserPane: View {
     /// publisher blocks makes it the only copy there is.
     private func offerRenderedPage(of webView: WKWebView?, for articleID: String, expectedURL: URL) async {
         guard let webView else { return }
-        var waitedSeconds = 0
-        while waitedSeconds < 90, vm.sourceFetchIsInFlight(articleID) {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            waitedSeconds += 1
-        }
+        _ = await vm.waitForSourceFetch(articleID, timeout: .seconds(90))
         guard webView.url == expectedURL || webView.url?.absoluteString == expectedURL.absoluteString,
               vm.readerPageCanSupplySourceContent(articleID),
               let page = await WebViewReader.Coordinator.renderedPageSnapshot(of: webView) else { return }

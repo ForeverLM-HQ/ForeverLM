@@ -467,7 +467,7 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                 sync()
                 installRendererHooks()
             case "camera":
-                guard let scale = Self.number(body["scale"]), let ox = Self.number(body["ox"]), let oy = Self.number(body["oy"]) else { return }
+                guard let scale = KnowledgeMapModel.proposalNumber(body["scale"]), let ox = KnowledgeMapModel.proposalNumber(body["ox"]), let oy = KnowledgeMapModel.proposalNumber(body["oy"]) else { return }
                 KnowledgeMapDisplayExtension.shared.cameraMoved(by: self, to: .init(scale: scale, ox: ox, oy: oy))
             case "dragPreview":
                 var preview = body
@@ -475,7 +475,7 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                 KnowledgeMapDisplayExtension.shared.relay(from: self, method: "previewDrag", preview)
             case "placed":
                 let items = (body["items"] as? [[String: Any]] ?? []).compactMap { item -> (ref: String, x: Double, y: Double)? in
-                    guard let ref = item["ref"] as? String, let x = Self.number(item["x"]), let y = Self.number(item["y"]) else { return nil }
+                    guard let ref = item["ref"] as? String, let x = KnowledgeMapModel.proposalNumber(item["x"]), let y = KnowledgeMapModel.proposalNumber(item["y"]) else { return nil }
                     return (ref, x, y)
                 }
                 model.place(items)
@@ -483,8 +483,8 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                 model.unplace(body["refs"] as? [String] ?? [])
             case "regionCreated", "regionChanged":
                 guard let region = body["region"] as? [String: Any], let id = region["id"] as? String,
-                      let x = Self.number(region["x"]), let y = Self.number(region["y"]),
-                      let w = Self.number(region["w"]), let h = Self.number(region["h"]) else { return }
+                      let x = KnowledgeMapModel.proposalNumber(region["x"]), let y = KnowledgeMapModel.proposalNumber(region["y"]),
+                      let w = KnowledgeMapModel.proposalNumber(region["w"]), let h = KnowledgeMapModel.proposalNumber(region["h"]) else { return }
                 let existing = model.layout.regions[id]
                 model.saveRegion(
                     id: id,
@@ -533,16 +533,16 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                 guard role == .pane else { return }
                 var view = KnowledgeMapViewport()
                 view.level = body["level"] as? String ?? "regions"
-                if let center = body["center"] as? [String: Any], let x = Self.number(center["x"]), let y = Self.number(center["y"]) {
+                if let center = body["center"] as? [String: Any], let x = KnowledgeMapModel.proposalNumber(center["x"]), let y = KnowledgeMapModel.proposalNumber(center["y"]) {
                     view.center = (x, y)
                 }
-                if let span = body["span"] as? [String: Any], let w = Self.number(span["w"]), let h = Self.number(span["h"]) {
+                if let span = body["span"] as? [String: Any], let w = KnowledgeMapModel.proposalNumber(span["w"]), let h = KnowledgeMapModel.proposalNumber(span["h"]) {
                     view.span = (w, h)
                 }
                 view.visibleRefs = body["visibleRefs"] as? [String] ?? []
                 view.visibleRegionIDs = body["visibleRegionIDs"] as? [String] ?? []
                 // The zoom readout, and whether anything is in view (Back to content).
-                view.scale = Self.number(body["scale"]) ?? 1
+                view.scale = KnowledgeMapModel.proposalNumber(body["scale"]) ?? 1
                 view.empty = body["empty"] as? Bool ?? false
                 view.path = (body["path"] as? [[String: Any]] ?? []).compactMap { step in
                     guard let id = step["id"] as? String, let name = step["name"] as? String else { return nil }
@@ -559,7 +559,7 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                     onLinkEvidence(idea, refs)
                 }
             case "noteRequested":
-                if let x = Self.number(body["x"]), let y = Self.number(body["y"]) { onNoteRequested(x, y) }
+                if let x = KnowledgeMapModel.proposalNumber(body["x"]), let y = KnowledgeMapModel.proposalNumber(body["y"]) { onNoteRequested(x, y) }
             case "shortcuts":
                 // The pane's own window shows them; the window extended to has no toolbar.
                 if role == .pane { model.showsShortcuts.toggle() }
@@ -569,11 +569,11 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
                 // message is empty when it is not), in this canvas's window.
                 guard role == .pane, let windowID = actions?.windowState.id else { return }
                 var spot: CGPoint?
-                if let x = Self.number(body["x"]), let y = Self.number(body["y"]) { spot = CGPoint(x: x, y: y) }
+                if let x = KnowledgeMapModel.proposalNumber(body["x"]), let y = KnowledgeMapModel.proposalNumber(body["y"]) { spot = CGPoint(x: x, y: y) }
                 model.addBox = KnowledgeMapAddBoxRequest(
                     view: spot,
-                    worldX: Self.number(body["wx"]),
-                    worldY: Self.number(body["wy"]),
+                    worldX: KnowledgeMapModel.proposalNumber(body["wx"]),
+                    worldY: KnowledgeMapModel.proposalNumber(body["wy"]),
                     windowID: windowID
                 )
             case "libraryToggled":
@@ -605,15 +605,6 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
             default:
                 // Sizing, arrow styles, writing in place, menus, keys and clicks.
                 handleParityMessage(type, body)
-            }
-        }
-
-        static func number(_ value: Any?) -> Double? {
-            switch value {
-            case let number as NSNumber: return number.doubleValue
-            case let double as Double: return double
-            case let int as Int: return Double(int)
-            default: return nil
             }
         }
     }

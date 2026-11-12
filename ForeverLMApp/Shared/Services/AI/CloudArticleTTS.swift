@@ -1257,7 +1257,8 @@ enum CloudArticleTTS {
         AIProviderErrorText.fromResponseBody(data) ?? "The provider returned no readable error details."
     }
 
-    private static func isRetryable(_ statusCode: Int) -> Bool {
+    /// Whether a speech request that failed with this status is worth sending again.
+    static func isRetryable(_ statusCode: Int) -> Bool {
         statusCode == 408
             || statusCode == 409
             || statusCode == 425
@@ -1358,8 +1359,8 @@ enum CloudArticleTTS {
     /// Rejoin soft-wrapped lines (a hard `\n` at every visual line end, as PDF and
     /// some HTML extractors emit) into flowing paragraphs so the narration doesn't
     /// stop mid-sentence. De-hyphenates words broken across a line and preserves real
-    /// paragraph breaks marked by a blank line. Mirrors macOS `MacArticleSpeechText`.
-    private static func reflowedForSpeech(_ text: String) -> String {
+    /// paragraph breaks marked by a blank line.
+    static func reflowedForSpeech(_ text: String) -> String {
         let lines = text
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -1400,7 +1401,9 @@ enum CloudArticleTTS {
         "dept", "inc", "ltd", "jr", "sr", "gen", "col", "sec", "min", "max", "est"
     ]
 
-    private static func sentences(in paragraph: String) -> [String] {
+    /// Splits a paragraph into sentences so chunking can break on sentence
+    /// boundaries; abbreviations, initials and decimals do not end one.
+    static func sentences(in paragraph: String) -> [String] {
         let characters = Array(paragraph)
         let terminators: Set<Character> = [".", "!", "?"]
         let closers: Set<Character> = ["\"", "'", ")", "]", "”", "’", "»"]

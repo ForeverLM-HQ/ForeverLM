@@ -32,7 +32,7 @@ enum MobileReaderText {
     // MARK: - Text shaping
 
     /// Rejoins soft-wrapped PDF lines into flowing paragraphs. Copied from
-    /// `MobileReviewSpeechService.reflowedForSpeech` so the reader lays out extracted
+    /// `CloudArticleTTS.reflowedForSpeech` so the reader lays out extracted
     /// text exactly as the narrator reads it. Unlike the narration pipeline this does
     /// *not* strip markdown or citations — the reader must show the real text.
     static func reflowed(_ raw: String, sourceType: String) -> String {

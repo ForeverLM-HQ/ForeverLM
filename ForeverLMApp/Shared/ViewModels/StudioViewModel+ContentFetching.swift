@@ -22,6 +22,8 @@ extension StudioViewModel {
             && article.url.hasPrefix("http")
     }
 
+    /// Loads a source's content into the model, one branch per source type; the
+    /// steps below run in order and each one that finishes the fetch ends it.
     func fetchContent(for articleId: String) async {
         guard !contentFetchInFlight.contains(articleId) else { return }
         contentFetchInFlight.insert(articleId)
@@ -29,6 +31,93 @@ extension StudioViewModel {
 
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
 
+        if await clearGoogleDocsInterfaceContent(articleId: articleId, idx: idx) { return }
+
+        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+
+        if await clearStoredSecurityWallContent(articleId: articleId, idx: idx) { return }
+
+        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+
+        if await settleSourceWithStoredContent(articleId: articleId, idx: idx) { return }
+
+        let markedFetchingForCacheLoad = markFetchingForCacheLoad(idx: idx)
+
+        if await adoptCachedSourceContent(articleId: articleId, idx: idx) { return }
+
+        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+
+        if articles[idx].content != nil {
+            isFetchingContent = false
+            return
+        }
+
+        if await fetchLocalDocumentContent(articleId: articleId, idx: idx) { return }
+        // Already in-flight elsewhere — but not when this call itself just marked
+        // the source .fetching for the cache load above; bailing here would strand
+        // cache-miss transcripts (and YouTube auto-fetch) in a permanent spinner.
+        guard articles[idx].state != .fetching || markedFetchingForCacheLoad else { return }
+
+        await reclassifyJournalPaperIfNeeded(articleId: articleId, idx: idx)
+
+        // Re-resolve index after potential reclassification
+        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+
+        // Remote papers stay passive until the user explicitly requests a PDF
+        // download from the reader or a paper-specific action.
+        if requiresExplicitPaperDownload(articles[idx]) {
+            return
+        }
+
+        // Re-resolve index after potential mutations above
+        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+
+        if await hydratePodcastEpisodeContent(articleId: articleId, idx: idx) { return }
+        if await routePodcastWebURLToMatching(articleId: articleId, idx: idx) { return }
+
+        // YouTube URLs: fetch transcript directly
+        if YouTubeTranscriptService.isYouTubeURL(articles[idx].url) {
+            await fetchYouTubeTranscript(for: articleId)
+            isFetchingContent = false
+            return
+        }
+
+        // Teachable lectures: the transcript is the lecture's audio. Scraping
+        // the page would store the course sidebar as the source's text.
+        if TeachableCourseService.isLectureURL(articles[idx].url) {
+            await fetchTeachableTranscript(for: articleId)
+            isFetchingContent = false
+            return
+        }
+
+        // Zoom recording links: resolve via the Zoom recording pipeline — never
+        // web-scrape the player page (it renders nothing useful and may be a
+        // passcode gate).
+        if ZoomRecordingService.isZoomRecordingURL(articles[idx].url) {
+            // Opening a session is not asking for the recording to be
+            // downloaded: Zoom's transcript is asked for, and waited for.
+            await fetchZoomTranscript(for: articleId, request: .automatic)
+            isFetchingContent = false
+            return
+        }
+
+        if await downloadBookPDFContent(articleId: articleId, idx: idx) { return }
+        if await downloadDirectPDFContent(articleId: articleId, idx: idx) { return }
+
+        isFetchingContent = true
+        articles[idx].state = .fetching
+        articles[idx].errorMessage = nil
+
+        guard await fetchWebArticle(articleId: articleId, idx: idx) else { return }
+
+        isFetchingContent = false
+
+        queueSourceEmbeddingRefreshIfReady(articleId)
+    }
+
+    /// Drops stored content that is a Google Docs interface page and re-saves the
+    /// source as queued. Returns true when the source vanished and the fetch must stop.
+    private func clearGoogleDocsInterfaceContent(articleId: String, idx: Int) async -> Bool {
         if let existingContent = articles[idx].content,
            SourceService.googleDocsResource(from: URL(string: articles[idx].url) ?? URL(fileURLWithPath: "/")) != nil,
            SourceService.isGoogleDocsInterfaceContent(existingContent) {
@@ -40,16 +129,19 @@ extension StudioViewModel {
             // Re-resolve by id after the await: a concurrent refresh may have
             // reordered `articles`, so the captured index could now point at a
             // different source (or be out of bounds).
-            guard let clearedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+            guard let clearedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return true }
             do {
                 try await storage.saveSource(articles[clearedIdx])
             } catch {
                 logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
             }
         }
+        return false
+    }
 
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-
+    /// Drops a stored bot-check page and re-saves the source as queued. Returns true
+    /// when the source vanished and the fetch must stop.
+    private func clearStoredSecurityWallContent(articleId: String, idx: Int) async -> Bool {
         // Rows poisoned before the ingestion guards existed still hold a bot-check
         // page as their body. Drop it rather than treat it as content: a stored
         // wall is indistinguishable from a finished source everywhere downstream,
@@ -66,16 +158,19 @@ extension StudioViewModel {
             articles[idx].state = .queued
             articles[idx].errorMessage = nil
             await storage.clearSourceDerivedData(articleId)
-            guard let clearedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+            guard let clearedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return true }
             do {
                 try await storage.saveSource(articles[clearedIdx])
             } catch {
                 logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
             }
         }
+        return false
+    }
 
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-
+    /// Finishes a source that already holds content: marks it ready (or queues
+    /// paper metadata extraction) and saves it. Returns true when the fetch is done.
+    private func settleSourceWithStoredContent(articleId: String, idx: Int) async -> Bool {
         if let existingContent = articles[idx].content?.trimmingCharacters(in: .whitespacesAndNewlines),
            !existingContent.isEmpty,
            articles[idx].state == .queued || articles[idx].state == .fetching || articles[idx].state == .error {
@@ -103,9 +198,14 @@ extension StudioViewModel {
                 enqueueAutoMetadataExtraction([articleId])
             }
             queueSourceEmbeddingRefreshIfReady(articleId)
-            return
+            return true
         }
+        return false
+    }
 
+    /// Marks a transcript-backed source as fetching before the cache load suspends,
+    /// so the reader never shows the empty "No content" prompt. Returns whether it did.
+    private func markFetchingForCacheLoad(idx: Int) -> Bool {
         // Content is on its way the moment we enter fetchContent, so mark the
         // source as fetching before the first async suspension below. Otherwise
         // the reader briefly renders the empty "No content" prompt during the
@@ -123,12 +223,17 @@ extension StudioViewModel {
                 markedFetchingForCacheLoad = true
             }
         }
+        return markedFetchingForCacheLoad
+    }
 
+    /// Loads the stored content of a source from the database, dropping it when it is
+    /// a bot-check page or a podcast's web page. Returns true when the fetch is done.
+    private func adoptCachedSourceContent(articleId: String, idx: Int) async -> Bool {
         if articles[idx].content == nil && !articles[idx].cachedIsLocalDocument,
            let cachedContent = await storage.loadSourceContent(articleId),
            !cachedContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Re-resolve by id after the await before touching `articles` again.
-            guard let cachedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+            guard let cachedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return true }
             if SourceService.googleDocsResource(from: URL(string: articles[cachedIdx].url) ?? URL(fileURLWithPath: "/")) != nil,
                SourceService.isGoogleDocsInterfaceContent(cachedContent) {
                 await storage.clearSourceDerivedData(articleId)
@@ -171,17 +276,15 @@ extension StudioViewModel {
                 if shouldEnqueuePaperMetadata {
                     enqueueAutoMetadataExtraction([articleId])
                 }
-                return
+                return true
             }
         }
+        return false
+    }
 
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-
-        if articles[idx].content != nil {
-            isFetchingContent = false
-            return
-        }
-
+    /// Handles a source backed by a local file: checks it off the main actor, then
+    /// marks it ready, errors it, or re-queues a paper download. True when the fetch is done.
+    private func fetchLocalDocumentContent(articleId: String, idx: Int) async -> Bool {
         if articles[idx].cachedIsLocalDocument {
             // Existence and iCloud-stub checks are synchronous filesystem stats
             // (possibly against evicted iCloud files) — run them off the main actor.
@@ -209,7 +312,7 @@ extension StudioViewModel {
                 try? FileManager.default.startDownloadingUbiquitousItem(at: stub)
                 return .downloadingFromICloud
             }.value
-            guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+            guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return true }
 
             switch localFile {
             case .exists(let localPath):
@@ -220,7 +323,7 @@ extension StudioViewModel {
                         articles[idx2].content = content
                     }
                 }
-                guard let latestIndex = articles.firstIndex(where: { $0.id == articleId }) else { return }
+                guard let latestIndex = articles.firstIndex(where: { $0.id == articleId }) else { return true }
                 if articles[latestIndex].sourceType == .paper {
                     if articles[latestIndex].hasPaperIngestionAttestation {
                         articles[latestIndex].state = .ready
@@ -244,12 +347,12 @@ extension StudioViewModel {
                 }
                 queueSourceEmbeddingRefreshIfReady(articleId)
                 isFetchingContent = false
-                return
+                return true
             case .downloadingFromICloud:
                 articles[idx].state = .error
                 articles[idx].errorMessage = "Downloading from iCloud… Try again in a moment."
                 isFetchingContent = false
-                return
+                return true
             case .missing:
                 // A stat that cannot find the file is a *read* failure, and a read
                 // failure must never destroy the stored path: the file may be under
@@ -274,15 +377,16 @@ extension StudioViewModel {
                     articles[idx].state = .error
                     articles[idx].errorMessage = "File not found."
                     isFetchingContent = false
-                    return
+                    return true
                 }
             }
         }
-        // Already in-flight elsewhere — but not when this call itself just marked
-        // the source .fetching for the cache load above; bailing here would strand
-        // cache-miss transcripts (and YouTube auto-fetch) in a permanent spinner.
-        guard articles[idx].state != .fetching || markedFetchingForCacheLoad else { return }
+        return false
+    }
 
+    /// Asks the model once per session whether a remote paper is really another type
+    /// of source, and applies the answer.
+    private func reclassifyJournalPaperIfNeeded(articleId: String, idx: Int) async {
         // LLM reclassification: journal domains (Nature, Science, etc.) host both research
         // papers and editorial content (news, commentary). The URL-based detector can't
         // distinguish them, so ask the LLM before committing to the paper PDF path.
@@ -323,19 +427,11 @@ extension StudioViewModel {
                 }
             }
         }
+    }
 
-        // Re-resolve index after potential reclassification
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-
-        // Remote papers stay passive until the user explicitly requests a PDF
-        // download from the reader or a paper-specific action.
-        if requiresExplicitPaperDownload(articles[idx]) {
-            return
-        }
-
-        // Re-resolve index after potential mutations above
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-
+    /// Hydrates a podcast episode's transcript from the database or the transcript
+    /// pipeline. True when this source was a hydratable podcast and the fetch is done.
+    private func hydratePodcastEpisodeContent(articleId: String, idx: Int) async -> Bool {
         // Podcast episodes: transcript content is stored in the DB. A row a
         // named feed filed under the episode's web page hydrates too; it is
         // first resolved to the public episode Apple transcribes.
@@ -362,7 +458,7 @@ extension StudioViewModel {
                     queueSourceEmbeddingRefreshIfReady(articleId)
                 }
                 isFetchingContent = false
-                return
+                return true
             }
 
             if let candidate = podcastHydrationCandidate(for: articleId) {
@@ -390,9 +486,14 @@ extension StudioViewModel {
                 }
             }
             isFetchingContent = false
-            return
+            return true
         }
+        return false
+    }
 
+    /// Routes a podcast web address to Apple Podcasts matching instead of scraping it.
+    /// True when this source was a podcast web address and the fetch is done.
+    private func routePodcastWebURLToMatching(articleId: String, idx: Int) async -> Bool {
         // Podcast web URLs must NEVER be web-scraped. Route to Apple Podcasts matching.
         if articles[idx].sourceType == .podcast && articles[idx].url.hasPrefix("http") {
             // Clear any accidentally web-scraped content (show notes, not a transcript)
@@ -402,42 +503,21 @@ extension StudioViewModel {
             }
             await findAndOfferPodcast(for: articleId)
             isFetchingContent = false
-            return
+            return true
         }
+        return false
+    }
 
-        // YouTube URLs: fetch transcript directly
-        if YouTubeTranscriptService.isYouTubeURL(articles[idx].url) {
-            await fetchYouTubeTranscript(for: articleId)
-            isFetchingContent = false
-            return
-        }
-
-        // Teachable lectures: the transcript is the lecture's audio. Scraping
-        // the page would store the course sidebar as the source's text.
-        if TeachableCourseService.isLectureURL(articles[idx].url) {
-            await fetchTeachableTranscript(for: articleId)
-            isFetchingContent = false
-            return
-        }
-
-        // Zoom recording links: resolve via the Zoom recording pipeline — never
-        // web-scrape the player page (it renders nothing useful and may be a
-        // passcode gate).
-        if ZoomRecordingService.isZoomRecordingURL(articles[idx].url) {
-            // Opening a session is not asking for the recording to be
-            // downloaded: Zoom's transcript is asked for, and waited for.
-            await fetchZoomTranscript(for: articleId, request: .automatic)
-            isFetchingContent = false
-            return
-        }
-
+    /// Downloads a book's PDF; on failure marks the source errored. True when this
+    /// source was a PDF-backed book and the fetch is done.
+    private func downloadBookPDFContent(articleId: String, idx: Int) async -> Bool {
         if articles[idx].sourceType == .book
             && (articles[idx].url.lowercased().hasSuffix(".pdf") || articles[idx].remotePDFURL != nil) {
             isFetchingContent = true
             articles[idx].state = .fetching
             if await downloadRemoteBookPDF(for: articleId) {
                 isFetchingContent = false
-                return
+                return true
             }
             if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
                 articles[idx2].state = .error
@@ -449,9 +529,14 @@ extension StudioViewModel {
                 }
             }
             isFetchingContent = false
-            return
+            return true
         }
+        return false
+    }
 
+    /// Downloads a direct PDF address as a binary file, never scraping it; on failure
+    /// marks the source errored. True when the address was a PDF and the fetch is done.
+    private func downloadDirectPDFContent(articleId: String, idx: Int) async -> Bool {
         // PDF URLs must never be web-scraped — they need to be downloaded as binary files.
         // A course handout/assignment is a document, not an academic paper: preserve its
         // source type and skip the paper-metadata AI pipeline.
@@ -466,7 +551,7 @@ extension StudioViewModel {
             }
             if downloaded {
                 isFetchingContent = false
-                return
+                return true
             }
             if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
                 articles[idx2].state = .error
@@ -485,58 +570,88 @@ extension StudioViewModel {
                 }
             }
             isFetchingContent = false
-            return
+            return true
         }
+        return false
+    }
 
-        isFetchingContent = true
-        articles[idx].state = .fetching
-        articles[idx].errorMessage = nil
+    /// The text and page metadata a web fetch produced for one source.
+    private struct FetchedWebPage {
+        let content: String
+        let pageTitle: String?
+        let pageAuthor: String?
+        let titleEvidence: PaperService.WebArticleTitleEvidence?
+        /// The reader document the fetch archived, to be recorded once the text passes the bot-check guard.
+        let archivedLocalPath: String?
+    }
 
+    /// Fetches a source's web page (archiving web articles locally), falling back to a
+    /// podcast web page when the primary address fails.
+    private func fetchWebPage(idx: Int) async throws -> FetchedWebPage {
+        var content: String
+        var pageTitle: String?
+        var pageAuthor: String?
+        var titleEvidence: PaperService.WebArticleTitleEvidence?
+        // The reader document the fetch archived. It becomes the source's
+        // path only once the page has passed the bot-check guard below:
+        // the archive is written before the text is judged, so for a
+        // blocked source it holds the wall, and a wall on record as the
+        // document would keep the reader from ever replacing it.
+        var archivedLocalPath: String?
+        // X posts archive too: their capture is the only copy that survives
+        // an offline Mac, a Screen Time block, or a logged-out webview.
+        let isWebArticleType = articles[idx].sourceType == .article
+            || articles[idx].sourceType == .manual
+            || articles[idx].sourceType == .unclassified
+            || articles[idx].sourceType == .xPost
         do {
-            var content: String
-            var pageTitle: String?
-            var pageAuthor: String?
-            var titleEvidence: PaperService.WebArticleTitleEvidence?
-            // The reader document the fetch archived. It becomes the source's
-            // path only once the page has passed the bot-check guard below:
-            // the archive is written before the text is judged, so for a
-            // blocked source it holds the wall, and a wall on record as the
-            // document would keep the reader from ever replacing it.
-            var archivedLocalPath: String?
-            // X posts archive too: their capture is the only copy that survives
-            // an offline Mac, a Screen Time block, or a logged-out webview.
-            let isWebArticleType = articles[idx].sourceType == .article
-                || articles[idx].sourceType == .manual
-                || articles[idx].sourceType == .unclassified
-                || articles[idx].sourceType == .xPost
-            do {
-                if isWebArticleType {
-                    // Archive web articles locally with images for offline reading
-                    let archived = try await sourceService.fetchAndArchiveWebContent(
-                        url: articles[idx].url,
-                        sourceId: articles[idx].id,
-                        // A bookmarked post already holds the authenticated
-                        // API's full text; a public capture must never replace
-                        // it with a shorter copy.
-                        existingText: articles[idx].content
-                    )
-                    content = archived.plainText
-                    pageTitle = archived.pageTitle
-                    pageAuthor = archived.pageAuthor
-                    titleEvidence = archived.titleEvidence
-                    archivedLocalPath = archived.localHTMLPath
-                } else {
-                    content = try await sourceService.fetchContent(from: articles[idx].url)
-                }
-            } catch {
-                // If primary URL failed and we have a podcast web fallback, try that
-                if let webURL = articles[idx].podcastWebPageURL, !webURL.isEmpty {
-                    logger.info("Primary URL failed, trying podcast web page: \(webURL)")
-                    content = try await sourceService.fetchContent(from: webURL)
-                } else {
-                    throw error
-                }
+            if isWebArticleType {
+                // Archive web articles locally with images for offline reading
+                let archived = try await sourceService.fetchAndArchiveWebContent(
+                    url: articles[idx].url,
+                    sourceId: articles[idx].id,
+                    // A bookmarked post already holds the authenticated
+                    // API's full text; a public capture must never replace
+                    // it with a shorter copy.
+                    existingText: articles[idx].content
+                )
+                content = archived.plainText
+                pageTitle = archived.pageTitle
+                pageAuthor = archived.pageAuthor
+                titleEvidence = archived.titleEvidence
+                archivedLocalPath = archived.localHTMLPath
+            } else {
+                content = try await sourceService.fetchContent(from: articles[idx].url)
             }
+        } catch {
+            // If primary URL failed and we have a podcast web fallback, try that
+            if let webURL = articles[idx].podcastWebPageURL, !webURL.isEmpty {
+                logger.info("Primary URL failed, trying podcast web page: \(webURL)")
+                content = try await sourceService.fetchContent(from: webURL)
+            } else {
+                throw error
+            }
+        }
+        return FetchedWebPage(
+            content: content,
+            pageTitle: pageTitle,
+            pageAuthor: pageAuthor,
+            titleEvidence: titleEvidence,
+            archivedLocalPath: archivedLocalPath
+        )
+    }
+
+    /// Fetches, guards and installs a web source's text; a failure goes to
+    /// `recoverFromWebFetchFailure`. Returns false when it already ended the fetch
+    /// itself, true when the caller should clear the fetching flag and refresh embeddings.
+    private func fetchWebArticle(articleId: String, idx: Int) async -> Bool {
+        do {
+            let page = try await fetchWebPage(idx: idx)
+            let content = page.content
+            let pageTitle = page.pageTitle
+            let pageAuthor = page.pageAuthor
+            let titleEvidence = page.titleEvidence
+            let archivedLocalPath = page.archivedLocalPath
             if SourceDiscovery.isSecurityVerificationContent(
                 text: content,
                 title: pageTitle ?? articles[idx].title,
@@ -544,7 +659,7 @@ extension StudioViewModel {
             ) {
                 await recordSecurityChallengeBlock(articleId: articleId)
                 isFetchingContent = false
-                return
+                return false
             }
             if let archivedLocalPath,
                let archivedIdx = articles.firstIndex(where: { $0.id == articleId }) {
@@ -559,64 +674,69 @@ extension StudioViewModel {
                 titleEvidence: titleEvidence
             ) else {
                 isFetchingContent = false
-                return
+                return false
             }
         } catch {
-            let url = articles[idx].url
-            logger.error("Failed to fetch content for \(url): \(error.localizedDescription)")
+            if await recoverFromWebFetchFailure(error, articleId: articleId, idx: idx) == false { return false }
+        }
+        return true
+    }
 
-            // A post that arrived from X bookmark sync already carries its text.
-            // Failing to capture the surrounding thread — X unreachable, the
-            // post deleted, the account gone private — costs the thread, not
-            // the post, so the row stays readable instead of turning red.
-            if articles[idx].sourceType == .xPost,
-               !(articles[idx].content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
-                articles[idx].state = .ready
-                articles[idx].errorMessage = nil
-                isFetchingContent = false
-                queueSourceEmbeddingRefreshIfReady(articleId)
-                return
-            }
+    /// Settles a source whose web fetch threw: keeps a bookmarked X post readable,
+    /// archives undecodable pages, and otherwise marks the source errored. Returns
+    /// false when it already ended the fetch itself.
+    private func recoverFromWebFetchFailure(_ error: Error, articleId: String, idx: Int) async -> Bool {
+        let url = articles[idx].url
+        logger.error("Failed to fetch content for \(url): \(error.localizedDescription)")
 
-            // Auto-remove items whose content can't be decoded (e.g. non-UTF-8 video pages)
-            // Never remove PDF URLs — they should be downloaded, not web-scraped.
-            if let sourceErr = error as? SourceError, sourceErr == .decodingFailed {
-                if url.lowercased().hasSuffix(".pdf") {
-                    articles[idx].state = .error
-                    articles[idx].errorMessage = "PDF download failed. Try attaching the file manually."
-                    if articles[idx].sourceType == .paper {
-                        PaperIngestionDiagnostics.recordFailure(
-                            sourceID: articleId,
-                            title: articles[idx].title,
-                            message: articles[idx].errorMessage ?? "PDF download failed."
-                        )
-                    }
-                    await persistSource(articles[idx], context: "Save paper error state")
-                } else {
-                    do {
-                        try await storage.archiveSource(articleId)
-                    } catch {
-                        logger.error("archiveSource failed: \(error.localizedDescription, privacy: .public)")
-                    }
-                    articles.remove(at: idx)
-                    if selectedArticleId == articleId { selectedArticleId = nil }
-                }
-            } else {
+        // A post that arrived from X bookmark sync already carries its text.
+        // Failing to capture the surrounding thread — X unreachable, the
+        // post deleted, the account gone private — costs the thread, not
+        // the post, so the row stays readable instead of turning red.
+        if articles[idx].sourceType == .xPost,
+           !(articles[idx].content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+            articles[idx].state = .ready
+            articles[idx].errorMessage = nil
+            isFetchingContent = false
+            queueSourceEmbeddingRefreshIfReady(articleId)
+            return false
+        }
+
+        // Auto-remove items whose content can't be decoded (e.g. non-UTF-8 video pages)
+        // Never remove PDF URLs — they should be downloaded, not web-scraped.
+        if let sourceErr = error as? SourceError, sourceErr == .decodingFailed {
+            if url.lowercased().hasSuffix(".pdf") {
                 articles[idx].state = .error
-                articles[idx].errorMessage = error.localizedDescription
-                if SourceService.googleDocsResource(from: URL(string: url) ?? URL(fileURLWithPath: "/")) != nil {
-                    do {
-                        try await storage.saveSource(articles[idx])
-                    } catch {
-                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
-                    }
+                articles[idx].errorMessage = "PDF download failed. Try attaching the file manually."
+                if articles[idx].sourceType == .paper {
+                    PaperIngestionDiagnostics.recordFailure(
+                        sourceID: articleId,
+                        title: articles[idx].title,
+                        message: articles[idx].errorMessage ?? "PDF download failed."
+                    )
+                }
+                await persistSource(articles[idx], context: "Save paper error state")
+            } else {
+                do {
+                    try await storage.archiveSource(articleId)
+                } catch {
+                    logger.error("archiveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
+                articles.remove(at: idx)
+                if selectedArticleId == articleId { selectedArticleId = nil }
+            }
+        } else {
+            articles[idx].state = .error
+            articles[idx].errorMessage = error.localizedDescription
+            if SourceService.googleDocsResource(from: URL(string: url) ?? URL(fileURLWithPath: "/")) != nil {
+                do {
+                    try await storage.saveSource(articles[idx])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
-
-        isFetchingContent = false
-
-        queueSourceEmbeddingRefreshIfReady(articleId)
+        return true
     }
 
 

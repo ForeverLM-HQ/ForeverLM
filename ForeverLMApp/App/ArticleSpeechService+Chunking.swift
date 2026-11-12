@@ -69,7 +69,7 @@ extension ArticleSpeechService {
             // Orpheus's tiny 180-char chunks, where every chunk boundary is an
             // audible gap between separately generated audio clips.
             var joiner = "\n\n"
-            for sentence in MacArticleSpeechText.sentences(in: paragraph) {
+            for sentence in CloudArticleTTS.sentences(in: paragraph) {
                 let sentenceCandidate = current.isEmpty ? sentence : "\(current)\(joiner)\(sentence)"
                 joiner = " "
                 if sentenceCandidate.count <= currentLimit {

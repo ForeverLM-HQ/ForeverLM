@@ -397,11 +397,7 @@ enum SourceLevelsBuilder {
     }
 
     private static func jsonObject(_ response: String) throws -> [String: Any] {
-        var body = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = body.firstIndex(of: "{"), let end = body.lastIndex(of: "}"), start < end {
-            body = String(body[start...end])
-        }
-        guard let object = (try? JSONSerialization.jsonObject(with: Data(body.utf8))) as? [String: Any] else {
+        guard let object = ModelJSON.object(response) else {
             throw SourceLevelsError.unreadableAnswer("not JSON")
         }
         return object

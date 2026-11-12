@@ -16,7 +16,7 @@ import Foundation
 /// picture says so in place, the same way it does for a source it does not hold.
 /// The pictures a course's quizzes or a source's walk show are the exception:
 /// they ride that record (`CourseQuizPicturePackage`,
-/// `WalkthroughPicturePackage`) into every other Mac's store under the same id.
+/// `StoredPicturePackage`) into every other Mac's store under the same id.
 struct GeneratedImageReference: Hashable, Sendable {
     static let segment = "generated"
 

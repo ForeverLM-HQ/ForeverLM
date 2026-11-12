@@ -341,3 +341,19 @@ extension SourceImageReference {
         try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(<?([^)\s>]+)>?\)"#)
     }
 }
+
+/// A moment in a video or recording as a clock reading.
+enum MediaClock {
+    /// "m:ss", or "h:mm:ss" from an hour up, rounded to the nearest second;
+    /// a negative time reads as zero.
+    static func reading(_ seconds: Double) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%d:%02d", minutes, secs)
+    }
+}

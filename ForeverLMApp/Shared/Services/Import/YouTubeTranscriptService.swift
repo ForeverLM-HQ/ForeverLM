@@ -558,7 +558,7 @@ actor YouTubeTranscriptService {
         flush()
 
         return blocks
-            .map { "[\(Self.displayTime($0.start))] \($0.text)" }
+            .map { "[\(MediaClock.reading($0.start))] \($0.text)" }
             .joined(separator: "\n\n")
     }
 
@@ -569,17 +569,6 @@ actor YouTubeTranscriptService {
         guard let match = regex.firstMatch(in: attrs, range: range),
               let valueRange = Range(match.range(at: 2), in: attrs) else { return nil }
         return String(attrs[valueRange])
-    }
-
-    private static func displayTime(_ seconds: Double) -> String {
-        let total = max(0, Int(seconds.rounded()))
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let secs = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
     }
 
     private func fetchTranscriptWithFallbacks(

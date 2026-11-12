@@ -34,6 +34,44 @@ LITERALS=$(grep -rnE '(static let|let|var) (model|modelID|anthropicModel)[[:spac
   --exclude='MobileReviewFoundationBrain.swift' || true)
 [ -z "$LITERALS" ] || fail "Model literals must live in defaults/catalogs and flow through task resolution:\n$LITERALS"
 
+# Any string literal shaped like an OpenRouter slug (`maker/model`, optionally
+# `:variant`) is a model id and belongs in AIModelDefaults (or a *Catalog.swift /
+# *Rates.swift table). The makers are the ones AIModelDefaults names.
+# AIRoutingModels.swift is exempt by name: it is a display-name table keyed by
+# model id, a catalogue by content. Comment lines are not code and are skipped.
+SLUGS=$(grep -rnE '"(anthropic|deepseek|google|meta|meta-llama|mistralai|moonshotai|nvidia|openai|openrouter|qwen|thinkingmachines|x-ai|z-ai)/[A-Za-z0-9._-]+(:[a-z]+)?"' \
+  "$ROOT/App" "$ROOT/Shared" "$ROOT/MCP" "$ROOT/iOS" --include='*.swift' \
+  --exclude='AIModelDefaults*.swift' --exclude='KeychainService*.swift' \
+  --exclude='*Catalog.swift' --exclude='*Rates.swift' --exclude='*Tests.swift' \
+  --exclude='MobileReviewFoundationBrain.swift' --exclude='AIRoutingModels.swift' \
+  | grep -vE '^[^:]*:[0-9]+:[[:space:]]*//' || true)
+
+# Known, to be moved into AIModelDefaults: a file's count of slug lines may only
+# go down. A file not listed here may have none. Lower a number as a file is
+# cleaned, and delete its line at zero.
+KNOWN_SLUG_FILES='App/SettingsChatModels.swift 1
+Shared/Services/AI/AIDataPolicy.swift 4
+Shared/Services/AI/AIService+ContextBudget.swift 8
+Shared/Services/AI/AIUsageReporting.swift 4
+Shared/Services/AI/ManagedAI.swift 2
+Shared/Services/AI/ManagedTranscriptionClient.swift 21'
+if [ -n "$SLUGS" ]; then
+  # The lines of every file that holds more slug lines than its allowance.
+  OVER=$(printf '%s\n' "$SLUGS" | KNOWN="$KNOWN_SLUG_FILES" awk -F: -v root="$ROOT/" '
+    BEGIN {
+      n = split(ENVIRON["KNOWN"], rows, "\n")
+      for (i = 1; i <= n; i++) { split(rows[i], f, " "); allowed[f[1]] = f[2] }
+    }
+    { file = $1; sub("^" root, "", file); count[file]++; line[NR] = $0; owner[NR] = file }
+    END {
+      for (i = 1; i <= NR; i++) {
+        file = owner[i]
+        if (count[file] > (file in allowed ? allowed[file] : 0)) print line[i]
+      }
+    }')
+  [ -z "$OVER" ] || fail "Model ids (OpenRouter slugs) must live in AIModelDefaults or a *Catalog.swift table and flow through task resolution:\n$OVER"
+fi
+
 if grep -nE 'ArticleSpeechCatalog\.fallbackModelIDs|fallBackToOnDevice' \
   "$ROOT/Shared/Services/AI/CloudArticleTTS.swift" "$ROOT/iOS/MobileComposerDictation.swift" >/dev/null; then
   fail "Silent speech or dictation model fallbacks are forbidden."

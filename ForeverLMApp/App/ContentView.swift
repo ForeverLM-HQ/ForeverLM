@@ -66,7 +66,7 @@ struct ContentView: View {
                 // none of the open ones is key, and a window that has never
                 // been key cannot present a sheet, so docs opened that way could
                 // not be published or trashed from their ⋯ menu. The reveal itself goes to the
-                // active window (`bringStudioForward`).
+                // active window (`bringActiveWindowForward`).
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 .onReceive(NotificationCenter.default.publisher(for: .requestOpenStudioEntityLink)) { note in
                     guard let link = note.object as? StudioEntityLink else { return }
@@ -159,19 +159,6 @@ struct ContentView: View {
         }
     }
 
-    /// A link from outside the app should show its target where the reader is
-    /// looking: the app comes forward and the active Studio window becomes key,
-    /// so the reveal lands there and the window can present the sheets that
-    /// follow (Publish, Update Page, Move to Trash). A window that is main but
-    /// never key — what SwiftUI makes for an external URL — cannot.
-    private func bringStudioForward() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let state = StudioWindowRegistry.shared.activeState,
-           let window = StudioWorkspaceWindowCoordinator.shared.window(for: state) {
-            window.makeKeyAndOrderFront(nil)
-        }
-    }
-
     private func handleOpenURL(_ url: URL) {
         // A web address handed to the app — ForeverLM chosen as the browser
         // for a link, or `open -a ForeverLM https://…` — opens in the Browser
@@ -223,7 +210,7 @@ struct ContentView: View {
 
         // A plugin's or a skill's Copy Link (`PluginsPlaceLink`).
         if let link = PluginsPlaceLink.parse(url) {
-            bringStudioForward()
+            StudioWorkspaceWindowCoordinator.shared.bringActiveWindowForward()
             Task { await PluginsPlace.open(link, vm: vm) }
             return
         }
@@ -238,14 +225,14 @@ struct ContentView: View {
         // The cards a chat saved (`foreverlm://cards?…`), clicked anywhere but
         // the chat that draws them: To Check at the first still to check.
         if let cards = ChatSavedCards.parse(url) {
-            bringStudioForward()
+            StudioWorkspaceWindowCoordinator.shared.bringActiveWindowForward()
             Task { await vm.openChatSavedCards(cards) }
             return
         }
 
         // A doc or a Notebook, addressed the way a doc's own links address them.
         if let entity = StudioEntityLink.parse(url) {
-            bringStudioForward()
+            StudioWorkspaceWindowCoordinator.shared.bringActiveWindowForward()
             Task { await vm.open(entity) }
             return
         }
@@ -261,7 +248,7 @@ struct ContentView: View {
             .queryItems?
             .first(where: { $0.name == "action" })?
             .value
-        bringStudioForward()
+        StudioWorkspaceWindowCoordinator.shared.bringActiveWindowForward()
         Task {
             await vm.openLinkedSourceInReader(sourceID, at: link.seconds, passage: link.passage, page: link.page)
             if action == "find-mentioned-papers",

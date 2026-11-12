@@ -2252,6 +2252,43 @@ class StudioViewModel {
     let sourceService = SourceService.shared
     let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Studio")
 
+    /// Suspends until no fetch is running for this source (or `stopWhen` turns true), the
+    /// timeout passes, or the calling task is cancelled. True only when the wait ended
+    /// because the fetch is no longer in flight. It re-checks on every change to the state
+    /// `sourceFetchIsInFlight` reads, so it never polls.
+    func waitForSourceFetch(
+        _ articleId: String,
+        timeout: Duration,
+        stopWhen: () -> Bool = { false }
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        // One wake-up channel for changes, the timeout and cancellation. A change that lands
+        // before the wait suspends stays buffered, so no wake-up is lost.
+        let (wakes, wake) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+        let deadlineTask = Task {
+            try? await Task.sleep(until: deadline, clock: .continuous)
+            wake.yield()
+        }
+        defer {
+            deadlineTask.cancel()
+            wake.finish()
+        }
+        var iterator = wakes.makeAsyncIterator()
+        while true {
+            // The check runs inside the tracking closure, so the change that ends the wait
+            // is registered by the same read that found it still running.
+            let stillWaiting = withObservationTracking {
+                sourceFetchIsInFlight(articleId) && !stopWhen()
+            } onChange: {
+                wake.yield()
+            }
+            if !stillWaiting { return true }
+            if Task.isCancelled || ContinuousClock.now >= deadline { return false }
+            // A cancelled task's `next()` returns nil, which ends the wait.
+            guard await iterator.next() != nil else { return false }
+        }
+    }
+
     /// Runs a read whose failure the caller treats as "nothing there": the failure is
     /// logged (cancellation is not) and the result is nil, so callers keep their own
     /// empty value.

@@ -745,7 +745,6 @@ targets:
       - Shared/Services/Storage/ThumbnailDiskCache.swift
       - Shared/Services/Storage/CacheDirectorySweep.swift
       - Shared/Services/Storage/LegacyIdentityAdoption.swift
-      - Shared/Services/Storage/SharedDerivedCacheAdoption.swift
       # CloudKit schema v2: the record types, zones and field policies the
       # sync core reads, generated from schema/cloudkit-schema.json
       # (docs/cloudkit-schema-design.md §12.1, §14.1), and the sync core

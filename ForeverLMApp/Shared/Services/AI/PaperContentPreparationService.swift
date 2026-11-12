@@ -794,7 +794,7 @@ struct PaperContentPreparationService: Sendable {
     private static func splitOversizedParagraph(_ paragraph: String) -> [String] {
         var result: [String] = []
         var current = ""
-        for sentence in MacArticleSpeechText.sentences(in: paragraph) {
+        for sentence in CloudArticleTTS.sentences(in: paragraph) {
             if sentence.count > maximumBlockCharacters {
                 if !current.isEmpty { result.append(current); current = "" }
                 var remainder = sentence[...]

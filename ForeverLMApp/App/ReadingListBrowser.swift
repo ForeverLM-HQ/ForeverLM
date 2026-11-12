@@ -76,6 +76,23 @@ enum ReadingListBrowser: String, CaseIterable, Identifiable, Hashable {
         Set(allCases.filter(\.isEnabled))
     }
 
+    /// A toggle for this browser: it saves the choice, keeps the view's set of
+    /// enabled browsers in step, and tells the caller the set changed.
+    func binding(in enabled: Binding<Set<ReadingListBrowser>>, didChange: @escaping () -> Void) -> Binding<Bool> {
+        Binding(
+            get: { enabled.wrappedValue.contains(self) },
+            set: { isOn in
+                setEnabled(isOn)
+                if isOn {
+                    enabled.wrappedValue.insert(self)
+                } else {
+                    enabled.wrappedValue.remove(self)
+                }
+                didChange()
+            }
+        )
+    }
+
     init?(bundleIdentifier: String?) {
         guard let match = Self.allCases.first(where: {
             $0.preference.bundleIdentifier?.caseInsensitiveCompare(bundleIdentifier ?? "") == .orderedSame
