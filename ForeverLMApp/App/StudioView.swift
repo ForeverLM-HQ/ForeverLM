@@ -26,9 +26,6 @@ struct StudioView: View {
     /// notebook's Sources column alike (`SourceDetailsEditRequest`).
     @State private var editingSourceDetailsID: String?
     @State private var handledCreditsEmptyEpisode = false
-    /// The Space sidebar the learner hid, which the one sidebar toggle folds
-    /// together with Home's sidebar.
-    @AppStorage(Prefs.Space.sidebarHidden) private var spaceSidebarHiddenByLearner
     @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     /// The bout whose write-up sheet this window shows (`requestBoutWriteUp`).
     @State private var writeUpBoutID: String?
@@ -71,12 +68,10 @@ struct StudioView: View {
     /// beside it (`setSidebarShownFromToggle`).
     private var navigationRailVisibilityBinding: Binding<Bool> {
         Binding(
-            get: { windowState.sidebarToggleReadsShown(spaceSidebarHidden: spaceSidebarHiddenByLearner) },
+            get: { windowState.sidebarToggleReadsShown },
             set: { shown in
                 withAnimation(.easeInOut(duration: 0.18)) {
-                    if let spaceHidden = windowState.setSidebarShownFromToggle(shown) {
-                        spaceSidebarHiddenByLearner = spaceHidden
-                    }
+                    windowState.setSidebarShownFromToggle(shown)
                 }
             }
         )
@@ -151,7 +146,7 @@ struct StudioView: View {
             // is put in step, so the Space never opens without a sidebar the
             // Library and Home were showing (product owner, 2026-11-07).
             .onChange(of: windowState.navigationRailVisible, initial: true) { _, visible in
-                if spaceSidebarHiddenByLearner == visible { spaceSidebarHiddenByLearner = !visible }
+                if windowState.spaceSidebarHidden == visible { windowState.spaceSidebarHidden = !visible }
             }
             .animation(.easeInOut(duration: 0.22), value: isMemoryReviewFocused)
         }

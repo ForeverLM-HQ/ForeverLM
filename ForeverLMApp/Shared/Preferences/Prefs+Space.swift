@@ -13,7 +13,7 @@ extension Prefs {
         static let layout = DeviceKey<String?>("space.layout", reason: "device-local: List or Grid in this Mac's Space")
         static let sort = DeviceKey<String?>("space.sort", reason: "device-local: the sort in this Mac's Space")
         static let groupByCollection = DeviceKey<Bool>("space.groupByCollection", default: false, reason: "device-local: whether this Mac's Space groups All under its collections")
-        static let sidebarHidden = DeviceKey<Bool>("space.sidebarHidden", default: false, reason: "device-local: whether this Mac's Space sidebar is hidden")
+        static let sidebarHidden = DeviceKey<Bool>("space.sidebarHidden", default: false, reason: "device-local: whether a new window on this Mac opens with its Space sidebar hidden")
         static let pagesExpanded = DeviceKey<String>("space.pagesExpanded", default: "", reason: "device-local: which pages' subpages this Mac's Space lists show")
         static let boardLens = DeviceKey<String>("space.boardLens", default: "all", reason: "which lens this Mac's Board shows")
         static let sidebarRecentsFolded = DeviceKey<Bool>("space.sidebar.recentsFolded", default: false, reason: "whether this Mac's Space sidebar folds its Recents")

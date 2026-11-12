@@ -560,10 +560,11 @@ extension ArtifactCanvas {
     }
 
     /// Shows or hides the Space sidebar beside the open page (⇧⌘E, Codex's
-    /// Show pages). The learner's choice is this Mac's `space.sidebarHidden`,
-    /// which the Space home reads as well.
+    /// Show pages). The learner's choice is this window's
+    /// (`StudioWindowState.spaceSidebarHidden`), which the Space home in it
+    /// reads as well.
     func togglePagesSidebar() {
-        withAnimation(.easeInOut(duration: 0.18)) { spaceSidebarHiddenByLearner.toggle() }
+        withAnimation(.easeInOut(duration: 0.18)) { windowState.spaceSidebarHidden.toggle() }
     }
 
     /// Whether the pane is wide enough to hold the sidebar at all; narrower,

@@ -806,7 +806,7 @@ struct ForeverLMApp: App {
             }
 
             CommandGroup(after: .toolbar) {
-                Button(activeWindowState?.sidebarToggleReadsShown(spaceSidebarHidden: Preferences.value(Prefs.Space.sidebarHidden)) == false ? "Show Navigation Sidebar" : "Hide Navigation Sidebar") {
+                Button(activeWindowState?.sidebarToggleReadsShown == false ? "Show Navigation Sidebar" : "Hide Navigation Sidebar") {
                     guard let state = activeWindowState else { return }
                     withAnimation(.easeInOut(duration: 0.22)) {
                         // As the sidebar toggle does: Home's sidebar and the
@@ -814,10 +814,7 @@ struct ForeverLMApp: App {
                         // sidebar stepping aside for a memory review comes
                         // back on asking, and a place with no sidebar of its
                         // own, the Library's, gets Home's beside it.
-                        let shown = !state.sidebarToggleReadsShown(spaceSidebarHidden: Preferences.value(Prefs.Space.sidebarHidden))
-                        if let spaceHidden = state.setSidebarShownFromToggle(shown) {
-                            Preferences.set(spaceHidden, for: Prefs.Space.sidebarHidden)
-                        }
+                        state.setSidebarShownFromToggle(!state.sidebarToggleReadsShown)
                     }
                 }
                 // ⌃⌘S here, and Codex's ⇧⌘S beside it (`ShellCommandHost`).

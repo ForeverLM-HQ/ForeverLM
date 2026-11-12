@@ -321,18 +321,20 @@ struct WindowNotebookTests {
     func sidebarToggleFoldsSources() {
         let window = StudioWindowState()
         window.NotebookID = "bio"
-        #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+        #expect(window.sidebarToggleReadsShown)
+        let spaceSidebarHidden = window.spaceSidebarHidden
 
-        #expect(window.setSidebarShownFromToggle(false) == nil, "the Space sidebar's preference stays as it is")
+        window.setSidebarShownFromToggle(false)
+        #expect(window.spaceSidebarHidden == spaceSidebarHidden, "the Space sidebar stays as it is")
         #expect(window.notebook?.sourcesCollapsed == true)
-        #expect(!window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+        #expect(!window.sidebarToggleReadsShown)
 
         window.notebook?.sourcesCollapsed = false
         window.notebook?.sourcesExpanded = true
-        _ = window.setSidebarShownFromToggle(false)
+        window.setSidebarShownFromToggle(false)
         #expect(window.notebook?.sourcesExpanded == false, "folded, the column keeps no search's list")
 
-        #expect(window.setSidebarShownFromToggle(true) == nil)
+        window.setSidebarShownFromToggle(true)
         #expect(window.notebook?.sourcesCollapsed == false)
     }
 }

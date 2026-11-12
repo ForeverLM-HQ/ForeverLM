@@ -235,8 +235,8 @@ struct ArtifactCanvas: View {
     /// the Space sidebar's top line ends where the sidebar does.
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     /// The learner's choice to keep the Space sidebar out of the way; this
-    /// Mac's, shared with the Space home.
-    @AppStorage(Prefs.Space.sidebarHidden) var spaceSidebarHiddenByLearner
+    /// window's, shared with the Space home in it.
+    var spaceSidebarHiddenByLearner: Bool { windowState.spaceSidebarHidden }
     /// The Space's own search, apart from the side list's.
     @State var spaceSearchText = ""
     @State var spaceSearchFocusRequest = 0

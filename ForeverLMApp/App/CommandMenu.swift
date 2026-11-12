@@ -280,10 +280,7 @@ struct ShellCommandHost: ViewModifier {
                 // As the View menu's item and the sidebar toggle: Home's
                 // sidebar and the Space's fold together, never the strip,
                 // and a place with no sidebar gets Home's beside it.
-                let shown = !windowState.sidebarToggleReadsShown(spaceSidebarHidden: Preferences.value(Prefs.Space.sidebarHidden))
-                if let spaceHidden = windowState.setSidebarShownFromToggle(shown) {
-                    Preferences.set(spaceHidden, for: Prefs.Space.sidebarHidden)
-                }
+                windowState.setSidebarShownFromToggle(!windowState.sidebarToggleReadsShown)
             }
         case .back:
             guard windowState.canGoBackInPlaces else { return }

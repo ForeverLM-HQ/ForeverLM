@@ -1580,13 +1580,13 @@ struct SpaceNewSpaceSheet: View {
 /// opens the same way (`KnowledgeMapPane`) and a page does (`ArtifactCanvas`),
 /// so going from the courses to a page changes only what is beside the
 /// sidebar. The sidebar's hide state and the room it needs are the Space's
-/// (`space.sidebarHidden`, `SpaceSidebarMetrics.minimumPaneWidth`).
+/// (`StudioWindowState.spaceSidebarHidden`, `SpaceSidebarMetrics.minimumPaneWidth`).
 struct SpaceFrame<Content: View>: View {
     @Environment(StudioViewModel.self) private var vm
     /// The window this pane is in. Absent outside a Studio window.
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
-    @AppStorage(Prefs.Space.sidebarHidden) private var sidebarHiddenByLearner
+    private var sidebarHiddenByLearner: Bool { windowState?.spaceSidebarHidden ?? false }
     @State private var paneWidth: CGFloat = 0
     @State private var linkSection: ArtifactSection?
     @State private var linkedArtifactID: String?

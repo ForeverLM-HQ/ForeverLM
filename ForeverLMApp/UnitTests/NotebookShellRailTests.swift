@@ -44,6 +44,7 @@ private func capturingWindowDefaults() -> () -> Void {
     let keys = [
         "studio.centerTabGroups.v1",
         "studio.navigationRailVisible",
+        "space.sidebarHidden",
         NotebookRecency.preferenceKey,
     ]
     let saved = keys.map { UserDefaults.standard.object(forKey: $0) }
@@ -256,31 +257,72 @@ struct HomeSidebarTests {
         window.centerTabGroups = layout(.library)
         #expect(window.isOnPlaceOfItsOwn)
         #expect(window.showsHomeSidebar, "the sidebar is beside the Library from the start")
-        #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
-        #expect(window.setSidebarShownFromToggle(false) == true, "the Space's sidebar folds with it")
+        #expect(window.sidebarToggleReadsShown)
+        window.setSidebarShownFromToggle(false)
+        #expect(window.spaceSidebarHidden, "the Space's sidebar folds with it")
         #expect(!window.showsHomeSidebar)
         #expect(!window.navigationRailVisible)
         window.centerTabGroups = layout(.chat)
         #expect(!window.showsHomeSidebar, "folded beside the Library, it stays folded on Home")
-        #expect(window.setSidebarShownFromToggle(true) == false, "shown on Home, the Space's comes back too")
+        window.setSidebarShownFromToggle(true)
+        #expect(!window.spaceSidebarHidden, "shown on Home, the Space's comes back too")
         #expect(window.showsHomeSidebar)
         window.centerTabGroups = layout(.memory)
         #expect(window.showsHomeSidebar, "it stays beside the places of their own")
-        #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+        #expect(window.sidebarToggleReadsShown)
         window.centerTabGroups = layout(.library)
         #expect(window.showsHomeSidebar)
 
         window.navigationRailVisible = false
         window.centerTabGroups = layout(.library)
-        #expect(!window.sidebarToggleReadsShown(spaceSidebarHidden: true))
-        #expect(window.setSidebarShownFromToggle(true) == false)
+        window.spaceSidebarHidden = true
+        #expect(!window.sidebarToggleReadsShown)
+        window.setSidebarShownFromToggle(true)
+        #expect(!window.spaceSidebarHidden)
         #expect(window.navigationRailVisible, "a hidden sidebar comes back when asked for beside the Library")
         #expect(window.showsHomeSidebar)
 
         window.centerTabGroups = layout(.artifacts)
         #expect(!window.isOnPlaceOfItsOwn)
-        #expect(window.setSidebarShownFromToggle(false) == true, "on the Space the toggle folds the Space's sidebar")
+        window.setSidebarShownFromToggle(false)
+        #expect(window.spaceSidebarHidden, "on the Space the toggle folds the Space's sidebar")
         #expect(!window.navigationRailVisible)
+    }
+
+    @Test("The sidebar toggle folds its own window's sidebars and leaves another window's as they were")
+    func toggleStaysInItsWindow() throws {
+        let restore = capturingWindowDefaults()
+        defer { restore() }
+        let left = StudioWindowState()
+        let right = StudioWindowState()
+        for window in [left, right] {
+            window.centerTabGroups = layout(.artifacts)
+            window.setSidebarShownFromToggle(true)
+        }
+
+        right.setSidebarShownFromToggle(false)
+        #expect(right.spaceSidebarHidden)
+        #expect(!right.sidebarToggleReadsShown)
+        #expect(!left.spaceSidebarHidden, "the other window's Space sidebar stays")
+        #expect(left.navigationRailVisible)
+        #expect(left.sidebarToggleReadsShown)
+
+        // Each window's scene record carries its own, so both come back as
+        // they were left.
+        #expect(StudioWindowState(snapshot: left.snapshot).spaceSidebarHidden == false)
+        #expect(StudioWindowState(snapshot: right.snapshot).spaceSidebarHidden == true)
+        let reopened = StudioWindowState()
+        reopened.restore(from: left.encodedSnapshot())
+        #expect(!reopened.spaceSidebarHidden)
+
+        // A record saved before each window kept its own folds the Space's
+        // sidebar with the navigation sidebar: the two are one choice.
+        let legacy = try JSONDecoder().decode(
+            StudioWindowState.Snapshot.self,
+            from: Data(#"{"centerTabGroups":[],"navigationRailVisible":false}"#.utf8)
+        )
+        #expect(legacy.spaceSidebarHidden == nil)
+        #expect(StudioWindowState(snapshot: legacy).spaceSidebarHidden)
     }
 }
 

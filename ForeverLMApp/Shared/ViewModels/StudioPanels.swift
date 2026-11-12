@@ -622,6 +622,11 @@ final class StudioWindowState: Identifiable {
     struct Snapshot: Codable, Equatable {
         var centerTabGroups: [String]
         var navigationRailVisible: Bool
+        /// Whether the window's Space sidebar is folded
+        /// (`StudioWindowState.spaceSidebarHidden`). Absent in records saved
+        /// before each window kept its own, which decode as folded with the
+        /// navigation sidebar: the two are one choice.
+        var spaceSidebarHidden: Bool? = nil
         /// The notebook the window holds, without its moments
         /// (`NotebookWorkspace.persisted`). Scene-only: it rides the scene
         /// storage, the last session and named workspaces, and never a
@@ -775,6 +780,22 @@ final class StudioWindowState: Identifiable {
         }
     }
 
+    /// Whether this window's Space sidebar is folded: the sidebar beside the
+    /// Space's lists, a page, a canvas and the courses. This window's own, as
+    /// its panes are: folding it here leaves every other window as it was
+    /// (product owner, 2026-11-12: "when I click like the expand sidebar thing
+    /// on the right window, it also does stuff on the left window ... Those
+    /// two windows have to be independent"). The last window changed is the
+    /// template a brand-new window opens with (`space.sidebarHidden`).
+    var spaceSidebarHidden: Bool {
+        didSet {
+            guard spaceSidebarHidden != oldValue else { return }
+            recordPersistentChange {
+                Preferences.set(spaceSidebarHidden, for: Prefs.Space.sidebarHidden)
+            }
+        }
+    }
+
     /// Whether this window shows the sidebar beside the icon strip: the
     /// learner's choice. The strip itself is always drawn (product owner,
     /// 2026-10-12: "should never be hidden"); this folds Home's sidebar.
@@ -809,8 +830,7 @@ final class StudioWindowState: Identifiable {
     /// on screen. In a notebook that is the Sources column; on a place of its
     /// own, Home's sidebar beside it; elsewhere, Home's sidebar and the
     /// Space's together.
-    /// `spaceSidebarHidden` is this Mac's `space.sidebarHidden`.
-    func sidebarToggleReadsShown(spaceSidebarHidden: Bool) -> Bool {
+    var sidebarToggleReadsShown: Bool {
         if let notebook { return !notebook.sourcesCollapsed }
         if isOnPlaceOfItsOwn { return drawsNavigationRail }
         return drawsNavigationRail && !spaceSidebarHidden
@@ -824,9 +844,8 @@ final class StudioWindowState: Identifiable {
     /// (product owner, 2026-10-26: "when I click memory, the left sidebar
     /// disappears randomly ... get rid of that"; product owner, 2026-11-07, of the Space:
     /// "randomly that like left chats bar disappears, which kind of looks
-    /// weird"). Never the icon strip. Returns the Space sidebar's hidden
-    /// state to store in `space.sidebarHidden`, or nil in a notebook.
-    func setSidebarShownFromToggle(_ shown: Bool) -> Bool? {
+    /// weird"). Never the icon strip, and never another window's sidebar.
+    func setSidebarShownFromToggle(_ shown: Bool) {
         // A sidebar asked for in full screen is the learner leaving it: the
         // panes come back with the sidebar.
         if shown, fullScreenGroupID != nil { fullScreenGroupID = nil }
@@ -836,10 +855,10 @@ final class StudioWindowState: Identifiable {
         if notebook != nil {
             notebook?.sourcesCollapsed = !shown
             if !shown { notebook?.sourcesExpanded = false }
-            return nil
+            return
         }
         setNavigationRailShown(shown)
-        return !shown
+        spaceSidebarHidden = !shown
     }
 
     /// Whether the Space — its lists, the Courses list drawn beside its
@@ -1324,6 +1343,7 @@ final class StudioWindowState: Identifiable {
             centerTabGroups = (StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? storedGroups)
                 .withoutShowing(unoffered)
             navigationRailVisible = snapshot.navigationRailVisible
+            spaceSidebarHidden = snapshot.spaceSidebarHidden ?? !snapshot.navigationRailVisible
             notebook = snapshot.notebook?.persisted
             notebookChats = snapshot.notebookChats ?? [:]
         } else {
@@ -1333,6 +1353,7 @@ final class StudioWindowState: Identifiable {
             // `StudioViewModel.showSpaceInNewWindow`).
             centerTabGroups = storedGroups.withoutShowing(unoffered)
             navigationRailVisible = storedNavigation
+            spaceSidebarHidden = Preferences.value(Prefs.Space.sidebarHidden)
         }
         readerArticleID = nil
         externalReaderPage = nil
@@ -1375,6 +1396,7 @@ final class StudioWindowState: Identifiable {
         Snapshot(
             centerTabGroups: centerTabGroups.persistedRepresentation,
             navigationRailVisible: navigationRailVisible,
+            spaceSidebarHidden: spaceSidebarHidden,
             notebook: notebook?.persisted,
             notebookChats: notebookChats.isEmpty ? nil : notebookChats
         )
@@ -1389,6 +1411,7 @@ final class StudioWindowState: Identifiable {
         isRestoringSnapshot = true
         centerTabGroups = StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? .defaultLayout
         navigationRailVisible = snapshot.navigationRailVisible
+        spaceSidebarHidden = snapshot.spaceSidebarHidden ?? !snapshot.navigationRailVisible
         notebook = snapshot.notebook?.persisted
         notebookChats = snapshot.notebookChats ?? [:]
         isRestoringSnapshot = false
@@ -1403,6 +1426,7 @@ final class StudioWindowState: Identifiable {
     func applyWorkspaceSnapshot(_ snapshot: Snapshot) {
         centerTabGroups = StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? .defaultLayout
         navigationRailVisible = snapshot.navigationRailVisible
+        spaceSidebarHidden = snapshot.spaceSidebarHidden ?? !snapshot.navigationRailVisible
         notebook = snapshot.notebook?.persisted
         notebookChats = snapshot.notebookChats ?? [:]
         isVoiceWorkspacePresented = false

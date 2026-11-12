@@ -35,8 +35,8 @@ struct ArtifactsHomePane: View {
     @State private var linkedArtifactID: String?
     @State private var isCreatingSpace = false
     @State private var paneWidth: CGFloat = 0
-    /// The learner's choice to keep the sidebar out of the way; this Mac's.
-    @AppStorage(Prefs.Space.sidebarHidden) private var sidebarHiddenByLearner
+    /// The learner's choice to keep the sidebar out of the way; this window's.
+    private var sidebarHiddenByLearner: Bool { windowState?.spaceSidebarHidden ?? false }
 
     private var destination: SpaceDestination {
         SpaceDestination(key: windowState?.spaceDestinationKey ?? "all")
