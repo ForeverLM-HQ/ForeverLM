@@ -111,10 +111,17 @@ extension StudioArticle {
     /// or one the Zoom plugin pushed) and a Zoom recording link added as a
     /// source both wear Zoom's mark, where the generic meeting glyph said less
     /// than the "Zoom" the row already prints (product owner, 2026-11-11:
-    /// "give these Zoom meetings like a Zoom icon").
+    /// "give these Zoom meetings like a Zoom icon"). A meeting Read AI recorded
+    /// wears Read AI's mark for the same reason (product owner, 2026-11-12:
+    /// "it would be nice if it had the ReadAI logo and not just this meeting
+    /// logo"). Google Drive is where a recording is kept, not who made it, so
+    /// a Drive meeting keeps the meeting glyph.
     var brandIconAsset: String? {
-        if sourceType == .meeting, MeetingProvider.forOrigin(discoveryOrigin) == .zoom {
-            return MeetingProvider.zoom.iconAsset
+        if sourceType == .meeting {
+            let provider = MeetingProvider.forOrigin(discoveryOrigin)
+            if provider == .zoom || provider == .readAI {
+                return provider.iconAsset
+            }
         }
         if ZoomRecordingService.isZoomRecordingURL(url) {
             return MeetingProvider.zoom.iconAsset
