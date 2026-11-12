@@ -359,7 +359,7 @@ final class MobileSpaceHarnessLibrary {
 
 /// The writer's clock, set back while the sample pages are made.
 private final class MobileSpaceHarnessClock: @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var value = Date()
 
     var now: Date {
@@ -371,7 +371,7 @@ private final class MobileSpaceHarnessClock: @unchecked Sendable {
 /// The server, stood in for: every save is acknowledged and kept, so a satellite uploaded here is
 /// there when it is looked up again; nothing is fetched by a change feed.
 private final class MobileSpaceHarnessTransport: CloudTransport, @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var records: [String: CloudRecord] = [:]
 
     let containerIdentifier = "iCloud.com.foreverlm.harness"

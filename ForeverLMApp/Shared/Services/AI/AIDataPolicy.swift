@@ -88,7 +88,7 @@ enum AIDataPolicy {
 
     /// Device-local, like the directory's other capability tables: every
     /// device reads the same catalog.
-    private static let observedTrainingLock = NSLock()
+    private static let observedTrainingLock = AppLock()
     nonisolated(unsafe) private static var observedTrainingCache: Set<String>?
 
     /// The variants whose endpoint OpenRouter's catalog marks as training
@@ -577,7 +577,7 @@ actor OpenRouterRegionalEndpoints {
     }
 
     nonisolated(unsafe) private static var entries: [String: Entry] = [:]
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     private static let freshnessInterval: TimeInterval = 30 * 60
 
     private var inFlight: [String: Task<[Endpoint], Error>] = [:]
@@ -748,7 +748,7 @@ enum AIFreeModels {
 /// pick is resolved, so a model whose free period ended is not sent. Empty
 /// until the first read, and on the phone.
 enum AIFreeModelPrices {
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var zeroPriced: [String: Bool] = [:]
     nonisolated(unsafe) private static var readWasWhole = false
 
@@ -805,7 +805,7 @@ enum AIFreeModelRestrictions {
     /// while a lock is held: the copy changes under the memo's lock and the
     /// stored table is written after it is released.
     nonisolated(unsafe) private static let memos = NSMapTable<UserDefaults, PreferenceMemo<[String: Any]?>>.weakToStrongObjects()
-    private static let memosLock = NSLock()
+    private static let memosLock = AppLock()
 
     private static func memo(for defaults: UserDefaults) -> PreferenceMemo<[String: Any]?> {
         memosLock.withLock {

@@ -34,7 +34,7 @@ extension StorageService {
     // MARK: - Book folder adoption
 
     private nonisolated(unsafe) static var bookFolderAdoptionIsRunning = false
-    private static let bookFolderAdoptionLock = NSLock()
+    private static let bookFolderAdoptionLock = AppLock()
 
     /// The one directory imported books live in, under this instance's content
     /// root — the same place `importBook` writes and the store's relative

@@ -65,7 +65,7 @@ final class ActivationStatus: @unchecked Sendable {
         case done
     }
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var phase = Phase.idle
 
     var current: Phase {

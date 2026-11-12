@@ -117,7 +117,7 @@ final class MCPRunningWork: @unchecked Sendable {
     /// in-app progress banner reads to stop the call it shows.
     @TaskLocal static var currentCallID: String?
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var entries: [String: Entry] = [:]
 
     /// Everything running, oldest first.
@@ -306,7 +306,7 @@ final class MCPRepeatedCalls<Value>: @unchecked Sendable {
         var gaveUp: Set<UUID> = []
     }
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var runs: [String: Run] = [:]
 
     /// How many callers wait for the run a new caller under `key` would join;

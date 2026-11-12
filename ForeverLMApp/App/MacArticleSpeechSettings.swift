@@ -788,7 +788,7 @@ enum MacArticleSpeechSettings {
     /// phone's too (`ArticleSpeechPickRepair.swift`).
     typealias SelectionRepair = ArticleSpeechSelection.Repair
 
-    private static let pendingRepairLock = NSLock()
+    private static let pendingRepairLock = AppLock()
     nonisolated(unsafe) private static var pendingRepair: SelectionRepair?
 
     /// Before a text-to-speech request goes out (Listen, generated audio,

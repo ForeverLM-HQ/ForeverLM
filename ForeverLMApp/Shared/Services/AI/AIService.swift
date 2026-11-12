@@ -747,7 +747,7 @@ enum CancellableWait {
     /// The first result offered, delivered to the waiter exactly once
     /// whichever arrives first: the result or the waiter.
     private final class Outcome<T: Sendable>: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var result: Result<T, Error>?
         private var continuation: CheckedContinuation<T, Error>?
 

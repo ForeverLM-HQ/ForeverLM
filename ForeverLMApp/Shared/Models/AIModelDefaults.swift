@@ -503,7 +503,7 @@ enum AIModelCatalog {
         let entriesByID: [String: AIModelCatalogEntry]
     }
 
-    private static let catalogSnapshotLock = NSLock()
+    private static let catalogSnapshotLock = AppLock()
     nonisolated(unsafe) private static var cachedCatalogSnapshot: CatalogSnapshot?
 
     private static func catalogSnapshot() -> CatalogSnapshot {
@@ -993,7 +993,7 @@ enum AIModelCatalog {
     /// the fetch that first lists it. Device-local derived cache, like the
     /// context-window table above, with an in-memory copy because the sorted
     /// catalog consults it from view bodies.
-    private static let openRouterReleaseDateLock = NSLock()
+    private static let openRouterReleaseDateLock = AppLock()
     nonisolated(unsafe) private static var openRouterReleaseDateTable: [String: Double]?
     nonisolated(unsafe) private static var openRouterReleaseDateGenerationValue: UInt64 = 0
 
@@ -1059,7 +1059,7 @@ enum AIModelCatalog {
     /// effort control or a level upstream gets it here on the next fetch.
     /// Device-local derived cache with an in-memory copy, because the
     /// composer's effort control consults it from a view body.
-    private static let openRouterReasoningEffortsLock = NSLock()
+    private static let openRouterReasoningEffortsLock = AppLock()
     nonisolated(unsafe) private static var openRouterReasoningEffortsTable: [String: OpenRouterReasoningEfforts]?
 
     /// Stands in for the cached table within one task and its children, so a

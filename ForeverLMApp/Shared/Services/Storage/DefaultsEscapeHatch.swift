@@ -61,7 +61,7 @@ enum DefaultsEscapeHatch {
 
     // MARK: - Foreign domain
 
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     private nonisolated(unsafe) static var cached: [String: Any]?
 
     private static func foreignDomain() -> [String: Any] {

@@ -175,7 +175,7 @@ final class SatelliteReader: @unchecked Sendable {
     private let store: MacPrivateSyncStore
     private let fetch: @Sendable (FileRef) async throws -> Data
     private let zonedFetch: (@Sendable (FileRef, String) async throws -> Data)?
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var running = false
 
     init(

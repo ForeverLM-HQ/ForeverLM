@@ -35,7 +35,7 @@ extension KnowledgeStore {
 /// surfaces are told, as for a preference that changed remotely. A test binds its own snapshot
 /// (`override`), and while bound nothing reaches the store.
 enum CourseEnrollmentStore {
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var snapshot: [String: String] = [:]
     nonisolated(unsafe) private static var loaded = false
     nonisolated(unsafe) private static var tail: Task<Void, Never>?

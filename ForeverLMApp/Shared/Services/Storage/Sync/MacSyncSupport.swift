@@ -188,7 +188,7 @@ final class CutoverStatus: @unchecked Sendable {
         case moved
     }
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var state = State.idle
 
     var current: State {

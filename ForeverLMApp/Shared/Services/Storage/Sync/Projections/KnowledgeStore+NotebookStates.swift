@@ -165,7 +165,7 @@ extension KnowledgeStore {
 /// Entries) and the surfaces are told, as for a preference that changed remotely. A test binds its own
 /// snapshot (`override`), and while bound nothing reaches the store.
 enum NotebookStateStore {
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var snapshot = NotebookStateSnapshot()
     nonisolated(unsafe) private static var loaded = false
     nonisolated(unsafe) private static var tail: Task<Void, Never>?

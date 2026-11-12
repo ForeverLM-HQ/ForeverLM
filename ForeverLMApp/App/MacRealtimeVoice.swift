@@ -215,7 +215,7 @@ enum MacRealtimeVoice {
 /// WebRTC opens anything (`MacCallMicrophoneHold`), so a Bluetooth headset is
 /// already in its call mode, at the sample rate it keeps, when WebRTC opens it.
 final class MacRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var watcher: MacDefaultAudioDevicesWatcher?
     private var microphone: MacCallMicrophoneHold?
 
@@ -281,7 +281,7 @@ final class MacCallMicrophoneHold: @unchecked Sendable {
     private static let longestWait: Duration = .seconds(3)
     private static let pollInterval: Duration = .milliseconds(100)
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     // Guarded by `lock`.
     private var device = AudioDeviceID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?

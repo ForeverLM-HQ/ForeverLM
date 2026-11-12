@@ -713,7 +713,7 @@ enum AIModelPriceWatch {
     /// Prices are compared to a hundredth of a cent per million tokens, so a
     /// float that round-trips through JSON never reads as a rise.
     static let tolerance = 0.000_1
-    private static let lock = NSLock()
+    private static let lock = AppLock()
 
     /// What the watch keeps between reads: the last record of each watched
     /// model's price, and the free models reported as ended on first sight

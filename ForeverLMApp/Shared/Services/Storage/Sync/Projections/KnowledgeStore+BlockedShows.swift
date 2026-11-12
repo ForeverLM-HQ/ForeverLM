@@ -40,7 +40,7 @@ extension KnowledgeStore {
 /// order. `reload()` takes the table back into `UserDefaults` after an inbound Mark.
 enum BlockedShowsSync {
     private static let storage = StorageService()
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var tail: Task<Void, Never>?
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "BlockedShowsSync")
 

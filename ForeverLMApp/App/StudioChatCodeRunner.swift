@@ -445,7 +445,7 @@ enum CodeProcess {
     /// Bytes beyond the limit are dropped: a script that prints in a loop must
     /// not fill the Mac's memory before its timeout.
     private final class Capture: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var data = Data()
         private let limit: Int
         init(limit: Int) { self.limit = limit }
@@ -463,7 +463,7 @@ enum CodeProcess {
     }
 
     private final class Handle: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var process: Process?
         private(set) var cancelled = false
         private(set) var timedOut = false

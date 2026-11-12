@@ -122,7 +122,7 @@ enum SlideFrameExtraction {
     /// hundreds of frames, and holding those as `CGImage` would cost hundreds of megabytes
     /// to answer a question already settled the moment each one is hashed.
     final class FrameCollector<Value>: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private let transform: (CGImage) -> Value?
         private var values: [Int64: Value] = [:]
         private var remaining: Int

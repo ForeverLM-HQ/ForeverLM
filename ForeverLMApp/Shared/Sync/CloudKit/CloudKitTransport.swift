@@ -237,7 +237,7 @@ extension CloudKitTransport: CloudSharingTransport {
             }
         }
         let found: [CKUserIdentity.LookupInfo: CKShare.Participant] = try await withCheckedThrowingContinuation { continuation in
-            let lock = NSLock()
+            let lock = AppLock()
             var participants: [CKUserIdentity.LookupInfo: CKShare.Participant] = [:]
             var failure: Error?
             let operation = CKFetchShareParticipantsOperation(userIdentityLookupInfos: infos)
@@ -268,7 +268,7 @@ extension CloudKitTransport: CloudSharingTransport {
     /// Each link's share metadata (`CKFetchShareMetadataOperation`).
     private func shareMetadata(_ urls: [URL]) async throws -> [URL: Result<CKShare.Metadata, CloudError>] {
         try await withCheckedThrowingContinuation { continuation in
-            let lock = NSLock()
+            let lock = AppLock()
             var results: [URL: Result<CKShare.Metadata, CloudError>] = [:]
             let operation = CKFetchShareMetadataOperation(shareURLs: urls)
             operation.perShareMetadataResultBlock = { url, result in

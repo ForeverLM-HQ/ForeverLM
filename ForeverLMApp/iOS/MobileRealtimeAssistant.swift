@@ -433,7 +433,7 @@ final class MobileVoiceBackgroundTaskWatch: @unchecked Sendable {
     static let interval: Duration = .seconds(20)
     static let longestWatch: TimeInterval = 90 * 60
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var handler: (@Sendable (String) -> Void)?
     private var stoppedByVoice: Set<String> = []
     private var watching: [String: Task<Void, Never>] = [:]

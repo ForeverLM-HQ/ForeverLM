@@ -379,7 +379,7 @@ enum ManagedAI {
     nonisolated(unsafe) static var ownKeyOverrideForTesting: OwnKey??
     #endif
 
-    private static let ownKeyLock = NSLock()
+    private static let ownKeyLock = AppLock()
     /// `nil` until the Keychain has been read once this launch; then the
     /// answer, which every write below keeps current. Routing resolves the
     /// transport synchronously at dispatch, so this must not cost a Keychain
@@ -1661,7 +1661,7 @@ enum ManagedAI {
         }
     }
 
-    private static let policyRefreshLock = NSLock()
+    private static let policyRefreshLock = AppLock()
     nonisolated(unsafe) private static var policyRefreshInFlight = false
 
     /// Last known answer to "can this account pay for an AI call?", durable so
@@ -1822,7 +1822,7 @@ struct AIModelAccess: Codable, Equatable, Sendable {
         return makers.contains { $0.lowercased() == id[..<slash] }
     }
 
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var cache: AIModelAccess??
 
     /// The limit in force: nil while any model may be picked.

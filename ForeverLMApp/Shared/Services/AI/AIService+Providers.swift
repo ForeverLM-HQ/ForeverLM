@@ -173,7 +173,7 @@ extension AIService {
     /// has refused, its later requests ask for `low` from the start instead of
     /// paying for a failing round trip each time.
     enum MandatoryReasoningModels {
-        private static let lock = NSLock()
+        private static let lock = AppLock()
         private static var slugs: Set<String> = []
 
         static func contains(_ slug: String) -> Bool {
@@ -1393,7 +1393,7 @@ extension AIService {
 /// before `bytes(for:)` returns — the only point at which the caller would
 /// otherwise get a handle on it. Once the first byte is in, it no longer cancels.
 private final class StreamFirstByteDeadline: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var task: URLSessionTask?
     private var expired = false
     private var started = false

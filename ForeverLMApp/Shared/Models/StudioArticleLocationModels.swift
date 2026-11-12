@@ -206,7 +206,7 @@ extension StudioArticle {
     /// `revalidateMissingResolvedPaths()`, which re-stats misses off the main
     /// actor; files that are deleted are dropped via
     /// `invalidateResolvedPathCache(forRawPaths:)` by the deletion flows.
-    private static let resolvedPathCacheLock = NSLock()
+    private static let resolvedPathCacheLock = AppLock()
 
     nonisolated(unsafe) private static var resolvedPathCache: [String: String] = [:]
 

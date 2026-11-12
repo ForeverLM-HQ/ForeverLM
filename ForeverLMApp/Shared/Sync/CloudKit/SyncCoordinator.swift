@@ -462,7 +462,7 @@ final class PrivateEngineDelegate: CKSyncEngineDelegate, @unchecked Sendable {
     let engine: PrivateSyncEngine
     let store: PrivateSyncLocalStore
     weak var coordinator: SyncCoordinator?
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var inFlight: [CloudRecordID: OutboxChange] = [:]
     private var sendStartedAt = Date()
     private var fetchStartedAt = Date()

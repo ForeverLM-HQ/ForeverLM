@@ -267,7 +267,7 @@ final class KnowledgeMapVoiceListener {
 /// audio thread: 16-bit PCM at the recognizer's rate (16 kHz mono, a few tens
 /// of kilobytes a second), which the transcription model takes as it is.
 final class VoiceRecordingSink: @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var file: AVAudioFile?
     private let url: URL
 
@@ -314,7 +314,7 @@ final class VoiceRecordingSink: @unchecked Sendable {
 /// second, from the audio thread.
 final class VoiceLevelMeter: @unchecked Sendable {
     private let report: @Sendable (Double) -> Void
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var last = Date.distantPast
 
     init(report: @escaping @Sendable (Double) -> Void) {

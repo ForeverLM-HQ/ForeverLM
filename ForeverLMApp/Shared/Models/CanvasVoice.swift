@@ -296,7 +296,7 @@ enum CanvasVoice {
     /// When something first happened, set once from wherever it happens and
     /// read after the work is done.
     final class Stamp: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var time: Date?
 
         func mark() {
@@ -323,7 +323,7 @@ enum CanvasVoice {
     /// Which of the requests answered first: its words are carried out, and
     /// the others are stopped the moment it starts.
     final class Race: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var winner: Int?
         private var tasks: [Int: Task<Error?, Never>] = [:]
         private var done: Set<Int> = []

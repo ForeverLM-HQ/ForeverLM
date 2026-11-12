@@ -249,7 +249,7 @@ final class DocBodyPublisher: @unchecked Sendable {
 
     let store: MacPrivateSyncStore
     let transfer: DocBodyTransfer
-    private let lock = NSLock()
+    private let lock = AppLock()
     /// The package revision a folder fingerprint gave, so an idle Doc is not encoded every round.
     private var revisions: [String: (fingerprint: String, revision: String)] = [:]
     /// The same for a notebook's workspace files.

@@ -75,7 +75,7 @@ final class MacRoundHooks: SyncRoundHooks, @unchecked Sendable {
 /// on: the view model reads the sources again and publishes only a real change. A Setting cleared on
 /// another device is still taken out of `UserDefaults` by `afterFetch` alone.
 enum AppliedRemoteChangesAnnouncer {
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var pending = AppliedRemoteChanges()
     nonisolated(unsafe) private static var scheduled = false
 
@@ -127,7 +127,7 @@ enum AppliedRemoteChangesAnnouncer {
 /// `CloudKitSyncStatusCenter`, which Settings and the Studio read, fed from the coordinator's status under
 /// generation 2 (§14.1, R5-m2).
 final class CloudKitSyncStatusAdapter: @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var lastPending = 0
 
     func update(_ status: SyncStatus) {
@@ -184,7 +184,7 @@ actor MacSyncSession {
     /// The session the app started. Strong: the services below are held through it.
     nonisolated(unsafe) static var current: MacSyncSession?
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "MacSyncSession")
-    private static let started = NSLock()
+    private static let started = AppLock()
     nonisolated(unsafe) private static var startedOnce = false
 
     /// Whether this build syncs at all: a library container to sync with, and not the First Run app. The

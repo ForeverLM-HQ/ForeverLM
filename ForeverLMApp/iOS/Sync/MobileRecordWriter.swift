@@ -53,7 +53,7 @@ final class MobileRecordWriter: @unchecked Sendable {
     let clock: @Sendable () -> Date
     let newID: @Sendable () -> String
     /// Hears that a write was queued, with how long its records wait before they are due (§6.6 step 4).
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var onWrite: (@Sendable (TimeInterval) -> Void)?
 
     init(replica: MobileReplica, deviceID: String, blobs: BlobStore? = nil, clock: @escaping @Sendable () -> Date = { Date() },

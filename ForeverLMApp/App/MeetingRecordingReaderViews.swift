@@ -84,7 +84,7 @@ enum MeetingRecordingMedia: Equatable {
 /// `StudioViewModel.meetingArtifactsBySourceId` changes (startup load and every
 /// import), never polled.
 enum MeetingRecordingAvailability {
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     private static var playableSourceIDs: Set<String> = []
 
     static func update(from artifactsBySourceID: [String: [MeetingArtifact]]) {

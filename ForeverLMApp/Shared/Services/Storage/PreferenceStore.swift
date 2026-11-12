@@ -234,7 +234,7 @@ enum PreferenceStore {
         subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
         category: "PreferencePersistence"
     )
-    private static let persistenceLock = NSLock()
+    private static let persistenceLock = AppLock()
     private nonisolated(unsafe) static var persistenceTail: Task<Void, Never>?
     private nonisolated(unsafe) static var persistenceGeneration = 0
 
@@ -505,7 +505,7 @@ enum PreferenceStore {
 
     // MARK: - Debug backstop
 
-    private static let lastWrittenLock = NSLock()
+    private static let lastWrittenLock = AppLock()
     private nonisolated(unsafe) static var lastWritten: [String: Any] = [:]
 
     private static func recordWrite(_ key: String, _ value: Any?) {

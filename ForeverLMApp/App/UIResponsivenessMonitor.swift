@@ -59,7 +59,7 @@ final class UIResponsivenessMonitor {
     /// Main-thread liveness, written by the probe on the main thread and read by
     /// the watchdog. A lock rather than a queue hop so no background scheduling
     /// delay can contaminate the measurement.
-    private let stateLock = NSLock()
+    private let stateLock = AppLock()
     private var probeSentAt: Date?
     private var lastProbeRanAt = Date()
 

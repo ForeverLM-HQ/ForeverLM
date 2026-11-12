@@ -362,7 +362,7 @@ actor OpenRouterEndpointTierCatalog {
     }
 
     nonisolated(unsafe) private static var entriesBySlug: [String: Entry] = [:]
-    private static let entriesLock = NSLock()
+    private static let entriesLock = AppLock()
     private static let freshnessInterval: TimeInterval = 5 * 60
 
     private var inFlight: [String: Task<[OpenRouterEndpointTier], Error>] = [:]
@@ -546,7 +546,7 @@ actor OpenRouterModelSpeedCatalog {
     }
 
     nonisolated(unsafe) private static var entriesBySlug: [String: Entry] = [:]
-    private static let entriesLock = NSLock()
+    private static let entriesLock = AppLock()
     private static let freshnessInterval: TimeInterval = 5 * 60
 
     private var inFlight: [String: Task<[OpenRouterEndpointSpeed], Error>] = [:]
@@ -1606,7 +1606,7 @@ enum AIModelPriceRefresher {
     /// freshness window keeps a day-old sale price off the pickers (and a
     /// newly discounted one on them).
     static let freshnessInterval: TimeInterval = 5 * 60
-    private static let inFlightLock = NSLock()
+    private static let inFlightLock = AppLock()
     nonisolated(unsafe) private static var isRefreshing = false
 
     /// Whether a price table needs fetching. A table that has never been

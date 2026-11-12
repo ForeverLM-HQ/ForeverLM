@@ -183,7 +183,7 @@ enum FamilyDeviceKey {
         var errorDescription: String? { "The family device key could not be read from the Keychain." }
     }
 
-    private static let lock = NSLock()
+    private static let lock = AppLock()
 
     static func privateKey() throws -> Curve25519.KeyAgreement.PrivateKey {
         try lock.withLock {

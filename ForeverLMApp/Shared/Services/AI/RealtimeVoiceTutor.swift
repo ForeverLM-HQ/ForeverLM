@@ -289,7 +289,7 @@ final class RealtimeVoiceSourceToolbox: RealtimeVoiceToolbox, @unchecked Sendabl
     private let sourceID: String
     private let passages: [RealtimeVoicePassageSearch.Passage]
     private let fitsInline: Bool
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var answers: [RealtimeVoiceAnswerRecord] = []
 
     init(source: RealtimeVoiceSource) {

@@ -1196,7 +1196,7 @@ enum AIProviderPricing {
         var longContextOutput: Double?
     }
 
-    private static let remotePriceLock = NSLock()
+    private static let remotePriceLock = AppLock()
     nonisolated(unsafe) private static var remotePricesBySlug: [String: RemoteModelPrice] = [:]
     nonisolated(unsafe) private static var didLoadPersistedRemotePrices = false
     nonisolated(unsafe) private static var remotePriceGenerationValue: UInt64 = 0
@@ -1221,16 +1221,21 @@ enum AIProviderPricing {
     /// called from `tokenRates` itself: with no explicit load the table stays
     /// empty and every rate comes from the hardcoded rows, which keeps unit
     /// tests deterministic.
+    ///
+    /// The table is read and decoded with `remotePriceLock` released: every
+    /// price lookup, the main thread's included, takes that lock, so it is
+    /// held only to publish.
     static func loadPersistedRemotePrices() {
-        remotePriceLock.lock()
-        defer { remotePriceLock.unlock() }
-        guard !didLoadPersistedRemotePrices else { return }
-        didLoadPersistedRemotePrices = true
-        guard let data = Preferences.value(Prefs.Spend.remotePrices),
-              let table = try? JSONDecoder().decode([String: RemoteModelPrice].self, from: data)
-        else { return }
-        remotePricesBySlug = table
-        remotePriceGenerationValue &+= 1
+        guard !remotePriceLock.withLock({ didLoadPersistedRemotePrices }) else { return }
+        let table = Preferences.value(Prefs.Spend.remotePrices)
+            .flatMap { try? JSONDecoder().decode([String: RemoteModelPrice].self, from: $0) }
+        remotePriceLock.withLock {
+            guard !didLoadPersistedRemotePrices else { return }
+            didLoadPersistedRemotePrices = true
+            guard let table else { return }
+            remotePricesBySlug = table
+            remotePriceGenerationValue &+= 1
+        }
     }
 
     /// Replaces the remote price table and persists it with the fetch time.
@@ -1808,7 +1813,7 @@ final class AIInFlightCalls: @unchecked Sendable {
         }
 
         private final class Box: @unchecked Sendable {
-            private let lock = NSLock()
+            private let lock = AppLock()
             private var value: [String] = []
             var steps: [String] {
                 get { lock.withLock { value } }
@@ -1846,7 +1851,7 @@ final class AIInFlightCalls: @unchecked Sendable {
     }
 
     private let stops: StoppedStepsStore
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var entries: [UUID: Entry] = [:]
     private var cancels: [UUID: @Sendable () -> Void] = [:]
 

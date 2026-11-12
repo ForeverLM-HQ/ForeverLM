@@ -56,7 +56,7 @@ final class MCPStoreGateHold: @unchecked Sendable {
     @TaskLocal static var current: MCPStoreGateHold?
 
     let mode: MCPStoreOperationMode
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var ended = false
 
     init(_ mode: MCPStoreOperationMode) {

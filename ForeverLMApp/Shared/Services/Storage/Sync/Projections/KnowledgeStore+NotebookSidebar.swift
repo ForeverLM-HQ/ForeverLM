@@ -84,7 +84,7 @@ enum NotebookSidebarSync {
     static let expandedKey = "studio.navigation.expandedProjectIDs.v1"
 
     private static let storage = StorageService()
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var tail: Task<Void, Never>?
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "NotebookSidebarSync")
 

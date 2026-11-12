@@ -36,7 +36,7 @@ private let logger = Logger(subsystem: "com.foreverlm", category: "AIKnowledge")
 /// one model. Supporting non-Latin scripts means per-model vector partitions and
 /// scoped comparison, not a different argument here.
 enum AppleTextEmbedder {
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     private static var cachedModel: NLContextualEmbedding?
 
     /// Load once and reuse. `load()` maps the model into memory; doing it per call

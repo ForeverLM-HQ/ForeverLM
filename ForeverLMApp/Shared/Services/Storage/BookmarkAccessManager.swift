@@ -30,7 +30,7 @@ final class BookmarkAccessManager: @unchecked Sendable {
 
     /// URLs currently being accessed via startAccessingSecurityScopedResource.
     /// Guarded by `resourcesLock` so resolve/stop can run off the main actor.
-    private let resourcesLock = NSLock()
+    private let resourcesLock = AppLock()
     private var activeResources: [BookmarkKey: URL] = [:]
 
     private func recordActiveResource(_ url: URL, for key: BookmarkKey) {

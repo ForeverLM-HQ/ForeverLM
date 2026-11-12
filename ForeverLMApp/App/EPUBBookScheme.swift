@@ -42,7 +42,7 @@ enum EPUBBookScheme {
 
     // MARK: Pages
 
-    private static let pagesLock = NSLock()
+    private static let pagesLock = AppLock()
     private nonisolated(unsafe) static var pages: [String: Data] = [:]
     private nonisolated(unsafe) static var pageOrder: [String] = []
     /// A few books open at once, each a page of every chapter.

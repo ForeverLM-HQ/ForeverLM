@@ -14,7 +14,7 @@ final class MCPProtocolHandler: @unchecked Sendable {
     // Sessions are created on `initialize` and touched by concurrent per-request
     // Tasks, so all access is guarded by `sessionsLock`. Each entry tracks its
     // last-seen time so stale sessions expire instead of accumulating forever.
-    private let sessionsLock = NSLock()
+    private let sessionsLock = AppLock()
     private var sessions: [String: Date] = [:]
     private let sessionTTL: TimeInterval = 24 * 60 * 60
 

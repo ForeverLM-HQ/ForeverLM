@@ -953,7 +953,7 @@ extension KnowledgeStore {
 /// search, lists and discovery. In memory only: a relaunch asks the chat again.
 final class ChatNamedSources: @unchecked Sendable {
     static let shared = ChatNamedSources()
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var ids = Set<String>()
 
     func grant(_ newIDs: some Sequence<String>) {

@@ -60,7 +60,7 @@ enum MacRealtimeAssistant {
 
     final class Toolbox: RealtimeVoiceToolbox, @unchecked Sendable {
         private let opened = RealtimeVoiceOpenedSources()
-        private let noticeLock = NSLock()
+        private let noticeLock = AppLock()
         private var noticeHandler: (@Sendable (String) -> Void)?
 
         func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {

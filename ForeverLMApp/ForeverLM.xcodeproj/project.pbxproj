@@ -663,6 +663,7 @@
 		491CE1FDE71394F53027CE33 /* MobileSourceReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20793272D8F65464289294F6 /* MobileSourceReaderView.swift */; };
 		492330D51EA0BF4A4940B43D /* NotebookSourceDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477648806D6371DF57C99650 /* NotebookSourceDrop.swift */; };
 		49269EA8E3F10ED7504591E2 /* StudioViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58189E59BF7ED6B172B3D377 /* StudioViewModelTests.swift */; };
+		493B599762F78710DF27D0E1 /* AppLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9923A9CD2B28F5A285A215 /* AppLock.swift */; };
 		495F621647D9D3FEB3CCF9B2 /* NotebookCollectionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16D4BA659AFF5D0ADC62246D /* NotebookCollectionsTests.swift */; };
 		4988EC80E97A25CF314CB622 /* AppleBooksLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7303A9A95DC06E5C7EDC804D /* AppleBooksLibrary.swift */; };
 		499A2ABFAA7BFA4A373E87B6 /* NotebookWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 154EF4D852021E10FFB23CC1 /* NotebookWorkspace.swift */; };
@@ -1485,6 +1486,7 @@
 		9E2954F028DC29C323694083 /* MCPTools+BackgroundAISpend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F629498E97931FF0F34434 /* MCPTools+BackgroundAISpend.swift */; };
 		9E3C23A61D6A927A25DEC597 /* StudioCornerOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17907E1752C2207373FADC8 /* StudioCornerOverlays.swift */; };
 		9E544AB4108A5178687809D9 /* vectors in Resources */ = {isa = PBXBuildFile; fileRef = F5004E14B01BF59FCFF920CC /* vectors */; };
+		9E6318320A314BFE870B063F /* AppLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9923A9CD2B28F5A285A215 /* AppLock.swift */; };
 		9E725078F677ABC0048FB34A /* PaperReferenceLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2661AC3BF47F0CB9DC6876E /* PaperReferenceLinkTests.swift */; };
 		9E86ED8D24FEA8D89B97C7FB /* KnowledgeStore+BookFolderReferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = E415637848E5511350C38FB9 /* KnowledgeStore+BookFolderReferences.swift */; };
 		9E9AF42CFBC844A0A4498A5A /* Prefs+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F8A7C329D0853BBC22B7CD9 /* Prefs+Models.swift */; };
@@ -3309,6 +3311,7 @@
 		6F662CAD2874A04D7D3632F0 /* DocPublishingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocPublishingViews.swift; sourceTree = "<group>"; };
 		6F7579A882F571BC28B8ADCC /* BookPDFAssembly.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookPDFAssembly.swift; sourceTree = "<group>"; };
 		6F8E147F040BD103F1253C29 /* KnowledgeStore+ArtifactSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+ArtifactSchema.swift"; sourceTree = "<group>"; };
+		6F9923A9CD2B28F5A285A215 /* AppLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLock.swift; sourceTree = "<group>"; };
 		6FDC0BD731DDBDE14D1B4098 /* MCPRuntimeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRuntimeCoordinator.swift; sourceTree = "<group>"; };
 		7002EE4919B794CB8ED88673 /* PaperFigurePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperFigurePanelTests.swift; sourceTree = "<group>"; };
 		700F7028BC085607E8749249 /* MemoryCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryCardTests.swift; sourceTree = "<group>"; };
@@ -4524,6 +4527,7 @@
 			isa = PBXGroup;
 			children = (
 				AE3A2FF44FF7EB00CED5429E /* AccessibilityIdentifiers.swift */,
+				6F9923A9CD2B28F5A285A215 /* AppLock.swift */,
 				6A11515CD173FB856B0AA1A0 /* AttachedImageReference.swift */,
 				3A1CB4F80EDA11B400F30476 /* ChatImagePreparation.swift */,
 				24777DE7AECD94E386AD2107 /* Digest+Hex.swift */,
@@ -6985,6 +6989,7 @@
 				A4E6AD960DBBC0AF7CED967C /* Generate Secrets */,
 				20C55A8B385A493093121226 /* Enforce AI Model Routing */,
 				C0AD9FE03B41B68F4A13D1DE /* Enforce Preference Keys */,
+				29FA951C093DE6A534F31936 /* Enforce Lock Safety */,
 				D50B66BA3832969767BB86F0 /* Sources */,
 				D393DA05571CD525FAB4135D /* Resources */,
 				2A7560604CA959C2E8B5C60D /* Frameworks */,
@@ -7136,6 +7141,7 @@
 			buildPhases = (
 				3C679FF515079EA2E96F1427 /* Enforce AI Model Routing */,
 				00A4DC110FC84CABC4E18A78 /* Enforce Preference Keys */,
+				3C783F475EFA1A5487590219 /* Enforce Lock Safety */,
 				8521701ED0C83A106FBCCD5D /* Sources */,
 				8FD2A83958F9BFB0C06AE83C /* Resources */,
 				18B7A568B73D44DCF290ECA4 /* Frameworks */,
@@ -7341,6 +7347,25 @@
 			shellPath = /bin/sh;
 			shellScript = "case \"${CONFIGURATION}\" in\n  Debug) exit 0 ;;\nesac\nAPP_PLUGINS_DIR=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Contents/PlugIns\"\nif [ -d \"$APP_PLUGINS_DIR\" ]; then\n  find \"$APP_PLUGINS_DIR\" -maxdepth 1 -name \"*.xctest\" -exec rm -rf {} +\nfi\n";
 		};
+		29FA951C093DE6A534F31936 /* Enforce Lock Safety */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Enforce Lock Safety";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "xcrun python3 \"${SRCROOT}/scripts/check_lock_reentry.py\"";
+		};
 		3C679FF515079EA2E96F1427 /* Enforce AI Model Routing */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -7359,6 +7384,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"${SRCROOT}/scripts/check_ai_model_routing.sh\"";
+		};
+		3C783F475EFA1A5487590219 /* Enforce Lock Safety */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Enforce Lock Safety";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "xcrun python3 \"${SRCROOT}/scripts/check_lock_reentry.py\"";
 		};
 		A4E6AD960DBBC0AF7CED967C /* Generate Secrets */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -8003,6 +8047,7 @@
 				D3F133B9C8865B92E891A388 /* AITaskSettingsCatalog.swift in Sources */,
 				FA9ACFA0E2DD3EAD94B8F5D4 /* AIUsageReporting.swift in Sources */,
 				0B05318B1D6DA1FE04292C50 /* AccountKey.swift in Sources */,
+				9E6318320A314BFE870B063F /* AppLock.swift in Sources */,
 				27BADEA820A9D7E2098E23DD /* AppStorage+PreferenceKey.swift in Sources */,
 				737E7FA3EAB89AA8A2AD9423 /* AppleSignInSupport.swift in Sources */,
 				1162767A9F5532643477CF13 /* ArticleSpeechCatalog.swift in Sources */,
@@ -8454,6 +8499,7 @@
 				95BD2581B1EDF1A78C098C48 /* ActivationSupport.swift in Sources */,
 				8C14B001197C6DD28D35606D /* ActivityLogProjection.swift in Sources */,
 				0749D0B52021A60D3F746C4C /* AddTextbookSheet.swift in Sources */,
+				493B599762F78710DF27D0E1 /* AppLock.swift in Sources */,
 				4FE86EEB8FB84CE71B011974 /* AppPlanViews.swift in Sources */,
 				5BE37ABF6B0A55F18BEC2CF1 /* AppStorage+PreferenceKey.swift in Sources */,
 				78A0D34AAAD46F4C8C82DE7C /* AppUpdateController.swift in Sources */,

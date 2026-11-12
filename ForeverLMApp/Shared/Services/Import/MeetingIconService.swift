@@ -152,7 +152,7 @@ actor MeetingIconService {
         NotificationCenter.default.post(name: .syncedArtworkDidInstall, object: nil)
     }
 
-    private static let storedIconExistenceLock = NSLock()
+    private static let storedIconExistenceLock = AppLock()
     nonisolated(unsafe) private static var storedIconExistence: [String: Bool] = [:]
 
     /// A stored icon that already satisfies the learner's preference, or nil.

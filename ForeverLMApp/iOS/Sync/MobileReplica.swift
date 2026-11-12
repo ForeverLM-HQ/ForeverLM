@@ -340,7 +340,7 @@ final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchec
 
     let connection: SQLiteConnection
     private let queue = DispatchQueue(label: "com.foreverlm.mobile-replica", qos: .utility)
-    private let counter = NSLock()
+    private let counter = AppLock()
     private var decodes = 0
     private var heldMoveMaps: MoveMapIndex?
     private var heldMemoryRevision = 0

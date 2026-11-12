@@ -29,7 +29,7 @@ struct StorageStoreAccess: MigrationStoreAccess {
 enum GenerationActivationLauncher {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "GenerationActivation")
 
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var started = false
 
     /// Closes the gate, runs the activation and opens the gate once `activated_at` is set. A failed

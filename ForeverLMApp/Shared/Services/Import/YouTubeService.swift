@@ -67,7 +67,7 @@ actor YouTubeService {
 
     /// Serializes read-modify-write of the account list, which the app and MCP
     /// both write from any thread.
-    private nonisolated static let accountListLock = NSLock()
+    private nonisolated static let accountListLock = AppLock()
 
     /// Every account the plugin holds, in the order they were connected,
     /// including ones whose grant Google revoked.

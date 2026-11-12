@@ -50,7 +50,7 @@ final class MoveMapIndex: @unchecked Sendable {
         let index: Int
     }
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var keys: Set<String> = []
     private var byRecord: [RecordKey: [Placed]] = [:]
 

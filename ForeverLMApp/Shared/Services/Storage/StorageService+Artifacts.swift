@@ -1577,7 +1577,7 @@ final class SourceArtifactCitationCache: @unchecked Sendable {
     }
 
     static let shared = SourceArtifactCitationCache()
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var entries: [String: Entry] = [:]
 
     func entry(for artifactID: String, updatedAt: Date) -> Entry? {

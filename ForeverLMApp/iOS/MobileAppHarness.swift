@@ -38,7 +38,7 @@ enum MobileAppHarness {
         let satellites: MobileSatellites
     }
 
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var held: Backend?
 
     /// The sample library, once made; nil outside the preview.

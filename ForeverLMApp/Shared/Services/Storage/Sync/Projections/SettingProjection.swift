@@ -115,7 +115,7 @@ struct SettingRow: Equatable, Sendable {
 /// absent row cannot tell hydration "removed" from "not synced yet", so the Mac's round hook takes these
 /// after the apply and removes each key whose row is still absent (`PreferenceStore.applyInboundRemoval`).
 enum InboundSettingRemovals {
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var keys: Set<String> = []
 
     static func note(_ key: String) {

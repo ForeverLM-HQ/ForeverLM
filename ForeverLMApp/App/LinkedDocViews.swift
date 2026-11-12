@@ -2162,7 +2162,7 @@ final class LocalSiteSchemeHandler: NSObject, WKURLSchemeHandler {
     static let contentSecurityPolicy = LocalSiteServing.contentSecurityPolicy
 
     private let queue = DispatchQueue(label: "com.foreverlm.local-site-scheme", qos: .userInitiated, attributes: .concurrent)
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var stoppedTasks = Set<ObjectIdentifier>()
 
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {

@@ -30,7 +30,7 @@ extension ManagedAI {
     /// it, like the OpenRouter key.
     static let ownOpenAIVoiceKeysURL = URL(string: "https://platform.openai.com/api-keys")!
 
-    private static let ownOpenAIVoiceKeyLock = NSLock()
+    private static let ownOpenAIVoiceKeyLock = AppLock()
     /// `nil` until read this launch; then the answer, which every write keeps.
     nonisolated(unsafe) private static var ownOpenAIVoiceKeyCache: String??
 

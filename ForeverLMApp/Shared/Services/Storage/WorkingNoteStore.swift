@@ -16,7 +16,7 @@ actor WorkingNoteStore {
 
     /// One store per directory, so every caller in the process shares one
     /// in-memory copy and one writer.
-    private static let registry = NSLock()
+    private static let registry = AppLock()
     nonisolated(unsafe) private static var stores: [String: WorkingNoteStore] = [:]
 
     static func shared(directory: URL, embed: @escaping @Sendable (String) async throws -> [Float] = { try await AppleTextEmbedder.embed($0) }) -> WorkingNoteStore {

@@ -65,7 +65,7 @@ final class RealtimeVoiceSession: NSObject, @unchecked Sendable {
         var disconnectTask: Task<Void, Never>?
     }
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var current = State()
 
     /// Every read and write of `current`: WebRTC calls back on its own threads.

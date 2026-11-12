@@ -13,7 +13,7 @@ import Foundation
 /// Reads after the first never reach defaults. A change made elsewhere (another
 /// writer, an inbound sync) is not seen until `reload()`.
 final class PreferenceMemo<Value>: @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var loaded = false
     private var cached: Value?
     private let load: () -> Value

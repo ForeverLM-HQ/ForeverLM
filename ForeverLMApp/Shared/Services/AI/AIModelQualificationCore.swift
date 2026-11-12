@@ -84,7 +84,7 @@ enum AIModelQualification {
     /// while a lock is held: the copy changes under the memo's lock and the
     /// stored table is written after it is released.
     nonisolated(unsafe) private static let memos = NSMapTable<UserDefaults, PreferenceMemo<Data?>>.weakToStrongObjects()
-    private static let memosLock = NSLock()
+    private static let memosLock = AppLock()
 
     private static func memo(for defaults: UserDefaults) -> PreferenceMemo<Data?> {
         memosLock.withLock {

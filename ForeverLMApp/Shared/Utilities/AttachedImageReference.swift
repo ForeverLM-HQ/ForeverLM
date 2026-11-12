@@ -192,7 +192,7 @@ enum AttachedImageStore {
         ("webp", "image/webp"),
     ]
 
-    private static let memoryLock = NSLock()
+    private static let memoryLock = AppLock()
     /// Pictures this process has staged or read, keyed by id. Bounded by the
     /// chats open in one session; a transcript of hundreds of pictures is not
     /// something the composer produces.
@@ -284,7 +284,7 @@ enum AttachedImageStore {
 /// assembly never touches the disk. The frame file itself is the one
 /// `show_source_image` captures (`SlideFrameExtraction`), and stays the truth.
 enum VideoMomentFrames {
-    private static let memoryLock = NSLock()
+    private static let memoryLock = AppLock()
     nonisolated(unsafe) private static var memory: [String: AttachedImage] = [:]
 
     private static func key(_ reference: SourceImageReference) -> String {

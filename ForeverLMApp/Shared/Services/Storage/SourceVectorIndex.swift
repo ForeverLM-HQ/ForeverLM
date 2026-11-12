@@ -339,7 +339,7 @@ final class SourceVectorIndex {
 final class SharedSourceVectorIndex: @unchecked Sendable {
     static let shared = SharedSourceVectorIndex()
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var index: SourceVectorIndex?
     private var indexDimensions: Int?
     private var indexStorePath: String?

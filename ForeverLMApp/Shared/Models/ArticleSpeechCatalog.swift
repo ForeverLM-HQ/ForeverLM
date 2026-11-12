@@ -494,7 +494,7 @@ enum OpenRouterAudioDirectory {
         var generation: UInt64 = 0
     }
 
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var entries: [Kind: Entry] = [:]
 
     fileprivate static let isRunningUnitTests: Bool = {
@@ -1052,7 +1052,7 @@ enum OpenRouterAudioPrices {
     // MARK: Storage
 
     static let freshnessInterval: TimeInterval = OpenRouterAudioDirectory.freshness
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     nonisolated(unsafe) private static var stored: Table = [:]
     nonisolated(unsafe) private static var fetchedAt: Date?
     nonisolated(unsafe) private static var didLoadPersisted = false
@@ -1721,7 +1721,7 @@ enum ArticleSpeechCatalog {
         ),
     ]
 
-    private static let mergedLock = NSLock()
+    private static let mergedLock = AppLock()
     nonisolated(unsafe) private static var mergedModels: (
         directory: UInt64,
         prices: UInt64,

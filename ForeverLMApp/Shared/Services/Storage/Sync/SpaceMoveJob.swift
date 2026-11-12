@@ -1214,7 +1214,7 @@ actor SpaceMoveJob {
 /// The move journals running in this process, by job id.
 final class SpaceMoveRunning: @unchecked Sendable {
     static let shared = SpaceMoveRunning()
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var ids = Set<String>()
 
     func claim(_ id: String) -> Bool { lock.withLock { ids.insert(id).inserted } }

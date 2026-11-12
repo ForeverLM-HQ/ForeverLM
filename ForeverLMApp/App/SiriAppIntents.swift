@@ -441,7 +441,7 @@ struct ForeverLMMacAppShortcuts: AppShortcutsProvider {
 final class SiriSpotlightDonationCoordinator: @unchecked Sendable {
     static let shared = SiriSpotlightDonationCoordinator()
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var started = false
     private var pendingDonation: Task<Void, Never>?
 

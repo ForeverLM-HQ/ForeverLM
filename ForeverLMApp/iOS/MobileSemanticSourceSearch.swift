@@ -61,7 +61,7 @@ enum MobileSemanticSourceSearch {
     /// Keyed by the embedded text itself, so a retitled source re-embeds and a
     /// removed one simply stops being asked for.
     private final class VectorCache: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var vectors: [String: [Double]] = [:]
 
         func vector(for source: MobileCloudSource, embedding: NLEmbedding) -> [Double]? {

@@ -577,7 +577,7 @@ actor MacNarrationLibrary {
 /// The sources whose narration the learner just removed: no pass lays one down or uploads it while its pointer
 /// is being cleared.
 final class NarrationRemovals: @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var held: Set<String> = []
 
     func insert(_ id: String) { lock.withLock { _ = held.insert(id) } }

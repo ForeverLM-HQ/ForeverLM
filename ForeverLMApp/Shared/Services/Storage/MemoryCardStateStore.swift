@@ -141,7 +141,7 @@ enum MemoryCardStateStore {
 
     /// The states the surfaces read and the queue their writes take, one per store.
     final class Records: @unchecked Sendable {
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var states: [String: MemoryCardDeckState] = [:]
         private var loaded = false
         private var activated = false

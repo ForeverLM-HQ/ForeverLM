@@ -463,7 +463,7 @@ enum SQLiteText {
 /// One gate per database file: an open takes it while it reads the version and migrates, so a second
 /// open of the same store in this process waits for the first and finds the store current.
 enum KnowledgeStoreOpening {
-    private static let registryLock = NSLock()
+    private static let registryLock = AppLock()
     nonisolated(unsafe) private static var gates: [String: NSRecursiveLock] = [:]
 
     private static func key(_ path: String) -> String {

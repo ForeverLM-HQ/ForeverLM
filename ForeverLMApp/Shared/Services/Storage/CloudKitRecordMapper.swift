@@ -882,7 +882,7 @@ enum CourseQuizPicturePackage {
 
     // MARK: Holding uploads while a course's pictures are drawn
 
-    private static let holdLock = NSLock()
+    private static let holdLock = AppLock()
     nonisolated(unsafe) private static var holds: [String: Int] = [:]
 
     /// Leaves the course's package off every record sent until

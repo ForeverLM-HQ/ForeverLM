@@ -75,7 +75,7 @@ enum KeychainService {
     /// main thread from view code, and a miss is otherwise never memoized the
     /// way a hit is (hits self-heal into the vault). Synced keys stay out:
     /// iCloud Keychain can materialize those behind the process's back.
-    private static let missLock = NSLock()
+    private static let missLock = AppLock()
     private static var missedIndividualKeys = Set<String>()
 
     private static func individualMissCached(_ key: Key) -> Bool {
@@ -912,7 +912,7 @@ enum KeychainService {
     /// microseconds; the only thing this waits out is a dialog.
     private static let promptableVaultReadTimeout: DispatchTimeInterval = .milliseconds(1_500)
 
-    private static let promptableVaultReadLock = NSLock()
+    private static let promptableVaultReadLock = AppLock()
     /// Set once a read has been abandoned to an unanswered dialog. That dialog is
     /// still on screen and the thread that asked for it is still parked behind
     /// it, so a second read would only park another thread and wait out another
@@ -942,7 +942,7 @@ enum KeychainService {
         }
 
         final class Outcome {
-            let lock = NSLock()
+            let lock = AppLock()
             var result: (values: [String: String]?, status: OSStatus)?
         }
         let outcome = Outcome()

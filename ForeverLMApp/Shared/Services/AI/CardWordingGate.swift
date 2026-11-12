@@ -46,7 +46,7 @@ enum ChatRequestedModel {
     /// around a call the in-app chat made.
     @TaskLocal static var current: AITaskConfig?
 
-    private static let lock = NSLock()
+    private static let lock = AppLock()
     private nonisolated(unsafe) static var configs: [String: AITaskConfig] = [:]
 
     /// The chat session's model while one of its tool calls runs.

@@ -157,6 +157,9 @@ targets:
       - name: Enforce Preference Keys
         script: "/bin/sh \"${SRCROOT}/scripts/check_preference_keys.sh\""
         basedOnDependencyAnalysis: false
+      - name: Enforce Lock Safety
+        script: "xcrun python3 \"${SRCROOT}/scripts/check_lock_reentry.py\""
+        basedOnDependencyAnalysis: false
     sources:
       - Shared
       - MCP
@@ -338,9 +341,14 @@ targets:
       - name: Enforce Preference Keys
         script: "/bin/sh \"${SRCROOT}/scripts/check_preference_keys.sh\""
         basedOnDependencyAnalysis: false
+      - name: Enforce Lock Safety
+        script: "xcrun python3 \"${SRCROOT}/scripts/check_lock_reentry.py\""
+        basedOnDependencyAnalysis: false
     sources:
       # Every preference key, declared once for both platforms (`Prefs`), and the typed access to them.
       - Shared/Preferences
+      # The app's lock (every Shared file that guards state uses it).
+      - Shared/Utilities/AppLock.swift
       - iOS/ForeverLMMobileApp.swift
       - iOS/MobileDesign.swift
       - iOS/MobileKeychainService.swift

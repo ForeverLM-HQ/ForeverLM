@@ -105,7 +105,7 @@ actor CloudKitAccountIdentity {
 /// One continuation, resumed exactly once by whichever caller reaches it
 /// first; the later one finds nothing to resume.
 private final class FirstAnswer: @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var continuation: CheckedContinuation<String?, Never>?
 
     func keep(_ continuation: CheckedContinuation<String?, Never>) {

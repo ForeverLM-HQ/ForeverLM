@@ -117,7 +117,7 @@ extension ArticleSpeechSelection {
             : nil
     }
 
-    private static let pendingRepairLock = NSLock()
+    private static let pendingRepairLock = AppLock()
     nonisolated(unsafe) private static var pendingRepair: Repair?
 
     /// Before a text-to-speech request goes out on the phone (Listen,

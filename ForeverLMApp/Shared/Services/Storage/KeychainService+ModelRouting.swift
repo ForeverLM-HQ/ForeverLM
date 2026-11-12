@@ -506,7 +506,7 @@ extension KeychainService {
     // a model chosen from the chat bar belongs to the current chat, and every new
     // chat starts back on the Default Model from Settings. Persisting it created a
     // hidden override that contradicted the Settings pane with no way to see why.
-    private static let chatModelLock = NSLock()
+    private static let chatModelLock = AppLock()
 
     private static var chatSessionProvider: AIProvider?
 

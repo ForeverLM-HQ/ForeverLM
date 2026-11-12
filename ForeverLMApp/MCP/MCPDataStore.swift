@@ -84,7 +84,7 @@ final class MCPDataStore {
     /// no busy_timeout, so concurrent MCP calls could churn connections and hit
     /// "database is locked". Guarded by `storeLock` because tool calls run on
     /// concurrent per-request Tasks.
-    private let storeLock = NSLock()
+    private let storeLock = AppLock()
     private var cachedStore: KnowledgeStore?
     let notebookFileStorage: StorageService
     private let operationGate = MCPKnowledgeStoreOperationGate()

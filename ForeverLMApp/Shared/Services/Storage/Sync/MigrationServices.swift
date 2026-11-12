@@ -25,7 +25,7 @@ enum LibraryClaimOutcome: Equatable, Sendable, Codable {
 final class MigrationServices: @unchecked Sendable {
     static let shared = MigrationServices()
 
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var claimerStorage: (any LibraryClaiming)?
 
     var claimer: (any LibraryClaiming)? {

@@ -1275,7 +1275,7 @@ enum ICloudDownload {
 /// changes for dataless-file materialization.
 final class ICloudFileChangeMonitor: @unchecked Sendable {
     private let source: DispatchSourceFileSystemObject
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var continuation: CheckedContinuation<Void, Never>?
     private var finished = false
 

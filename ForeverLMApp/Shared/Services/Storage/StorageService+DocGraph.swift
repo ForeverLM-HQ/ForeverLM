@@ -679,7 +679,7 @@ final class DocGraphParseCache: @unchecked Sendable {
     }
 
     static let shared = DocGraphParseCache()
-    private let lock = NSLock()
+    private let lock = AppLock()
     private var entries: [String: [String: Entry]] = [:]
     private var addresses: [String: (stamp: String, sources: [String: String])] = [:]
 
