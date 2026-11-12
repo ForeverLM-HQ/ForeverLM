@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The OpenAI voice shows its price.** GPT Realtime 2.1 Mini's card in Text to Speech reads "$0.6 / $20 per 1M tokens · BYOK" in place of "Included": OpenAI's price, and that it runs on ForeverLM's own OpenAI key at no charge to you.
 - **On the iPhone, a narration that is still being made no longer jumps back.** Listen plays the opening while the rest is generated and swaps in longer audio as it arrives; each swap now carries on from the second you are at, where it used to go back by as long as the swap took to prepare, twice that at 2x.
 - **Ask voice to play a source.** Say "I want to listen to this article" to the assistant, in CarPlay, on the iPhone or on the Mac, and it starts that source's narration, the audio Listen plays; a paid voice's price is said first. In CarPlay, **Talk** brings the assistant back, and it returns by itself when the narration ends.
 - **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.

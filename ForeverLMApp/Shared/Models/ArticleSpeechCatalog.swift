@@ -1845,17 +1845,30 @@ enum ArticleSpeechCatalog {
         return OpenRouterAudioPrices.speechUSDPerMillionCharacters(slug: modelID)
     }
 
-    /// What an OpenAI voice's card says where the others carry a price.
-    static let includedPriceLabel = "Included"
+    /// The mark beside an OpenAI voice's price: it is spoken on an OpenAI
+    /// key of ForeverLM's own, outside OpenRouter, as voice mode is, and AI
+    /// Usage marks those calls the same way (`AIUsagePanel.byokRoute`).
+    static let ownKeyPriceMark = "BYOK"
 
     /// The price line for a slug, in OpenRouter's unit, or "Price unknown".
     /// The one place a model's price is worded: the Settings card, the
     /// phone's list and `read_aloud.model` over MCP all read it.
     static func priceLabel(forModel modelID: String) -> String {
-        // ForeverLM's own OpenAI credits pay for an OpenAI voice, and the
-        // learner is charged nothing, as for voice mode. OpenRouter does not
-        // list it, so its price there would read "Price unknown".
-        if modelID == openAIRealtimeModelID { return includedPriceLabel }
+        // OpenRouter does not list an OpenAI voice, so its price is OpenAI's
+        // own for the realtime model that speaks it: text in, audio out, per
+        // 1M tokens, as Gemini's is quoted. It still says the price, with
+        // whose key pays beside it (product owner, 2026-11-11: "It shouldn't
+        // say included. It should still say the price, but say that it's
+        // like BYOK"). The learner is charged nothing for it
+        // (`ratePerMillionCharacters`).
+        if modelID == openAIRealtimeModelID {
+            let wireModel = String(modelID.dropFirst("openai/".count))
+            guard let rates = RealtimeVoiceUsage.listRatesPerMillion[wireModel] else {
+                return "\(OpenRouterAudioPrices.unknownPriceLabel) · \(ownKeyPriceMark)"
+            }
+            let amount = "\(OpenRouterAudioPrices.dollars(rates.textIn)) / \(OpenRouterAudioPrices.dollars(rates.audioOut))"
+            return "\(amount) per 1M tokens · \(ownKeyPriceMark)"
+        }
         return OpenRouterAudioPrices.label(slug: modelID, kind: .speech) ?? OpenRouterAudioPrices.unknownPriceLabel
     }
 

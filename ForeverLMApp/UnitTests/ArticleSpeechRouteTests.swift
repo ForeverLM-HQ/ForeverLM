@@ -64,11 +64,12 @@ struct OwnOpenRouterKeyMediaRouteTests {
         #expect(openAI.wireModelID == "gpt-realtime-2.1-mini")
         #expect(openAI.defaultVoiceID == "marin")
         #expect(openAI.responseFormat == .pcm(sampleRate: 24_000))
-        #expect(openAI.priceLabel == "Included")
+        // The price is still said, OpenAI's own, with whose key pays.
+        #expect(openAI.priceLabel == "$0.6 / $20 per 1M tokens · BYOK")
         // The settings tool words the price from the slug alone, and must say
-        // the same thing as the card: not "Price unknown" for a voice the
-        // learner is never billed for.
-        #expect(ArticleSpeechCatalog.priceLabel(forModel: ArticleSpeechCatalog.openAIRealtimeModelID) == "Included")
+        // the same thing as the card: not "Price unknown" for a voice
+        // OpenRouter does not list.
+        #expect(ArticleSpeechCatalog.priceLabel(forModel: ArticleSpeechCatalog.openAIRealtimeModelID) == openAI.priceLabel)
         #expect(openAI.ratePerMillionCharacters == 0)
 
         // Even on the learner's own OpenRouter key, the request stays on the
@@ -262,7 +263,7 @@ struct SpeechDirectoryTests {
             try Self.options().map(\.id)
         }
         #expect(ids == [
-            ArticleSpeechCatalog.openAIRealtimeModelID, // Included: $0 to the learner
+            ArticleSpeechCatalog.openAIRealtimeModelID, // BYOK: $0 to the learner
             "heygen/heygen-voice-1-turbo:free",     // Free
             "fish-audio/s2.1-pro",                  // $15 / 1M UTF-8 bytes
             "deepgram/aura-2",                      // $30 / 1M characters
