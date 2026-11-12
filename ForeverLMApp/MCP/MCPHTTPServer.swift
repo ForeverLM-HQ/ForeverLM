@@ -103,6 +103,26 @@ struct HTTPResponse {
 
 typealias RouteHandler = @Sendable (HTTPRequest) async -> HTTPResponse
 
+// MARK: - Loopback listening
+
+extension NWParameters {
+    /// TCP for a listener only programs on this Mac can reach. It binds
+    /// 127.0.0.1, so it opens no port on Wi-Fi or any other network, and the
+    /// one way in from outside stays the relay's outbound tunnel. Every
+    /// `NWListener` in the app is built on it (`LoopbackListenerTests`).
+    ///
+    /// `acceptLocalOnly` alone is not this: it admits every peer on the local
+    /// link and leaves the port open on all interfaces, which is how the
+    /// sign-in callback listeners answered on the Wi-Fi address until
+    /// 2026-11-11. `.any` takes a free port, which the listener reports once
+    /// it is ready.
+    static func loopbackTCP(port: NWEndpoint.Port = .any) -> NWParameters {
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: port)
+        return parameters
+    }
+}
+
 // MARK: - HTTP Server
 
 final class MCPHTTPServer: @unchecked Sendable {
@@ -130,11 +150,7 @@ final class MCPHTTPServer: @unchecked Sendable {
     }
 
     func start(port: UInt16 = ForeverLMRuntimeIdentity.mcpLoopbackPort) throws {
-        let params = NWParameters.tcp
-        params.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port)!)
-        params.acceptLocalOnly = true
-
-        let l = try NWListener(using: params)
+        let l = try NWListener(using: .loopbackTCP(port: NWEndpoint.Port(rawValue: port)!))
         l.newConnectionHandler = { [weak self] conn in
             self?.handleConnection(conn)
         }

@@ -235,6 +235,42 @@ struct MCPLoopbackPersonalURLTests {
     }
 }
 
+/// Nothing in the app listens on the network: the way in from outside is the
+/// relay's outbound tunnel, and every local listener binds 127.0.0.1
+/// (product owner, 2026-11-11: "make sure this is the case for our app", of
+/// a closed-ports server rule). The Google, YouTube and OpenRouter sign-in
+/// callbacks set only `acceptLocalOnly`, which reads like loopback and is not:
+/// they bound every interface and answered on the Wi-Fi address.
+@Suite("Local listeners bind loopback")
+struct LoopbackListenerTests {
+    @Test("The loopback parameters bind 127.0.0.1 and nothing wider")
+    func loopbackParametersBindLoopback() {
+        #expect(NWParameters.loopbackTCP().requiredLocalEndpoint == .hostPort(host: .ipv4(.loopback), port: .any))
+        #expect(NWParameters.loopbackTCP(port: 8522).requiredLocalEndpoint == .hostPort(host: .ipv4(.loopback), port: 8522))
+    }
+
+    @Test("Every listener in the app is built on them")
+    func everyListenerIsLoopback() throws {
+        var listeners: [String] = []
+        var unbound: [String] = []
+        for directory in ["App", "Shared", "MCP", "iOS"] {
+            let base = PreferenceRegistryTests.appDirectory.appendingPathComponent(directory)
+            guard let files = FileManager.default.enumerator(at: base, includingPropertiesForKeys: nil) else { continue }
+            for case let file as URL in files where file.pathExtension == "swift" {
+                let lines = try String(contentsOf: file, encoding: .utf8)
+                    .split(separator: "\n", omittingEmptySubsequences: false)
+                for (index, line) in lines.enumerated() where line.contains("NWListener(using:") {
+                    let place = "\(file.lastPathComponent):\(index + 1)"
+                    listeners.append(place)
+                    if !line.contains(".loopbackTCP(") { unbound.append(place) }
+                }
+            }
+        }
+        #expect(listeners.count >= 3, "found \(listeners)")
+        #expect(unbound.isEmpty, "Listeners not bound to loopback: \(unbound)")
+    }
+}
+
 /// The tool has run by the time its answer cannot be sent, so the answer is held
 /// for the reconnect rather than dropped — a write that landed on 2026-09-19 left
 /// its caller timing out for want of this. The relay keeps the request pending for
