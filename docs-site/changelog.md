@@ -6,8 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **Drag the cards in a Page to reorder them.** A source or link on a line of its own is drawn as a card; drag one by its picture or by the line under its title and a line shows where it will land, between any two blocks. Escape puts it back, and one Undo reverses the move. Before, reordering meant cutting the line and pasting it.
-- **Search your library from a Page and insert a source.** Type `/sources`, or pick **Sources** at the end of the `@` list, to open a search of your library; the sources you choose are written into the Page as cards, where the only way before was to drag one in.
 - **On the iPhone, longer audio comes in without a break.** While a narration is still being made, Listen plays what there is and takes in longer audio as it arrives. Each time, the sound used to drop out for a moment; now the longer audio starts in step with what you are hearing and takes over mid-word, at any speed. When you have paused, or the audio you have is about to run out, it is swapped in as before.
 - **On the iPhone, a narration that is still being made no longer jumps back.** Listen plays the opening while the rest is generated and swaps in longer audio as it arrives; each swap now carries on from the second you are at, where it used to go back by as long as the swap took to prepare, twice that at 2x.
 - **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.
@@ -25,6 +23,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.216.0 (build 296) — 2026-11-12
+
+**Highlights:**
+- **Pages:** drag cards to reorder them, and search your library from `/sources` or `@`.
+- **A chat points at the paper where you already have it open**, in either window.
+- **A Substack post saved two ways is one source.**
+
+- **Drag the cards in a Page to reorder them.** A source or link on a line of its own is drawn as a card; drag one by its picture or by the line under its title and a line shows where it will land, between any two blocks. Escape puts it back, and one Undo reverses the move. Before, reordering meant cutting the line and pasting it.
+- **Search your library from a Page and insert a source.** Type `/sources`, or pick **Sources** at the end of the `@` list, to open a search of your library; the sources you choose are written into the Page as cards, where the only way before was to drag one in.
+- **A chat points at the paper where you already have it open.** When the chat highlights a passage or a figure of a source that is open in your other window, it points at it there. Before, it opened the source a second time beside the chat.
+- **A source dragged into a Page shows as its card in any library**, with its picture and author line, where a team library's paper in a Page of My Library read "Not in this library". The gray bar a drag used to leave behind is gone.
+- **A Substack post saved from Substack's reader and from its own site is one source.** Pairs already saved both ways are folded, keeping the copy from the post's own page.
+- **A library search ending in an author's surname leads with the papers that hold more of what you typed**, where every paper with a co-author of that name used to come first by date.
+- **A cited title written into a sentence of a chat reply keeps its words.**
+- **A chat request stuck uploading is sent again** on a fresh connection after 10 seconds.
 
 ## 0.215.0 (build 295) — 2026-11-12
 
