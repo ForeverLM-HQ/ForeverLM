@@ -43,12 +43,16 @@ extension StudioViewModel {
 
         let markedFetchingForCacheLoad = markFetchingForCacheLoad(idx: idx)
 
-        if await adoptCachedSourceContent(articleId: articleId, idx: idx) { return }
+        if await adoptCachedSourceContent(articleId: articleId, idx: idx) {
+            await captureThreadOfSavedXPost(articleId: articleId)
+            return
+        }
 
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
 
         if articles[idx].content != nil {
             isFetchingContent = false
+            await captureThreadOfSavedXPost(articleId: articleId)
             return
         }
 
@@ -201,6 +205,61 @@ extension StudioViewModel {
             return true
         }
         return false
+    }
+
+    /// True for an X post that holds its text and has no capture on this Mac.
+    ///
+    /// A bookmark arrives with the post's text and nothing else: not the thread
+    /// it replies to, not the post it quotes, not its pictures, and no copy
+    /// the reader can fall back on when x.com cannot be reached. The fetch
+    /// used to end the moment it saw the text, so that capture never ran.
+    nonisolated static func xPostNeedsThreadCapture(
+        _ article: StudioArticle,
+        alreadyAttempted: Set<String>
+    ) -> Bool {
+        article.sourceType == .xPost
+            && article.localFilePath?.isEmpty != false
+            && XPostThreadService.postID(from: article.url) != nil
+            && article.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            && !alreadyAttempted.contains(article.id)
+    }
+
+    /// Captures the thread around an X post whose text is already in the model,
+    /// and saves the capture as the source's text and document.
+    ///
+    /// The text the post holds goes along, so a bookmark's full text is what
+    /// the capture keeps for the saved post, and a capture that read a post
+    /// whole is never replaced by X's shorter public copy. A capture that
+    /// fails (X unreachable, the post deleted, the saved copy fuller) leaves
+    /// the post as it was. Once a launch per post: the row stays readable
+    /// either way, and a post X will not serve is not asked for on every open.
+    private func captureThreadOfSavedXPost(articleId: String) async {
+        guard let article = articles.first(where: { $0.id == articleId }),
+              Self.xPostNeedsThreadCapture(article, alreadyAttempted: xPostThreadCaptureAttemptedIDs),
+              let saved = article.content else { return }
+        xPostThreadCaptureAttemptedIDs.insert(articleId)
+        do {
+            let archived = try await sourceService.fetchAndArchiveWebContent(
+                url: article.url,
+                sourceId: articleId,
+                existingText: saved
+            )
+            // Re-find: the list can change while the thread is walked.
+            guard let index = articles.firstIndex(where: { $0.id == articleId }) else { return }
+            var captured = articles[index]
+            captured.content = archived.plainText
+            captured.wordCount = archived.plainText.split(separator: " ").count
+            if let archivedPath = archived.localHTMLPath {
+                captured.localFilePath = archivedPath
+            }
+            guard await persistSource(captured, context: "Save X post thread", showErrorToast: false) else { return }
+            if let latest = articles.firstIndex(where: { $0.id == articleId }) {
+                articles[latest] = captured
+            }
+            queueSourceEmbeddingRefreshIfReady(articleId)
+        } catch {
+            logger.info("X post \(articleId, privacy: .public) keeps its saved text: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// Marks a transcript-backed source as fetching before the cache load suspends,

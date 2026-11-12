@@ -292,12 +292,16 @@ struct XPostThreadTests {
         XPostThreadMockURLProtocol.install([
             "7": (200, try syndicationJSON(id: "7", text: "opening", truncated: true)),
         ])
-        let signedOut = XPostThreadService(
+        // The account would answer too, but the library's own text comes
+        // first: it costs no paid read.
+        let service = XPostThreadService(
             session: XPostThreadMockURLProtocol.session(),
-            longPostLookup: { _ in [:] }
+            longPostLookup: { ids in
+                Dictionary(uniqueKeysWithValues: ids.map { ($0, "opening, and then the account's copy of every paragraph") })
+            }
         )
 
-        let thread = try await signedOut.capture(
+        let thread = try await service.capture(
             postURL: "https://x.com/owl_posting/status/7",
             existingText: "opening, and then every paragraph after it"
         )
@@ -306,7 +310,7 @@ struct XPostThreadTests {
         #expect(XPostThreadService.cutPostIDs(inCapture: thread.plainText).isEmpty)
     }
 
-    @Test("A capture that read only a post's opening never replaces one that read it whole")
+    @Test("A capture keeps every post an earlier capture holds whole")
     func keepsFullerSavedCapture() async throws {
         XPostThreadMockURLProtocol.install([
             "7": (200, try syndicationJSON(id: "7", text: "opening", truncated: true)),
@@ -321,19 +325,20 @@ struct XPostThreadTests {
         // capture holds the whole post, the public copy 280 characters of it.
         let whole = XPostThread(
             subjectID: "7",
-            posts: [post(id: "7", text: "opening, and then every paragraph after it")],
+            posts: [post(id: "7", text: "opening, and then every paragraph after it\n\nwith a second one")],
             earlierPostsIncomplete: false
         ).plainText
-        await #expect(throws: XPostThreadError.savedCopyIsFuller) {
-            try await signedOut.capture(postURL: url, existingText: whole)
-        }
+        let kept = try await signedOut.capture(postURL: url, existingText: whole)
+        #expect(kept.subject?.text == "opening, and then every paragraph after it\n\nwith a second one")
+        #expect(XPostThreadService.cutPostIDs(inCapture: kept.plainText).isEmpty)
 
-        // A saved capture that is cut short itself loses nothing to a new one.
+        // A saved capture that is cut short itself has nothing to keep.
         let cut = XPostThread(
             subjectID: "7",
             posts: [post(id: "7", text: "opening", truncated: true)],
             earlierPostsIncomplete: false
         ).plainText
+        #expect(XPostThreadService.wholeText(of: post(id: "7", text: "opening"), inCapture: cut) == nil)
         let again = try await signedOut.capture(postURL: url, existingText: cut)
         #expect(XPostThreadService.cutPostIDs(inCapture: again.plainText) == ["7"])
 
@@ -347,6 +352,37 @@ struct XPostThreadTests {
         let filled = try await signedIn.capture(postURL: url, existingText: cut)
         #expect(filled.subject?.text == "opening, and then every paragraph after it")
         #expect(XPostThreadService.cutPostIDs(inCapture: filled.plainText).isEmpty)
+    }
+
+    @Test("A whole post that cannot be read back from the saved capture is never replaced by its opening")
+    func refusesToCutAPostHeldWhole() async throws {
+        XPostThreadMockURLProtocol.install([
+            "7": (200, try syndicationJSON(id: "7", text: "opening", truncated: true)),
+        ])
+        let signedOut = XPostThreadService(
+            session: XPostThreadMockURLProtocol.session(),
+            longPostLookup: { _ in [:] }
+        )
+        // The saved capture wrote the post with a picture X no longer serves,
+        // so its block does not end the way the new capture's would.
+        let pictured = XThreadPost(
+            id: "7",
+            authorName: "Owl",
+            authorHandle: "owl_posting",
+            createdAt: nil,
+            text: "opening, and then every paragraph after it",
+            isTruncated: false,
+            photoURLs: ["https://pbs.twimg.com/media/owl.jpg"],
+            videoPosterURL: nil,
+            authorAvatarURL: nil,
+            quoted: nil,
+            replyToPostID: nil
+        )
+        let saved = XPostThread(subjectID: "7", posts: [pictured], earlierPostsIncomplete: false).plainText
+
+        await #expect(throws: XPostThreadError.savedCopyIsFuller) {
+            try await signedOut.capture(postURL: "https://x.com/owl_posting/status/7", existingText: saved)
+        }
     }
 
     @Test("Renders canonical dates in UTC on every device")
@@ -408,6 +444,34 @@ struct XPostThreadTests {
         var captured = bookmarked
         captured.localFilePath = "Articles/\(bookmarked.id)/article.html"
         #expect(!StudioViewModel.sourceNeedsInitialContentFetch(captured, alreadyAttempted: []))
+    }
+
+    @Test("A bookmarked post that holds its text still gets its thread captured, once")
+    func bookmarkedPostGetsThreadCapture() {
+        // The fetch used to end as soon as it saw the bookmark's text, so the
+        // capture the backlog asks for above never ran.
+        var bookmarked = StudioArticle(
+            url: "https://x.com/owl_posting/status/1",
+            title: "@owl_posting: a post",
+            sourceType: .xPost
+        )
+        bookmarked.content = "a post"
+        bookmarked.state = .ready
+        #expect(StudioViewModel.xPostNeedsThreadCapture(bookmarked, alreadyAttempted: []))
+        #expect(!StudioViewModel.xPostNeedsThreadCapture(bookmarked, alreadyAttempted: [bookmarked.id]))
+
+        var captured = bookmarked
+        captured.localFilePath = "Articles/\(bookmarked.id)/article.html"
+        #expect(!StudioViewModel.xPostNeedsThreadCapture(captured, alreadyAttempted: []))
+
+        // Without text there is nothing to keep: the ordinary fetch captures it.
+        var empty = bookmarked
+        empty.content = nil
+        #expect(!StudioViewModel.xPostNeedsThreadCapture(empty, alreadyAttempted: []))
+
+        var article = bookmarked
+        article.sourceType = .article
+        #expect(!StudioViewModel.xPostNeedsThreadCapture(article, alreadyAttempted: []))
     }
 }
 

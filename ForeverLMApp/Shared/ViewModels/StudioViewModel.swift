@@ -2031,6 +2031,10 @@ class StudioViewModel {
     /// saved later.
     @ObservationIgnored var xAuthorAvatarURLs: [String: String] = [:]
 
+    /// X posts whose thread capture was tried this launch
+    /// (`captureThreadOfSavedXPost`), whether or not it wrote a document.
+    @ObservationIgnored var xPostThreadCaptureAttemptedIDs: Set<String> = []
+
     /// X posts `fillCutXPosts` captured again this launch and X still answered
     /// cut short. They wait for the next launch instead of being asked for on
     /// every bookmark sync.

@@ -117,9 +117,10 @@ actor XPostThreadService {
     /// `existingText` is the copy the library already holds — an X bookmark
     /// arrives with the post's full text from the authenticated API, and that
     /// copy must never be replaced by a shorter public one. A bookmark's text
-    /// is put back into the saved post; an earlier capture that holds whole a
-    /// post this one could only read the opening of ends the capture with
-    /// `savedCopyIsFuller`, before anything is written.
+    /// is put back into the saved post, and an earlier capture's whole posts
+    /// keep their text. A post the earlier capture holds whole that this one
+    /// still could not read ends the capture with `savedCopyIsFuller`, before
+    /// anything is written.
     func capture(postURL: String, existingText: String? = nil) async throws -> XPostThread {
         guard let subjectID = Self.postID(from: postURL) else {
             throw XPostThreadError.notAnXPostURL
@@ -160,30 +161,46 @@ actor XPostThreadService {
 
         var posts = Array(ancestors.reversed()) + [subject]
 
-        // X's public copy cuts long posts short and only flags that it did. The
-        // authenticated API returns the whole thing, so fill the gaps from
-        // there when the user is signed in.
+        // What the library already holds comes first. X's public copy cuts a
+        // long post at 280 characters and only flags that it did; text the
+        // library holds whole costs no request and is on every Mac, while the
+        // connected account's copy costs a paid read and is on one.
+        let saved = existingText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let savedIsCapture = !saved.isEmpty && Self.isRenderedCapture(saved, subjectID: subjectID)
+        if savedIsCapture {
+            // An earlier capture: every post it holds whole keeps that text.
+            posts = posts.map { post in
+                guard post.isTruncated,
+                      let whole = Self.wholeText(of: post, inCapture: saved),
+                      whole.count > post.text.count else { return post }
+                var kept = post
+                kept.text = whole
+                kept.isTruncated = false
+                return kept
+            }
+        } else if !saved.isEmpty,
+                  let index = posts.firstIndex(where: { $0.id == subjectID }),
+                  posts[index].isTruncated,
+                  saved.count > posts[index].text.count {
+            // The post's own text, as a bookmark holds it from the X API.
+            posts[index].text = saved
+            posts[index].isTruncated = false
+        }
+
+        // The posts still cut short are read through the connected account,
+        // when this Mac has one.
         posts = await fillingTruncatedText(in: posts)
 
-        if let existingText = existingText?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !existingText.isEmpty {
-            if Self.isRenderedCapture(existingText, subjectID: subjectID) {
-                // The library holds an earlier capture. X's public copy cuts a
-                // long post at 280 characters, and the rest comes only from a
-                // connected X account, so a capture made on a Mac without one
-                // (or while X refused the lookup) must not replace a capture
-                // that read the post whole.
-                let cutBefore = Set(Self.cutPostIDs(inCapture: existingText))
-                let heldBefore = Self.postIDs(inCapture: existingText)
-                if posts.contains(where: {
-                    $0.isTruncated && heldBefore.contains($0.id) && !cutBefore.contains($0.id)
-                }) {
-                    throw XPostThreadError.savedCopyIsFuller
-                }
-            } else if let index = posts.firstIndex(where: { $0.id == subjectID }),
-                      posts[index].isTruncated {
-                posts[index].text = existingText
-                posts[index].isTruncated = false
+        if savedIsCapture {
+            // A post the earlier capture holds whole and this one could not
+            // read (its block no longer matches, and no account answered) must
+            // not be replaced by its opening.
+            let cutBefore = Set(Self.cutPostIDs(inCapture: saved))
+            let heldBefore = Self.postIDs(inCapture: saved)
+            if posts.contains(where: {
+                $0.isTruncated && heldBefore.contains($0.id) && !cutBefore.contains($0.id)
+            }) {
+                throw XPostThreadError.savedCopyIsFuller
             }
         }
 
@@ -223,6 +240,35 @@ actor XPostThreadService {
             guard line.hasPrefix(cutPostNotePrefix), line.hasSuffix(")") else { return nil }
             return postID(from: String(line.dropFirst(cutPostNotePrefix.count).dropLast()))
         }
+    }
+
+    /// The text a stored capture holds for `post`, when it holds that post
+    /// whole. Nil when the capture does not hold the post, holds only its
+    /// opening, or wrote it with other pictures or another quoted post than
+    /// `post` has now; a post whose own last paragraph begins like one of
+    /// those lines is nil too, which keeps the saved capture as it is.
+    ///
+    /// Nothing is guessed: a post's block ends with exactly what
+    /// `XPostThread.linesAfterText(of:)` writes for it, so the text is what
+    /// stands between the block's heading and that ending.
+    nonisolated static func wholeText(of post: XThreadPost, inCapture text: String) -> String? {
+        var whole = post
+        whole.isTruncated = false
+        let ending = "\n\n" + XPostThread.linesAfterText(of: whole).joined(separator: "\n\n")
+        for block in text.components(separatedBy: XPostThread.blockSeparator)
+        where block.hasPrefix("## ") && block.hasSuffix(ending) {
+            let headed = block.dropLast(ending.count)
+            guard let headingEnd = headed.range(of: "\n\n") else { continue }
+            let held = String(headed[headingEnd.upperBound...])
+            // The capture wrote more under this post than `post` has now: the
+            // note that it is cut short, or a picture or quoted post X no
+            // longer serves. What is left is then not the post's text alone.
+            let lastParagraph = held.components(separatedBy: "\n\n").last ?? ""
+            guard !held.isEmpty,
+                  !XPostThread.linePrefixesAfterText.contains(where: lastParagraph.hasPrefix) else { return nil }
+            return held
+        }
+        return nil
     }
 
     /// Every post a stored capture holds, whole or cut: each one ends with its
@@ -593,24 +639,7 @@ extension XPostThread {
             }
             lines.append("## \(heading)")
             lines.append(post.text)
-            if post.isTruncated {
-                lines.append(XPostThreadService.cutPostNote(permalink: post.permalink))
-            }
-            if let quoted = post.quoted {
-                let quotedHandle = quoted.authorHandle.isEmpty ? "" : "@\(quoted.authorHandle) "
-                let quotedBody = quoted.text
-                    .components(separatedBy: .newlines)
-                    .map { "> \($0)" }
-                    .joined(separator: "\n")
-                lines.append("> Quoting \(quotedHandle)\n\(quotedBody)")
-            }
-            for photo in post.photoURLs {
-                lines.append("[Image] \(photo)")
-            }
-            if post.videoPosterURL != nil {
-                lines.append("[Video] \(post.permalink)")
-            }
-            lines.append(post.permalink)
+            lines.append(contentsOf: Self.linesAfterText(of: post))
             blocks.append(lines.joined(separator: "\n\n"))
         }
         if subject != nil {
@@ -618,7 +647,42 @@ extension XPostThread {
             // capture route, including when the saved post is the thread root.
             blocks.append("(Replies to this post are not captured — open it on X to read them.)")
         }
-        return blocks.joined(separator: "\n\n---\n\n")
+        return blocks.joined(separator: Self.blockSeparator)
+    }
+
+    /// What stands between two posts of a rendering.
+    static let blockSeparator = "\n\n---\n\n"
+
+    /// How each line `linesAfterText(of:)` writes begins, the permalink aside.
+    static let linePrefixesAfterText = [
+        XPostThreadService.cutPostNotePrefix, "> Quoting ", "[Image] ", "[Video] ",
+    ]
+
+    /// What a rendering writes under a post's text: the note that it is cut
+    /// short, the post it quotes, its pictures and video, and its permalink
+    /// last. `XPostThreadService.wholeText(of:inCapture:)` finds a post's text
+    /// in a stored capture by this ending.
+    static func linesAfterText(of post: XThreadPost) -> [String] {
+        var lines: [String] = []
+        if post.isTruncated {
+            lines.append(XPostThreadService.cutPostNote(permalink: post.permalink))
+        }
+        if let quoted = post.quoted {
+            let quotedHandle = quoted.authorHandle.isEmpty ? "" : "@\(quoted.authorHandle) "
+            let quotedBody = quoted.text
+                .components(separatedBy: .newlines)
+                .map { "> \($0)" }
+                .joined(separator: "\n")
+            lines.append("> Quoting \(quotedHandle)\n\(quotedBody)")
+        }
+        for photo in post.photoURLs {
+            lines.append("[Image] \(photo)")
+        }
+        if post.videoPosterURL != nil {
+            lines.append("[Video] \(post.permalink)")
+        }
+        lines.append(post.permalink)
+        return lines
     }
 
     /// The archived document. Only tags `SourceService.readerHTML` keeps are
