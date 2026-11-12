@@ -29,6 +29,11 @@ enum MobileRealtimeVoice {
     /// The source on the voice screen, for its card (thumbnail, subtitle).
     private(set) static var currentSource: MobileCloudSource?
     private static var currentNotebookID: String?
+    /// The running conversation was started from CarPlay: its chat is saved
+    /// under a `carplay-live-` id, which `ReviewSessionOrigin` reads as
+    /// CarPlay, and its summary says so. A conversation started on the phone
+    /// and carried into the car stays the phone's.
+    private static var startedInCar = false
 
     static func start(
         source: MobileCloudSource,
@@ -58,7 +63,7 @@ enum MobileRealtimeVoice {
     /// The personal assistant (`MobileRealtimeAssistant`): no source, the
     /// learner's plans and recent work instead. CarPlay starts it on connect.
     static func startAssistant(setting: RealtimeVoiceAssistant.Setting) async {
-        await prepareToTalk()
+        await prepareToTalk(inCar: setting == .car)
         currentSource = nil
         currentNotebookID = nil
         await controller.start(
@@ -106,10 +111,15 @@ enum MobileRealtimeVoice {
     /// The running Memory Check's tools, which save its last turn when it ends.
     static var memoryCheck: MobileRealtimeMemoryCheck.Toolbox?
 
-    private static func prepareToTalk() async {
+    private static func prepareToTalk(inCar: Bool = false) async {
         // A narration playing under the conversation would talk over it.
         let player = MobileAudioReviewViewModel.shared
         if player.isPlaying { player.togglePlayback() }
+        // The controller turns a start away while a conversation is running,
+        // and that conversation keeps the place it was started in.
+        if controller.phase == .idle || controller.phase == .failed {
+            startedInCar = inCar
+        }
     }
 
     static var contextItem: VoiceContextItem? {
@@ -124,7 +134,8 @@ enum MobileRealtimeVoice {
     }
 
     /// Saved as a voice chat (`ChatKind.voice`; the `-live-` id is what the
-    /// classifier reads as voice for records without a kind). The answers the
+    /// classifier reads as voice for records without a kind), under
+    /// `carplay-live-` when CarPlay started it and `ios-live-` otherwise. The answers the
     /// tutor graded (`record_answer`) are saved as a hands-free review's are:
     /// each exchange with what the learner said and its score, the mean as
     /// the session's score, and each gap.
@@ -141,6 +152,10 @@ enum MobileRealtimeVoice {
         let gradedLine = RealtimeVoiceExchange.gradedLine(of: exchanges)
         let answered = exchanges.filter { !$0.answer.isEmpty }.count
         let turns = "\(answered) turn\(answered == 1 ? "" : "s")"
+        // Where it was had: the id's prefix is the chat's origin, and the
+        // summary says it in words.
+        let inCar = startedInCar
+        let place = inCar ? "in CarPlay" : "on iOS"
         // The assistant's chat is called by what the learner first asked; a
         // card review is called a card review.
         let isAssistant = finished.source == nil && finished.title == RealtimeVoiceAssistant.title
@@ -149,7 +164,7 @@ enum MobileRealtimeVoice {
                 ? RealtimeVoiceExchange.assistantChatTitle(firstQuestion: exchanges.first { !$0.answer.isEmpty }?.answer)
                 : finished.title)
         var result = MobileReviewResult(
-            sessionID: "ios-live-\(UUID().uuidString.lowercased())",
+            sessionID: "\(inCar ? "carplay" : "ios")-live-\(UUID().uuidString.lowercased())",
             topic: topic,
             sourceID: finished.sourceIDs.first,
             goalID: isAssistant ? nil : currentNotebookID,
@@ -160,12 +175,12 @@ enum MobileRealtimeVoice {
             overallScore: RealtimeVoiceExchange.overallScore(of: exchanges),
             summary: (finished.source.map { source in
                 controller.opening == .gym
-                    ? "Gym mode walk-through of \(source.title) on iOS — \(answered) typed question\(answered == 1 ? "" : "s")."
-                    : "Voice conversation about \(source.title) on iOS — \(turns)."
+                    ? "Gym mode walk-through of \(source.title) \(place) — \(answered) typed question\(answered == 1 ? "" : "s")."
+                    : "Voice conversation about \(source.title) \(place) — \(turns)."
             }
                 ?? (isAssistant
-                    ? "Voice conversation with the ForeverLM assistant on iOS — \(turns)."
-                    : "Card review by voice on iOS — \(turns).")) + (gradedLine.map { " " + $0 } ?? ""),
+                    ? "Voice conversation with the ForeverLM assistant \(place) — \(turns)."
+                    : "Card review by voice \(place) — \(turns).")) + (gradedLine.map { " " + $0 } ?? ""),
             // The recorder keeps no gaps of its own, so a gap rides in its
             // exchange's evaluation, as the Mac saves it.
             exchanges: exchanges.map { exchange in
@@ -179,7 +194,7 @@ enum MobileRealtimeVoice {
                 )
             },
             gaps: [],
-            knowledgeNote: "Recorded from voice mode on iOS.",
+            knowledgeNote: "Recorded from voice mode \(place).",
             modelProvider: "OpenAI",
             modelID: RealtimeVoiceDefaults.model
         )
