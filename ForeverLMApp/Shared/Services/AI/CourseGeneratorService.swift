@@ -137,7 +137,7 @@ struct CourseGeneratorService: Sendable {
         onProgress: @MainActor @Sendable (CourseGenerationProgress) -> Void = { _ in }
     ) async throws -> CourseGenerationResult {
         guard !request.topic.isEmpty else { throw CourseGenerationError.emptyTopic }
-        try await AIUsageAttribution.withWorkflow("course-generation-\(UUID().uuidString.lowercased())") {
+        return try await AIUsageAttribution.withWorkflow("course-generation-\(UUID().uuidString.lowercased())") {
             try await runStages(request: request, onProgress: onProgress)
         }
     }
