@@ -2,8 +2,9 @@ import Foundation
 import OSLog
 
 /// Which of a set of duplicate Sources wins (docs/cloudkit-schema-design.md §4.2, D22, PD-13, IC-20):
-/// a paper with its PDF, then one with a `text` satellite, then the smaller id (uppercase UUIDs sort
-/// before `src_`, so the id alone could pick a paper without its PDF).
+/// a paper with its PDF, then one with a `text` satellite, then one filed under the work's own address
+/// over one filed under a Substack app link, then the smaller id (uppercase UUIDs sort before `src_`,
+/// so the id alone could pick a paper without its PDF).
 enum DuplicateSources {
     struct Candidate: Equatable, Sendable {
         let id: String
@@ -19,6 +20,12 @@ enum DuplicateSources {
 
         var isPaperWithPDF: Bool { envelope.fields["type"]?.stringValue == "paper" && file("files", "pdf") != nil }
         var hasText: Bool { file("files", "text") != nil }
+        /// Filed under a link Substack's reader gives a post (`SubstackAppLink`) and not the post's own
+        /// address. Read through the reader, such a copy is titled and credited by the publication
+        /// ("<post> - <publication>"); the copy from the post's own page carries the post's title and its
+        /// author, so it is the one a fold keeps (the product owner, 2026-11-12: "make the fold keep the
+        /// copy with the cleaner title").
+        var isFiledUnderAppLink: Bool { envelope.fields["url"]?.stringValue.map(SubstackAppLink.isAppLink) ?? false }
         /// Active and not yet anyone's loser.
         var isLive: Bool { envelope.fields["status"]?.stringValue == "active" && (envelope.fields["mergedInto"]?.stringValue ?? "").isEmpty }
         /// The winner a resolution redirected this Source to and did not finish: the redirect stands (S, the
@@ -34,6 +41,7 @@ enum DuplicateSources {
         candidates.min { lhs, rhs in
             if lhs.isPaperWithPDF != rhs.isPaperWithPDF { return lhs.isPaperWithPDF }
             if lhs.hasText != rhs.hasText { return lhs.hasText }
+            if lhs.isFiledUnderAppLink != rhs.isFiledUnderAppLink { return rhs.isFiledUnderAppLink }
             return lhs.id < rhs.id
         }
     }

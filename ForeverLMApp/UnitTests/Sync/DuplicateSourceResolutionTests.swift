@@ -105,14 +105,15 @@ struct DuplicateSourceResolutionTests {
         #expect(try await service.resolveDuplicates() == 0, "a resolved pair is not resolved again")
     }
 
-    @Test("The winner: a paper with its PDF, then one with text, then the smaller id; groups join through any shared key")
+    @Test("The winner: a paper with its PDF, then one with text, then the post's own address over an app link, then the smaller id; groups join through any shared key")
     func winnerAndGroups() throws {
         func source(_ id: String, type: String = "paper", files: [String: SyncJSON] = [:], keys: [String], status: String = "active",
-                    mergedInto: String? = nil) throws -> DuplicateSources.Candidate {
+                    mergedInto: String? = nil, url: String? = nil) throws -> DuplicateSources.Candidate {
             var fields: [String: RecordPatch.Change] = [
                 "type": .value(.string(type)), "status": .value(.string(status)),
                 "workKeys": .elements(Dictionary(uniqueKeysWithValues: keys.map { ($0, SyncJSON.bool(true)) })),
             ]
+            if let url { fields["url"] = .value(.string(url)) }
             if !files.isEmpty { fields["files"] = .elements(files) }
             if let mergedInto { fields["mergedInto"] = .value(.string(mergedInto)) }
             return DuplicateSources.Candidate(id: id, envelope: try F.envelope(.source, id, fields, saltID: "00000000"))
@@ -126,6 +127,19 @@ struct DuplicateSourceResolutionTests {
         let withText = try source("src_d", type: "article", files: ["text": text], keys: ["url:x"])
         #expect(DuplicateSources.winner([article, withText])?.id == "src_d", "a PDF counts only for a paper")
         #expect(DuplicateSources.winner([try source("src_f", keys: []), try source("src_e", keys: [])])?.id == "src_e")
+
+        // One Substack post saved from the reader and from its own page: the copy under the post's own
+        // address wins although its id is the larger, and only when text does not already decide.
+        let appLink = "https://substack.com/home/post/p-194171938"
+        let ownPage = "https://lettersfromthelab.substack.com/p/metabolism-as-inference"
+        let postKeys = ["url:lettersfromthelab.substack.com/p/metabolism-as-inference"]
+        let fromReader = try source("src_8", type: "article", files: ["text": text], keys: postKeys, url: appLink)
+        let fromOwnPage = try source("src_c", type: "article", files: ["text": text], keys: postKeys, url: ownPage)
+        #expect(DuplicateSources.winner([fromReader, fromOwnPage])?.id == "src_c", "the copy with the post's own title is kept")
+        let ownPageWithoutText = try source("src_c", type: "article", keys: postKeys, url: ownPage)
+        #expect(DuplicateSources.winner([fromReader, ownPageWithoutText])?.id == "src_8", "text still comes first")
+        let otherReaderLink = try source("src_9", type: "article", files: ["text": text], keys: postKeys, url: "https://substack.com/inbox/post/194171938")
+        #expect(DuplicateSources.winner([otherReaderLink, fromReader])?.id == "src_8", "two app-link copies fall to the smaller id")
 
         let groups = DuplicateSources.groups([
             try source("s1", keys: ["doi:1"]), try source("s2", keys: ["doi:1", "url:2"]), try source("s3", keys: ["url:2"]),
