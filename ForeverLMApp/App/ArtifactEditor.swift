@@ -495,10 +495,17 @@ struct ArtifactEditor: View {
         // The picker's one job: what the highlighted passage stands on. It opens
         // showing the current answer and sends the whole edited set back at once.
         .sheet(item: $groundingRequest) { request in
-            ArtifactSourcePicker(initial: request.sourceIDs, seed: request.selectedText) { sourceIDs in
+            ArtifactSourcePicker(
+                initial: request.sourceIDs,
+                seed: request.selectedText,
+                purpose: request.insertsCards ? .insert : .grounding
+            ) { sourceIDs in
+                // Nothing chosen writes nothing; for a passage it detaches.
+                guard !(request.insertsCards && sourceIDs.isEmpty) else { return }
                 groundingAttachment = ArtifactGroundingAttachment(
                     sourceIDs: sourceIDs,
-                    citations: groundingCitations(for: sourceIDs)
+                    citations: groundingCitations(for: sourceIDs),
+                    insertsCards: request.insertsCards
                 )
             }
         }

@@ -1741,11 +1741,11 @@ function wikiRows(query) {
 const slashGroups = ['Use your prompt', 'Generate', 'Create', 'Media', 'Basic', 'Mentioned', 'More']
 
 /// What the host can do for a row that is not the editor's own, set by
-/// `setSlashFeatures({ pages, images, imageGeneration, visualize, files })`.
-let slashFeatures = { pages: false, images: false, imageGeneration: false, visualize: false, files: false }
+/// `setSlashFeatures({ pages, images, imageGeneration, visualize, files, sources })`.
+let slashFeatures = { pages: false, images: false, imageGeneration: false, visualize: false, files: false, sources: false }
 
 function setSlashFeatures(features) {
-  const next = { pages: false, images: false, imageGeneration: false, visualize: false, files: false }
+  const next = { pages: false, images: false, imageGeneration: false, visualize: false, files: false, sources: false }
   for (const key of Object.keys(next)) next[key] = Boolean(features?.[key])
   const redraw = next.visualize !== slashFeatures.visualize
   slashFeatures = next
@@ -1876,6 +1876,9 @@ const slashItems = [
   { id: 'mention-chats', group: 'Mentioned', title: 'Chats', detail: 'Reference a chat', icon: 'chat', mention: 'chat', keywords: ['mention', 'at', 'conversation'] },
   { id: 'mention-notebooks', group: 'Mentioned', title: 'Notebooks', detail: 'Reference a notebook', icon: 'notebook', mention: 'notebook', keywords: ['mention', 'at'] },
   { id: 'mention-ideas', group: 'Mentioned', title: 'Ideas', detail: 'Reference an Idea', icon: 'idea', mention: 'idea', keywords: ['mention', 'at'] },
+  // Not a kind the `@` list holds: the library is the host's, so this row
+  // opens the host's source picker and the chosen sources are written as cards.
+  { id: 'sources', group: 'Mentioned', title: 'Sources', detail: 'Search your library and insert a source', icon: 'search', keywords: ['source', 'paper', 'article', 'book', 'podcast', 'video', 'cite', 'citation', 'library', 'insert', 'mention', 'at'], needs: 'sources' },
   // ForeverLM's own rows, after Codex's.
   { id: 'chat', group: 'More', title: 'Chat', detail: 'Ask about this page or anything in your library', icon: 'chat', keywords: ['ask', 'question', 'research', 'library', 'sources', 'ai'] },
   { id: 'find-sources', group: 'More', title: 'Find sources', detail: 'Search your library and the web from Chat', icon: 'search', keywords: ['find', 'search', 'research', 'references', 'papers', 'podcast', 'library', 'web'] },
@@ -1906,6 +1909,7 @@ function slashItemAvailable(item) {
     case 'imageGeneration': return slashFeatures.imageGeneration
     case 'visualize': return slashFeatures.visualize
     case 'files': return slashFeatures.files
+    case 'sources': return slashFeatures.sources
     case 'dates': return graph.active && graph.allowsDates
     case 'graph': return graph.active
     // A note has no footnotes of its own (`insertFootnote`).
@@ -2022,7 +2026,18 @@ function mentionKindOffered(kind) {
 
 /// The `@` list: every kind, or the one a Mentioned row asked for.
 function mentionRows(state) {
-  if (!state.kind) return linkTargetMatches(state.query, 10).map(targetRow)
+  if (!state.kind) {
+    const rows = linkTargetMatches(state.query, 10).map(targetRow)
+    // Sources are not listed here (the library is the host's): the last row
+    // hands the typed words to the host's source picker. It never stands
+    // alone under typed words, so an "@name" that matches nothing is still
+    // writing and its Return is still a new line.
+    if (slashFeatures.sources && (rows.length > 0 || !String(state.query ?? '').trim())) {
+      const query = String(state.query ?? '').trim()
+      rows.push({ key: 'mention-sources', kind: 'sources', title: 'Sources', detail: query ? `Search your library for “${query}”` : 'Search your library', query })
+    }
+    return rows
+  }
   const targets = state.kind === 'file' ? pageFileTargets() : linkTargets.filter((target) => target.kind === state.kind)
   return linkTargetMatches(state.query, 10, targets).map((target) => ({ ...targetRow(target), group: state.title }))
 }
@@ -2164,6 +2179,10 @@ function choosePickerRow(index) {
   dismissedTrigger = null
   if (state.source === 'slash') {
     runSlashCommand(row.command, from, to)
+    return
+  }
+  if (row.kind === 'sources') {
+    if (removeSlashText(from, to)) post('sourceInsertRequested', { query: row.query ?? '' })
     return
   }
   writeWikiRow(row, from, to, { tag: state.tag })
@@ -4721,6 +4740,9 @@ function runSlashCommand(command, from, to) {
   switch (command.id) {
     case 'chat':
       if (removeSlashText(from, to)) post('promptRequested', { text: '' })
+      return
+    case 'sources':
+      if (removeSlashText(from, to)) post('sourceInsertRequested', { query: '' })
       return
     case 'find-sources':
       if (removeSlashText(from, to)) post('promptRequested', { text: 'Find sources relevant to this page.' })
@@ -9904,6 +9926,18 @@ function dropSourcesAt(citations, x, y) {
 /// row stands for its book, so its card names the book and points at the
 /// chapter the drag carried.
 function insertSourceCardsAt(citations, x, y) {
+  const pos = linkDropPosition(x, y)
+  if (pos != null) insertSourceCards(citations, pos)
+}
+
+/// The sources chosen in the host's picker (`sourceInsertRequested`), written
+/// as cards where the caret is: the line the `/` or `@` was typed on.
+function insertSourceCardsAtCaret(citations) {
+  const view = activeEditorView()
+  if (view) insertSourceCards(citations, view.state.selection.from)
+}
+
+function insertSourceCards(citations, pos) {
   const view = activeEditorView()
   if (!view) return
   const entries = []
@@ -9913,8 +9947,6 @@ function insertSourceCardsAt(citations, x, y) {
     entries.push({ id, title: String(citation?.title ?? '').trim() || 'Source' })
   }
   if (entries.length === 0) return
-  const pos = linkDropPosition(x, y)
-  if (pos == null) return
   const { schema } = view.state
   const linkType = schema.marks.link
   const paragraphs = entries.map((entry) => schema.nodes.paragraph.create(null, schema.text(
@@ -10982,6 +11014,7 @@ window.foreverLMArtifactEditor = {
   setEditable,
   requestSave,
   dropSourcesAt,
+  insertSourceCardsAtCaret,
   attachSourcesToSelection,
   previewSourceDrop,
   previewLinkDrop,

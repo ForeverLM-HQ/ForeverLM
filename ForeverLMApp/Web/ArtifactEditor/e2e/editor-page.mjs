@@ -5,7 +5,7 @@
 import { pathToFileURL } from 'node:url'
 
 export const hostURL = pathToFileURL(new URL('./host.html', import.meta.url).pathname).href
-export const every = { pages: true, images: true, imageGeneration: true, visualize: true, files: true }
+export const every = { pages: true, images: true, imageGeneration: true, visualize: true, files: true, sources: true }
 
 export async function openEditor(page, markdown = '', { key = 'page-1', features = every } = {}) {
   const errors = []

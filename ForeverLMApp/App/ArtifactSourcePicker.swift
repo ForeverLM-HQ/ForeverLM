@@ -48,25 +48,27 @@ struct ArtifactSourcePicker: View {
         case grounding
         /// Adding sources to the chat's context, from `/source` in the composer.
         case chat
+        /// Writing sources into a Page as cards, from its `/` and `@` Sources rows.
+        case insert
 
         var emptyStatus: String {
             switch self {
             case .grounding: return "No sources linked to this passage yet"
-            case .chat: return "Nothing chosen yet"
+            case .chat, .insert: return "Nothing chosen yet"
             }
         }
 
         func status(count: Int) -> LocalizedStringKey {
             switch self {
             case .grounding: return "^[\(count) source](inflect: true) attached"
-            case .chat: return "^[\(count) source](inflect: true) chosen"
+            case .chat, .insert: return "^[\(count) source](inflect: true) chosen"
             }
         }
 
         var clearTitle: String {
             switch self {
             case .grounding: return "Detach all"
-            case .chat: return "Clear"
+            case .chat, .insert: return "Clear"
             }
         }
 
@@ -74,6 +76,7 @@ struct ArtifactSourcePicker: View {
             switch self {
             case .grounding: return "Done"
             case .chat: return "Add to Chat"
+            case .insert: return "Insert"
             }
         }
     }

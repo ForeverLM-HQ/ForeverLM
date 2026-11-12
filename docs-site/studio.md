@@ -784,6 +784,7 @@ or `/visualize the cell cycle` asks for one of the two by name.
 | **Highlight** | Draws attention to a note, in a colour you can change from the block's handle |
 | **Math** | A block of LaTeX |
 | **Files**, **Pages**, **Chats**, **Notebooks**, **Ideas** (Mentioned) | Writes an `@` whose list shows only that kind: a file already in this Page, another Page, a chat, a notebook or an Idea. A row shows only when there is something of its kind to mention |
+| **Sources** (Mentioned) | On the Mac: opens a search of your library. Choose one or more sources and press **Insert**, and each is written as a card on a line of its own. The `@` list ends with the same row, which searches for the words you typed after the `@` |
 | **Chat**, **Find sources** (More) | Opens Chat about the Page, or asks Chat to find sources for it |
 | **Text**, **Footnote** (More) | A plain paragraph; a numbered note at the caret, as below |
 | **Today**, **Tomorrow**, **Yesterday**, **Block Reference**, **Embed Block** (More) | On the Mac: a link to that day's daily note, and the notes graph's `((` and `{{embed}}` |

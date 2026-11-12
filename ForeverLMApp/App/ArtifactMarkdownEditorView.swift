@@ -253,6 +253,9 @@ struct ArtifactGroundingRequest: Identifiable, Equatable {
     let id = UUID()
     let selectedText: String
     let sourceIDs: [String]
+    /// The `/` and `@` Sources rows: the chosen sources are written as cards at
+    /// the caret instead of attached to a passage.
+    var insertsCards = false
 }
 
 /// The answer travelling back: the sources to attach to the selection the editor
@@ -264,6 +267,8 @@ struct ArtifactGroundingAttachment: Identifiable, Equatable {
     /// leaves after the passage (`footnoteLinkedSources` in the editor); an id
     /// with no citation is attached without one.
     var citations: [ArtifactSourceCitation] = []
+    /// Write the sources as cards at the caret; nothing is attached.
+    var insertsCards = false
 }
 
 /// The editor must take the width of its SwiftUI pane, including when Docs is
@@ -1590,6 +1595,14 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                     selectedText: payload["selected"] as? String ?? "",
                     sourceIDs: payload["sourceIDs"] as? [String] ?? []
                 ))
+            case "sourceInsertRequested":
+                // The `/` and `@` Sources rows: the same picker, opened on the
+                // words typed after the `@`, answering with cards at the caret.
+                onRequestGrounding(ArtifactGroundingRequest(
+                    selectedText: payload["query"] as? String ?? "",
+                    sourceIDs: [],
+                    insertsCards: true
+                ))
             case "aiEditRequested":
                 guard let request = ArtifactAIEditRequest.parse(payload, docTitle: docTitle) else { return }
                 answerAIEdit(request, in: message.webView)
@@ -2014,6 +2027,15 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             let json = String(data: data, encoding: .utf8) ?? "[]"
             let citationData = (try? JSONEncoder().encode(attachment.citations)) ?? Data("[]".utf8)
             let citationsJSON = String(data: citationData, encoding: .utf8) ?? "[]"
+            if attachment.insertsCards {
+                webView.evaluateJavaScript("window.foreverLMArtifactEditor.insertSourceCardsAtCaret(\(citationsJSON));") {
+                    [weak self] _, error in
+                    if let error {
+                        self?.reportError("Could not insert the sources: \(error.localizedDescription)")
+                    }
+                }
+                return
+            }
             webView.evaluateJavaScript("window.foreverLMArtifactEditor.attachSources(\(json), \(citationsJSON));") {
                 [weak self] _, error in
                 if let error {
@@ -2154,7 +2176,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         /// editor's own. Every row the host answers is offered; the editor
         /// shows none of them on a page that is not editable.
         static let slashFeaturesScript =
-            "window.foreverLMArtifactEditor.setSlashFeatures({ pages: true, images: true, imageGeneration: true, visualize: true, files: true });"
+            "window.foreverLMArtifactEditor.setSlashFeatures({ pages: true, images: true, imageGeneration: true, visualize: true, files: true, sources: true });"
 
         /// This host answers `pastedLinesNeedJoining`, so the editor asks it
         /// about a paste of printed lines; a host that never says so is never

@@ -123,3 +123,42 @@ test('Mentioned › Files lists the files this page holds and links one again', 
   const markdown = await stored(page)
   expect(markdown.match(/\[protocol\.pdf\]\(foreverlm:\/\/attachment\/tok-1\)/g)).toHaveLength(2)
 })
+
+test('Mentioned › Sources asks the host for its picker and writes the chosen sources as cards', async ({ page }) => {
+  await openEditor(page, 'Start.\n\n')
+  await caretIn(page, 'Start')
+  await page.keyboard.press('Enter')
+  await typeSlash(page, 'sources')
+  expect((await titles(page))[0]).toBe('Sources')
+  await clearMessages(page)
+  await page.keyboard.press('Enter')
+  expect((await messages(page, 'sourceInsertRequested'))[0].query).toBe('')
+  // The typing is gone; the host answers with what was chosen.
+  expect((await stored(page)).trim()).toBe('Start.')
+  await page.evaluate(() => window.foreverLMArtifactEditor.insertSourceCardsAtCaret([
+    { sourceID: 'src-1', title: 'Aging rate indicators' },
+    { sourceID: 'src-2', title: 'Membrane potential' },
+  ]))
+  const markdown = await stored(page)
+  expect(markdown).toContain('Start.\n\n[Aging rate indicators](foreverlm://source/src-1)\n\n[Membrane potential](foreverlm://source/src-2)')
+})
+
+test('the @ list ends with Sources, which hands the typed words to the host', async ({ page }) => {
+  await openEditor(page, 'Start.\n\n')
+  await page.evaluate((list) => window.foreverLMArtifactEditor.setLinkTargets(list), targets)
+  await caretIn(page, 'Start')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('@')
+  await page.keyboard.type('mito')
+  await settle(page, 0)
+  expect(await titles(page)).toEqual(['Mitochondria notes', 'Sources'])
+  await clearMessages(page)
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+  expect((await messages(page, 'sourceInsertRequested'))[0].query).toBe('mito')
+  expect((await stored(page)).trim()).toBe('Start.')
+  // Words that match nothing are writing: no list, and Return is a new line.
+  await page.keyboard.type('@zzzz')
+  await settle(page, 0)
+  await expect(page.locator('.artifact-link-picker')).toBeHidden()
+})
