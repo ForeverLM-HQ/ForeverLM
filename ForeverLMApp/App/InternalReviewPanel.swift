@@ -694,13 +694,27 @@ struct InternalReviewPanelContent: View {
         // The chat points the Reader through the Studio model, which the
         // manager does not hold: every pane showing a manager lends it its own.
         .task(id: ObjectIdentifier(manager)) {
-            manager.walkthroughFocusHandler = { focus in vm.applyWalkthroughReaderFocus(focus, in: windowState) }
+            let windowState = windowState
+            // The Reader pointed at is the one showing the source: this
+            // window's, or another window's when only that one has it open
+            // (`readerWindow(showing:forChatIn:)`). The window pointed at last
+            // is remembered, so the outline is taken down where it was put up.
+            weak var pointedWindow: StudioWindowState?
+            manager.walkthroughFocusHandler = { focus in
+                let target = focus.sourceID.flatMap { vm.readerWindow(showing: $0, forChatIn: windowState) }
+                    ?? pointedWindow ?? windowState
+                if let previous = pointedWindow, previous !== target {
+                    vm.clearWalkthroughFocus(in: previous)
+                }
+                pointedWindow = target
+                vm.applyWalkthroughReaderFocus(focus, in: target)
+            }
             manager.teachBackStarter = { notebookID in pendingTeachBackNotebookID = notebookID }
             // A step or a focused panel is enlarged in the row only when no
             // Reader in this window already shows the source outlined beside
             // the chat. Only the active tab of a group mounts, so a Reader
-            // behind another tab is not on screen and the lens stays.
-            let windowState = windowState
+            // behind another tab is not on screen and the lens stays. A Reader
+            // showing it in another window counts: the chat points there.
             // A chat pointing at a figure of a paper no Reader here shows
             // opens it beside itself first. Only a chat in a Studio window
             // has a Reader beside it to open; a popped-out chat does not.
@@ -735,7 +749,7 @@ struct InternalReviewPanelContent: View {
                 manager.notebookWithThisChatOpener = nil
             }
             manager.walkthroughReaderShowsSource = { sourceID in
-                (windowState?.readerSourceIDsOnScreen.contains(sourceID) ?? false)
+                vm.aReaderShows(sourceID, forChatIn: windowState)
                     || (windowState?.linkedArtifactIDsOnScreen.contains(sourceID) ?? false)
             }
             // "Figure 2D" with a paper open beside the chat means that paper,

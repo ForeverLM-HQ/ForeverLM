@@ -390,6 +390,29 @@ extension StudioViewModel {
         )
     }
 
+    /// The window whose Reader a chat in `chatWindow` points at for
+    /// `sourceID`: its own when a Reader there has the source on screen,
+    /// otherwise another Studio window whose Reader does, and its own again
+    /// when none does (the chat then opens the source beside itself). A paper
+    /// the learner is already reading in their other window is pointed at
+    /// there, not opened a second time beside the chat (product owner,
+    /// 2026-11-12: "This paper was actually open in the other window. Then it
+    /// automatically opened it here in this window also. … That's not
+    /// necessary.").
+    func readerWindow(showing sourceID: String, forChatIn chatWindow: StudioWindowState?) -> StudioWindowState? {
+        if let chatWindow, chatWindow.readerSourceIDsOnScreen.contains(sourceID) { return chatWindow }
+        let elsewhere = StudioWindowRegistry.shared.states.first {
+            $0 !== chatWindow && $0.readerSourceIDsOnScreen.contains(sourceID)
+        }
+        return elsewhere ?? chatWindow
+    }
+
+    /// Whether a Reader in any Studio window has `sourceID` on screen: the
+    /// chat's own window or another one (`readerWindow(showing:forChatIn:)`).
+    func aReaderShows(_ sourceID: String, forChatIn chatWindow: StudioWindowState?) -> Bool {
+        readerWindow(showing: sourceID, forChatIn: chatWindow)?.readerSourceIDsOnScreen.contains(sourceID) ?? false
+    }
+
     /// The chat playing a walkthrough moved to a step, or the tutor pointed
     /// at a place in the source: the reader showing it follows — the one in
     /// `window`, the chat's own, when the chat has one.

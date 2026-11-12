@@ -1642,8 +1642,9 @@ final class ReviewSessionManager {
 
     var walkthroughStepScrollRequest: WalkthroughStepScrollRequest?
 
-    /// Whether a Reader in this chat's window is showing the source right
-    /// now. Set by the pane beside `walkthroughFocusHandler`; nil (a manager
+    /// Whether a Reader is showing the source right now: one in this chat's
+    /// window, or one in another Studio window, which the chat then points
+    /// at instead of opening the source a second time beside itself. Set by the pane beside `walkthroughFocusHandler`; nil (a manager
     /// with no pane, as in a test) counts as no Reader on screen. A step or a
     /// focused panel is shown enlarged in the row only when the Reader is not
     /// already showing it beside the chat (product owner, 2026-09-20: "don't also

@@ -430,6 +430,18 @@ enum WalkthroughReaderFocus: Equatable, Sendable {
     /// Point every pane showing the saved animation at one of its steps.
     case animation(artifactID: String, step: Int, conditions: [String: String])
     case clear
+
+    /// The source whose Reader is asked; nil for an animation's step and for
+    /// taking the outline down, which name none.
+    var sourceID: String? {
+        switch self {
+        case .outline(_, _, let sourceID), .spotlight(_, _, let sourceID, _), .pickPanel(_, _, let sourceID, _),
+             .flash(_, let sourceID), .moment(_, let sourceID):
+            return sourceID
+        case .animation, .clear:
+            return nil
+        }
+    }
 }
 
 /// The `t=` query of an in-app source link, in the forms a model writes when it

@@ -1653,6 +1653,32 @@ extension ScheduleChatNavigationTests {
         #expect(window.centerTabGroups == before)
     }
 
+    @Test("A chat points at the Reader already showing the source in another window")
+    func chatPointsAtTheReaderInAnotherWindow() {
+        let vm = makeViewModel()
+        let chatWindow = StudioWindowState()
+        let otherWindow = StudioWindowState()
+        StudioWindowRegistry.shared.register(chatWindow)
+        StudioWindowRegistry.shared.register(otherWindow)
+        defer {
+            StudioWindowRegistry.shared.unregister(chatWindow)
+            StudioWindowRegistry.shared.unregister(otherWindow)
+        }
+        // No Reader shows it anywhere: the chat's own window, where it opens.
+        #expect(vm.readerWindow(showing: "src-paper", forChatIn: chatWindow) === chatWindow)
+        #expect(vm.aReaderShows("src-paper", forChatIn: chatWindow) == false)
+        // Open in the other window only: that Reader is the one pointed at.
+        otherWindow.readerSourceIDsOnScreen = ["src-paper"]
+        #expect(vm.readerWindow(showing: "src-paper", forChatIn: chatWindow) === otherWindow)
+        #expect(vm.aReaderShows("src-paper", forChatIn: chatWindow))
+        #expect(vm.aReaderShows("src-other", forChatIn: chatWindow) == false)
+        // Open beside the chat too: the chat's own Reader wins.
+        chatWindow.readerSourceIDsOnScreen = ["src-paper"]
+        #expect(vm.readerWindow(showing: "src-paper", forChatIn: chatWindow) === chatWindow)
+        // A popped-out chat has no window of its own and still finds the Reader.
+        #expect(vm.readerWindow(showing: "src-paper", forChatIn: nil) != nil)
+    }
+
     @Test("Reader can be revealed beside Chat without replacing the conversation")
     func revealReaderBesideChat() {
         let restoreLayout = capturedCenterTabLayout()
