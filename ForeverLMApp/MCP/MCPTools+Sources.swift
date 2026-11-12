@@ -187,38 +187,61 @@ extension MCPDataStore {
         return lines.joined(separator: "\n")
     }
 
-    /// The source IDs of one podcast show or YouTube channel, for scoping a
-    /// search or a listing to it.
+    /// The source IDs of one podcast show, YouTube channel or recurring
+    /// meeting series, for scoping a search or a listing to it.
     ///
     /// An exact (case-insensitive) name wins; otherwise every show whose name
     /// contains the text is taken, so "Huberman" means "Huberman Lab" and
-    /// "Attia" takes both of Peter Attia's feeds. Throws with a pointer to
-    /// `list_shows` when nothing matches, because an empty scope would read as
-    /// "the show has nothing on this".
+    /// "Attia" takes both of Peter Attia's feeds. A meeting series is a show
+    /// too, named by its folder title (or its group_id from
+    /// list_meeting_groups): "the standups with Zoe" is the same ask as "the
+    /// Huberman episodes", and a model that scoped a sweep to one got an error
+    /// it could only read as a failed search. Throws with a pointer to
+    /// `list_shows` and `list_meeting_groups` when nothing matches, because an
+    /// empty scope would read as "the show has nothing on this".
     func showScopedSourceIDs(_ showText: String, includeArchived: Bool = false) throws -> (names: [String], sourceIDs: Set<String>) {
         let wanted = showText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !wanted.isEmpty else { throw MCPError.invalidInput("show must name a podcast show or YouTube channel.") }
+        guard !wanted.isEmpty else { throw MCPError.invalidInput("show must name a podcast show, YouTube channel or meeting series.") }
         let rows: [[String: Any]] = try withDB { db in
             try query(db, """
-                SELECT id, domain, status
+                SELECT id, domain AS name, status
                 FROM source_projection
                 WHERE source_type IN (?, ?) AND COALESCE(domain, '') != ''
             """, params: [StudioSourceType.podcast.rawValue, StudioSourceType.video.rawValue])
         }
+        // A meeting series by its folder title, and by its group_id, which is
+        // what list_meeting_groups hands a model to pass on. A folder the
+        // learner hid is out, as it is from that listing.
+        let meetingRows: [[String: Any]] = try withDB { db in
+            try query(db, """
+                SELECT sp.id, COALESCE(NULLIF(mg.title, ''), mg.id) AS name, mg.id AS group_id, sp.status
+                FROM meeting_groups mg
+                JOIN source_projection sp ON sp.parent_group = mg.id AND sp.source_type = ?
+                WHERE mg.is_hidden = 0
+            """, params: [StudioSourceType.meeting.rawValue])
+        }
         // Names resolve against every episode, archived ones included, so a
         // show whose episodes are all archived still says so rather than
         // "no such show"; the IDs are the active ones unless asked otherwise.
-        let byName = Dictionary(grouping: rows.compactMap { row -> (String, String?)? in
-            guard let id = row["id"] as? String, let name = row["domain"] as? String else { return nil }
+        func entry(_ row: [String: Any]) -> (String, String?)? {
+            guard let id = row["id"] as? String, let name = row["name"] as? String else { return nil }
             let active = (row["status"] as? String) == "active"
             return (name, active || includeArchived ? id : nil)
-        }, by: { $0.0 })
-        let exact = byName.keys.filter { $0.compare(wanted, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
+        }
+        let byName = Dictionary(grouping: (rows + meetingRows).compactMap(entry), by: { $0.0 })
+        func same(_ name: String) -> Bool {
+            name.compare(wanted, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+        let groupIDNames = Set(meetingRows.compactMap { row -> String? in
+            guard let groupID = row["group_id"] as? String, same(groupID) else { return nil }
+            return row["name"] as? String
+        })
+        let exact = Set(byName.keys.filter(same)).union(groupIDNames)
         let names = exact.isEmpty
             ? byName.keys.filter { $0.range(of: wanted, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
-            : exact
+            : Array(exact)
         guard !names.isEmpty else {
-            throw MCPError.invalidInput("No podcast show or YouTube channel is named like '\(wanted)'. Call list_shows for the exact names.")
+            throw MCPError.invalidInput("No podcast show, YouTube channel or meeting series is named like '\(wanted)'. Call list_shows for show and channel names, or list_meeting_groups for meeting series.")
         }
         // The knowledge boundary every library tool draws: a muted show's
         // episodes and the families kept from AI in Settings are not in scope.

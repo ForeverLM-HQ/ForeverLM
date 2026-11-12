@@ -289,7 +289,7 @@ extension MCPToolRegistry {
                         "added_to": ["type": "string", "description": "Optional. Latest local calendar day the source was SAVED to the library, inclusive, as a full YYYY-MM-DD day. Never a publication year: a bare year is rejected, and a real one would search the wrong axis in silence."],
                         "notebook_id": ["type": "string", "description": "Optional explicit Notebook ID. Restricts the search to that Notebook's approved sources. Cannot be combined with exclude_notebook_id."],
                         "exclude_notebook_id": ["type": "string", "description": "Optional explicit Notebook (companion goal) ID. Sources already attached to that Notebook — approved, pending, or rejected — are omitted from the results, and the limit is filled from the remaining candidates. Use this when finding NEW sources to add to a Notebook."],
-                        "show": ["type": "string", "description": "Optional podcast show or YouTube channel name (from list_shows; part of the name also works). Restricts the search to that show's episodes."],
+                        "show": ["type": "string", "description": "Optional podcast show or YouTube channel name (from list_shows), or a recurring meeting series' title or group_id (from list_meeting_groups); part of the name also works. Restricts the search to that show's episodes or that series' meetings."],
                     ],
                     "required": [],
                 ]
@@ -312,7 +312,7 @@ extension MCPToolRegistry {
                         "snippets_per_source": ["type": "integer", "description": "Passages shown per source (default 2, maximum 5). Use 0 for a bare list of what matched."],
                         "source_type": ["type": "string", "enum": StudioSourceType.searchFamilyNames, "description": "Optional. One family of sources to restrict the sweep to; omit it to sweep the whole library in a single call rather than one family at a time. article covers every saved web page, including manually added and still-unclassified ones."],
                         "notebook_id": ["type": "string", "description": "Optional explicit Notebook ID. Restricts the sweep to that Notebook's approved sources."],
-                        "show": ["type": "string", "description": "Optional podcast show or YouTube channel name (from list_shows; part of the name also works). Restricts the sweep to that show's episodes."],
+                        "show": ["type": "string", "description": "Optional podcast show or YouTube channel name (from list_shows), or a recurring meeting series' title or group_id (from list_meeting_groups); part of the name also works. Restricts the sweep to that show's episodes or that series' meetings."],
                     ],
                     "required": ["keywords"],
                 ]
@@ -349,7 +349,7 @@ extension MCPToolRegistry {
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "show": ["type": "string", "description": "Podcast show or YouTube channel name, from list_shows; part of the name also works (\"Huberman\")."],
+                        "show": ["type": "string", "description": "Podcast show or YouTube channel name, from list_shows, or a recurring meeting series' title or group_id, from list_meeting_groups; part of the name also works (\"Huberman\")."],
                         "author": ["type": "string", "description": "Text the author or byline contains: a paper's authors, an article's author, a meeting's presenter."],
                         "title_contains": ["type": "string", "description": "Text the title contains."],
                         "text": ["type": "string", "description": "Text any of title, author, show or channel, journal, or book/course/playlist contains — use it for a person who may be a guest in an episode title or an author of a paper (\"Martin Picard\")."],

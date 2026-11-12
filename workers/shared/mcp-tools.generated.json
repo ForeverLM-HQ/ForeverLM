@@ -3172,7 +3172,7 @@
           "type" : "integer"
         },
         "show" : {
-          "description" : "Podcast show or YouTube channel name, from list_shows; part of the name also works (\"Huberman\").",
+          "description" : "Podcast show or YouTube channel name, from list_shows, or a recurring meeting series' title or group_id, from list_meeting_groups; part of the name also works (\"Huberman\").",
           "type" : "string"
         },
         "source_type" : {
@@ -9856,7 +9856,7 @@
           "type" : "string"
         },
         "show" : {
-          "description" : "Optional podcast show or YouTube channel name (from list_shows; part of the name also works). Restricts the sweep to that show's episodes.",
+          "description" : "Optional podcast show or YouTube channel name (from list_shows), or a recurring meeting series' title or group_id (from list_meeting_groups); part of the name also works. Restricts the sweep to that show's episodes or that series' meetings.",
           "type" : "string"
         },
         "snippets_per_source" : {
@@ -9922,7 +9922,7 @@
           "type" : "string"
         },
         "show" : {
-          "description" : "Optional podcast show or YouTube channel name (from list_shows; part of the name also works). Restricts the search to that show's episodes.",
+          "description" : "Optional podcast show or YouTube channel name (from list_shows), or a recurring meeting series' title or group_id (from list_meeting_groups); part of the name also works. Restricts the search to that show's episodes or that series' meetings.",
           "type" : "string"
         },
         "source_type" : {

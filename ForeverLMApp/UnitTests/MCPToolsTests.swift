@@ -808,6 +808,54 @@ struct MCPDataStoreTests {
         #expect(MCPToolRegistry.selfGatedToolNames.contains("add_source"))
     }
 
+    /// A chat asked to sweep "the standups with Zoe" for a word passed the
+    /// series' title as `show`, and the search failed with "No podcast show
+    /// or YouTube channel is named like…": a meeting series is the show a
+    /// learner names most, so it scopes like one.
+    @Test("show scopes a search to a recurring meeting series, by its title or its group_id")
+    func showScopesToMeetingSeries() throws {
+        let (store, tmpPath) = try TestStores.mcp()
+        defer { cleanup(tmpPath) }
+        let knowledge = try store.knowledgeStore()
+        var standup = MeetingMetadata()
+        standup.title = "Ada <> Grace standup"
+        try knowledge.saveMeetingGroup(name: "zoom:example.zoom.us", metadata: standup)
+        var hidden = MeetingMetadata()
+        hidden.title = "Old standup"
+        hidden.isHidden = true
+        try knowledge.saveMeetingGroup(name: "Old standup", metadata: hidden)
+        try knowledge.saveMeetingGroup(name: "Journal Club", metadata: MeetingMetadata())
+        _ = try store.addSource(url: "meeting://standup/1", title: "Standup 2026-11-03", sourceType: "meeting",
+                                content: "The open question is which assay to run first.",
+                                parentGroup: "zoom:example.zoom.us", author: nil)
+        _ = try store.addSource(url: "meeting://club/1", title: "Club 2026-11-04", sourceType: "meeting",
+                                content: "One question about the cohort.", parentGroup: "Journal Club", author: nil)
+        _ = try store.addSource(url: "meeting://old/1", title: "Old 2026-01-04", sourceType: "meeting",
+                                content: "A question from long ago.", parentGroup: "Old standup", author: nil)
+
+        for show in ["Ada <> Grace standup", "grace standup", "zoom:example.zoom.us"] {
+            let sweep = try store.searchSourcesKeyword(keywords: ["question"], show: show)
+            #expect(sweep.contains("Standup 2026-11-03"), "show: \(show)")
+            #expect(!sweep.contains("Club 2026-11-04"), "show: \(show)")
+            #expect(sweep.contains("in Ada <> Grace standup"), "show: \(show)")
+        }
+        let listed = try store.filterSources(show: "Ada <> Grace", author: nil, titleContains: nil, text: nil,
+                                             sourceType: nil, includeArchived: false, limit: 10)
+        #expect(listed.contains("Standup 2026-11-03"))
+        #expect(!listed.contains("Club 2026-11-04"))
+
+        // A folder the learner hid is no show, as it is no row in list_meeting_groups.
+        #expect(throws: MCPError.self) {
+            _ = try store.searchSourcesKeyword(keywords: ["question"], show: "Old standup")
+        }
+        do {
+            _ = try store.searchSourcesKeyword(keywords: ["question"], show: "Nowhere")
+            Issue.record("An unknown show must throw")
+        } catch {
+            #expect("\(error)".contains("list_meeting_groups"))
+        }
+    }
+
     @Test("A new source's domain is a video's channel when one was found, and the URL's host otherwise")
     func newSourceDomainPrefersVideoChannel() {
         let video = "https://www.youtube.com/watch?v=JuoVZkPBiKk"
