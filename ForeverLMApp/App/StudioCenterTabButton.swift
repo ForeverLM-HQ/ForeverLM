@@ -49,7 +49,10 @@ struct StudioCenterTabButton: View {
     private var closeTakesIconPlace: Bool { !isActive && hovering }
 
     /// The most of a title a tab shows; a longer one runs off the edge.
-    static let maxTextWidth: CGFloat = 150
+    /// A chat renamed to a long title took twice a place tab's width at 150
+    /// (product owner, 2026-11-12: "it takes up too much space"), so a tab
+    /// shows about two words and the hover tooltip carries the whole title.
+    static let maxTextWidth: CGFloat = 100
 
     private var fullTextWidth: CGFloat {
         let font = NSFont.systemFont(ofSize: tabTextSize, weight: isActive ? .semibold : .medium)

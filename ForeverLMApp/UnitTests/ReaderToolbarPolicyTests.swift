@@ -522,11 +522,11 @@ struct StudioCenterTabStripFitTests {
 
     @Test("the longest titles shorten first; short ones keep their width")
     func longestShortenFirst() {
-        // 40 + 60 fit whole; the 200-point title gets what is left of 220.
-        let cap = StudioCenterTabStripFit.titleCap(titleWidths: [40, 60, 200], available: 220)
-        #expect(cap == 120)
+        // 40 + 60 fit whole; the 200-point title gets what is left of 180.
+        let cap = StudioCenterTabStripFit.titleCap(titleWidths: [40, 60, 200], available: 180)
+        #expect(cap == 80)
         let used = [40, 60, 200].map { min(CGFloat($0), cap) }.reduce(0, +)
-        #expect(used <= 220)
+        #expect(used <= 180)
     }
 
     @Test("titles share evenly when all are too long, down to the minimum")
