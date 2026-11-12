@@ -102,6 +102,38 @@ extension ArticleQueueManagementTests {
         #expect(results[0].title == "Alpha Post")
     }
 
+    @Test("a search that reaches papers by a surname leads with the ones holding more of what was typed")
+    func surnameMatchesLeadWithTheMostTypedWords() {
+        let vm = makeViewModel()
+        func paper(_ slug: String, title: String, author: String, addedAt: TimeInterval) -> StudioArticle {
+            var article = makeArticle(url: "https://example.com/\(slug)", title: title, sourceType: .paper)
+            article.author = author
+            article.dateAdded = Date(timeIntervalSince1970: addedAt)
+            return article
+        }
+        // Newest first is the Papers tab's own order, and the paper asked for is the oldest.
+        let newest = paper("drift", title: "Mesenchymal drift in aging", author: "Ada Lu; Noor Tu", addedAt: 300)
+        let middle = paper("transporter", title: "A mitochondrial transporter", author: "Tim Stone; Mu-Jie Lu", addedAt: 200)
+        let wanted = paper(
+            "tau", title: "Tau-induced mitochondrial reverse electron transport",
+            author: "Oana Li; Petra Guo; Mirela Lu", addedAt: 100
+        )
+        let unrelated = paper("clocks", title: "Metabolomic aging clocks", author: "Jo Park", addedAt: 400)
+        vm.articles = [newest, middle, wanted, unrelated]
+        vm.sidebarTab = .papers
+
+        vm.searchText = "RET mirela lu"
+        #expect(vm.activeTabArticles.map(\.id) == [wanted.id, newest.id, middle.id])
+
+        // A source holding everything typed still leads any surname-only match.
+        vm.searchText = "mitochondrial lu"
+        #expect(vm.activeTabArticles.map(\.id) == [middle.id, wanted.id, newest.id])
+
+        // One strength for every match keeps the tab's order.
+        vm.searchText = "lu"
+        #expect(vm.activeTabArticles.map(\.id) == [newest.id, middle.id, wanted.id])
+    }
+
     @Test("pruning selection clears book chapter hidden by search")
     func pruneSelectionClearsBookChapterHiddenBySearch() {
         let vm = makeViewModel()

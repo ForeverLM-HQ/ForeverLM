@@ -169,6 +169,19 @@ extension StudioViewModel {
         return matcher.matches(sidebarSearchAnalysis(of: article))
     }
 
+    /// How well a source answers a sidebar search, or nil when it does not
+    /// (`SidebarSearchMatcher.strength`). A field-scoped query has one
+    /// strength: the field holds what was typed or it does not.
+    func sourceSearchStrength(_ article: StudioArticle, query: String) -> Int? {
+        let matcher = sidebarSearchMatcher(for: query)
+        guard matcher.parsed.field == nil else {
+            return Self.sourceMatchesSearchAnalysingFields(article, query: query)
+                ? SidebarSearchMatcher.fullStrength : nil
+        }
+        if matcher.normalizedQuery.value.isEmpty { return SidebarSearchMatcher.fullStrength }
+        return matcher.strength(sidebarSearchAnalysis(of: article))
+    }
+
     /// `sourceMatchesSearch` computed from scratch: every field normalized and
     /// folded on the spot. The scoped path, and what the analysed path must
     /// always agree with.
@@ -285,6 +298,9 @@ extension StudioViewModel {
         /// A paper's author terms; nil for any other source and for a paper
         /// without an author.
         let authorTerms: Set<String>?
+        /// Every word of `text`, which is what a surname-only match is ranked
+        /// by (`SidebarSearchMatcher.strength`).
+        let words: Set<String>
 
         init(_ fields: ArtifactSourcePickerIndex.SourceFields) {
             self.fields = fields
@@ -295,6 +311,7 @@ extension StudioViewModel {
             foldedFields = normalized.map { SidebarSearchText(StudioViewModel.foldedSidebarSearchString($0)) }
             let joined = normalized.joined(separator: " ")
             text = SidebarSearchText(joined)
+            words = Set(StudioViewModel.sidebarSearchTerms(in: joined))
             foldedText = SidebarSearchText(StudioViewModel.foldedSidebarSearchString(joined))
             if fields.sourceType == .paper, let author = fields.author {
                 authorTerms = Set(StudioViewModel.sidebarSearchTerms(
@@ -331,25 +348,43 @@ extension StudioViewModel {
         /// step, over a source's analysis. The caller has answered an empty
         /// query already.
         func matches(_ source: SidebarSearchAnalysis) -> Bool {
+            strength(source) != nil
+        }
+
+        /// A source that holds the whole query or every term of it.
+        static let fullStrength = Int.max
+
+        /// How well a source answers, or nil when it does not: `fullStrength`
+        /// when its fields hold the whole query or every term, and otherwise,
+        /// for a paper found by an author's surname alone, the number of typed
+        /// terms that are words of its fields.
+        ///
+        /// The surname step lets "torrens mas" find a paper, and it also lets
+        /// "RET mirela lu" find every paper with an author named Lu. Only a
+        /// few of those are by Mirela Lu, and they hold two of the typed
+        /// words where the rest hold one, so the list leads with them
+        /// (`computeFilteredActiveItems`) (product owner, 2026-11-12: "why
+        /// are those not showing up early?").
+        func strength(_ source: SidebarSearchAnalysis) -> Int? {
             if source.normalizedFields.contains(where: { $0.contains(normalizedQuery) }) {
-                return true
+                return Self.fullStrength
             }
             if !foldedQuery.value.isEmpty,
                source.foldedFields.contains(where: { $0.contains(foldedQuery) }) {
-                return true
+                return Self.fullStrength
             }
-            guard !terms.isEmpty else { return false }
+            guard !terms.isEmpty else { return nil }
             if terms.allSatisfy({ source.text.contains($0) }) {
-                return true
+                return Self.fullStrength
             }
             if terms.allSatisfy({ source.foldedText.contains($0) }) {
-                return true
+                return Self.fullStrength
             }
             if let authorTerms = source.authorTerms, terms.count > 1,
                let lastName = terms.last, authorTerms.contains(lastName.value) {
-                return true
+                return Set(terms.map(\.value)).intersection(source.words).count
             }
-            return false
+            return nil
         }
     }
 

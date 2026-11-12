@@ -168,16 +168,33 @@ extension StudioViewModel {
         // paper that merely mentions the words — so the later pass only ever appends
         // below what the first one showed, and nothing already drawn moves.
         let contentMatches = sidebarContentSearchMatchIDsForCurrentQuery
-        var metadataMatches: [StudioArticle] = []
+        //
+        // Inside the metadata tier a paper found only by an author's surname comes
+        // after the sources that hold everything typed, and among those papers the
+        // ones holding more of the typed words lead: "RET mirela lu" reaches every
+        // paper with an author named Lu, and the ones by Mirela Lu are the answer.
+        // The strength is read off metadata alone, so this order is the one the
+        // first pass draws and the body pass still only appends.
+        var metadataMatches: [(article: StudioArticle, strength: Int)] = []
         var bodyOnlyMatches: [StudioArticle] = []
+        var strengthsDiffer = false
         for article in tabItems {
-            if sourceMatchesSearch(article, query: query) {
-                metadataMatches.append(article)
+            if let strength = sourceSearchStrength(article, query: query) {
+                if let first = metadataMatches.first, first.strength != strength {
+                    strengthsDiffer = true
+                }
+                metadataMatches.append((article, strength))
             } else if contentMatches.contains(article.id) {
                 bodyOnlyMatches.append(article)
             }
         }
-        return metadataMatches + bodyOnlyMatches
+        if strengthsDiffer {
+            // The tab's own order inside each strength.
+            metadataMatches = metadataMatches.enumerated()
+                .sorted { ($1.element.strength, $0.offset) < ($0.element.strength, $1.offset) }
+                .map(\.element)
+        }
+        return metadataMatches.map(\.article) + bodyOnlyMatches
     }
 
     /// The indexed body matches the list may union in. Empty for a field-scoped
