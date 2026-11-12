@@ -6,8 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **A model reads the references the free read cannot link, when a paper is added.** It only says what an entry's title, authors and year are, so the catalogs can be searched again; a link still comes only from a Crossref or OpenAlex record the entry prints. One small request for a paper that has such entries, on your Background model and within your daily background limit. Turn it off with **Find unlinked references with AI** in **Settings → Background → Papers**; AI Usage › Activity links there.
-- **Citations written as a name and a year open their reference.** In a paper that cites "(Belsky et al, 2022)" and links only the year (EMBO, Springer), a click on the year now shows the reference where it is cited, with its link, **Add to Library** and **Open**, as a numbered citation always did. The reference list read when a paper is added is also complete for these papers: books, single-author entries and entries after a book were merged into their neighbours or left out, and a paper that also exists as a preprint was left without a link. Every paper's list is read again once, in the background, after the update.
 - **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
@@ -19,6 +17,29 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.211.0 (build 291) — 2026-11-11
+
+**Highlights:**
+- **References in a paper open where they are cited**, including name-and-year citations, and a model reads the entries the free read cannot link.
+- **Read-aloud keeps one voice**, with OpenAI voices added.
+- **A large internal clean-up:** typed settings, logged errors, less code.
+
+- **A model reads the references the free read cannot link, when a paper is added.** It only says what an entry's title, authors and year are, so the catalogs can be searched again; a link still comes only from a Crossref or OpenAlex record the entry prints. One small request for a paper that has such entries, on your Background model and within your daily background limit. Turn it off with **Find unlinked references with AI** in **Settings → Background → Papers**; AI Usage › Activity links there.
+- **Citations written as a name and a year open their reference.** In a paper that cites "(Belsky et al, 2022)" and links only the year (EMBO, Springer), a click on the year now shows the reference where it is cited, with its link, **Add to Library** and **Open**, as a numbered citation always did. The reference list read when a paper is added is also complete for these papers: books, single-author entries and entries after a book were merged into their neighbours or left out, and a paper that also exists as a preprint was left without a link. Every paper's list is read again once, in the background, after the update.
+- **Read-aloud keeps one voice.** Fish Audio narration no longer changes speaker every few sentences, and every speech request names its speaker.
+- **OpenAI voices for read-aloud** (gpt-realtime-2.1-mini), paid from ForeverLM's OpenAI credits like voice mode.
+- **A chat's title names its topic from your opening message**, without waiting for the reply.
+- **Closing a chat's tab no longer restarts its Thinking clock.**
+- **A card's answer check judges the card's key point**, not every detail.
+- **A crowded tab strip fits its pane** and never slides under ‹ ›, and an inactive tab keeps no empty slot for its ×.
+- **Full Screen in a Reader's header** puts the pane alone across a full-screen window.
+- **The Notifications bell has no dot**, and nothing stands in the corner of the window.
+- **Settings:** Beta releases has its own line under the version, and Your Models' drag grip stands in the gutter left of the row.
+- **A Zoom recording whose transcript never came is finished** instead of waiting forever.
+- **Refetching a video fetches its transcript again**, and the planner's day hours follow your account to your other Mac.
+- **Add YouTube Video and Add Zoom Recording say when adding failed.** Before, nothing happened.
+- **Under the hood:** every setting is read through one typed list of keys, errors that used to vanish are logged or passed on, and about 6,000 lines of unused or repeated code are gone. Nothing you set or stored changes.
 
 ## 0.210.0 (build 290) — 2026-11-10
 
