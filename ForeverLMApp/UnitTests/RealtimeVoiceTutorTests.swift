@@ -383,9 +383,9 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceLibrarySearch.spokenDate(in: "the March talk")?.day == nil)
         #expect(RealtimeVoiceLibrarySearch.spokenDate(in: "may I ask about mitochondria") == nil)
         #expect(RealtimeVoiceLibrarySearch.spokenDate(in: "may 4") != nil)
-        #expect(RealtimeVoiceLibrarySearch.oneEditApart("norm", "norn"))
+        #expect(RealtimeVoiceLibrarySearch.oneEditApart("land", "lund"))
         #expect(RealtimeVoiceLibrarySearch.oneEditApart("nexus", "nexs"))
-        #expect(!RealtimeVoiceLibrarySearch.oneEditApart("norm", "norm"))
+        #expect(!RealtimeVoiceLibrarySearch.oneEditApart("land", "land"))
         #expect(!RealtimeVoiceLibrarySearch.oneEditApart("norm", "nexus"))
     }
 

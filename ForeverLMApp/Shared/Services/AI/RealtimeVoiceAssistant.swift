@@ -59,8 +59,8 @@ enum RealtimeVoiceAssistant {
         plan's objectives), and review their day or week.
         - Find a source in their library and talk about it or quiz them on it: search_library, then open_source to \
         read it, then search_source for exact passages. search_library knows titles, authors, a meeting's series and \
-        the day it happened, so pass the words the learner said, a day included ("Norn session October 25"). A name \
-        may reach you slightly misheard ("norm" for "Norn"): go by what it sounds like, and if you are unsure which \
+        the day it happened, so pass the words the learner said, a day included ("Lund session October 25"). A name \
+        may reach you slightly misheard ("land" for "Lund"): go by what it sounds like, and if you are unsure which \
         one they mean, ask. When quizzing, ask one question at a time that makes them \
         explain, say plainly whether the answer was right and what was missing, then go deeper.
         - Look up their plan, calendar, schedule, goals and notebooks with the matching tools when the picture below \
@@ -227,15 +227,15 @@ struct RealtimeVoiceLibraryItem: Equatable, Sendable {
     let addedAt: Date
     /// When the learner last read, listened to, watched or discussed it.
     let lastAttentionAt: Date?
-    /// The series a meeting belongs to ("Norn Group Nexus"), searched with the
+    /// The series a meeting belongs to ("Lund Reading Group"), searched with the
     /// title and said with it: a meeting session's own title is often only its
-    /// date ("2026/10/25"), so without it "the Norn session" finds nothing.
+    /// date ("2026/10/25"), so without it "the Lund session" finds nothing.
     var group: String? = nil
 }
 
 /// Ranks a library for a spoken query: title, byline and series words first,
 /// a day the learner names next, recent attention breaking ties, so "the
-/// mitochondria paper I read yesterday" and "the Norn session on October
+/// mitochondria paper I read yesterday" and "the Lund session on October
 /// 25th" both land.
 enum RealtimeVoiceLibrarySearch {
     /// A day named out loud: "October 25th", "25 October", "Oct 25 2026", or
@@ -304,7 +304,7 @@ enum RealtimeVoiceLibrarySearch {
     }
 
     /// Whether two words are one letter apart (one changed, added or dropped):
-    /// a name heard slightly wrong, "norm" for "Norn".
+    /// a name heard slightly wrong, "land" for "Lund".
     static func oneEditApart(_ a: String, _ b: String) -> Bool {
         let a = Array(a), b = Array(b)
         guard abs(a.count - b.count) <= 1, a != b else { return false }

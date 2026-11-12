@@ -624,8 +624,8 @@ enum PlanQuarterWeeks {
 
     /// The colour slot each objective wears. An objective whose name opens
     /// with another's, a word boundary after it, is of that one's family and
-    /// wears its colour: "Norn Talent Bridge" is Norn's (product owner,
-    /// 2026-11-08: "norn talent bridge and norn thesis should have the same
+    /// wears its colour: "Lund Talent Bridge" is Lund's (product owner,
+    /// 2026-11-08: two objectives of one group "should have the same
     /// color"). Families take slots in the order they first appear, so the
     /// colours stay put while objectives are only added below.
     static func colorSlots(_ names: [String]) -> [Int] {

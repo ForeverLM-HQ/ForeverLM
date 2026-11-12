@@ -72,7 +72,7 @@ struct PlanQuarterTests {
         let markdown = """
         ## Objectives
 
-        - Finish the **mtDNA** thesis for [[Norn Nexus]] ^abc123def
+        - Finish the **enzyme** thesis for [[Lund Group]] ^abc123def
         - [ ] Ship the Plan place
           - a sub-point stays out
         1. Numbered counts too
@@ -83,8 +83,8 @@ struct PlanQuarterTests {
         - Not an objective
         """
         #expect(PlanOutline.items(under: "Objectives", in: markdown)
-            == ["Finish the mtDNA thesis for Norn Nexus", "Ship the Plan place", "Numbered counts too"])
-        #expect(PlanOutline.items(under: "objectives", in: markdown, limit: 1) == ["Finish the mtDNA thesis for Norn Nexus"])
+            == ["Finish the enzyme thesis for Lund Group", "Ship the Plan place", "Numbered counts too"])
+        #expect(PlanOutline.items(under: "objectives", in: markdown, limit: 1) == ["Finish the enzyme thesis for Lund Group"])
         #expect(PlanOutline.items(under: "Strategies and habits", in: markdown) == ["Not an objective"])
         #expect(PlanOutline.items(under: "Big picture", in: markdown).isEmpty)
         #expect(PlanOutline.items(under: "Objectives", in: PlanQuarter(year: 2026, quarter: 4).template).isEmpty)
