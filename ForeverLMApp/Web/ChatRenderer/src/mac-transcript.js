@@ -34,7 +34,14 @@ const jumpButton = document.getElementById("jump-latest");
 /// the page back by however far that element moved, before the frame paints,
 /// so the words on screen stay where they are. WebKit has no CSS scroll
 /// anchoring (`overflow-anchor`), so this is that, by hand.
-const anchor = { chain: [], top: 0, active: false };
+///
+/// Each element in the chain keeps its own top. A streamed token re-renders
+/// the reply's paragraphs, so the deepest element is usually gone by the next
+/// correction; its parent is then measured against where the parent stood,
+/// never against where the gone paragraph stood. Measured against the
+/// paragraph, the page jumped back to the start of the reply on every token
+/// while the learner scrolled through it.
+const anchor = { chain: [], active: false };
 
 /// The last scroll the page made itself, so `scroll` events it causes are not
 /// read as the learner's.
@@ -42,9 +49,9 @@ let programmaticScrollAt = 0;
 
 function scrollByAnchorDelta() {
   if (!anchor.active) return;
-  const element = anchor.chain.find((candidate) => candidate.isConnected);
-  if (!element) return;
-  const delta = element.getBoundingClientRect().top - anchor.top;
+  const held = anchor.chain.find((candidate) => candidate.element.isConnected);
+  if (!held) return;
+  const delta = held.element.getBoundingClientRect().top - held.top;
   if (Math.abs(delta) < 0.5) return;
   programmaticScrollAt = performance.now();
   window.scrollBy(0, delta);
@@ -68,13 +75,10 @@ function captureAnchor() {
       }
     }
     if (!found) break;
-    anchor.chain.unshift(found);
+    anchor.chain.unshift({ element: found, top: found.getBoundingClientRect().top });
     parent = found;
   }
-  const element = anchor.chain[0];
-  if (!element) return;
-  anchor.top = element.getBoundingClientRect().top;
-  anchor.active = true;
+  anchor.active = anchor.chain.length > 0;
 }
 
 /// Runs a change to the page with the learner's place kept across it.
