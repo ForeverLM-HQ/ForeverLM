@@ -78,3 +78,29 @@ final class CarPlayVoiceScreenTests: XCTestCase {
         XCTAssertEqual(CarPlayVoiceScreen.resolve(conversationIsIdle: false, listen: finished, isPlaying: false), .conversation)
     }
 }
+
+/// Audio that replaces what is playing (a longer prefix of a narration still
+/// being made, or the whole narration taking over from its opening) goes in
+/// at the second the listener is at when it goes in. Listen once noted that
+/// second before assembling the new audio, and put the listener back by as
+/// long as the assembly took.
+final class MobileAudioHandoverTests: XCTestCase {
+    func testTheHandoverIsThePlayersOwnSecondNotTheLastTick() {
+        // The last tick is from before the new audio was assembled.
+        XCTAssertEqual(
+            MobileAudioReviewViewModel.handoverSecond(playerSecond: 71.4, lastTick: 58, newDuration: 2_400),
+            71.4
+        )
+    }
+
+    func testTheHandoverStaysInsideTheNewAudio() {
+        XCTAssertEqual(MobileAudioReviewViewModel.handoverSecond(playerSecond: 71.4, lastTick: 58, newDuration: 60), 60)
+        XCTAssertEqual(MobileAudioReviewViewModel.handoverSecond(playerSecond: -1, lastTick: 58, newDuration: 60), 0)
+    }
+
+    func testWithNothingInThePlayerTheLastTickIsUsed() {
+        XCTAssertEqual(MobileAudioReviewViewModel.handoverSecond(playerSecond: nil, lastTick: 58, newDuration: 2_400), 58)
+        // An item that has not loaded reports no time.
+        XCTAssertEqual(MobileAudioReviewViewModel.handoverSecond(playerSecond: .nan, lastTick: 58, newDuration: 2_400), 58)
+    }
+}

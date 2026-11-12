@@ -908,7 +908,7 @@ extension MobileAudioReviewViewModel {
             openingPlaybackRanDry = false
         }
 
-        await play(generatedItem, startAt: startAt)
+        await play(generatedItem, startAt: startAt, inPlace: startAt != nil)
         if keepPaused, isPlaying {
             togglePlayback()
         }

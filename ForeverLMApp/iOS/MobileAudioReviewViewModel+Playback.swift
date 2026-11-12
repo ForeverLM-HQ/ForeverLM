@@ -35,7 +35,15 @@ extension MobileAudioReviewViewModel {
     /// uses it to continue at the exact second the listener had reached, which
     /// the saved position cannot express: that position is cleared near the end
     /// of a source, and the opening ending *is* near its own end.
-    func play(_ item: MobileAudioItem, startAt: TimeInterval? = nil) async {
+    ///
+    /// `inPlace` says this audio replaces audio of the same source that is
+    /// playing now (a longer prefix, or the whole narration taking over from
+    /// its opening). The listener keeps listening while the new audio is
+    /// assembled, which takes seconds for a long source, so the second they
+    /// are at is read when the new audio goes in (`handoverSecond`), never
+    /// before: a second noted earlier puts them back by as long as the
+    /// assembly took, twice that at 2x.
+    func play(_ item: MobileAudioItem, startAt: TimeInterval? = nil, inPlace: Bool = false) async {
         // Deliberately ahead of `isLoading`: a first-time download is a wait
         // with a length and a progress bar, not the library's loading spinner.
         // The download starts the opening itself as soon as the first chunks
@@ -53,9 +61,11 @@ extension MobileAudioReviewViewModel {
         // Hand over from the streamed opening to the whole composition without
         // moving the listener: same second, and still paused if they paused it.
         var startAt = startAt
+        var continuesInPlace = inPlace
         var keepPausedAfterHandover = false
         if openingPlaybackSourceID == item.id, currentItem?.id == item.id {
             startAt = currentTime
+            continuesInPlace = true
             keepPausedAfterHandover = !isPlaying && !openingPlaybackRanDry
             openingPlaybackSourceID = nil
             isAwaitingRemainingNarration = false
@@ -100,12 +110,18 @@ extension MobileAudioReviewViewModel {
                 }
             }
 
-            let resumeTime = startAt.map { min(max($0, 0), composition.duration) }
-                ?? Self.resumeTime(
-                    from: savedPosition,
-                    manifest: item.manifest,
-                    duration: composition.duration
-                )
+            // Nothing awaits between here and the swap below.
+            let resumeTime: TimeInterval
+            if continuesInPlace, currentItem?.id == item.id {
+                resumeTime = handoverSecond(into: composition.duration)
+            } else {
+                resumeTime = startAt.map { min(max($0, 0), composition.duration) }
+                    ?? Self.resumeTime(
+                        from: savedPosition,
+                        manifest: item.manifest,
+                        duration: composition.duration
+                    )
+            }
             currentItem = item
             Task { [weak self] in await self?.loadNowPlayingArtwork(for: item) }
             if bookContinuationOffer?.completedSourceID != item.id {
@@ -311,7 +327,7 @@ extension MobileAudioReviewViewModel {
             // second the listener is already on.
             if let complete = itemForSourceID(sourceID),
                complete.manifest.chunks.count > (currentItem?.manifest.chunks.count ?? 0) {
-                await play(complete, startAt: currentTime)
+                await play(complete, startAt: currentTime, inPlace: true)
                 return
             }
             togglePlayback()
@@ -449,10 +465,32 @@ extension MobileAudioReviewViewModel {
         isAwaitingRemainingNarration = false
         openingPlaybackRanDry = false
 
-        await play(item, startAt: startAt)
+        await play(item, startAt: startAt, inPlace: true)
         if keepPaused, isPlaying {
             togglePlayback()
         }
+    }
+
+    /// The second the listener is at, for audio about to replace what is
+    /// playing: the player's own clock, clamped to the new audio. `currentTime`
+    /// is only the periodic observer's last tick, up to half a second old.
+    /// With nothing in the player (a prefix that was closed) the last tick is
+    /// all there is.
+    func handoverSecond(into newDuration: TimeInterval) -> TimeInterval {
+        Self.handoverSecond(
+            playerSecond: player.currentItem == nil ? nil : player.currentTime().seconds,
+            lastTick: currentTime,
+            newDuration: newDuration
+        )
+    }
+
+    nonisolated static func handoverSecond(
+        playerSecond: Double?,
+        lastTick: TimeInterval,
+        newDuration: TimeInterval
+    ) -> TimeInterval {
+        let second = playerSecond.flatMap { $0.isFinite ? $0 : nil } ?? lastTick
+        return min(max(second, 0), max(newDuration, 0))
     }
 
     /// Plays the opening section the moment its audio lands, so tapping Listen
@@ -548,9 +586,15 @@ extension MobileAudioReviewViewModel {
             guard openingPlaybackSourceID == item.id, currentItem?.id == item.id else { return false }
             guard composition.duration > duration + 0.05 else { return true }
 
-            let resumeTime = min(max(currentTime, 0), composition.duration)
-            let shouldPlay = isPlaying || openingPlaybackRanDry
             let playerItem = await MobileLoudnessAudioMix.playerItem(for: composition.asset)
+            // The same two questions again: the listener kept listening while
+            // the item was made, and something longer may have gone in.
+            guard openingPlaybackSourceID == item.id, currentItem?.id == item.id else { return false }
+            guard composition.duration > duration + 0.05 else { return true }
+            // Read at the swap, not before the item was made: a second noted
+            // earlier moves the listener back by as long as that took.
+            let resumeTime = handoverSecond(into: composition.duration)
+            let shouldPlay = isPlaying || openingPlaybackRanDry
 
             installOpeningEndObserver(for: playerItem)
             currentItem = item
