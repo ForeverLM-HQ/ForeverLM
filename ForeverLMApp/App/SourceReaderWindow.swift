@@ -9,6 +9,9 @@ import PDFKit
 struct SourceReaderWindow: View {
     let article: StudioArticle
     @Environment(StudioViewModel.self) private var vm
+    /// This Reader window's own Levels, Linked References and Figure Legends
+    /// panels: opening one here opens it in no other Reader.
+    @State private var readerPanels = ReaderSidePanels()
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     /// Written here and read by every reader that would otherwise invert a page.
@@ -327,21 +330,21 @@ struct SourceReaderWindow: View {
                 .readerSideChat(for: displayedArticle.id)
 
                 // The source zoomed out, beside it, as in the docked Reader.
-                if ReaderLevelsPanelState.shared.isVisible, ReaderLevels.offers(displayedArticle) {
+                if readerPanels.levels.isVisible, ReaderLevels.offers(displayedArticle) {
                     Divider()
-                    ReaderLevelsPanel(article: displayedArticle)
+                    ReaderLevelsPanel(article: displayedArticle, state: readerPanels.levels)
                 }
 
                 // What links the source, in Levels' column, as in the docked Reader.
-                if ReaderReferencesPanelState.shared.isVisible {
+                if readerPanels.references.isVisible {
                     Divider()
-                    ReaderReferencesPanel(article: displayedArticle)
+                    ReaderReferencesPanel(article: displayedArticle, state: readerPanels.references)
                 }
 
                 // Every figure's legend, following the page, as in the docked Reader.
-                if ReaderFigureLegendsPanelState.shared.isVisible, ReaderFigureLegends.offers(displayedArticle) {
+                if readerPanels.figureLegends.isVisible, ReaderFigureLegends.offers(displayedArticle) {
                     Divider()
-                    ReaderFigureLegendsPanel(article: displayedArticle)
+                    ReaderFigureLegendsPanel(article: displayedArticle, state: readerPanels.figureLegends)
                 }
 
                 if vm.readerNotesListVisible {
@@ -613,7 +616,7 @@ struct SourceReaderWindow: View {
             ArticleSpeechListenMenuItem(speech: speech, article: article)
             RealtimeVoiceMenuItems(article: article, notebookID: nil)
             ExplainerMenuItems(article: article)
-            ReaderLevelsMenuItem(article: article)
+            ReaderLevelsMenuItem(article: article, state: readerPanels.levels)
             if bookNavigationBridge.navigation != nil {
                 Button {
                     isBookContentsPresented = true
@@ -638,9 +641,9 @@ struct SourceReaderWindow: View {
             Divider()
 
             LinkedInMenuItems(article: article)
-            ReaderReferencesMenuItem()
+            ReaderReferencesMenuItem(state: readerPanels.references)
             if ReaderFigureLegends.offers(displayedArticle) {
-                ReaderFigureLegendsMenuItem()
+                ReaderFigureLegendsMenuItem(state: readerPanels.figureLegends)
             }
 
             Button {

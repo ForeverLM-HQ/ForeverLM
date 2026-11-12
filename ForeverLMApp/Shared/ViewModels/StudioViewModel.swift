@@ -1213,11 +1213,19 @@ class StudioViewModel {
         didSet { if reviewChatAutoStartRequestID != nil { stampChatRequestTargetWindow() } }
     }
     /// Token used by ⇧⌘K to focus the docked Chat composer without stealing focus at launch.
-    var reviewChatFocusRequestID: UUID?
+    var reviewChatFocusRequestID: UUID? {
+        didSet { if reviewChatFocusRequestID != nil { reviewChatFocusWindowID = activeWindowState.id } }
+    }
+    /// The window whose chat box that token focuses: the one it was asked in.
+    @ObservationIgnored var reviewChatFocusWindowID: UUID?
     /// Token used by Reader "Chat about this" actions to let the Studio shell
     /// reclaim side-panel width after the Reader and Chat panes are visible.
     /// Width belongs to the view, so the view model only publishes the intent.
-    var readerChatSpaceRequestID: UUID?
+    var readerChatSpaceRequestID: UUID? {
+        didSet { if readerChatSpaceRequestID != nil { readerChatSpaceWindowID = activeWindowState.id } }
+    }
+    /// The window that makes that room: the one the chat was asked for in.
+    @ObservationIgnored var readerChatSpaceWindowID: UUID?
     /// Token used to ask the Chat panel to reveal the previous-sessions browser
     /// (opens the popover in `.popover` layout). Consumed by the Chat panel.
     var reviewSessionsRevealRequestID: UUID? {
@@ -1894,6 +1902,9 @@ class StudioViewModel {
 
     /// Temporary toast message shown after actions like PDF download
     var toastMessage: String?
+    /// The window the toast was raised in, which alone shows it
+    /// (`isRequestTarget`). Set with the message, so not observed on its own.
+    @ObservationIgnored var toastWindowID: UUID?
 
     /// What the toast's Undo button does, when the message reports something
     /// that can be taken back. Hiding a paper says "Hid <title>" and the same
@@ -1943,7 +1954,11 @@ class StudioViewModel {
     var playlistImportBannerHidden = false
     /// Bumped to open the rail's AI popover (what is running now, what has
     /// run, the key and its limits): the button watches it.
-    var aiUsageOpenRequest = 0
+    var aiUsageOpenRequest = 0 {
+        didSet { aiUsageOpenWindowID = activeWindowState.id }
+    }
+    /// The window whose popover that opens: the one it was asked in.
+    @ObservationIgnored var aiUsageOpenWindowID: UUID?
     /// The import banner's text, or nil when there is no import or the
     /// learner hid the banner for this one.
     var visiblePlaylistImportStatus: String? {
@@ -2152,6 +2167,23 @@ class StudioViewModel {
     /// read, often from a view body, and republishing the view model for it
     /// would re-render every window on every row.
     @ObservationIgnored private var scopedWindowState: StudioWindowState?
+
+    /// Whether `window` is the one a request, a toast or a notice stamped with
+    /// `targetID` is for. Each belongs to the window it was raised in, so a
+    /// click in one window never opens, focuses or announces anything in
+    /// another (product owner, 2026-11-12: "Those two windows have to be
+    /// independent"). One stamped with no window, or with a window that is
+    /// not open (the fallback state, a window since closed), is for all.
+    func isRequestTarget(_ targetID: UUID?, _ window: StudioWindowState?) -> Bool {
+        guard let targetID, let window, targetID != window.id else { return true }
+        return !StudioWindowRegistry.shared.states.contains { $0.id == targetID }
+    }
+
+    /// The chat box focus token as `window` sees it: nil in a window the
+    /// focus was not asked for in.
+    func reviewChatFocusRequestID(in window: StudioWindowState?) -> UUID? {
+        isRequestTarget(reviewChatFocusWindowID, window) ? reviewChatFocusRequestID : nil
+    }
 
     var activeWindowState: StudioWindowState {
         if let scopedWindowState { return scopedWindowState }

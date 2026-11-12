@@ -10,6 +10,8 @@ extension StudioViewModel {
     struct PendingDeletionNotice: Identifiable, Equatable {
         let id: UUID
         let message: String
+        /// The window the removal was made in, which alone shows its banner.
+        var windowID: UUID? = nil
     }
 
     struct ArtworkBackfillCandidate: Sendable {

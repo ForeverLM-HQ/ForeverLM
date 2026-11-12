@@ -765,6 +765,7 @@ extension StudioViewModel {
         action: StudioToastAction? = nil
     ) {
         toastDismissTask?.cancel()
+        toastWindowID = activeWindowState.id
         toastMessage = message
         toastUndo = undo
         toastAction = action
@@ -824,7 +825,7 @@ extension StudioViewModel {
         commit: @escaping () async -> Void
     ) -> UUID {
         let id = UUID()
-        pendingDeletionNotices.append(PendingDeletionNotice(id: id, message: message))
+        pendingDeletionNotices.append(PendingDeletionNotice(id: id, message: message, windowID: activeWindowState.id))
         pendingDeletionUndoActions[id] = undo
         if !sourceIDs.isEmpty {
             pendingDeletionSourceIDs[id] = sourceIDs
@@ -909,7 +910,7 @@ extension StudioViewModel {
         return true
     }
 
-    private func undoPendingDeletion(_ id: UUID) async {
+    func undoPendingDeletion(_ id: UUID) async {
         pendingDeletionTasks[id]?.cancel()
         let undo = pendingDeletionUndoActions[id]
         clearPendingDeletion(id)

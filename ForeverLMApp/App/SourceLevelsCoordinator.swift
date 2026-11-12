@@ -85,12 +85,48 @@ final class SourceLevelsCoordinator: ObservableObject {
     }
 }
 
-/// The Levels panel's choices for this session: whether it shows, at which
-/// zoom, and whether it follows the learner's place.
+/// One window's Reader side panels: Levels, Linked References and Figure
+/// Legends, which share the Reader's trailing column, one at a time. Each
+/// Studio window has its own, and so has each popped-out Reader, so opening
+/// Levels in one window leaves every other Reader as it was (product owner,
+/// 2026-11-12: "Those two windows have to be independent").
+@MainActor
+@Observable
+final class ReaderSidePanels {
+    let levels = ReaderLevelsPanelState()
+    let references = ReaderReferencesPanelState()
+    let figureLegends = ReaderFigureLegendsPanelState()
+
+    init() {
+        levels.panels = self
+        references.panels = self
+        figureLegends.panels = self
+    }
+
+    @ObservationIgnored private static var byWindow: [UUID: ReaderSidePanels] = [:]
+    /// The panels of a Reader docked outside any Studio window.
+    @ObservationIgnored private static let detached = ReaderSidePanels()
+
+    /// The panels of the Studio window a docked Reader is in, made when its
+    /// Reader first asks and kept while the window is open.
+    static func of(_ window: StudioWindowState?) -> ReaderSidePanels {
+        guard let window else { return detached }
+        if let panels = byWindow[window.id] { return panels }
+        let open = Set(StudioWindowRegistry.shared.states.map(\.id))
+        byWindow = byWindow.filter { open.contains($0.key) }
+        let panels = ReaderSidePanels()
+        byWindow[window.id] = panels
+        return panels
+    }
+}
+
+/// The Levels panel's choices for this session, in one window: whether it
+/// shows, at which zoom, and whether it follows the learner's place.
 @MainActor
 @Observable
 final class ReaderLevelsPanelState {
-    static let shared = ReaderLevelsPanelState()
+    /// The window's panels this one shares a column with.
+    @ObservationIgnored weak var panels: ReaderSidePanels?
 
     enum Zoom: String, CaseIterable, Identifiable {
         case gist
@@ -113,8 +149,8 @@ final class ReaderLevelsPanelState {
             // Levels, Linked References and Figure Legends share the trailing
             // column (ReaderReferencesPanel.swift): one at a time.
             guard isVisible else { return }
-            if ReaderReferencesPanelState.shared.isVisible { ReaderReferencesPanelState.shared.isVisible = false }
-            if ReaderFigureLegendsPanelState.shared.isVisible { ReaderFigureLegendsPanelState.shared.isVisible = false }
+            if panels?.references.isVisible == true { panels?.references.isVisible = false }
+            if panels?.figureLegends.isVisible == true { panels?.figureLegends.isVisible = false }
         }
     }
     var zoom: Zoom = .sections

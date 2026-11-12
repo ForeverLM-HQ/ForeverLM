@@ -104,7 +104,7 @@ extension InternalReviewPanelContent {
                 placeholder: chatInputPlaceholder,
                 focusRequestID: pageSideChat != nil
                     ? sessionStore.composerFocusRequestID
-                    : vm.reviewChatFocusRequestID,
+                    : vm.reviewChatFocusRequestID(in: windowState),
                 slashCommands: slashCommands,
                 mentions: composerMentions,
                 onSubmit: {

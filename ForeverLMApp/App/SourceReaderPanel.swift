@@ -9,6 +9,8 @@ import UniformTypeIdentifiers
 struct SourceReaderPanel: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
+    /// This window's Levels, Linked References and Figure Legends panels.
+    private var readerPanels: ReaderSidePanels { ReaderSidePanels.of(windowState) }
     @Environment(\.openWindow) private var openWindow
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
@@ -232,7 +234,7 @@ struct SourceReaderPanel: View {
                         // The source zoomed out, beside it (ReaderLevelsPanel).
                         if showsLevelsPanel(for: article) {
                             Divider()
-                            ReaderLevelsPanel(article: article)
+                            ReaderLevelsPanel(article: article, state: readerPanels.levels)
                                 .transition(.move(edge: .trailing))
                         }
 
@@ -240,7 +242,7 @@ struct SourceReaderPanel: View {
                         // (ReaderReferencesPanel); Levels' column, one at a time.
                         if showsReferencesPanel {
                             Divider()
-                            ReaderReferencesPanel(article: article)
+                            ReaderReferencesPanel(article: article, state: readerPanels.references)
                                 .transition(.move(edge: .trailing))
                         }
 
@@ -248,7 +250,7 @@ struct SourceReaderPanel: View {
                         // (ReaderFigureLegendsPanel); the same column too.
                         if showsFigureLegendsPanel(for: article) {
                             Divider()
-                            ReaderFigureLegendsPanel(article: article)
+                            ReaderFigureLegendsPanel(article: article, state: readerPanels.figureLegends)
                                 .transition(.move(edge: .trailing))
                         }
 
@@ -260,9 +262,9 @@ struct SourceReaderPanel: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .animation(.easeInOut(duration: 0.18), value: vm.readerNotesListVisible)
-                    .animation(.easeInOut(duration: 0.18), value: ReaderLevelsPanelState.shared.isVisible)
-                    .animation(.easeInOut(duration: 0.18), value: ReaderReferencesPanelState.shared.isVisible)
-                    .animation(.easeInOut(duration: 0.18), value: ReaderFigureLegendsPanelState.shared.isVisible)
+                    .animation(.easeInOut(duration: 0.18), value: readerPanels.levels.isVisible)
+                    .animation(.easeInOut(duration: 0.18), value: readerPanels.references.isVisible)
+                    .animation(.easeInOut(duration: 0.18), value: readerPanels.figureLegends.isVisible)
                     .contextMenu { readerContextMenu(for: article) }
                     .onChange(of: selectedText) { _, newValue in
                         guard !isDisplayingExternalPage else { return }
@@ -751,19 +753,19 @@ struct SourceReaderPanel: View {
     /// while the learner has it open; a live page reached through a link has
     /// no stored text to zoom out on.
     private func showsLevelsPanel(for article: StudioArticle) -> Bool {
-        ReaderLevelsPanelState.shared.isVisible && !isDisplayingExternalPage && ReaderLevels.offers(article)
+        readerPanels.levels.isVisible && !isDisplayingExternalPage && ReaderLevels.offers(article)
     }
 
     /// The Linked References panel shows beside any saved source while the
     /// learner has it open; a live page reached through a link is not one.
     private var showsReferencesPanel: Bool {
-        ReaderReferencesPanelState.shared.isVisible && !isDisplayingExternalPage
+        readerPanels.references.isVisible && !isDisplayingExternalPage
     }
 
     /// The Figure Legends panel shows beside a paper the Reader has open as a
     /// PDF; the figure index reads that file.
     private func showsFigureLegendsPanel(for article: StudioArticle) -> Bool {
-        ReaderFigureLegendsPanelState.shared.isVisible && !isDisplayingExternalPage
+        readerPanels.figureLegends.isVisible && !isDisplayingExternalPage
             && ReaderFigureLegends.offers(article)
     }
 
@@ -880,7 +882,7 @@ struct SourceReaderPanel: View {
                 RealtimeVoiceMenuItems(article: article, notebookID: windowState.notebook?.notebookID)
                 WalkthroughMenuItems(article: article, knownHasWalkthrough: readerHasWalkthrough)
                 CardsMenuItems(article: article, windowState: windowState)
-                ReaderLevelsMenuItem(article: article)
+                ReaderLevelsMenuItem(article: article, state: readerPanels.levels)
             }
 
             if bookNavigationBridge.navigation != nil {
@@ -1124,10 +1126,10 @@ struct SourceReaderPanel: View {
                 )
             }
             // The passages that link the source, in a panel beside it.
-            ReaderReferencesMenuItem()
+            ReaderReferencesMenuItem(state: readerPanels.references)
             // A paper's legends beside its pages, wherever they are printed.
             if ReaderFigureLegends.offers(article) {
-                ReaderFigureLegendsMenuItem()
+                ReaderFigureLegendsMenuItem(state: readerPanels.figureLegends)
             }
         }
 

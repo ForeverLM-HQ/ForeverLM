@@ -20,19 +20,20 @@ import SwiftUI
 // One of the three at a time: Levels, Linked References and Figure Legends are
 // each a column of the same width, and two open would leave the page a strip.
 
-/// Whether the Reader's Figure Legends panel shows: this session's choice, for
-/// every Reader, like the Levels panel's.
+/// Whether the Reader's Figure Legends panel shows: this session's choice in
+/// one window, like the Levels panel's.
 @MainActor
 @Observable
 final class ReaderFigureLegendsPanelState {
-    static let shared = ReaderFigureLegendsPanelState()
+    /// The window's panels this one shares a column with.
+    @ObservationIgnored weak var panels: ReaderSidePanels?
 
     var isVisible = false {
         didSet {
             // The trailing column is shared with Levels and Linked References.
             guard isVisible else { return }
-            if ReaderLevelsPanelState.shared.isVisible { ReaderLevelsPanelState.shared.isVisible = false }
-            if ReaderReferencesPanelState.shared.isVisible { ReaderReferencesPanelState.shared.isVisible = false }
+            if panels?.levels.isVisible == true { panels?.levels.isVisible = false }
+            if panels?.references.isVisible == true { panels?.references.isVisible = false }
         }
     }
 
@@ -103,7 +104,7 @@ struct ReaderFigureLegendsPanel: View {
     @State private var phase: Phase = .loading
     @State private var entries: [ReaderFigureLegends.Entry] = []
 
-    private var state: ReaderFigureLegendsPanelState { ReaderFigureLegendsPanelState.shared }
+    let state: ReaderFigureLegendsPanelState
 
     /// The page the Reader is on, as it reports it (`updateReadingPosition`),
     /// or the one it opened at before the learner has moved.
@@ -270,7 +271,7 @@ struct ReaderFigureLegendsPanel: View {
 
 /// The ⋯ menu's entry for the panel, beside Linked References.
 struct ReaderFigureLegendsMenuItem: View {
-    private var state: ReaderFigureLegendsPanelState { ReaderFigureLegendsPanelState.shared }
+    let state: ReaderFigureLegendsPanelState
 
     var body: some View {
         Button {

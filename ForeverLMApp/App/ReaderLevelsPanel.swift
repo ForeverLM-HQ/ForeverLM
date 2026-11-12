@@ -220,7 +220,7 @@ struct ReaderLevelsPanel: View {
     @State private var takeError: String?
     @State private var isKeepingTake = false
 
-    private var state: ReaderLevelsPanelState { ReaderLevelsPanelState.shared }
+    let state: ReaderLevelsPanelState
     private var sourceID: String { article.id }
 
     var body: some View {
@@ -979,7 +979,7 @@ struct ReaderLevelsPanel: View {
 struct ReaderLevelsMenuItem: View {
     let article: StudioArticle
 
-    private var state: ReaderLevelsPanelState { ReaderLevelsPanelState.shared }
+    let state: ReaderLevelsPanelState
 
     var body: some View {
         if ReaderLevels.offers(article) {

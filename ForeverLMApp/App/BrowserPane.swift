@@ -430,7 +430,8 @@ struct BrowserPane: View {
     private func consumeOpenRequest() {
         // "Open in Browser" is the window's Browser's; a side browser keeps
         // what it shows.
-        guard sidePaneID == nil, let request = vm.browserOpenRequest else { return }
+        guard sidePaneID == nil, let request = vm.browserOpenRequest,
+              vm.isRequestTarget(request.windowID, windowState) else { return }
         vm.browserOpenRequest = nil
         workspace.openTab(url: request.url, profileID: request.profileID ?? BrowserWorkspace.newTabProfileID)
         addressFocused = false

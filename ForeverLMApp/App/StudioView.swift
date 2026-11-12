@@ -187,7 +187,7 @@ struct StudioView: View {
             .clipShape(StudioPanelColumnClipShape())
             .allowsHitTesting(totalWidth > 1)
         .onChange(of: vm.readerChatSpaceRequestID) { _, requestID in
-            guard requestID != nil else { return }
+            guard requestID != nil, vm.isRequestTarget(vm.readerChatSpaceWindowID, windowState) else { return }
             makeRoomForCenterPanes(totalWidth: totalWidth, animated: true)
         }
         // The notebook's center only: a column the learner unfolds is theirs,
@@ -1652,11 +1652,10 @@ extension View {
     /// PDF download result, a review command's usage hint) would be silently
     /// dropped.
     ///
-    /// There is a single shared `toastMessage`, so the same text appears in every
-    /// open window at once and dismissing or hovering it in one governs them all —
-    /// acceptable because it is one message, and scoping per window would mean
-    /// threading a window identity through every `showToast` call site. The
-    /// one thing that is per window is the banner's action: "Open here" means
+    /// There is a single `toastMessage`, stamped with the window that was key
+    /// when it was raised (`toastWindowID`), and only that window draws it: a
+    /// removal or a copy in one window announces nothing in another. The
+    /// Undo banner is its window's the same way. So is the banner's action: "Open here" means
     /// the Studio window it was pressed in, and a window with no
     /// `StudioWindowState` in its environment — a popped-out Reader — has
     /// nowhere to open it, so shows no such button.
@@ -1699,13 +1698,13 @@ private struct StudioToastOverlay: ViewModifier {
                         )
                         .transition(cardTransition)
                     }
-                    if let deletion = vm.pendingDeletionNotices.last {
+                    if let deletion = vm.pendingDeletionNotices.last(where: { vm.isRequestTarget($0.windowID, windowState) }) {
                         StudioDeletionUndoBanner(message: deletion.message) {
-                            Task { await vm.undoLatestDeletion() }
+                            Task { await vm.undoPendingDeletion(deletion.id) }
                         }
                         .transition(cardTransition)
                     }
-                    if let toast = vm.toastMessage {
+                    if let toast = vm.toastMessage, vm.isRequestTarget(vm.toastWindowID, windowState) {
                         StudioToastBanner(
                             message: toast,
                             onUndo: vm.toastUndo == nil ? nil : { Task { await vm.undoToast() } },

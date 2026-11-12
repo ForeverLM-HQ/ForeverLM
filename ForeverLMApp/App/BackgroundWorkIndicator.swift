@@ -411,6 +411,8 @@ struct BackgroundWorkButton: View {
     /// Opens a Settings pane from a row in the panel.
     let onOpenSettings: (SettingsPane) -> Void
     @Environment(StudioViewModel.self) private var vm
+    /// The window this button is in. Absent outside a Studio window.
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @State private var isShown = false
 
     var body: some View {
@@ -442,7 +444,9 @@ struct BackgroundWorkButton: View {
         }
         // Anything that asks for AI Usage (a missing key, a refused call)
         // lands here: Settings has no pane for it.
-        .onChange(of: vm.aiUsageOpenRequest) { _, _ in isShown = true }
+        .onChange(of: vm.aiUsageOpenRequest) { _, _ in
+            if vm.isRequestTarget(vm.aiUsageOpenWindowID, windowState) { isShown = true }
+        }
     }
 
     private var accessibilityState: String {

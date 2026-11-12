@@ -1169,6 +1169,8 @@ struct BrowserOpenRequest: Equatable {
     let url: URL
     /// The profile the tab opens in; nil is the Library profile.
     var profileID: UUID? = nil
+    /// The window whose Browser opens it: the one it was asked in.
+    var windowID: UUID? = nil
     let token = UUID()
 }
 

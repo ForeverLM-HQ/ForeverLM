@@ -20,18 +20,19 @@ import SwiftUI
 // list is the learner's own marks on the page and still stands beside either.
 
 /// Whether the Reader's Linked References panel shows: this session's
-/// choice, for every Reader, like the Levels panel's.
+/// choice in one window, like the Levels panel's.
 @MainActor
 @Observable
 final class ReaderReferencesPanelState {
-    static let shared = ReaderReferencesPanelState()
+    /// The window's panels this one shares a column with.
+    @ObservationIgnored weak var panels: ReaderSidePanels?
 
     var isVisible = false {
         didSet {
             // Levels, Linked References and Figure Legends share the trailing column.
             guard isVisible else { return }
-            if ReaderLevelsPanelState.shared.isVisible { ReaderLevelsPanelState.shared.isVisible = false }
-            if ReaderFigureLegendsPanelState.shared.isVisible { ReaderFigureLegendsPanelState.shared.isVisible = false }
+            if panels?.levels.isVisible == true { panels?.levels.isVisible = false }
+            if panels?.figureLegends.isVisible == true { panels?.figureLegends.isVisible = false }
         }
     }
 
@@ -64,7 +65,7 @@ struct ReaderReferencesPanel: View {
     /// list is read again.
     @State private var refreshToken = 0
 
-    private var state: ReaderReferencesPanelState { ReaderReferencesPanelState.shared }
+    let state: ReaderReferencesPanelState
 
     /// What the list depends on: the source, its library, the Docs as they
     /// last saved (a Doc's save reloads the library's list), and the Ideas.
@@ -287,7 +288,7 @@ private extension DocGraphReferenceGroup {
 /// Offered for every saved source; a live page reached through a link is
 /// not one, and its Reader leaves the item out.
 struct ReaderReferencesMenuItem: View {
-    private var state: ReaderReferencesPanelState { ReaderReferencesPanelState.shared }
+    let state: ReaderReferencesPanelState
 
     var body: some View {
         Button {

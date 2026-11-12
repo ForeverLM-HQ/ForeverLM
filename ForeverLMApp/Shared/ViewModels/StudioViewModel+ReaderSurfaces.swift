@@ -129,7 +129,7 @@ extension StudioViewModel {
     /// the readers can use its cookies.
     func openInBrowser(_ url: URL, profileID: UUID? = nil) {
         activateCenterTab(.browser)
-        browserOpenRequest = BrowserOpenRequest(url: url, profileID: profileID)
+        browserOpenRequest = BrowserOpenRequest(url: url, profileID: profileID, windowID: activeWindowState.id)
     }
 
     /// Brings a specific doc forward — the way back from a chat to the passage
