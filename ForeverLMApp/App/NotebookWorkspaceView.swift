@@ -238,7 +238,7 @@ struct NotebookWorkspaceView: View {
     /// The Sources column's width as the learner last dragged it, on this
     /// Mac; nil until the first drag, and again after a double-click on the
     /// edge, when the column takes its share of the window.
-    @AppStorage(Prefs.Readers.notebookSourcesColumnWidth) private var storedSourcesWidth
+    @WindowStorage(Prefs.Readers.notebookSourcesColumnWidth) private var storedSourcesWidth
     /// The width a drag of the column's edge asks for while it runs; nil when
     /// idle. Written to `storedSourcesWidth` once, when the drag ends.
     @State private var draggedSourcesWidth: CGFloat?

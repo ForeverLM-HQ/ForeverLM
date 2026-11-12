@@ -184,7 +184,7 @@ struct ActivityLogPane: View {
     @Environment(StudioViewModel.self) private var vm
 
     private let model = DayModel.shared
-    @AppStorage(Prefs.Planner.activityPaneLayout, default: DayActivityLayout.bySource) private var layout: DayActivityLayout
+    @WindowStorage(Prefs.Planner.activityPaneLayout, default: DayActivityLayout.bySource) private var layout: DayActivityLayout
     @State private var actionErrorMessage: String?
 
     var body: some View {

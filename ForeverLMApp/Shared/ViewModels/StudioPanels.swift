@@ -611,6 +611,48 @@ struct StudioExternalReaderPage: Equatable, Identifiable {
     }
 }
 
+/// One view choice a window keeps for itself, in the shape its preference
+/// stores: a list or grid, a sort, a fold, a column's width
+/// (`StudioWindowState.viewChoices`).
+enum WindowViewChoice: Codable, Equatable {
+    case bool(Bool)
+    case int(Int)
+    case double(Double)
+    case string(String)
+    /// The choice cleared: an optional preference set to nil.
+    case absent
+
+    /// The choice for a preference's stored object, or nil for a shape a
+    /// window does not keep (a list, a dictionary, data).
+    init?(object: Any?) {
+        switch object {
+        case nil: self = .absent
+        case let text as String: self = .string(text)
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                self = .bool(number.boolValue)
+            } else if CFNumberIsFloatType(number) {
+                self = .double(number.doubleValue)
+            } else {
+                self = .int(number.intValue)
+            }
+        default: return nil
+        }
+    }
+
+    /// The object as the defaults would hand it back, so a preference's own
+    /// decoding reads a window's choice exactly as it reads the stored one.
+    var object: Any? {
+        switch self {
+        case let .bool(value): NSNumber(value: value)
+        case let .int(value): NSNumber(value: value)
+        case let .double(value): NSNumber(value: value)
+        case let .string(value): value
+        case .absent: nil
+        }
+    }
+}
+
 /// Presentation state that belongs to one macOS Studio window.
 ///
 /// The source catalog, storage actor, sync engine, imports, and AI workflows remain
@@ -627,6 +669,10 @@ final class StudioWindowState: Identifiable {
         /// before each window kept its own, which decode as folded with the
         /// navigation sidebar: the two are one choice.
         var spaceSidebarHidden: Bool? = nil
+        /// The view choices the window made for itself, by preference name
+        /// (`StudioWindowState.viewChoices`). Scene-only; absent in older
+        /// records, whose window opens with this Mac's last choices.
+        var viewChoices: [String: WindowViewChoice]? = nil
         /// The notebook the window holds, without its moments
         /// (`NotebookWorkspace.persisted`). Scene-only: it rides the scene
         /// storage, the last session and named workspaces, and never a
@@ -794,6 +840,55 @@ final class StudioWindowState: Identifiable {
                 Preferences.set(spaceSidebarHidden, for: Prefs.Space.sidebarHidden)
             }
         }
+    }
+
+    /// The view choices this window made for itself, by preference name: the
+    /// Space's list or grid and its sort, a folded section, a column's width,
+    /// the layout of a reader. A view reads and writes one with
+    /// `@WindowStorage`. A choice made here changes this window only (product
+    /// owner, 2026-11-12: "Those two windows have to be independent"); the
+    /// preference keeps the last choice made in any window, which is what a
+    /// window that has made none of its own opens with.
+    var viewChoices: [String: WindowViewChoice] = [:] {
+        didSet {
+            guard viewChoices != oldValue else { return }
+            recordSceneOnlyChange()
+        }
+    }
+
+    /// What each preference held when this window first read it, for a choice
+    /// the window has not made: a later choice in another window must not
+    /// reach this one, so the first reading stands. Not observed and not
+    /// saved; `NSNull` stands for nothing stored.
+    @ObservationIgnored private var openingViewChoices: [String: Any] = [:]
+
+    /// The stored object of this window's choice for a preference: its own,
+    /// or what the preference held (`template`) when the window first asked.
+    func viewChoiceObject(named name: String, template: () -> Any?) -> Any? {
+        if let choice = viewChoices[name] { return choice.object }
+        if let opened = openingViewChoices[name] { return opened is NSNull ? nil : opened }
+        let object = template()
+        openingViewChoices[name] = object ?? NSNull()
+        return object
+    }
+
+    /// Records a choice made in this window.
+    func setViewChoice(_ object: Any?, named name: String) {
+        guard let choice = WindowViewChoice(object: object) else {
+            assertionFailure("\(name) has no shape a window keeps")
+            return
+        }
+        if viewChoices[name] != choice { viewChoices[name] = choice }
+    }
+
+    /// Takes a preference written for every window rather than in one: a
+    /// setting changed over MCP. Only a window that has read the preference
+    /// holds a value to replace; any other reads the new one when it first
+    /// asks.
+    func adoptViewChoice(_ object: Any?, named name: String) {
+        guard viewChoices[name] != nil || openingViewChoices[name] != nil,
+              let choice = WindowViewChoice(object: object) else { return }
+        if viewChoices[name] != choice { viewChoices[name] = choice }
     }
 
     /// Whether this window shows the sidebar beside the icon strip: the
@@ -1344,6 +1439,7 @@ final class StudioWindowState: Identifiable {
                 .withoutShowing(unoffered)
             navigationRailVisible = snapshot.navigationRailVisible
             spaceSidebarHidden = snapshot.spaceSidebarHidden ?? !snapshot.navigationRailVisible
+            viewChoices = snapshot.viewChoices ?? [:]
             notebook = snapshot.notebook?.persisted
             notebookChats = snapshot.notebookChats ?? [:]
         } else {
@@ -1397,6 +1493,7 @@ final class StudioWindowState: Identifiable {
             centerTabGroups: centerTabGroups.persistedRepresentation,
             navigationRailVisible: navigationRailVisible,
             spaceSidebarHidden: spaceSidebarHidden,
+            viewChoices: viewChoices.isEmpty ? nil : viewChoices,
             notebook: notebook?.persisted,
             notebookChats: notebookChats.isEmpty ? nil : notebookChats
         )
@@ -1412,6 +1509,7 @@ final class StudioWindowState: Identifiable {
         centerTabGroups = StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? .defaultLayout
         navigationRailVisible = snapshot.navigationRailVisible
         spaceSidebarHidden = snapshot.spaceSidebarHidden ?? !snapshot.navigationRailVisible
+        viewChoices = snapshot.viewChoices ?? [:]
         notebook = snapshot.notebook?.persisted
         notebookChats = snapshot.notebookChats ?? [:]
         isRestoringSnapshot = false
@@ -1427,6 +1525,7 @@ final class StudioWindowState: Identifiable {
         centerTabGroups = StudioCenterTabGroups.fromPersisted(snapshot.centerTabGroups) ?? .defaultLayout
         navigationRailVisible = snapshot.navigationRailVisible
         spaceSidebarHidden = snapshot.spaceSidebarHidden ?? !snapshot.navigationRailVisible
+        viewChoices = snapshot.viewChoices ?? [:]
         notebook = snapshot.notebook?.persisted
         notebookChats = snapshot.notebookChats ?? [:]
         isVoiceWorkspacePresented = false

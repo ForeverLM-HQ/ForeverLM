@@ -17,10 +17,10 @@ import SwiftUI
 @propertyWrapper
 struct PreferenceStorage<Value>: DynamicProperty {
     @State private var observer: SyncedStorageObserver
-    private let name: String
-    private let defaultValue: Value
-    private let read: (Any?) -> Value?
-    private let write: (Value) -> PreferenceStoredValue
+    fileprivate let name: String
+    fileprivate let defaultValue: Value
+    fileprivate let read: (Any?) -> Value?
+    fileprivate let write: (Value) -> PreferenceStoredValue
 
     private init(
         name: String,
@@ -131,4 +131,73 @@ extension PreferenceStorage where Value: RawRepresentable, Value.RawValue == Str
             read: { ($0 as? String).flatMap(Value.init(rawValue:)) }, write: { .value($0.rawValue) }
         )
     }
+}
+
+// MARK: - A view choice each window keeps for itself
+
+/// A view's binding to a choice its window keeps for itself: a list or grid,
+/// a sort, a fold, a column's width. Declared like `@PreferenceStorage`, with
+/// the same keys.
+///
+/// The value is the window's own (`StudioWindowState.viewChoices`), so a click
+/// in one window never re-lays out another (product owner, 2026-11-12: "Those
+/// two windows have to be independent"). A write also goes to the preference,
+/// which is the last choice made in any window: a window that has made none of
+/// its own opens with it, and so does the next launch. Outside a Studio window
+/// (a popped-out Reader) there is no window state and the preference is the
+/// value, as with `@PreferenceStorage`.
+///
+/// ```swift
+/// @WindowStorage(Prefs.Space.layout, default: SpaceLayout.list) private var layout
+/// @WindowStorage(Prefs.Space.sidebarRecentsFolded) private var recentsFolded
+/// ```
+@MainActor
+@propertyWrapper
+struct WindowStorage<Value>: DynamicProperty {
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
+    private var preference: PreferenceStorage<Value>
+
+    init(preference: PreferenceStorage<Value>) {
+        self.preference = preference
+    }
+
+    var wrappedValue: Value {
+        get {
+            guard let windowState else { return preference.wrappedValue }
+            let name = preference.name
+            let object = windowState.viewChoiceObject(named: name) { UserDefaults.standard.object(forKey: name) }
+            return preference.read(object) ?? preference.defaultValue
+        }
+        nonmutating set {
+            if let windowState {
+                switch preference.write(newValue) {
+                case let .value(object): windowState.setViewChoice(object, named: preference.name)
+                case .absent: windowState.setViewChoice(nil, named: preference.name)
+                case .unencodable: break
+                }
+            }
+            preference.wrappedValue = newValue
+        }
+    }
+
+    var projectedValue: Binding<Value> {
+        Binding(
+            get: { wrappedValue },
+            set: { wrappedValue = $0 }
+        )
+    }
+}
+
+extension WindowStorage {
+    init(_ key: AccountKey<Value>) { self.init(preference: PreferenceStorage(key)) }
+    init(_ key: DeviceKey<Value>) { self.init(preference: PreferenceStorage(key)) }
+    init(_ key: AccountKey<Value?>, default defaultValue: Value) { self.init(preference: PreferenceStorage(key, default: defaultValue)) }
+    init(_ key: DeviceKey<Value?>, default defaultValue: Value) { self.init(preference: PreferenceStorage(key, default: defaultValue)) }
+}
+
+extension WindowStorage where Value: RawRepresentable, Value.RawValue == String {
+    init(_ key: AccountKey<String?>, default defaultValue: Value) { self.init(preference: PreferenceStorage(key, default: defaultValue)) }
+    init(_ key: AccountKey<String>, default defaultValue: Value) { self.init(preference: PreferenceStorage(key, default: defaultValue)) }
+    init(_ key: DeviceKey<String?>, default defaultValue: Value) { self.init(preference: PreferenceStorage(key, default: defaultValue)) }
+    init(_ key: DeviceKey<String>, default defaultValue: Value) { self.init(preference: PreferenceStorage(key, default: defaultValue)) }
 }

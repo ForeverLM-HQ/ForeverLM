@@ -257,6 +257,12 @@ extension MCPDataStore {
         }
         let before = await entry.read()
         try await entry.write(value)
+        // A view choice each window keeps for itself (`@WindowStorage`) is
+        // set here for all of them: the assistant names no window.
+        for name in entry.preferenceKeys {
+            let stored = Preferences.storage.object(forKey: name)
+            for window in StudioWindowRegistry.shared.states { window.adoptViewChoice(stored, named: name) }
+        }
         var row = await entry.payload(includeOptions: false)
         row["changed"] = !plistValuesEqual(before, row["value"] as Any)
         row["settings_pane"] = "Settings › \(entry.pane)"

@@ -234,7 +234,7 @@ struct InternalReviewPanelContent: View {
     /// the one being answered.
     @State var memoryReviewCardIndex: Int?
     /// Whether a memory review is drawn as cards or as its conversation.
-    @AppStorage(Prefs.Memory.reviewLayout, default: MemoryReviewLayout.cards.rawValue) var memoryReviewLayoutRaw
+    @WindowStorage(Prefs.Memory.reviewLayout, default: MemoryReviewLayout.cards.rawValue) var memoryReviewLayoutRaw
     /// The chat panel's height, which the walkthrough card takes at most a
     /// share of.
     @State var transcriptPanelHeight: CGFloat = 0

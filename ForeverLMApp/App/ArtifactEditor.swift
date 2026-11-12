@@ -85,7 +85,7 @@ struct ArtifactEditor: View {
     /// answer or a closed doc cancels the one in flight.
     @State private var referenceArtworkTask: Task<Void, Never>?
     /// How wide the page is drawn; the title's inset follows it.
-    @PreferenceStorage(Prefs.Readers.pageColumnWidth, default: ArtifactPageWidth.standard) private var pageWidthPreference
+    @WindowStorage(Prefs.Readers.pageColumnWidth, default: ArtifactPageWidth.standard) private var pageWidthPreference
     /// The width the page's edges are being dragged to, stored the same way;
     /// nil when no drag is under way. The title follows it frame by frame, and
     /// only the drag's last width is kept, so a drag syncs once.

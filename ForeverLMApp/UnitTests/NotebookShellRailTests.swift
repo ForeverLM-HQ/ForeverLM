@@ -324,6 +324,42 @@ struct HomeSidebarTests {
         #expect(legacy.spaceSidebarHidden == nil)
         #expect(StudioWindowState(snapshot: legacy).spaceSidebarHidden)
     }
+
+    @Test("A view choice made in one window stays in it: the other keeps what it opened with, and each comes back as left")
+    func viewChoicesStayInTheirWindow() {
+        let left = StudioWindowState()
+        let right = StudioWindowState()
+        // What the preference holds, as each window's first reading finds it.
+        var stored: Any? = "list"
+        #expect(left.viewChoiceObject(named: "space.layout") { stored } as? String == "list")
+        #expect(right.viewChoiceObject(named: "space.layout") { stored } as? String == "list")
+
+        // The right window picks Grid, which also becomes the stored choice.
+        right.setViewChoice("grid", named: "space.layout")
+        stored = "grid"
+        #expect(right.viewChoiceObject(named: "space.layout") { stored } as? String == "grid")
+        #expect(left.viewChoiceObject(named: "space.layout") { stored } as? String == "list", "the other window is not re-laid out")
+        #expect(StudioWindowState().viewChoiceObject(named: "space.layout") { stored } as? String == "grid", "a new window opens with the last choice")
+
+        // Each shape a preference stores reads back as the defaults hand it over.
+        right.setViewChoice(true, named: "space.sidebar.recentsFolded")
+        right.setViewChoice(312.5, named: "notebook.sourcesColumnWidth")
+        right.setViewChoice(nil, named: "studio.navigationRailWidth")
+        let reopened = StudioWindowState(snapshot: right.snapshot)
+        #expect(reopened.viewChoiceObject(named: "space.layout") { "list" } as? String == "grid")
+        #expect(reopened.viewChoiceObject(named: "space.sidebar.recentsFolded") { false } as? Bool == true)
+        #expect(reopened.viewChoiceObject(named: "notebook.sourcesColumnWidth") { nil } as? Double == 312.5)
+        #expect(reopened.viewChoiceObject(named: "studio.navigationRailWidth") { 400.0 } == nil, "a cleared choice stays cleared")
+        #expect(left.snapshot.viewChoices == nil, "a window that chose nothing saves nothing")
+
+        // A setting written for every window reaches the windows that hold a
+        // value for it, and leaves a window that never read it alone.
+        let unread = StudioWindowState()
+        for window in [left, right, unread] { window.adoptViewChoice("board", named: "space.layout") }
+        #expect(left.viewChoiceObject(named: "space.layout") { "board" } as? String == "board")
+        #expect(right.viewChoiceObject(named: "space.layout") { "board" } as? String == "board")
+        #expect(unread.viewChoices.isEmpty)
+    }
 }
 
 // MARK: - The Space's tabs

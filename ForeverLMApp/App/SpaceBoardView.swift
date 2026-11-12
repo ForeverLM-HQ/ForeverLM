@@ -20,7 +20,7 @@ struct SpaceBoardPage: View {
     var searchFocusRequest = 0
 
     /// This Mac's last view of the board, as the Space remembers its layout.
-    @AppStorage(Prefs.Space.boardLens) private var lensRaw
+    @WindowStorage(Prefs.Space.boardLens) private var lensRaw
     @State private var addFocusRequest = 0
 
     private var lens: NotebookTaskBoard.Lens {

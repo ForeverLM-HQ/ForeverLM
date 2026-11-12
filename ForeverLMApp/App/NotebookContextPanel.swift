@@ -216,7 +216,7 @@ struct NotebookSourcePoolView: View {
     @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) private var metadataVisibility
     @State private var sourceSearchText = ""
     /// How the sources are ordered (`NotebookSourceSort`), this Mac's choice.
-    @AppStorage(Prefs.Readers.notebookSourcesSort, default: NotebookSourceSort.standard) private var sourceSort
+    @WindowStorage(Prefs.Readers.notebookSourcesSort, default: NotebookSourceSort.standard) private var sourceSort
     /// Where the notebook column's field searches: the notebook and the
     /// library as you type, or the web or PubMed on Return.
     @State private var searchScope: NotebookSourcesSearchScope = .library

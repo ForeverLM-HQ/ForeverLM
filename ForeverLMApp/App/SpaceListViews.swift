@@ -232,7 +232,7 @@ struct SpaceCreateStrip: View {
     /// The space on screen, which what is made here is filed in.
     let spaceID: String?
     let onNewPage: () -> Void
-    @AppStorage(Prefs.Space.createStripHidden) private var isHidden
+    @WindowStorage(Prefs.Space.createStripHidden) private var isHidden
 
     private struct Template: Identifiable {
         let id: String

@@ -223,8 +223,8 @@ struct ArtifactCanvas: View {
     /// reference or a linked reference followed — held until that doc's
     /// editor takes it (docs/notes-graph-design.md).
     @State var pendingBlockReveal: ArtifactBlockRevealRequest?
-    @PreferenceStorage var isArtifactListVisible: Bool
-    @PreferenceStorage(Prefs.Readers.pageColumnWidth, default: ArtifactPageWidth.standard) var pageWidth
+    @WindowStorage var isArtifactListVisible: Bool
+    @WindowStorage(Prefs.Readers.pageColumnWidth, default: ArtifactPageWidth.standard) var pageWidth
     /// The learner's name, for the initials on the page's top line.
     @PreferenceStorage(Prefs.Account.displayName) var savedDisplayName
     @Environment(\.uiZoomScale) var uiZoomScale
@@ -257,7 +257,7 @@ struct ArtifactCanvas: View {
         case .sites: listKey = Prefs.Studio.sitesListVisible
         case .animations: listKey = Prefs.Studio.animationsListVisible
         }
-        _isArtifactListVisible = PreferenceStorage(listKey)
+        _isArtifactListVisible = WindowStorage(listKey)
     }
 
     /// Whether the pane can hold the doc list and a readable page side by side.

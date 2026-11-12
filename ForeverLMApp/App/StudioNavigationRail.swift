@@ -744,10 +744,10 @@ struct StudioNavigationRail: View {
     /// Whether the loose chats show beneath the Chats header. Open by default
     /// so a learner who has never folded it finds the chats; it folds so a long history of chats
     /// outside Notebooks stops pushing the account row's neighbours around.
-    @PreferenceStorage(Prefs.Rail.chatsExpanded) private var isChatsExpanded: Bool
+    @WindowStorage(Prefs.Rail.chatsExpanded) private var isChatsExpanded: Bool
     /// Whether the Hidden fold under Chats is open. Closed by default: a chat
     /// is hidden to be out of the way, and the fold's count says it is there.
-    @PreferenceStorage(Prefs.Rail.hiddenChatsExpanded) private var isHiddenChatsExpanded: Bool
+    @WindowStorage(Prefs.Rail.hiddenChatsExpanded) private var isHiddenChatsExpanded: Bool
 
     /// An active chat opens the Chats section, so the row being worked in is
     /// never folded away.
