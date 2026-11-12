@@ -955,11 +955,14 @@ struct GettingStartedGuide: View {
             if let meeting = newestSource(of: .meeting) {
                 detectedSourceCard(meeting, label: "Last meeting in")
             }
-            secondaryAction("Using Google Meet, Slack or Notion? Connect them in Plugins") {
+            // Google Meet's notes and transcripts reach ForeverLM through the
+            // Google Drive plugin; Slack and Notion bring no meetings, so they
+            // are not named here.
+            secondaryAction("Using Google Meet? Connect Google Drive in Plugins") {
                 // Plugins is a place in the window, under the guide, so the
                 // guide steps aside for it; setup picks up here next time.
                 isPresented = false
-                PluginsPlace.requestOpen()
+                PluginsPlace.requestOpen(.googleDrive)
             }
         }
     }
@@ -990,7 +993,9 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.subscriptions.icon,
                 title: "Do you already pay for an AI app?",
-                detail: "Tick every one you pay for. Next, you add ForeverLM to each, so it can reach your library."
+                // MCP is free (product owner, 2026-11-08), which a learner
+                // asked what they pay for should not have to guess.
+                detail: "Tick every one you pay for. Next, you add ForeverLM to each, at no cost, so it can reach your library."
             )
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -1197,7 +1202,9 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.fullDiskAccess.icon,
                 title: "Allow Full Disk Access",
-                detail: "So ForeverLM can read Apple Podcasts and your browsers' Reading Lists. macOS asks you to allow it once."
+                // macOS never asks on its own: the learner adds the app in
+                // System Settings, which the next page walks through.
+                detail: "So ForeverLM can read Apple Podcasts and your browsers' Reading Lists. You turn it on once, in System Settings."
             )
             if hasFullDiskAccess {
                 doneLabel("Full Disk Access is on")
@@ -1276,7 +1283,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "key.fill",
                 title: "Connect OpenRouter",
-                detail: "ForeverLM's AI runs on your own OpenRouter account."
+                detail: "ForeverLM's AI runs on your own OpenRouter account, at OpenRouter's cost. Free models cost nothing."
             )
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
@@ -1325,6 +1332,11 @@ struct GettingStartedGuide: View {
                             .disabled(ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ownKeySaving)
                         }
                     } else {
+                        // A new learner may never have heard of OpenRouter:
+                        // its sign-in page also makes the account.
+                        Text("No OpenRouter account yet? You make one on the way.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                         Button("Paste a key instead") { showsKeyField = true }
                             .buttonStyle(.plain)
                             .font(.subheadline)

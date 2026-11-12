@@ -16,7 +16,7 @@ import SwiftUI
 /// oldest first; the book stays a little clearer while "I've seen this idea
 /// before, in that book…" is said. The mark then answers it: the same cards
 /// come back whole and gather into one stack under it. One page then says
-/// how, in three rows: what they read comes back as quizzes, the AI is
+/// how, in three rows: what they write down comes back as quizzes, the AI is
 /// theirs to choose, and the data is theirs to keep, in their own iCloud.
 /// Data comes last because the first step, Full
 /// Disk Access, asks to read some of it. The product owner, 2026-09-24: fewer
@@ -337,8 +337,11 @@ struct WelcomeStory: View {
                 .frame(maxWidth: .infinity)
             promise(
                 icon: Self.rememberIcon,
+                // The learner writes their own cards (product owner,
+                // 2026-11-08: "It shouldn't just be AI making those cards"),
+                // so the promise names the writing as theirs.
                 title: "Remember what you read.",
-                text: "ForeverLM keeps track of what you read and writes quizzes on what you want to stick."
+                text: "ForeverLM keeps track of what you read. Write what you want to keep in your own words, and it quizzes you until it sticks."
             )
             promise(
                 icon: Self.yourAIIcon,
