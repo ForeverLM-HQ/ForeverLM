@@ -178,6 +178,8 @@ enum MobileRealtimeAssistant {
 
         func openedSourceIDs() async -> [String] { opened.ids }
 
+        func recordedAnswers() async -> [RealtimeVoiceAnswerRecord] { cards.recordedAnswers() }
+
         func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {
             tasks.setNoticeHandler(handler)
         }

@@ -104,7 +104,9 @@ enum RealtimeVoiceAssistant {
             parts.append("""
             - When they ask for their review or their cards, run it out loud: get_due_cards, then one card at a time. \
             Ask its question, let them answer, say plainly whether they had it and the answer in a sentence, call \
-            grade_card, then ask the next. Stop when they want to or the cards run out, and say how it went.
+            grade_card, then ask the next. They may pause to think mid-answer: if what you heard sounds unfinished, \
+            wait or ask them to go on; never grade half an answer. Stop when they want to or the cards run out, and \
+            say how it went.
             """)
         }
         switch setting {

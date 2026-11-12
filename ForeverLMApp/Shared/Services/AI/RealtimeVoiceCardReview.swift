@@ -40,7 +40,9 @@ enum RealtimeVoiceCardReview {
         wait for their answer. Never give the answer before they have tried.
         - Judge the answer by meaning, not wording: they remembered it when their answer has the card's point.
         - Then say plainly whether they had it and give the card's answer in one sentence, call grade_card with \
-        remembered true or false, and ask the next card's question.
+        what they said and remembered true or false, and ask the next card's question.
+        - They may pause to think mid-answer. If what you heard sounds unfinished, wait or ask them to go on; never \
+        grade half an answer.
         - "I don't know", "pass" or "tell me" is not remembered: give the answer, grade it false, move on.
         - If they ask about a card, answer in a sentence or two, then carry on. A grade is recorded once; say so if \
         they want it changed, and carry on.
@@ -108,10 +110,33 @@ enum RealtimeVoiceCardReview {
         "Records whether the learner remembered a card, which moves it on their review schedule. Remembered only when their answer had the card's point.",
         properties: [
             "card_id": ["type": "string", "description": "The card's card_id."],
+            "learner_said": [
+                "type": "string",
+                "description": "What the learner said in answer, in substance: one or two sentences, as close to their own words as you heard them. \"I don't know\" when they passed.",
+            ],
             "remembered": ["type": "boolean", "description": "true when they had it, false when they did not."],
         ],
-        required: ["card_id", "remembered"]
+        required: ["card_id", "learner_said", "remembered"]
     )
+
+    /// A graded card as the saved chat keeps it: the card's question and what
+    /// the model heard the learner say, laid on their "(spoken)" line
+    /// (`RealtimeVoiceExchange.exchanges(from:answers:)`). It carries no
+    /// score: the card's own schedule holds the grade, and a chat's score is
+    /// read as the recall of the source it is filed with, which a deck of
+    /// cards is not. Nil when the model gave no words.
+    static func answerRecord(question: String, learnerSaid: String?, remembered: Bool, at date: Date) -> RealtimeVoiceAnswerRecord? {
+        let said = (learnerSaid ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !said.isEmpty else { return nil }
+        return RealtimeVoiceAnswerRecord(
+            question: question,
+            learnerSaid: said,
+            verdict: remembered ? .hadIt : .missed,
+            gap: nil,
+            recordedAt: date,
+            countsTowardScore: false
+        )
+    }
 
     private static func clipped(_ text: String) -> String {
         let flat = text

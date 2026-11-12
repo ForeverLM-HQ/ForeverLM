@@ -51,6 +51,8 @@ enum MobileRealtimeCardReview {
 
         /// A card review is filed with no source: its cards span many.
         func openedSourceIDs() async -> [String] { [] }
+
+        func recordedAnswers() async -> [RealtimeVoiceAnswerRecord] { cards.recordedAnswers() }
     }
 }
 
@@ -65,9 +67,17 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
     private let sittingKey = "voice-\(UUID().uuidString.lowercased())"
     /// Each dealt card's prompt by item id, as it is graded.
     private let dealt = OSAllocatedUnfairLock(initialState: [String: String]())
+    /// What the learner said to each graded card, by item id, for the saved
+    /// chat; the first grade of a card is the one kept, as it is the one written.
+    private let answers = OSAllocatedUnfairLock(initialState: [String: RealtimeVoiceAnswerRecord]())
 
     init(scope: MemoryReviewScope) {
         self.scope = scope
+    }
+
+    /// The graded cards' answers, in the order they were graded.
+    func recordedAnswers() -> [RealtimeVoiceAnswerRecord] {
+        answers.withLock { $0.values.sorted { $0.recordedAt < $1.recordedAt } }
     }
 
     /// Answers `get_due_cards` and `grade_card`; nil for any other tool.
@@ -81,7 +91,8 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
         case RealtimeVoiceCardReview.gradeCardToolName:
             return await grade(
                 itemID: (arguments["card_id"] as? String) ?? "",
-                remembered: (arguments["remembered"] as? Bool) ?? false
+                remembered: (arguments["remembered"] as? Bool) ?? false,
+                learnerSaid: arguments["learner_said"] as? String
             )
         default:
             return nil
@@ -113,11 +124,19 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
     }
 
     /// A grade, written as the card review writes a Forgot or Remembered
-    /// (`MobileSelfGradedAnswer`).
+    /// (`MobileSelfGradedAnswer`), with what the learner said kept for the
+    /// saved chat.
     @MainActor
-    func grade(itemID: String, remembered: Bool) async -> String {
+    func grade(itemID: String, remembered: Bool, learnerSaid: String?) async -> String {
         guard let prompt = dealt.withLock({ $0[itemID] }) else {
             return #"{"error":"That card_id is not one dealt in this conversation."}"#
+        }
+        if let record = RealtimeVoiceCardReview.answerRecord(
+            question: prompt, learnerSaid: learnerSaid, remembered: remembered, at: Date()
+        ) {
+            answers.withLock { kept in
+                if kept[itemID] == nil { kept[itemID] = record }
+            }
         }
         let backend = MobileCardReviewSession.Backend.live()
         do {

@@ -117,13 +117,14 @@ struct RealtimeVoiceExchange: Equatable, Sendable {
                     && !exchanges[index].answer.isEmpty
                     && exchanges[index].answeredAt <= record.recordedAt
             }
+            let score = record.countsTowardScore ? record.verdict.score : nil
             guard let index else {
                 loose.append(RealtimeVoiceExchange(
                     question: record.question,
                     answer: record.learnerSaid,
                     evaluation: record.verdict.label,
                     answeredAt: record.recordedAt,
-                    score: record.verdict.score,
+                    score: score,
                     gap: record.gap
                 ))
                 continue
@@ -133,7 +134,7 @@ struct RealtimeVoiceExchange: Equatable, Sendable {
                 exchanges[index].question = record.question
             }
             exchanges[index].answer = record.learnerSaid
-            exchanges[index].score = record.verdict.score
+            exchanges[index].score = score
             exchanges[index].gap = record.gap
             let reply = exchanges[index].evaluation.trimmingCharacters(in: .whitespacesAndNewlines)
             exchanges[index].evaluation = reply.isEmpty ? record.verdict.label : reply
@@ -238,6 +239,19 @@ struct RealtimeVoiceAnswerRecord: Equatable, Sendable {
     let verdict: Verdict
     let gap: String?
     let recordedAt: Date
+    /// Whether the verdict scores the saved chat. A graded card's does not
+    /// (`RealtimeVoiceCardReview.answerRecord`): it only puts the learner's
+    /// words on their line.
+    var countsTowardScore = true
+
+    init(question: String, learnerSaid: String, verdict: Verdict, gap: String?, recordedAt: Date, countsTowardScore: Bool = true) {
+        self.question = question
+        self.learnerSaid = learnerSaid
+        self.verdict = verdict
+        self.gap = gap
+        self.recordedAt = recordedAt
+        self.countsTowardScore = countsTowardScore
+    }
 
     /// The tool call's arguments as a record; nil when the question, the
     /// learner's answer or a known verdict is missing.

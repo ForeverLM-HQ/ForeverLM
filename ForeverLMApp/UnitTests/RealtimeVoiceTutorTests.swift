@@ -97,7 +97,7 @@ struct RealtimeVoiceTutorTests {
         #expect(!RealtimeVoiceServerErrorDisposition.isBenign("Rate limit reached"))
     }
 
-    @Test("The session is minted with the voice, tools and OpenAI's default turn detection, and no transcription")
+    @Test("The session is minted with the voice, tools, patient semantic turn detection, far-field noise reduction, and no transcription")
     func sessionConfiguration() throws {
         let configuration = OpenAIRealtimeWire.sessionConfiguration(
             instructions: "Be brief.",
@@ -106,9 +106,12 @@ struct RealtimeVoiceTutorTests {
         )
         let json = try #require(String(data: JSONSerialization.data(withJSONObject: configuration, options: [.sortedKeys]), encoding: .utf8))
         #expect(json.contains(#""voice":"cedar""#))
-        #expect(json.contains(#""type":"server_vad""#))
+        // A pause to think is not the end of an answer, and road noise is not speech.
+        #expect(json.contains(#""type":"semantic_vad""#))
+        #expect(json.contains(#""eagerness":"low""#))
+        #expect(!json.contains("server_vad") && !json.contains("silence_duration_ms"))
+        #expect(json.contains(#""noise_reduction":{"type":"far_field"}"#))
         #expect(json.contains(#""interrupt_response":true"#))
-        #expect(json.contains(#""threshold":0.5"#))
         #expect(json.contains(#""retention_ratio":0.8"#))
         #expect(!json.contains("transcription"))
         // The proxy sets the type and the model.
@@ -116,7 +119,7 @@ struct RealtimeVoiceTutorTests {
         let body = try RealtimeSessionJSON(configuration)
         let encoded = try #require(String(data: JSONEncoder().encode(body), encoding: .utf8))
         #expect(encoded.contains(#""create_response":true"#))
-        #expect(encoded.contains(#""prefix_padding_ms":300"#))
+        #expect(encoded.contains(#""eagerness":"low""#))
 
         let typedOnly = OpenAIRealtimeWire.sessionConfiguration(
             instructions: "Answer typed questions.",
@@ -129,7 +132,34 @@ struct RealtimeVoiceTutorTests {
             encoding: .utf8
         ))
         #expect(typedJSON.contains(#""turn_detection":null"#))
-        #expect(!typedJSON.contains("server_vad"))
+        #expect(typedJSON.contains(#""noise_reduction":null"#))
+        #expect(!typedJSON.contains("semantic_vad"))
+    }
+
+    @Test("A graded card puts what the learner said on their spoken line, without scoring the chat")
+    func gradedCardAnswer() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let turns = [
+            RealtimeVoiceTurn(id: "1", role: .tutor, text: "What does Kleiber's law say?", spokenAt: start),
+            RealtimeVoiceTurn(id: "2", role: .learner, text: RealtimeVoiceTurn.spokenMark, spokenAt: start.addingTimeInterval(6)),
+            RealtimeVoiceTurn(id: "3", role: .tutor, text: "Close: it scales to the three-quarters power.", spokenAt: start.addingTimeInterval(9)),
+        ]
+        #expect(RealtimeVoiceCardReview.answerRecord(question: "Q?", learnerSaid: "  ", remembered: true, at: start) == nil)
+        let record = try #require(RealtimeVoiceCardReview.answerRecord(
+            question: "What does Kleiber's law say?",
+            learnerSaid: "Bigger animals burn more energy.",
+            remembered: false,
+            at: start.addingTimeInterval(8)
+        ))
+        let exchanges = RealtimeVoiceExchange.exchanges(from: turns, answers: [record])
+        #expect(exchanges.count == 1)
+        #expect(exchanges[0].answer == "Bigger animals burn more energy.")
+        #expect(exchanges[0].evaluation == "Close: it scales to the three-quarters power.")
+        #expect(exchanges[0].score == nil, "the card's schedule holds the grade, not the chat")
+        #expect(RealtimeVoiceExchange.overallScore(of: exchanges) == nil)
+
+        let parameters = try #require(RealtimeVoiceCardReview.gradeCardTool["parameters"] as? [String: Any])
+        #expect((parameters["required"] as? [String]) == ["card_id", "learner_said", "remembered"])
     }
 
     @Test("Every source conversation can record answers; a long source adds passage search")

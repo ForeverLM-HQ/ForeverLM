@@ -138,10 +138,20 @@ enum RealtimeVoiceServerErrorDisposition {
 /// OpenAI Realtime's payloads and server-event decoding.
 enum OpenAIRealtimeWire {
     /// The session the proxy mints the client secret with (its type and model
-    /// are the proxy's). Turn detection is OpenAI's documented default for
-    /// speech to speech, server VAD that answers and lets the learner interrupt;
-    /// over WebRTC the server stops and trims the reply when they do. No input
-    /// transcription: nothing runs on the learner's words but the realtime model.
+    /// are the proxy's). Turn detection is OpenAI's semantic VAD at low
+    /// eagerness, which "will let the user take their time to speak": it ends
+    /// the learner's turn when what they said sounds finished, waiting up to
+    /// eight seconds through a pause, instead of after half a second of
+    /// silence. A learner recalling a card's answer pauses to think, and server
+    /// VAD at 500 ms answered the first half of their answer and was then cut
+    /// off by the second (a car review, 2026-11-11: 13 of 33 spoken turns got
+    /// no reply, most replies stopped mid-sentence). The learner can still
+    /// interrupt; over WebRTC the server stops and trims the reply when they
+    /// do. OpenAI's far-field noise reduction cleans the microphone before turn
+    /// detection and the model hear it, so road and room noise is not taken
+    /// for speech: phones on a dashboard, car microphones and laptop
+    /// microphones are all far from the mouth. No input transcription: nothing
+    /// runs on the learner's words but the realtime model.
     static func sessionConfiguration(
         instructions: String,
         tools: [[String: Any]],
@@ -152,17 +162,15 @@ enum OpenAIRealtimeWire {
         // when serializing an untyped dictionary, and OpenAI constrains decimal
         // precision on these fields, so they are exact decimal numbers.
         let retentionRatio = NSDecimalNumber(mantissa: 8, exponent: -1, isNegative: false)
-        let vadThreshold = NSDecimalNumber(mantissa: 5, exponent: -1, isNegative: false)
         let turnDetection: Any = typedOnly
             ? NSNull()
             : [
-                "type": "server_vad",
-                "threshold": vadThreshold,
-                "prefix_padding_ms": 300,
-                "silence_duration_ms": 500,
+                "type": "semantic_vad",
+                "eagerness": "low",
                 "create_response": true,
                 "interrupt_response": true,
             ] as [String: Any]
+        let noiseReduction: Any = typedOnly ? NSNull() : ["type": "far_field"]
         return [
             "output_modalities": ["audio"],
             "instructions": instructions,
@@ -178,6 +186,7 @@ enum OpenAIRealtimeWire {
                     // Explicit null matters: omitting this field restores the
                     // server-VAD default and lets noise split spoken replies.
                     "turn_detection": turnDetection,
+                    "noise_reduction": noiseReduction,
                 ] as [String: Any],
                 "output": ["voice": voice],
             ] as [String: Any],
