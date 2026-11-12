@@ -18,6 +18,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.212.0 (build 292) — 2026-11-11
+
+**Highlights:**
+- **Replaces build 291, which could hang** when the model list was first built.
+- **Home's sidebar lists chats only**; notebooks live in the Space.
+
+- **Build 291 could hang for good** the first time the model list was built (clicking the OpenRouter icon, opening the model picker). Fixed, and a lock can no longer wait on itself.
+- **Home's sidebar lists chats only**, including the chats filed in notebooks, newest first; notebooks live in the Space.
+- **To read rows on Home show the source's thumbnail**, as the Library's rows do.
+- **The Memory review grid no longer prints two month names over each other** above its first columns.
+- **Under the hood:** the longest storage, fetch and meeting-import functions are split into named steps, and readers wait on a fetch's end instead of polling for it.
+
 ## 0.211.0 (build 291) — 2026-11-11
 
 **Highlights:**
