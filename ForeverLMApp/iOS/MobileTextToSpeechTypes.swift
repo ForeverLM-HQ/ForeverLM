@@ -175,6 +175,18 @@ struct MobileTextToSpeechCostConfirmation: Identifiable, Equatable {
 
     var estimatedUSD: Double? { totalEstimate.usd }
 
+    /// The price as voice mode says it before a narration is made
+    /// (`listen_to_source`): the estimate, or the model's own price when
+    /// there is no total to give.
+    var spokenPrice: String {
+        guard let estimatedUSD else {
+            return "\(modelName)'s price, \(ArticleSpeechCatalog.priceLabel(forModel: modelID)); there is no total to give before it is made"
+        }
+        let amount = "about \(Self.priceLabel(estimatedUSD))"
+        guard let book else { return amount }
+        return "\(amount) for the rest of \(book.title) too, since listening carries on through its chapters"
+    }
+
     var title: String {
         guard let estimatedUSD else { return "Generate text-to-speech audio?" }
         if estimatedUSD == 0 { return "Generate audio for free?" }

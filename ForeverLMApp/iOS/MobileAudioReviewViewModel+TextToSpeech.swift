@@ -25,7 +25,7 @@ extension MobileAudioReviewViewModel {
     /// by the ratio this chapter's prepared narration actually measured; a
     /// chapter with no word count is counted but not priced, which understates
     /// the book rather than inventing a number for it.
-    private func textToSpeechBookScope(
+    func textToSpeechBookScope(
         for source: MobileCloudSource,
         narrationCharacters: Int
     ) -> MobileTextToSpeechCostConfirmation.BookScope? {
@@ -778,7 +778,18 @@ extension MobileAudioReviewViewModel {
         }
         let confirmsSelectedModelCost = MobileTextToSpeechPricingPreferences.confirmsEstimatedCost
             && !suppressedCostModels.contains(resolvedSelection.model)
+        // Asked for by voice (`listen_to_source`): the price was said and
+        // agreed to out loud, and the phone may be in a pocket or a car. A
+        // language the voice cannot read is then a failure the assistant
+        // says, never a question left waiting on the screen.
+        let approvedByVoice = voiceApprovedTextToSpeechSourceIDs.remove(source.id) != nil
+        if approvedByVoice, unnarratableLanguage, !narrationPricing.hasCachedAudio {
+            throw MobileTextToSpeechPreparationError.unnarratableLanguage(
+                language?.message ?? "The selected voice does not read this source's language."
+            )
+        }
         let asksToConfirmCost = autoplay
+            && !approvedByVoice
             && !narrationPricing.hasCachedAudio
             && (confirmsSelectedModelCost || unnarratableLanguage)
         // A repaired pick is said once: in the price question when there is

@@ -92,6 +92,11 @@ enum RealtimeVoiceAssistant {
         say so. The first call only prices it: say the price in words and wait for a clear yes before calling again \
         with the same arguments and confirm_cost true. Once it has started, say it is being written and will be in \
         the notebook when it is ready, then carry on; it takes a few minutes.
+        - When they want to hear a source itself ("read me that paper", "I want to listen to this article"), find \
+        it with search_library and call \(RealtimeVoiceListen.toolName). It plays the source's narration, the same \
+        audio Listen plays, once this conversation has ended; never read a source out at length yourself. If it \
+        answers with a price, say the price in words and call again with confirm_cost true only after a clear yes. \
+        When it says starting, say in one short sentence that it is starting, and nothing after that.
         """)
         if setting != .mac {
             parts.append("""
@@ -134,7 +139,34 @@ enum RealtimeVoiceAssistant {
         return parts.joined(separator: "\n\n")
     }
 
-    static func kickoff(setting: Setting) -> String {
+    /// The narration the learner comes back to the assistant from: one they
+    /// asked for by voice (`RealtimeVoiceListen`) that played to its end,
+    /// that they stopped to talk, or that could not be played.
+    struct NarrationReturn: Equatable, Sendable {
+        enum Outcome: Equatable, Sendable {
+            case finished
+            case interrupted
+            case failed(String)
+        }
+
+        let sourceID: String
+        let title: String
+        let outcome: Outcome
+    }
+
+    static func kickoff(setting: Setting, returningFrom narration: NarrationReturn? = nil) -> String {
+        if let narration {
+            let place = setting == .car ? " in the car" : ""
+            let named = "\u{201C}\(narration.title)\u{201D} (source_id \(narration.sourceID))"
+            switch narration.outcome {
+            case .finished:
+                return "(The narration of \(named) that the learner asked to hear has just finished playing\(place). In one short sentence, ask whether they want to talk it through, be quizzed on it, or hear something else. Then listen.)"
+            case .interrupted:
+                return "(The learner stopped the narration of \(named)\(place) to talk to you. Ask in a few words what they need, then listen. If they want it back, \(RealtimeVoiceListen.toolName) carries on where it stopped.)"
+            case .failed(let reason):
+                return "(The narration of \(named) that the learner asked to hear could not be played\(place): \(reason) Tell them so in one short sentence and ask what they would like instead. Then listen.)"
+            }
+        }
         switch setting {
         // On the phone and in the car cards are reviewed by voice by default (product
         // owner, 2026-11-09): Home has no card button, so voice offers them first.
@@ -410,6 +442,89 @@ enum RealtimeVoiceLibrarySearch {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "EEEE d MMMM yyyy"
         return formatter
+    }
+}
+
+/// Listening by voice: the learner asks to hear a source itself and the
+/// assistant hands the audio to that source's narration, the one Listen plays
+/// (product owner, 2026-11-11: "I'm in CarPlay in the car and I say like I
+/// want to listen to this article"). The conversation's own speech stays the
+/// realtime model's. A narration is the source read by the learner's
+/// text-to-speech voice, made and kept as Listen makes it, and it plays after
+/// the conversation has ended, never under it: the tool's answer says it is
+/// starting, the assistant says so in a sentence, and the controller ends the
+/// conversation when that sentence has played
+/// (`RealtimeVoiceToolbox.conversationEnded` then starts the narration).
+enum RealtimeVoiceListen {
+    static let toolName = "listen_to_source"
+
+    static var toolDefinition: [String: Any] {
+        RealtimeVoiceAssistant.function(
+            toolName,
+            "Plays a source's narration, its text read aloud, for when the learner wants to hear the article, paper or chapter itself rather than talk about it. When the answer says starting, say in one short sentence that it is starting: this conversation then ends and the narration plays. When the answer names a price, nothing has started: say the price and call again with confirm_cost true only after a clear yes.",
+            properties: [
+                "source_id": ["type": "string", "description": "The source_id from search_library or recent work."],
+                "confirm_cost": ["type": "boolean", "description": "True only after the learner has heard the price and said yes."],
+            ],
+            required: ["source_id"]
+        )
+    }
+
+    /// What the device found when asked to play a source.
+    enum Answer: Equatable, Sendable {
+        /// The narration plays once the conversation has ended. `isMade` is
+        /// false when it has to be made first: it starts as its opening lands.
+        case starting(title: String, isMade: Bool)
+        /// Making it costs money the learner has not said yes to. `price` is
+        /// in words ("about $0.42").
+        case needsPrice(title: String, price: String)
+        /// It cannot be played, and why, as the model says it.
+        case refused(String)
+    }
+
+    /// The answer as the realtime model reads it.
+    static func output(_ answer: Answer) -> String {
+        let payload: [String: Any]
+        switch answer {
+        case .starting(let title, let isMade):
+            payload = [
+                "starting": true,
+                "title": title,
+                "note": isMade
+                    ? "Say in one short sentence that it is starting. This conversation ends when you have said it."
+                    : "The narration has to be made first, so it starts after a short wait. Say that in one short sentence. This conversation ends when you have said it.",
+            ]
+        case .needsPrice(let title, let price):
+            payload = [
+                "starting": false,
+                "needs_confirmation": true,
+                "title": title,
+                "price": price,
+                "note": "Nothing was started. Say the price in words and ask whether to go ahead; call again with confirm_cost true only after a clear yes.",
+            ]
+        case .refused(let reason):
+            payload = ["error": reason]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? #"{"error":"The narration could not be started."}"#
+    }
+
+    /// Whether a tool answer says the narration is starting, which is when
+    /// the conversation ends after the reply to it.
+    static func isStarting(_ output: String) -> Bool {
+        guard let payload = (try? JSONSerialization.jsonObject(with: Data(output.utf8))) as? [String: Any],
+              // JSONSerialization hands back an NSNumber: read it as one.
+              let starting = payload["starting"] as? NSNumber else { return false }
+        return starting.boolValue
+    }
+
+    /// A podcast or a video is its own recording, which Listen never narrates.
+    static func hasOwnAudio(sourceType: String) -> Bool {
+        ["podcast", "video"].contains(sourceType.lowercased())
+    }
+
+    static func ownAudioRefusal(kind: String) -> String {
+        "This \(kind) is its own recording, and ForeverLM only reads text sources aloud. Offer to talk about it instead."
     }
 }
 

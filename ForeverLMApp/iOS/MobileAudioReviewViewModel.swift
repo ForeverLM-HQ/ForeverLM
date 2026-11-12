@@ -122,6 +122,13 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     @Published var textToSpeechModelNames: [String: String] = [:]
     @Published var automaticAudioProgress: SourceAudioAutomation.GenerationProgress?
     @Published var textToSpeechCostConfirmation: MobileTextToSpeechCostConfirmation?
+    /// The narration voice mode started (`listen_to_source`), until the next
+    /// conversation takes the audio back.
+    @Published var voiceListen: MobileVoiceListen?
+    /// Sources whose narration the learner asked for by voice, having heard
+    /// its price there when it has one: generating them asks nothing on a
+    /// screen nobody is looking at.
+    var voiceApprovedTextToSpeechSourceIDs: Set<String> = []
     /// Explainer ids by the id of the source they explain, derived from the
     /// catalog on every publish; `explainerID(explaining:)` reads it.
     @Published var explainerIDsByExplainedSourceID: [String: String] = [:]

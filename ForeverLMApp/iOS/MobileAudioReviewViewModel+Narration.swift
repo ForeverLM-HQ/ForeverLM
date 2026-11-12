@@ -604,6 +604,10 @@ extension MobileAudioReviewViewModel {
             errorMessage = message
             if MobileRealtimeVoice.controller.isActive {
                 return
+            } else if voiceListen?.sourceID == source.id, MobileRealtimeVoice.isCarConnected {
+                // Started by voice in the car: the assistant comes back and
+                // says why (`startVoiceListen`), not the system voice.
+                return
             } else {
                 speakAndResumeListening(message, pausePlayback: true, resumePlaybackAfterSpeech: true)
             }

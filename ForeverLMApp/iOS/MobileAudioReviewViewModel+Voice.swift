@@ -502,3 +502,108 @@ extension MobileAudioReviewViewModel {
         MobileSourceVoiceFormatter.listPrompt(for: utterance, sources: allSources)
     }
 }
+
+// MARK: - Listening started by voice mode
+
+extension MobileAudioReviewViewModel {
+    /// What `listen_to_source` answers (`RealtimeVoiceListen`): whether this
+    /// source's narration can play once the conversation ends, or what it
+    /// would cost to make first. Nothing is started or spent here.
+    ///
+    /// A narration that exists plays. One that has to be made is made by the
+    /// phone's own Listen path, which asks its price on the screen; nobody is
+    /// looking at the screen in a voice conversation, so the price is said
+    /// instead, when Listen would have asked and it is not nothing.
+    func voiceListenAnswer(sourceID rawID: String, costConfirmed: Bool) async -> RealtimeVoiceListen.Answer {
+        let sourceID = rawID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if allSources.isEmpty && items.isEmpty {
+            await load()
+        }
+        if let item = itemForSourceID(sourceID) {
+            return .starting(title: item.title, isMade: true)
+        }
+        guard let source = source(for: sourceID) else {
+            return .refused("No source with that id. Use search_library to find it.")
+        }
+        if RealtimeVoiceListen.hasOwnAudio(sourceType: source.sourceType) {
+            return .refused(RealtimeVoiceListen.ownAudioRefusal(kind: RealtimeVoiceTutor.spokenKind(source.sourceType)))
+        }
+        // Already being made or coming down: it plays when it is there.
+        if isPreparingAudio(sourceID: sourceID) || narrationDownloadSourceID == sourceID || costConfirmed {
+            return .starting(title: source.title, isMade: false)
+        }
+
+        let model: String
+        do {
+            model = try CloudArticleTTS.currentSelection().model
+        } catch {
+            return .refused("Text to speech is not set up on this iPhone: \(error.localizedDescription)")
+        }
+        // The same switch Listen reads before it asks. A failure to read it
+        // fails safe by asking.
+        var suppressedCostModels: [String] = []
+        do {
+            suppressedCostModels = try await MobileModelPreferenceStore.shared.valueOrDefault(
+                for: Prefs.ReadAloud.costConfirmationSuppressedModels
+            ) ?? []
+        } catch {
+            Self.logger.error("Reading the suppressed cost confirmations failed: \(error.localizedDescription, privacy: .public)")
+        }
+        guard MobileTextToSpeechPricingPreferences.confirmsEstimatedCost,
+              !suppressedCostModels.contains(model) else {
+            return .starting(title: source.title, isMade: false)
+        }
+        // Sized as automatic audio sizes it; a source with no size has no
+        // total, and the model's own price is said instead.
+        let characters = source.listenableCharacterCount
+            ?? SourceAudioAutomation.estimatedCharacters(wordCount: source.wordCount, contentCharacterCount: nil)
+        guard let characters else {
+            return .needsPrice(
+                title: source.title,
+                price: "\(ArticleSpeechCatalog.model(id: model)?.name ?? model)'s price, \(ArticleSpeechCatalog.priceLabel(forModel: model)); there is no total to give before it is made"
+            )
+        }
+        let confirmation = MobileTextToSpeechCostConfirmation(
+            sourceID: source.id,
+            sourceTitle: source.title,
+            characterCount: characters,
+            modelID: model,
+            book: textToSpeechBookScope(for: source, narrationCharacters: characters)
+        )
+        if confirmation.estimatedUSD == 0 {
+            return .starting(title: source.title, isMade: false)
+        }
+        return .needsPrice(title: source.title, price: confirmation.spokenPrice)
+    }
+
+    /// The conversation that asked for this narration has ended and given
+    /// the audio back: play it, as Listen does. The price, when there was
+    /// one, was agreed to out loud.
+    func startVoiceListen(sourceID: String) async {
+        let title = itemForSourceID(sourceID)?.title ?? source(for: sourceID)?.title ?? ""
+        voiceListen = MobileVoiceListen(sourceID: sourceID, title: title)
+        voiceApprovedTextToSpeechSourceIDs.insert(sourceID)
+        await readSourceAloud(sourceID: sourceID)
+        // Listen keeps its own failures in `errorMessage`. If nothing of this
+        // source is playing, being made or on its way down, it did not start.
+        let isUnderWay = currentItem?.id == sourceID
+            || isPreparingAudio(sourceID: sourceID)
+            || narrationDownloadSourceID == sourceID
+            || pendingTextToSpeechAfterPreparationSourceID == sourceID
+        if !isUnderWay, voiceListen?.sourceID == sourceID, voiceListen?.ended == nil {
+            voiceListen?.ended = .failed(errorMessage ?? "The narration could not be started.")
+        }
+    }
+
+    /// A narration has played to its end. One voice mode started is over,
+    /// unless it is a book chapter that carries on into the next by itself
+    /// (`automaticallyContinueBook`), which the hand-off then follows.
+    func noteVoiceListenFinished(sourceID: String) {
+        guard let listen = voiceListen, listen.sourceID == sourceID, listen.ended == nil else { return }
+        if MobileBookPlaybackPreferences.automaticallyContinues, let next = nextBookChapter(after: sourceID) {
+            voiceListen = MobileVoiceListen(sourceID: next.id, title: next.title)
+        } else {
+            voiceListen?.ended = .finished
+        }
+    }
+}

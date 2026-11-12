@@ -36,3 +36,45 @@ final class MobileAudioPlaybackSpeedTests: XCTestCase {
         XCTAssertEqual(MobileAudioPlaybackSpeed.label(for: 4.0), "3x", "Out-of-range values read as the clamped speed.")
     }
 }
+
+/// What the car shows once voice mode has handed the audio to a source's
+/// narration (`listen_to_source`): the narration while no conversation runs,
+/// and the way back to the assistant when it ends.
+final class CarPlayVoiceScreenTests: XCTestCase {
+    private let listen = MobileVoiceListen(sourceID: "s9", title: "Mitochondria at Rest")
+
+    func testTheConversationIsShownUnlessANarrationVoiceStartedIsPlaying() {
+        XCTAssertEqual(CarPlayVoiceScreen.resolve(conversationIsIdle: true, listen: nil, isPlaying: false), .conversation)
+        // A conversation that is running keeps the screen, whatever the player holds.
+        XCTAssertEqual(CarPlayVoiceScreen.resolve(conversationIsIdle: false, listen: listen, isPlaying: true), .conversation)
+        XCTAssertEqual(
+            CarPlayVoiceScreen.resolve(conversationIsIdle: true, listen: listen, isPlaying: true),
+            .narration(title: "Mitochondria at Rest", isPlaying: true)
+        )
+        XCTAssertEqual(
+            CarPlayVoiceScreen.resolve(conversationIsIdle: true, listen: listen, isPlaying: false),
+            .narration(title: "Mitochondria at Rest", isPlaying: false)
+        )
+    }
+
+    func testANarrationThatEndedSendsTheLearnerBackToTheAssistant() {
+        var finished = listen
+        finished.ended = .finished
+        XCTAssertEqual(
+            CarPlayVoiceScreen.resolve(conversationIsIdle: true, listen: finished, isPlaying: false),
+            .backToAssistant(.init(sourceID: "s9", title: "Mitochondria at Rest", outcome: .finished))
+        )
+        var failed = listen
+        failed.ended = .failed("The voice does not read German.")
+        XCTAssertEqual(
+            CarPlayVoiceScreen.resolve(conversationIsIdle: true, listen: failed, isPlaying: false),
+            .backToAssistant(.init(
+                sourceID: "s9",
+                title: "Mitochondria at Rest",
+                outcome: .failed("The voice does not read German.")
+            ))
+        )
+        // The assistant is already back: nothing to do twice.
+        XCTAssertEqual(CarPlayVoiceScreen.resolve(conversationIsIdle: false, listen: finished, isPlaying: false), .conversation)
+    }
+}

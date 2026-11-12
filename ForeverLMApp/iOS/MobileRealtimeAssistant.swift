@@ -28,13 +28,23 @@ import os
 /// - goals and notebooks, with what each notebook is for;
 /// - what the learner read, listened to, watched or discussed lately, and their
 ///   latest chats.
+///
+/// Asked to play a source itself, it hands the audio to that source's
+/// narration (`listen_to_source`, `RealtimeVoiceListen`): the phone's own
+/// Listen, started once the conversation has ended.
 enum MobileRealtimeAssistant {
     private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "RealtimeAssistant")
 
     /// The brief a conversation starts on. Each part is read independently, so
     /// one that fails (no calendar access, a plan not yet synced) only leaves
     /// that part out.
-    static func brief(setting: RealtimeVoiceAssistant.Setting) async -> RealtimeVoiceBrief {
+    ///
+    /// `narration` is the narration the learner comes back from (the car's
+    /// Talk button, or one that ended): the assistant opens on it.
+    static func brief(
+        setting: RealtimeVoiceAssistant.Setting,
+        returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil
+    ) async -> RealtimeVoiceBrief {
         let toolbox = Toolbox()
         let now = Date()
         async let plan = toolbox.planText()
@@ -56,7 +66,7 @@ enum MobileRealtimeAssistant {
         return RealtimeVoiceBrief(
             title: RealtimeVoiceAssistant.title,
             instructions: RealtimeVoiceAssistant.instructions(sections: sections, setting: setting, now: now),
-            kickoff: RealtimeVoiceAssistant.kickoff(setting: setting),
+            kickoff: RealtimeVoiceAssistant.kickoff(setting: setting, returningFrom: narration),
             toolbox: toolbox,
             source: nil
         )
@@ -118,6 +128,7 @@ enum MobileRealtimeAssistant {
                     description: "Today's review cards (spaced repetition), each with its question and answer, for a card review out loud when the learner asks for their review or their cards. Ask one card's question at a time, let them answer, say plainly whether they had it and the answer in a sentence, then call grade_card before the next."
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
+                RealtimeVoiceListen.toolDefinition,
             ] + RealtimeVoiceReach.toolDefinitions
         }
 
@@ -141,6 +152,11 @@ enum MobileRealtimeAssistant {
                 return await goalsText()
             case "get_recent_work":
                 return await recentText(now: Date())
+            case RealtimeVoiceListen.toolName:
+                return await listenToSource(
+                    (arguments["source_id"] as? String) ?? "",
+                    costConfirmed: (arguments["confirm_cost"] as? Bool) ?? false
+                )
             case "list_meetings":
                 return await MobileVoiceMac.call("list_meeting_groups", [:])
             case "get_meeting_series":
@@ -182,6 +198,41 @@ enum MobileRealtimeAssistant {
 
         func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {
             tasks.setNoticeHandler(handler)
+        }
+
+        // MARK: Listening
+
+        private let listenLock = AppLock()
+        /// The source whose narration plays when this conversation ends.
+        private var pendingListenSourceID: String?
+
+        /// Nothing plays yet: the conversation holds the audio. A narration
+        /// that can start is remembered, and started in `conversationEnded`.
+        private func listenToSource(_ id: String, costConfirmed: Bool) async -> String {
+            let answer = await Self.listenAnswer(sourceID: id, costConfirmed: costConfirmed)
+            if case .starting = answer {
+                let sourceID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+                listenLock.withLock { pendingListenSourceID = sourceID }
+            }
+            return RealtimeVoiceListen.output(answer)
+        }
+
+        @MainActor
+        private static func listenAnswer(sourceID: String, costConfirmed: Bool) async -> RealtimeVoiceListen.Answer {
+            await MobileAudioReviewViewModel.shared.voiceListenAnswer(sourceID: sourceID, costConfirmed: costConfirmed)
+        }
+
+        func conversationEnded() async {
+            let sourceID = listenLock.withLock { () -> String? in
+                defer { pendingListenSourceID = nil }
+                return pendingListenSourceID
+            }
+            guard let sourceID else { return }
+            // Not awaited: a narration that has to be made runs for minutes,
+            // and ending the conversation must not wait for it.
+            Task { @MainActor in
+                await MobileAudioReviewViewModel.shared.startVoiceListen(sourceID: sourceID)
+            }
         }
 
         // MARK: The Mac's reach

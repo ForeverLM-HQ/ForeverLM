@@ -34,6 +34,9 @@ enum MobileRealtimeVoice {
     /// CarPlay, and its summary says so. A conversation started on the phone
     /// and carried into the car stays the phone's.
     private static var startedInCar = false
+    /// CarPlay is connected (`CarPlaySceneDelegate`). A narration voice mode
+    /// started there that fails is the returning assistant's to say.
+    static var isCarConnected = false
 
     static func start(
         source: MobileCloudSource,
@@ -62,7 +65,13 @@ enum MobileRealtimeVoice {
 
     /// The personal assistant (`MobileRealtimeAssistant`): no source, the
     /// learner's plans and recent work instead. CarPlay starts it on connect.
-    static func startAssistant(setting: RealtimeVoiceAssistant.Setting) async {
+    ///
+    /// `narration` is a narration started by voice (`listen_to_source`) that
+    /// the learner comes back from: the assistant opens on it.
+    static func startAssistant(
+        setting: RealtimeVoiceAssistant.Setting,
+        returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil
+    ) async {
         await prepareToTalk(inCar: setting == .car)
         currentSource = nil
         currentNotebookID = nil
@@ -70,7 +79,7 @@ enum MobileRealtimeVoice {
             title: RealtimeVoiceAssistant.title,
             status: "Getting your day together…"
         ) {
-            await MobileRealtimeAssistant.brief(setting: setting)
+            await MobileRealtimeAssistant.brief(setting: setting, returningFrom: narration)
         }
     }
 
@@ -115,6 +124,8 @@ enum MobileRealtimeVoice {
         // A narration playing under the conversation would talk over it.
         let player = MobileAudioReviewViewModel.shared
         if player.isPlaying { player.togglePlayback() }
+        // A conversation takes the audio back from a narration voice started.
+        player.voiceListen = nil
         // The controller turns a start away while a conversation is running,
         // and that conversation keeps the place it was started in.
         if controller.phase == .idle || controller.phase == .failed {

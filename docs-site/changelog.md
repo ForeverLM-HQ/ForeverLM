@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Ask voice to play a source.** Say "I want to listen to this article" to the assistant, in CarPlay, on the iPhone or on the Mac, and it starts that source's narration, the audio Listen plays; a paid voice's price is said first. In CarPlay, **Talk** brings the assistant back, and it returns by itself when the narration ends.
 - **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.
 - **On the iPhone, X posts are filed under X, with X's mark,** where the Library's row read "Xpost" beside a placeholder.
 - **The iPhone names the voice model from the moment you ask for audio.** A paper's narration is prepared before the first chunk is generated, and the model's name now shows through that wait too.

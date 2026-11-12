@@ -2408,7 +2408,7 @@ Web Studio offers the models ForeverLM curates and requests each from OpenRouter
 
 ### Voice in the car and in review
 
-CarPlay starts [voice mode](/voice-mode)'s assistant: a realtime conversation that knows your recent work, goals and plans, and can talk about or quiz you on any source.
+CarPlay starts [voice mode](/voice-mode)'s assistant: a realtime conversation that knows your recent work, goals and plans, and can talk about or quiz you on any source. Ask it to play one ("I want to listen to this article") and it [hands over to that source's narration](/voice-mode#listen-to-a-source), then comes back when it ends.
 
 **Review by Voice**, in the **⋯** of the iPhone's card review, goes through today's cards out loud in [voice mode](/voice-mode#review-your-cards-by-voice): it asks each card, tells you whether you had it, and records Remembered or Forgot. The CarPlay assistant does the same when you ask for your cards.
 
@@ -2516,6 +2516,14 @@ Ask for something that takes more than a quick look, such as "pull up my sources
 - It runs on your Chat model (Deep Research on its own model), on your OpenRouter key, and stops at $3. It shows in the background work list, where you can stop it too. Up to three run at once, while ForeverLM is open on your Mac.
 
 Ask for a custom podcast, an audio overview over a notebook's sources, and voice prices it first and starts it once you say yes.
+
+### Listen to a source
+
+Ask to hear a source itself, such as "read me that paper" or "I want to listen to this article", and voice plays its narration: the same audio **Listen** plays, in your [Text to Speech](/text-to-speech) voice. It says the narration is starting, the conversation ends, and the narration begins. One that has not been made yet is made first and starts as soon as its opening is ready.
+
+- If making it costs money and price confirmation is on for that voice, voice says the price and waits for your yes. On the Mac the price is asked on screen, as Listen asks it.
+- Podcasts and videos are their own recordings and are not narrated.
+- **In CarPlay** the screen shows the narration's title with **Talk**, which stops it where it is and brings the assistant back, and **Pause** or **Play** (the buttons need iOS 26.4). When the narration ends, the assistant comes back by itself and asks what you want next. Ask for the same source again and it carries on where it stopped.
 
 - **iPhone:** the **waveform** at the top of Home.
 - **Mac:** the **waveform** at the bottom of the icon strip on the left of every window, or **Chat › Talk to ForeverLM**.
@@ -6747,6 +6755,10 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Ask voice to play a source.** Say "I want to listen to this article" to the assistant, in CarPlay, on the iPhone or on the Mac, and it starts that source's narration, the audio Listen plays; a paid voice's price is said first. In CarPlay, **Talk** brings the assistant back, and it returns by itself when the narration ends.
+- **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.
+- **On the iPhone, X posts are filed under X, with X's mark,** where the Library's row read "Xpost" beside a placeholder.
+- **The iPhone names the voice model from the moment you ask for audio.** A paper's narration is prepared before the first chunk is generated, and the model's name now shows through that wait too.
 - **ForeverLM is paid once, after 30 free days.** The first 30 days from your first sign-in are free (no card, nothing to click); after that, pay $19 once, no subscription, in Settings › Billing. Until then it all works: the Mac app, the web library, sync, Chat and every AI feature, on your own OpenRouter key. If the 30 days end unpaid, the Mac app and the web library lock and show only the way to pay, and AI on your own key and MCP stop; nothing is deleted, and paying brings everything back by itself. The iPhone and iPad apps stay open and show no price.
 - **CarPlay shows ForeverLM's mark while you talk to it,** in place of the coloured dot. It breathes while listening, a band of light crosses it while thinking, and it pulses while speaking.
 - **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.

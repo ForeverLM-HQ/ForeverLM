@@ -15,27 +15,55 @@ import UIKit
 // audio-app Now Playing template. The shared controller outlives the SwiftUI
 // window scene, which is not guaranteed to be connected while driving with the
 // phone locked.
+//
+// Asked to play a source itself ("I want to listen to this article"), the
+// assistant ends the conversation and the source's narration plays
+// (`listen_to_source`, `RealtimeVoiceListen`). The car then shows that
+// narration, still on a Voice Control template: its title, Talk to stop it and
+// go back to the assistant, and Pause or Play. When it has played to its end,
+// or could not be played, the assistant comes back by itself and says so
+// (`CarPlayVoiceScreen`).
 @MainActor
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private var interfaceController: CPInterfaceController?
     private var voiceStateObserver: AnyCancellable?
     private var voiceTemplate: CPVoiceControlTemplate?
+    private var narrationObserver: AnyCancellable?
+    private var narrationTemplate: CPVoiceControlTemplate?
+    /// The title of the narration on screen; nil while the conversation is.
+    private var shownNarrationTitle: String?
 
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
         didConnect interfaceController: CPInterfaceController
     ) {
         self.interfaceController = interfaceController
+        MobileRealtimeVoice.isCarConnected = true
         let realtime = MobileRealtimeVoice.controller
+        let audio = MobileAudioReviewViewModel.shared
+        // Connect and talk: a narration voice started before the drive is
+        // not what the car opens on.
+        audio.voiceListen = nil
         let template = makeVoiceTemplate()
         voiceTemplate = template
         interfaceController.setRootTemplate(template, animated: false, completion: nil)
 
         voiceStateObserver = Publishers.CombineLatest3(realtime.$phase, realtime.$statusText, realtime.$needsSignIn)
             .sink { [weak self] phase, statusText, needsSignIn in
-                guard let self else { return }
+                guard let self, self.shownNarrationTitle == nil else { return }
                 let identifier = self.voiceStateIdentifier(for: phase, statusText: statusText, needsSignIn: needsSignIn)
                 self.voiceTemplate?.activateVoiceControlState(withIdentifier: identifier)
+            }
+
+        narrationObserver = Publishers.CombineLatest4(realtime.$phase, audio.$voiceListen, audio.$isPlaying, audio.$currentItem)
+            .sink { [weak self] phase, listen, isPlaying, currentItem in
+                self?.show(CarPlayVoiceScreen.resolve(
+                    conversationIsIdle: phase == .idle,
+                    listen: listen,
+                    // Until the narration is the player's it is being made or
+                    // fetched: on its way, not paused.
+                    isPlaying: isPlaying || currentItem?.id != listen?.sourceID
+                ))
             }
 
         if realtime.phase == .idle {
@@ -50,9 +78,14 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         if self.interfaceController === interfaceController {
             self.interfaceController = nil
         }
+        MobileRealtimeVoice.isCarConnected = false
         voiceStateObserver?.cancel()
         voiceStateObserver = nil
         voiceTemplate = nil
+        narrationObserver?.cancel()
+        narrationObserver = nil
+        narrationTemplate = nil
+        shownNarrationTitle = nil
         // Do not trust the last rendered phase as the ownership authority. A
         // disconnect can arrive while async preflight is still suspended; End
         // must invalidate that pending start or it could arm the microphone
@@ -66,7 +99,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     /// Starts the assistant, or resumes the conversation that failed (a
     /// dropped connection that could not come back, keeping what was said).
-    private func startVoiceAgent() {
+    ///
+    /// `narration` is the narration the learner comes back from, which the
+    /// assistant opens on.
+    private func startVoiceAgent(returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil) {
         let realtime = MobileRealtimeVoice.controller
 
         voiceTemplate?.activateVoiceControlState(withIdentifier: "listening")
@@ -75,9 +111,116 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             if realtime.phase == .failed {
                 await realtime.resume()
             } else if realtime.phase == .idle {
-                await MobileRealtimeVoice.startAssistant(setting: .car)
+                await MobileRealtimeVoice.startAssistant(setting: .car, returningFrom: narration)
             }
         }
+    }
+
+    // MARK: - Narration
+
+    /// Puts the conversation or the narration on the car's screen.
+    private func show(_ screen: CarPlayVoiceScreen) {
+        switch screen {
+        case .conversation:
+            guard shownNarrationTitle != nil else { return }
+            shownNarrationTitle = nil
+            narrationTemplate = nil
+            // A fresh template: the one the narration replaced is not shown again.
+            let template = makeVoiceTemplate()
+            voiceTemplate = template
+            interfaceController?.setRootTemplate(template, animated: false, completion: nil)
+            let realtime = MobileRealtimeVoice.controller
+            template.activateVoiceControlState(withIdentifier: voiceStateIdentifier(
+                for: realtime.phase,
+                statusText: realtime.statusText,
+                needsSignIn: realtime.needsSignIn
+            ))
+        case .narration(let title, let isPlaying):
+            if shownNarrationTitle != title || narrationTemplate == nil {
+                let template = makeNarrationTemplate(title: title)
+                narrationTemplate = template
+                shownNarrationTitle = title
+                interfaceController?.setRootTemplate(template, animated: false, completion: nil)
+            }
+            narrationTemplate?.activateVoiceControlState(withIdentifier: isPlaying ? "playing" : "paused")
+        case .backToAssistant(let narration):
+            // After this publish: taking the narration off changes what is
+            // being published right now.
+            Task { @MainActor [weak self] in
+                self?.returnToAssistant(narration)
+            }
+        }
+    }
+
+    /// The narration's own screen: its title and the mark of what it is doing.
+    private func makeNarrationTemplate(title: String) -> CPVoiceControlTemplate {
+        let titles = title.isEmpty ? nil : [title]
+        let playing = CPVoiceControlState(
+            identifier: "playing",
+            titleVariants: titles,
+            image: UIImage(systemName: "speaker.wave.2.fill"),
+            repeats: false
+        )
+        let paused = CPVoiceControlState(
+            identifier: "paused",
+            titleVariants: titles,
+            image: UIImage(systemName: "pause.fill"),
+            repeats: false
+        )
+        let template = CPVoiceControlTemplate(voiceControlStates: [playing, paused])
+        if #available(iOS 26.4, *) {
+            configureNarrationActionButtons(on: template)
+        }
+        return template
+    }
+
+    @available(iOS 26.4, *)
+    private func configureNarrationActionButtons(on template: CPVoiceControlTemplate) {
+        for state in template.voiceControlStates {
+            var buttons: [CPButton] = []
+            // Talk comes first: CarPlay ignores buttons past its limit
+            // (`maximumActionButtonCount`), and the way back to the
+            // assistant is the one that must stay.
+            if let talkImage = UIImage(systemName: "mic.circle.fill") {
+                let talk = CPButton(image: talkImage) { [weak self] _ in
+                    self?.talkOverNarration()
+                }
+                talk.title = "Talk"
+                buttons.append(talk)
+            }
+            let isPlaying = state.identifier == "playing"
+            if let image = UIImage(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill") {
+                let toggle = CPButton(image: image) { _ in
+                    MobileAudioReviewViewModel.shared.togglePlayback()
+                }
+                toggle.title = isPlaying ? "Pause" : "Play"
+                buttons.append(toggle)
+            }
+            state.actionButtons = buttons
+        }
+    }
+
+    /// Talk: the narration stops where it is and the assistant comes back.
+    private func talkOverNarration() {
+        let audio = MobileAudioReviewViewModel.shared
+        guard let listen = audio.voiceListen else { return }
+        returnToAssistant(RealtimeVoiceAssistant.NarrationReturn(
+            sourceID: listen.sourceID,
+            title: listen.title,
+            outcome: .interrupted
+        ))
+    }
+
+    /// Takes the narration off the screen, once, and starts the assistant on it.
+    private func returnToAssistant(_ narration: RealtimeVoiceAssistant.NarrationReturn) {
+        let audio = MobileAudioReviewViewModel.shared
+        guard audio.voiceListen?.sourceID == narration.sourceID else { return }
+        // Its place is kept, and a narration still being made stops there:
+        // nothing more is billed, and asking for it again carries on.
+        if audio.isPlaying { audio.togglePlayback() }
+        audio.stopTextToSpeechGeneration(sourceID: narration.sourceID)
+        audio.voiceListen = nil
+        startVoiceAgent(returningFrom: narration)
     }
 
     private func makeVoiceTemplate() -> CPVoiceControlTemplate {
@@ -174,6 +317,28 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         case "Speaking": return "speaking"
         default:
             return phase == .failed ? "unavailable" : "listening"
+        }
+    }
+}
+
+/// What the car shows: the voice conversation, or the narration the assistant
+/// handed the audio to (`listen_to_source`). A narration is on screen only
+/// while no conversation runs; one that ended, by playing through or by
+/// failing, sends the learner back to the assistant, which says so.
+enum CarPlayVoiceScreen: Equatable {
+    case conversation
+    case narration(title: String, isPlaying: Bool)
+    case backToAssistant(RealtimeVoiceAssistant.NarrationReturn)
+
+    static func resolve(conversationIsIdle: Bool, listen: MobileVoiceListen?, isPlaying: Bool) -> CarPlayVoiceScreen {
+        guard conversationIsIdle, let listen else { return .conversation }
+        switch listen.ended {
+        case nil:
+            return .narration(title: listen.title, isPlaying: isPlaying)
+        case .finished:
+            return .backToAssistant(.init(sourceID: listen.sourceID, title: listen.title, outcome: .finished))
+        case .failed(let reason):
+            return .backToAssistant(.init(sourceID: listen.sourceID, title: listen.title, outcome: .failed(reason)))
         }
     }
 }

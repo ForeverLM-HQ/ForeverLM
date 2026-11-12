@@ -134,12 +134,34 @@ struct MobileCatalogSyncStatus: Equatable {
     }
 }
 
+/// The narration voice mode handed the audio to (`listen_to_source`,
+/// `RealtimeVoiceListen`): the conversation ended and this source plays. The
+/// car's screen shows it in place of the conversation, with a way back to
+/// talking, and the assistant comes back when it ends.
+struct MobileVoiceListen: Equatable, Sendable {
+    enum Ended: Equatable, Sendable {
+        /// It played to its end.
+        case finished
+        /// It could not be played, and why.
+        case failed(String)
+    }
+
+    let sourceID: String
+    let title: String
+    var ended: Ended?
+}
+
 enum MobileTextToSpeechPreparationError: LocalizedError {
     case alreadyPreparing(String?)
     case sourceNotFound
+    /// The selected voice does not speak the source's language, and nobody
+    /// is looking at the phone to be asked (a narration started by voice).
+    case unnarratableLanguage(String)
 
     var errorDescription: String? {
         switch self {
+        case .unnarratableLanguage(let message):
+            return message
         case .alreadyPreparing(let title):
             return title.map { "Audio is already being prepared for \($0)." }
                 ?? "Another source's audio is already being prepared."

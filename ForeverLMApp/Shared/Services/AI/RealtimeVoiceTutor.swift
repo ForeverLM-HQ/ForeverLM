@@ -199,11 +199,16 @@ protocol RealtimeVoiceToolbox: AnyObject, Sendable {
     /// (`VoiceBackgroundTasks`). The controller says it at the next quiet
     /// moment (`RealtimeVoiceTutor.appNoticeMessage`). Set once per call.
     func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void)
+    /// The conversation is over and its audio has been given back. A toolbox
+    /// that promised something to play afterwards starts it here: a source's
+    /// narration (`RealtimeVoiceListen`), which must never play under the call.
+    func conversationEnded() async
 }
 
 extension RealtimeVoiceToolbox {
     func recordedAnswers() async -> [RealtimeVoiceAnswerRecord] { [] }
     func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {}
+    func conversationEnded() async {}
 }
 
 /// One answer the tutor judged in a source conversation, recorded with

@@ -19,7 +19,9 @@ import OSLog
 /// tool the chat has, which runs on while the conversation goes on and comes
 /// back with its conclusion (product owner, 2026-11-08: "or just in general
 /// do stuff in teh background yes; like pull up sources etc and come to its
-/// conclusion").
+/// conclusion"). Asked to play a source itself, it hands the audio to that
+/// source's narration (`listen_to_source`, `RealtimeVoiceListen`): the Mac's
+/// own Listen, started once the conversation has ended.
 enum MacRealtimeAssistant {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "RealtimeAssistant")
 
@@ -103,6 +105,7 @@ enum MacRealtimeAssistant {
                 RealtimeVoiceAssistant.function("get_schedule", "Sources the learner placed on days in their Schedule, with what is done."),
                 RealtimeVoiceAssistant.function("get_goals", "The learner's goals and notebooks."),
                 RealtimeVoiceAssistant.function("get_recent_work", "What the learner did today and yesterday, and their latest chats."),
+                RealtimeVoiceListen.toolDefinition,
             ] + RealtimeVoiceReach.toolDefinitions
         }
 
@@ -126,6 +129,8 @@ enum MacRealtimeAssistant {
                 return await goalsText()
             case "get_recent_work":
                 return await recentText()
+            case RealtimeVoiceListen.toolName:
+                return await listenToSource((arguments["source_id"] as? String) ?? "")
             case "list_meetings":
                 return await mcp("list_meeting_groups", [:])
             case "get_meeting_series":
@@ -152,6 +157,57 @@ enum MacRealtimeAssistant {
         }
 
         func openedSourceIDs() async -> [String] { opened.ids }
+
+        // MARK: Listening
+
+        private let listenLock = AppLock()
+        /// The source whose narration plays when this conversation ends.
+        private var pendingListen: StudioArticle?
+
+        /// Nothing plays yet: the conversation holds the audio. A source
+        /// Listen can read is remembered, and played in `conversationEnded`.
+        /// On the Mac the learner is at the screen, so a narration that has
+        /// to be made asks its price there, as Listen always does; voice
+        /// never says a price here.
+        private func listenToSource(_ rawID: String) async -> String {
+            let id = rawID.trimmingCharacters(in: .whitespacesAndNewlines)
+            let storage = StorageService()
+            let loaded: StudioArticle?
+            do {
+                loaded = try await storage.loadSourceWithoutContent(id)
+            } catch {
+                MacRealtimeAssistant.logger.error("Reading source \(id, privacy: .public) to play its narration failed: \(error.localizedDescription, privacy: .public)")
+                loaded = nil
+            }
+            guard var article = loaded else {
+                return RealtimeVoiceListen.output(.refused("No source with that id. Use search_library to find it."))
+            }
+            article.content = await storage.loadSourceContent(id)
+            guard ArticleSpeechContent.canAttemptRead(article) else {
+                let kind = RealtimeVoiceTutor.spokenKind(article.sourceType.rawValue)
+                return RealtimeVoiceListen.output(.refused(
+                    ArticleSpeechContent.isOriginalAudioSource(article)
+                        ? RealtimeVoiceListen.ownAudioRefusal(kind: kind)
+                        : "This \(kind) has no readable text yet, so there is nothing to read aloud; it may still be importing."
+                ))
+            }
+            let isMade = await Task.detached(priority: .userInitiated) {
+                ArticleSpeechAudioCache.hasCachedAudio(sourceID: id)
+            }.value
+            listenLock.withLock { pendingListen = article }
+            return RealtimeVoiceListen.output(.starting(title: article.title, isMade: isMade))
+        }
+
+        func conversationEnded() async {
+            let article = listenLock.withLock { () -> StudioArticle? in
+                defer { pendingListen = nil }
+                return pendingListen
+            }
+            guard let article else { return }
+            await MainActor.run {
+                ArticleSpeechService.shared.listen(to: article)
+            }
+        }
 
         /// One in-app MCP read, as text. Its error is an answer too.
         func mcp(_ name: String, _ arguments: [String: Any]) async -> String {

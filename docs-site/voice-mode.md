@@ -62,6 +62,14 @@ Ask for something that takes more than a quick look, such as "pull up my sources
 
 Ask for a custom podcast, an audio overview over a notebook's sources, and voice prices it first and starts it once you say yes.
 
+### Listen to a source
+
+Ask to hear a source itself, such as "read me that paper" or "I want to listen to this article", and voice plays its narration: the same audio **Listen** plays, in your [Text to Speech](/text-to-speech) voice. It says the narration is starting, the conversation ends, and the narration begins. One that has not been made yet is made first and starts as soon as its opening is ready.
+
+- If making it costs money and price confirmation is on for that voice, voice says the price and waits for your yes. On the Mac the price is asked on screen, as Listen asks it.
+- Podcasts and videos are their own recordings and are not narrated.
+- **In CarPlay** the screen shows the narration's title with **Talk**, which stops it where it is and brings the assistant back, and **Pause** or **Play** (the buttons need iOS 26.4). When the narration ends, the assistant comes back by itself and asks what you want next. Ask for the same source again and it carries on where it stopped.
+
 - **iPhone:** the **waveform** at the top of Home.
 - **Mac:** the **waveform** at the bottom of the icon strip on the left of every window, or **Chat › Talk to ForeverLM**.
 - **CarPlay:** open ForeverLM and start talking. The assistant greets you with one useful thing, such as what is next in your plan or the paper you were last into, and keeps every answer short enough to follow while driving.

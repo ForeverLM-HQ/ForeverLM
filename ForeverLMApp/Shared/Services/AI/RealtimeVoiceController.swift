@@ -106,6 +106,10 @@ final class RealtimeVoiceController: ObservableObject {
     private var responseInFlight = false
     private var currentOutputItemID: String?
     private var endsAfterReply = false
+    /// A tool handed the audio to something that plays by itself (a source's
+    /// narration, `RealtimeVoiceListen`): the reply to its answer is the last
+    /// thing said, and becomes `endsAfterReply` when that reply begins.
+    private var endsAfterToolReply = false
     private var endFallbackTask: Task<Void, Never>?
     /// The audio devices changed while a call was opening; it reopens once live.
     private var devicesChangedWhileConnecting = false
@@ -234,6 +238,8 @@ final class RealtimeVoiceController: ObservableObject {
         statusText = ""
         isTutorWorking = false
         microphoneLevel.set(0)
+        // The audio is free again: what a tool promised to play starts now.
+        await brief?.toolbox.conversationEnded()
         guard let brief, let startedAt,
               transcript.contains(where: { $0.role == .tutor && !$0.text.isEmpty }) else { return }
         let sourceIDs = await brief.toolbox.openedSourceIDs()
@@ -432,6 +438,7 @@ final class RealtimeVoiceController: ObservableObject {
         responseInFlight = false
         currentOutputItemID = nil
         endsAfterReply = false
+        endsAfterToolReply = false
         endFallbackTask?.cancel()
         endFallbackTask = nil
         isTutorWorking = false
@@ -576,6 +583,12 @@ final class RealtimeVoiceController: ObservableObject {
 
         case .responseCreated:
             responseInFlight = true
+            // The reply that says a narration is starting has begun: the
+            // conversation ends when it has played, as after a goodbye.
+            if awaitingToolReply, endsAfterToolReply {
+                endsAfterToolReply = false
+                endsAfterReply = true
+            }
             awaitingToolReply = false
             isTutorWorking = true
             if !isSpeaking { statusText = "Thinking" }
@@ -708,6 +721,9 @@ final class RealtimeVoiceController: ObservableObject {
         } else if let toolbox = brief?.toolbox {
             isTutorWorking = true
             output = await toolbox.run(name: name, argumentsJSON: argumentsJSON)
+            if name == RealtimeVoiceListen.toolName, RealtimeVoiceListen.isStarting(output) {
+                endsAfterToolReply = true
+            }
         } else {
             output = #"{"error":"Unknown tool."}"#
         }

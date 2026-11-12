@@ -827,6 +827,7 @@ extension MobileAudioReviewViewModel {
         currentTime = duration
         clearPlaybackPosition(for: sourceID)
         updateNowPlayingInfo()
+        noteVoiceListenFinished(sourceID: sourceID)
         Task { @MainActor [weak self] in
             await self?.handleCompletedBookChapter(sourceID: sourceID)
         }

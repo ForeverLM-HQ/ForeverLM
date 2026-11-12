@@ -154,7 +154,7 @@ Web Studio offers the models ForeverLM curates and requests each from OpenRouter
 
 ### Voice in the car and in review
 
-CarPlay starts [voice mode](/voice-mode)'s assistant: a realtime conversation that knows your recent work, goals and plans, and can talk about or quiz you on any source.
+CarPlay starts [voice mode](/voice-mode)'s assistant: a realtime conversation that knows your recent work, goals and plans, and can talk about or quiz you on any source. Ask it to play one ("I want to listen to this article") and it [hands over to that source's narration](/voice-mode#listen-to-a-source), then comes back when it ends.
 
 **Review by Voice**, in the **⋯** of the iPhone's card review, goes through today's cards out loud in [voice mode](/voice-mode#review-your-cards-by-voice): it asks each card, tells you whether you had it, and records Remembered or Forgot. The CarPlay assistant does the same when you ask for your cards.
 

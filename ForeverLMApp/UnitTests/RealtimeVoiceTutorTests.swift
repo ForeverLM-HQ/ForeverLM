@@ -610,6 +610,57 @@ struct RealtimeVoiceTutorTests {
         #expect(opened.ids == ["s", "l"])
     }
 
+    @Test("Asked to play a source, voice hands the audio to its narration and comes back from it")
+    func listenToSource() {
+        // The assistant has the tool and is told how to use it, everywhere.
+        let macTools = Set(MacRealtimeAssistant.Toolbox().toolDefinitions.compactMap { $0["name"] as? String })
+        #expect(macTools.contains(RealtimeVoiceListen.toolName))
+        for setting in [RealtimeVoiceAssistant.Setting.mac, .phone, .car] {
+            #expect(RealtimeVoiceAssistant.instructions(sections: [], setting: setting).contains("listen_to_source"))
+        }
+
+        // Only an answer that says starting ends the conversation.
+        let made = RealtimeVoiceListen.output(.starting(title: "Mitochondria at Rest", isMade: true))
+        #expect(RealtimeVoiceListen.isStarting(made))
+        #expect(made.contains("Mitochondria at Rest"))
+        let toMake = RealtimeVoiceListen.output(.starting(title: "Mitochondria at Rest", isMade: false))
+        #expect(RealtimeVoiceListen.isStarting(toMake))
+        #expect(toMake.contains("made first"))
+        let priced = RealtimeVoiceListen.output(.needsPrice(title: "Mitochondria at Rest", price: "about 42¢"))
+        #expect(!RealtimeVoiceListen.isStarting(priced))
+        #expect(priced.contains("about 42¢"))
+        #expect(priced.contains("confirm_cost"))
+        let refused = RealtimeVoiceListen.output(.refused("No source with that id."))
+        #expect(!RealtimeVoiceListen.isStarting(refused))
+        #expect(refused.contains("No source with that id."))
+        #expect(!RealtimeVoiceListen.isStarting("not json"))
+        #expect(!RealtimeVoiceListen.isStarting(#"{"starting":"yes"}"#))
+
+        // A recording is not narrated; text is.
+        #expect(RealtimeVoiceListen.hasOwnAudio(sourceType: "podcast"))
+        #expect(RealtimeVoiceListen.hasOwnAudio(sourceType: "Video"))
+        #expect(!RealtimeVoiceListen.hasOwnAudio(sourceType: "paper"))
+        #expect(!RealtimeVoiceListen.hasOwnAudio(sourceType: "book"))
+
+        // Coming back from the narration, the assistant opens on it.
+        func back(_ outcome: RealtimeVoiceAssistant.NarrationReturn.Outcome) -> String {
+            RealtimeVoiceAssistant.kickoff(
+                setting: .car,
+                returningFrom: .init(sourceID: "s9", title: "Mitochondria at Rest", outcome: outcome)
+            )
+        }
+        #expect(back(.finished).contains("Mitochondria at Rest"))
+        #expect(back(.finished).contains("finished playing in the car"))
+        #expect(back(.interrupted).contains("s9"))
+        #expect(back(.interrupted).contains("listen_to_source"))
+        #expect(back(.failed("The voice does not read German.")).contains("The voice does not read German."))
+        #expect(!RealtimeVoiceAssistant.kickoff(
+            setting: .phone,
+            returningFrom: .init(sourceID: "s9", title: "Mitochondria at Rest", outcome: .finished)
+        ).contains("in the car"))
+        #expect(RealtimeVoiceAssistant.kickoff(setting: .car, returningFrom: nil) == RealtimeVoiceAssistant.kickoff(setting: .car))
+    }
+
     @Test("The assistant knows the learner's picture and how to talk in the car")
     func assistantInstructions() {
         let sections = [
