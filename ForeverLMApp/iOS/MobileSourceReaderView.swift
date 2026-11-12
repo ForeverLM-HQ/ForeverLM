@@ -25,6 +25,10 @@ struct MobileSourceReaderView: View {
     /// Find inside this source: the bar's state, performed by whichever
     /// content view is on screen. See `MobileReaderFind.swift`.
     @StateObject private var find = MobileReaderFindState()
+    /// The top and bottom bars step aside while the learner reads on, and
+    /// come back on a scroll up (product owner, 2026-11-12: "it would be nicer
+    /// to have even more space to read").
+    @StateObject private var chrome = MobileReaderChromeState()
     /// A PDF-split book chapter whose document could not be fetched falls back to
     /// the text reader rather than a dead end.
     @State private var chapterPDFUnavailable = false
@@ -45,6 +49,8 @@ struct MobileSourceReaderView: View {
             .navigationTitle(readingSource.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { readerToolbar }
+            .toolbar(barsHidden ? .hidden : .automatic, for: .navigationBar, .bottomBar)
+            .statusBarHidden(barsHidden)
             .task {
                 // The catalog is how an EPUB chapter finds the rest of its book.
                 await viewModel.load(source: source, catalog: audio.allSources)
@@ -65,6 +71,8 @@ struct MobileSourceReaderView: View {
                 await audio.recordSourceActivity(sourceID: chapterID, kind: .reading)
             }
             .onDisappear {
+                // Whatever this reader pushes or returns to has its bars.
+                chrome.show()
                 viewModel.flushProgress()
                 audio.flushPlaybackProgress()
             }
@@ -154,6 +162,11 @@ struct MobileSourceReaderView: View {
             }
     }
 
+    /// The bars are kept while Find is open, since its bar sits under them.
+    private var barsHidden: Bool {
+        chrome.isHidden && !find.isPresented
+    }
+
     /// How long a chapter scrolled into stays on screen before it counts as
     /// read today.
     private static let chapterActivityDwell: UInt64 = 1_500_000_000
@@ -192,6 +205,7 @@ struct MobileSourceReaderView: View {
                 onCreateHighlight: { openHighlight(selection: $0) },
                 onOpenHighlight: { openHighlight(id: $0) },
                 find: find,
+                chrome: chrome,
                 onOpenCitedSource: { citedDestination = MobileCitedSourceDestination(source: $0) }
             )
         } else if source.isPDFBackedBookChapter, !chapterPDFUnavailable {
@@ -207,6 +221,7 @@ struct MobileSourceReaderView: View {
                 onCreateHighlight: { openHighlight(selection: $0) },
                 onOpenHighlight: { openHighlight(id: $0) },
                 find: find,
+                chrome: chrome,
                 onOpenCitedSource: { citedDestination = MobileCitedSourceDestination(source: $0) }
             )
         } else {
@@ -221,6 +236,7 @@ struct MobileSourceReaderView: View {
                     html: html,
                     initialScrollFraction: viewModel.initialScrollFraction,
                     find: find,
+                    chrome: chrome,
                     onScrollFractionChange: { fraction in
                         if viewModel.recordScrollFraction(fraction) {
                             Task { await audio.recordSourceConsumption(sourceID: source.id, kind: .reading) }
@@ -754,5 +770,77 @@ private struct MobileReaderChatSheet: View {
         .task {
             await audio.recordSourceActivity(sourceID: sourceID, kind: .chat)
         }
+    }
+}
+
+/// Whether the reader's bars are out of the way. The learner's own scroll down
+/// puts them away and a scroll up brings them back, as Safari does; reaching
+/// the top or the end of the source brings them back too. A position the
+/// reader restores, a Find jump or a chapter loading in moves nothing, since
+/// only a finger on the page (or its glide after) counts.
+@MainActor
+final class MobileReaderChromeState: ObservableObject {
+    @Published private(set) var isHidden = false
+
+    private var observations: [ObjectIdentifier: NSKeyValueObservation] = [:]
+    private var lastOffsets: [ObjectIdentifier: CGFloat] = [:]
+    /// How far the finger has gone one way since it last turned.
+    private var travel: CGFloat = 0
+    private var lastChange = Date.distantPast
+
+    /// How far a scroll goes before the bars move: a small wobble while
+    /// reading moves nothing.
+    private static let threshold: CGFloat = 36
+    /// The bars going or coming back shift the page's insets; the offset
+    /// change that makes is not the learner's scroll.
+    private static let settle: TimeInterval = 0.35
+
+    func show() { setHidden(false) }
+
+    /// Follows this scroll view; calling it again for the same one is free.
+    func watch(_ scrollView: UIScrollView) {
+        let id = ObjectIdentifier(scrollView)
+        guard observations[id] == nil else { return }
+        observations[id] = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
+            MainActor.assumeIsolated { self?.scrolled(scrollView) }
+        }
+    }
+
+    private func scrolled(_ scrollView: UIScrollView) {
+        let id = ObjectIdentifier(scrollView)
+        let offset = scrollView.contentOffset.y
+        let previous = lastOffsets[id]
+        lastOffsets[id] = offset
+        guard let previous else { return }
+        // VoiceOver reads the bars' controls; they never go away under it.
+        guard !UIAccessibility.isVoiceOverRunning else { return setHidden(false) }
+        guard scrollView.isTracking || scrollView.isDecelerating, !scrollView.isZooming,
+              Date().timeIntervalSince(lastChange) > Self.settle else {
+            travel = 0
+            return
+        }
+        let inset = scrollView.adjustedContentInset
+        let top = -inset.top
+        let end = scrollView.contentSize.height - scrollView.bounds.height + inset.bottom
+        if offset <= top + 1 || (end > top && offset >= end - 1) {
+            travel = 0
+            return setHidden(false)
+        }
+        let delta = offset - previous
+        if delta == 0 { return }
+        if (delta > 0) != (travel > 0) { travel = 0 }
+        travel += delta
+        if travel > Self.threshold {
+            setHidden(true)
+        } else if travel < -Self.threshold {
+            setHidden(false)
+        }
+    }
+
+    private func setHidden(_ hidden: Bool) {
+        guard isHidden != hidden else { return }
+        travel = 0
+        lastChange = Date()
+        withAnimation(.easeInOut(duration: 0.25)) { isHidden = hidden }
     }
 }

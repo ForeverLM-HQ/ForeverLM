@@ -21,6 +21,8 @@ struct MobileSourcePDFView: View {
     /// The reader's find bar, when it has one; the PDF view is its performer
     /// while the document is on screen. See `MobileReaderFind.swift`.
     var find: MobileReaderFindState? = nil
+    /// The reader's bars, put away while the document scrolls on.
+    var chrome: MobileReaderChromeState? = nil
     /// Opens the library paper a citation's card names.
     var onOpenCitedSource: ((MobileCloudSource) -> Void)? = nil
 
@@ -45,6 +47,7 @@ struct MobileSourcePDFView: View {
                     document: document,
                     highlights: highlights,
                     find: find,
+                    chrome: chrome,
                     referenceCards: referenceCards,
                     onCreateHighlight: onCreateHighlight,
                     onOpenHighlight: onOpenHighlight
@@ -268,6 +271,7 @@ private struct MobilePDFKitView: UIViewRepresentable {
     let document: PDFDocument
     let highlights: [SourceHighlight]
     let find: MobileReaderFindState?
+    let chrome: MobileReaderChromeState?
     let referenceCards: MobileReaderReferenceCards
     let onCreateHighlight: ((MobileReaderHighlightSelection) -> Void)?
     let onOpenHighlight: ((String) -> Void)?
@@ -296,7 +300,19 @@ private struct MobilePDFKitView: UIViewRepresentable {
         if view.document !== document {
             view.document = document
         }
+        // PDFKit's own scroll view, there once a document is.
+        if let chrome, let scrollView = Self.scrollView(in: view) {
+            chrome.watch(scrollView)
+        }
         context.coordinator.apply(highlights, to: document)
+    }
+
+    private static func scrollView(in view: UIView) -> UIScrollView? {
+        for subview in view.subviews {
+            if let scrollView = subview as? UIScrollView { return scrollView }
+            if let found = scrollView(in: subview) { return found }
+        }
+        return nil
     }
 
     final class Coordinator {

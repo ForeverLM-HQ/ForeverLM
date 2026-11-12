@@ -77,6 +77,8 @@ struct MobileReaderWebView: UIViewRepresentable {
     /// The reader's find bar, when it has one; this view is its performer
     /// while on screen. See `MobileReaderFind.swift`.
     var find: MobileReaderFindState? = nil
+    /// The reader's bars, put away while the text scrolls on.
+    var chrome: MobileReaderChromeState? = nil
     let onScrollFractionChange: (Double) -> Void
     /// The selection, and on a book page the chapter it is in.
     let onAskAboutSelection: (MobileReaderSelection, String?) -> Void
@@ -165,6 +167,7 @@ struct MobileReaderWebView: UIViewRepresentable {
         if let find, let performer = coordinator.findPerformer, find.performer !== performer {
             find.performer = performer
         }
+        chrome?.watch(webView.scrollView)
 
         if let book, coordinator.isBook {
             coordinator.book = book
