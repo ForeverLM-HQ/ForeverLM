@@ -140,18 +140,67 @@ enum AISubscription: String, CaseIterable, Identifiable, Hashable {
 /// learner has added ForeverLM to it. Nil when that cannot be read (signed
 /// out, offline), which the plan shows as unknown rather than "not connected".
 enum ConnectedAssistants {
+    /// One connected AI app as `/assistants` lists it: the name it registered
+    /// under and when it last refreshed its access.
+    struct Row: Equatable, Identifiable, Sendable {
+        let name: String
+        let lastActive: Date?
+        var id: String { name }
+    }
+
     static func fetch() async -> Set<AISubscription>? {
+        guard let rows = await fetchRows() else { return nil }
+        return Set(rows.compactMap { AISubscription.matching(clientName: $0.name) })
+    }
+
+    /// Every connected AI app, newest first; nil when the list cannot be read.
+    static func fetchRows() async -> [Row]? {
         guard let token = ManagedAI.requestSessionToken,
-              let url = URL(string: "https://plugin.\(MCPBrandDomains.current)/assistants") else { return nil }
+              let request = listRequest(token: token),
+              let reply = try? await URLSession.shared.data(for: request),
+              (reply.1 as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return rows(from: reply.0)
+    }
+
+    /// Ends every grant the app named `name` holds for this learner (the
+    /// gateway's `/assistants/revoke`): its next call is refused and it must
+    /// ask to be approved again. True when the gateway answered.
+    static func disconnect(name: String) async -> Bool {
+        guard let token = ManagedAI.requestSessionToken,
+              let request = disconnectRequest(name: name, token: token),
+              let reply = try? await URLSession.shared.data(for: request) else { return false }
+        return (reply.1 as? HTTPURLResponse)?.statusCode == 200
+    }
+
+    static func listRequest(token: String) -> URLRequest? {
+        guard let url = URL(string: "https://plugin.\(MCPBrandDomains.current)/assistants") else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        guard let reply = try? await URLSession.shared.data(for: request),
-              (reply.1 as? HTTPURLResponse)?.statusCode == 200,
-              let object = (try? JSONSerialization.jsonObject(with: reply.0)) as? [String: Any],
+        return request
+    }
+
+    static func disconnectRequest(name: String, token: String) -> URLRequest? {
+        guard let url = URL(string: "https://plugin.\(MCPBrandDomains.current)/assistants/revoke"),
+              let body = try? JSONSerialization.data(withJSONObject: ["name": name]) else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.httpBody = body
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return request
+    }
+
+    static func rows(from data: Data) -> [Row]? {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let rows = object["assistants"] as? [[String: Any]] else { return nil }
-        return Set(rows.compactMap { ($0["name"] as? String).flatMap(AISubscription.matching(clientName:)) })
+        return rows.compactMap { row in
+            guard let name = (row["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+            let seconds = (row["last_active_at"] as? NSNumber)?.doubleValue
+            return Row(name: name, lastActive: seconds.map { Date(timeIntervalSince1970: $0) })
+        }
     }
 }
 

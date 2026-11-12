@@ -113,6 +113,8 @@ final class FakeCloudKit: @unchecked Sendable {
         var created: Date
         var modified: Date
         var sequence: Int64 = 0
+        /// The user who saved it, as CloudKit's `lastModifiedUserRecordID` names them.
+        var modifiedBy: String? = nil
 
         /// What it costs its owner's quota, assets included.
         var byteCount: Int { (Array(encrypted.values) + Array(plain.values)).reduce(0) { $0 + $1.byteCount } }
@@ -348,7 +350,7 @@ final class FakeCloudKit: @unchecked Sendable {
                 }
                 let previous = held.records[record.id.recordName]
                 let stored = StoredRecord(recordType: record.recordType, encrypted: fields.encrypted, plain: fields.plain,
-                                          created: previous?.created ?? clock, modified: clock)
+                                          created: previous?.created ?? clock, modified: clock, modifiedBy: key.owner)
                 let saved = commitSave(stored, named: record.id.recordName, in: key)
                 return cloudRecord(saved, named: record.id.recordName, in: key, as: CloudZoneID(zone), desiredKeys: nil)
             }
@@ -952,6 +954,7 @@ private extension FakeCloudKit {
                     returned.changeTag = saved.changeTag
                     returned.creationDate = saved.created
                     returned.modificationDate = saved.modified
+                    returned.lastModifiedUserRecordName = CloudZoneID.currentUser
                     results.saved[id] = .success(returned)
                 case .delete(let key, let name):
                     commitDelete(named: name, in: key)
@@ -1043,7 +1046,7 @@ private extension FakeCloudKit {
             break
         }
         let stored = StoredRecord(recordType: record.recordType, encrypted: encrypted, plain: plain,
-                                  created: existing?.created ?? clock, modified: clock)
+                                  created: existing?.created ?? clock, modified: clock, modifiedBy: user)
         let growth = Int64(stored.byteCount - (existing?.byteCount ?? 0))
         if growth > 0, let quota = quotas[key.owner], usage(of: key.owner) + usageChange[key.owner, default: 0] + growth > quota {
             return .failure(CloudError(.quotaExceeded, message: "\(key.owner)'s iCloud storage is full"))
@@ -1093,7 +1096,7 @@ private extension FakeCloudKit {
         guard let held = zones[key] else { return }
         let previous = held.records[CloudRecordID.zoneShareRecordName]
         commitSave(StoredRecord(recordType: CloudRecordID.shareRecordType, encrypted: [:], plain: [:],
-                                created: previous?.created ?? clock, modified: clock),
+                                created: previous?.created ?? clock, modified: clock, modifiedBy: key.owner),
                    named: CloudRecordID.zoneShareRecordName, in: key)
         if held.shareURL == nil {
             tagCounter += 1
@@ -1286,6 +1289,9 @@ private extension FakeCloudKit {
         record.changeTag = stored.changeTag
         record.creationDate = stored.created
         record.modificationDate = stored.modified
+        // CloudKit names the reader's own saves as the current user, anyone else's by record name.
+        let reader = viewer ?? key.owner
+        record.lastModifiedUserRecordName = stored.modifiedBy.map { $0 == reader ? CloudZoneID.currentUser : $0 }
         if stored.recordType == CloudRecordID.shareRecordType {
             record.share = shareInfo(key, viewer: viewer ?? key.owner)
         }

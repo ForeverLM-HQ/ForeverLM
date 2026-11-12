@@ -232,6 +232,10 @@ struct MCPSettingsDetailView: View {
                     }
                 }
 
+                if !account.isAppLocked {
+                    ConnectedAIAppsSection()
+                }
+
                 // The account button's dot, bottom left of the main window.
                 // Its switch lives here, beside the connection it reports on.
                 GroupBox {

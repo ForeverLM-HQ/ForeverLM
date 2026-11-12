@@ -134,6 +134,27 @@ struct GettingStartedTests {
         #expect(AISubscription.matching(clientName: "ForeverLM live reviewer verification") == nil)
     }
 
+    /// Security audit, 2026-11-12: a connected AI app could not be
+    /// disconnected. Settings › MCP lists them and ends one's access through
+    /// the gateway's `/assistants/revoke`, under the learner's own session.
+    @Test("Connected AI apps are read from /assistants and disconnected by name")
+    func connectedAssistantsDisconnect() throws {
+        let data = Data(#"{"assistants":[{"name":"Claude","last_active_at":1762900000},{"name":"  "},{"name":"Grok"}]}"#.utf8)
+        let rows = try #require(ConnectedAssistants.rows(from: data))
+        #expect(rows.map(\.name) == ["Claude", "Grok"])
+        #expect(rows.first?.lastActive == Date(timeIntervalSince1970: 1_762_900_000))
+        #expect(rows.last?.lastActive == nil)
+        #expect(ConnectedAssistants.rows(from: Data("not json".utf8)) == nil)
+
+        let request = try #require(ConnectedAssistants.disconnectRequest(name: "Claude", token: "session-token"))
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/assistants/revoke")
+        #expect(request.url?.host?.hasPrefix("plugin.") == true)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer session-token")
+        let body = try #require(request.httpBody.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: String] })
+        #expect(body == ["name": "Claude"])
+    }
+
     @Test("Every connector walkthrough clip films the steps the plan shows now")
     func connectorWalkthroughsAreCurrent() throws {
         let folder = URL(fileURLWithPath: #filePath)

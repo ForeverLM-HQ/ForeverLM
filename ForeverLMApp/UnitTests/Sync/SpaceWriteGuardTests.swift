@@ -129,6 +129,9 @@ struct SpaceRootPolicyTests {
         // A member's own save of the root reads back as the current user, and is still not the owner's.
         #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: CloudZoneID.currentUser, zoneOwner: "_owner", isOwned: false, me: "_member"))
         #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: "_member", zoneOwner: "_owner", isOwned: false, me: "_member"))
+        // A root whose saver is not named is nobody's to trust.
+        #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: nil, zoneOwner: "_owner", isOwned: false, me: "_member"))
+        #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: nil, zoneOwner: CloudZoneID.currentUser, isOwned: true, me: "_owner"))
     }
 
     @Test("An owned space takes its own saves and no member's")

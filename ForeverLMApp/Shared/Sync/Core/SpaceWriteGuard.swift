@@ -142,9 +142,9 @@ enum SpaceRootPolicy {
 
     /// Whether a root saved by `modifiedBy` is the owner's. `zoneOwner` is the zone's owner name
     /// (`CloudZoneID.currentUser` in the owner's own database); `me` is this account's user record
-    /// name. Nil `modifiedBy` (a transport that does not say) is taken as the owner's.
+    /// name. A root whose saver is not known is refused: CloudKit names one on every record it serves.
     static func acceptsRoot(modifiedBy: String?, zoneOwner: String, isOwned: Bool, me: String?) -> Bool {
-        guard let modifiedBy else { return true }
+        guard let modifiedBy, !modifiedBy.isEmpty else { return false }
         if modifiedBy == zoneOwner { return true }
         if isOwned { return modifiedBy == CloudZoneID.currentUser || (me != nil && modifiedBy == me) }
         return false
