@@ -1034,3 +1034,113 @@ struct PaperReferenceRequeueTests {
         #expect(try store.paperReferenceReadCandidates(limit: 5).map(\.sourceID) == ["p"])
     }
 }
+
+@Suite("Paper reference lists: Authors (year) Title lists and their citations (parser 4)")
+struct PaperReferenceAuthorYearStyleTests {
+    /// A list as EMBO and Springer set it: the year in brackets after the authors, books
+    /// that end on a publisher, a lone author, and a line of authors read with no spaces.
+    private let list = """
+    References
+    Alder SN, Brook M, Marsh RA (2026) Rate indicators and the search for
+    slower clocks. Front Sci https://doi.org/10.1234/fsci.2026.1821393
+    Birch B, Fenn O, Rowan N, Sorrel P, Marsh RA (2026)
+    Telling normal from slow mice by plasma features.
+    Geroscience 48:7175–7190
+    Carrow L (1871) Through the hedge. Mallow
+    & Co., London
+    Elm A, Bonner BN, Olsen P, Heddle A
+    (2000a) Age and breed pattern of diagnoses in insured dogs
+    during 1996. VetRec 146:551–557
+    Gorse SJ (1981) The mismeasure of moss. W. W.
+    Norden
+    Harle CB, Futch AB, Greer CW (1990)
+    Telomeres shorten during ageing of fibroblasts. Nature 345:458–460
+    HarrowDE,StrongR,ReifP,RosenN,
+    Korst R, Fern E, Flurk K et al (2023)
+    Two compounds extend lifespan in male mice. Geroscience
+    46:795–816
+    Marsh RA (2016) Not your father’s, or mother’s,
+    rodent: moving beyond one strain. Neuron 91:1185–1186
+    """
+
+    @Test("Every entry is its own: after a book, after a year that ends its line, a lone author, glued authors")
+    func splitsEveryEntry() {
+        let entries = PaperReferenceParser.entries(inPaperText: list)
+        #expect(entries.map(\.label) == [
+            "Alder 2026", "Birch 2026", "Carrow 1871", "Elm 2000a", "Gorse 1981", "Harle 1990", "Harrow 2023", "Marsh 2016",
+        ])
+        // The title stays with its authors where the line ended on the year.
+        #expect(entries[1].text.hasSuffix("Telling normal from slow mice by plasma features. Geroscience 48:7175–7190"))
+        #expect(entries[2].text == "Carrow L (1871) Through the hedge. Mallow & Co., London")
+        #expect(entries[6].text.hasPrefix("Harrow DE, Strong R, Reif P, Rosen N, Korst R"))
+    }
+
+    @Test("The editors of a chapter's book open no entry of their own")
+    func editorsStayInTheirEntry() {
+        let lines = [
+            "Wester, K.R. (2000). Control of Energy Expenditure. In Endotext, K.R.",
+            "Feld, B. Anders, M.R. Black, A. Boyd, G. Chrest, E. Corp, W.W. de",
+            "Herd, K. Dhar, K. Dunn, J. Hof, et al., eds.",
+            "Fry, E., Detten, L., and Kirsch, C. (2009). The awakening response",
+            "(CAR): facts and future directions. Int J Psychophysiol 72, 67-73.",
+        ]
+        #expect(PaperReferenceParser.splitIntoEntries(lines).count == 2)
+    }
+
+    @Test("A lone author before a bracketed year is the entry's first author, whatever commas the title has")
+    func loneAuthorHead() {
+        #expect(PaperReferenceSummary.firstAuthorHead(in: "Marsh RA (2016) Not your father’s, or mother’s, rodent") == "Marsh RA")
+        #expect(ReferenceEntryShape.opensWithAuthor("Gorse SJ (1981) The mismeasure of moss. W. W."))
+        #expect(!ReferenceEntryShape.opensWithAuthor("Richard A Marsh"))
+        #expect(ReferenceEntryShape.unglued("HarrowDE,StrongR,ReifP,RosenN,") == "Harrow DE, Strong R, Reif P, Rosen N,")
+        #expect(ReferenceEntryShape.unglued("https://doi.org/10.1234/x,y") == "https://doi.org/10.1234/x,y")
+    }
+
+    @Test("A paper and its preprint both fit; the one whose volume the entry prints is the one cited")
+    func publishedOverPreprint() {
+        let entry = "Bell DW, Casp A, Cork DL et al (2022) PaceMark, a methylation biomarker of the pace of aging. eLife 11:e73420"
+        let published = SlideCitationService.ResolvedPaper(
+            doi: "10.7554/elife.73420", title: "PaceMark, a methylation biomarker of the pace of aging",
+            journal: "eLife", year: "2022", authors: "Bell; Casp", volume: "11"
+        )
+        let preprint = SlideCitationService.ResolvedPaper(
+            doi: "10.1101/2021.08.30.21262858", title: "PaceMark, a methylation biomarker of the pace of aging",
+            journal: nil, year: "2021", authors: "Bell; Casp"
+        )
+        #expect(PaperReferenceCatalogMatch.accepted(entry: entry, among: [preprint, published])?.doi == "10.7554/elife.73420")
+        // Two issued records that both print their volume still settle nothing.
+        let other = SlideCitationService.ResolvedPaper(
+            doi: "10.7554/elife.99999", title: "PaceMark, a methylation biomarker of the pace of aging",
+            journal: "eLife", year: "2022", authors: "Bell; Casp", volume: "11"
+        )
+        #expect(PaperReferenceCatalogMatch.accepted(entry: entry, among: [published, other]) == nil)
+    }
+
+    @Test("The citation a linked year belongs to is read from the words before it, however the PDF broke them")
+    func citationUnderALink() {
+        func cited(_ linked: String, _ context: String) -> PaperCitationMarker.AuthorYear? {
+            PDFReferenceEntries.authorYearCitation(linked: linked, endingContext: context)
+        }
+        #expect(cited("2022", "patterns have begun to\nemerge (Bell et al, 2022") == .init(surname: "Bell", year: "2022", suffix: nil))
+        #expect(cited("2023", "(Lopez-\nOrtin et al, 2013, 2023")?.surname == "Lopez-Ortin")
+        #expect(cited("2023", "i.e., fisetin (Harri-\nson et al, 2023")?.surname == "Harrison")
+        #expect(cited("2026", "plasma (Alder et al, 2026;Birchetal,\n2026")?.surname == "Birch")
+        #expect(cited("b", "insured dogs (Elm et al, 2000a, b") == .init(surname: "Elm", year: "2000", suffix: "b"))
+        #expect(cited("1871", "as the Red Queen said (Carrow, 1871")?.year == "1871")
+        #expect(cited("3", "see Figure 3") == nil)
+    }
+
+    @Test("A citation names an entry by its year and surname, one letter of a long surname forgiven")
+    func citationNamesEntry() {
+        let sitig = PaperCitationMarker.AuthorYear(surname: "Sitig", year: "2016", suffix: nil)
+        #expect(PDFReferenceEntries.authorYearCitation(sitig, names: "Sittig 2016"))
+        #expect(!PDFReferenceEntries.authorYearCitation(sitig, names: "Sittig 2017"))
+        #expect(!PDFReferenceEntries.authorYearCitation(sitig, names: "Baker 2016"))
+        #expect(PDFReferenceEntries.authorYearCitation(sitig, names: "Baker 2016", bySurname: false))
+        let lee = PaperCitationMarker.AuthorYear(surname: "Lee", year: "2016", suffix: nil)
+        #expect(!PDFReferenceEntries.authorYearCitation(lee, names: "Lei 2016"))
+        let second = PaperCitationMarker.AuthorYear(surname: "Elm", year: "2000", suffix: "b")
+        #expect(PDFReferenceEntries.authorYearCitation(second, names: "Elm 2000b"))
+        #expect(!PDFReferenceEntries.authorYearCitation(second, names: "Elm 2000a"))
+    }
+}

@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Citations written as a name and a year open their reference.** In a paper that cites "(Belsky et al, 2022)" and links only the year (EMBO, Springer), a click on the year now shows the reference where it is cited, with its link, **Add to Library** and **Open**, as a numbered citation always did. The reference list read when a paper is added is also complete for these papers: books, single-author entries and entries after a book were merged into their neighbours or left out, and a paper that also exists as a preprint was left without a link. Every paper's list is read again once, in the background, after the update.
 - **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.

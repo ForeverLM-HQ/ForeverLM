@@ -227,6 +227,13 @@ struct PaperReferenceSummary: Equatable, Sendable {
     static func firstAuthorHead(in text: String) -> String? {
         let head = text.replacingOccurrences(of: #"^\s*[\[(]?\d{1,4}[.\])]?\s*"#, with: "", options: .regularExpression)
         let comma = head.firstIndex(of: ",")
+        // A lone author before the year in brackets ("Miller RA (2016) Not your father’s, or
+        // mother’s, rodent …"): the first comma is the title's.
+        if let lone = head.range(
+            of: #"^\p{L}[\p{L}'\x{2019}\- ]{1,40}\s\p{Lu}{1,3}(?=\s\((?:1[5-9]|20)\d{2}[a-z]?\))"#, options: .regularExpression
+        ) {
+            return String(head[lone])
+        }
         if let stop = head.range(of: #"\p{L}{2,}\s\p{Lu}{1,3}\.\s"#, options: .regularExpression),
            comma.map({ stop.upperBound <= $0 }) ?? true {
             return String(head[..<head.index(before: stop.upperBound)])

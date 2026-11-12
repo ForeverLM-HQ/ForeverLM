@@ -336,7 +336,7 @@ actor PDFReferenceEntries {
                 }
                 guard let destination, let reached = landing(destination) else { continue }
                 var target = reached.landing
-                if let band = reached.band {
+                band: if let band = reached.band {
                     // A band names a line but not its column: the link's own
                     // number says which entry on that line it means.
                     let boxes = boxesByPage[target.pageIndex] ?? {
@@ -344,9 +344,19 @@ actor PDFReferenceEntries {
                         boxesByPage[target.pageIndex] = made
                         return made
                     }()
-                    let number = document.page(at: index).flatMap { citedNumber(under: bounds, on: $0) }
+                    let citingPage = document.page(at: index)
+                    let number = citingPage.flatMap { citedNumber(under: bounds, on: $0) }
+                    let authorYear = citingPage.flatMap { authorYearCitation(under: bounds, on: $0) }
                     guard let page = document.page(at: target.pageIndex),
-                          let start = bandEntryStart(in: band, citing: number, on: page, boxes: boxes) else { continue }
+                          let start = bandEntryStart(in: band, citing: number, authorYear: authorYear, on: page, boxes: boxes)
+                    else {
+                        // A band that starts inside the page may be an entry's own corner set
+                        // wide (a list in one column): it lands where it says, as it always
+                        // did. Not for an author-year citation no column answers to, where
+                        // that corner was seen landing on a paragraph of the article.
+                        if reached.namesColumn, authorYear == nil { break band }
+                        continue
+                    }
                     target = Landing(pageIndex: target.pageIndex, point: CGPoint(x: boxes[start].minX, y: boxes[start].maxY))
                 }
                 targets[index, default: []].append(Target(bounds: bounds, landing: target))
@@ -360,6 +370,8 @@ actor PDFReferenceEntries {
     private struct Destination {
         let landing: Landing
         let band: ClosedRange<CGFloat>?
+        /// Whether the landing's left edge is inside the page, so it may name a column itself.
+        var namesColumn = false
     }
 
     /// The number a citation link prints: the one digit run under it, nil for
@@ -371,15 +383,61 @@ actor PDFReferenceEntries {
         return Int(runs[0])
     }
 
+    /// The author-year citation a link is part of: "Belsky et al, 2022" for a
+    /// link over its "2022", "Lopez-Otin et al, 2013, 2023" read to the year
+    /// the link covers, and "Egenvall et al, 2000a, b" for a link over the
+    /// "b" alone. Read from the words that lead up to the link on its page;
+    /// nil for a link that prints no year (a number, a figure).
+    nonisolated static func authorYearCitation(under bounds: CGRect, on page: PDFPage) -> PaperCitationMarker.AuthorYear? {
+        guard let selection = page.selection(for: bounds), selection.numberOfTextRanges(on: page) > 0,
+              let text = page.string as NSString? else { return nil }
+        let range = selection.range(at: 0, on: page)
+        guard range.location != NSNotFound, range.length > 0, NSMaxRange(range) <= text.length else { return nil }
+        let lead = 160
+        let start = max(0, range.location - lead)
+        let context = text.substring(with: NSRange(location: start, length: NSMaxRange(range) - start))
+        return authorYearCitation(linked: text.substring(with: range), endingContext: context)
+    }
+
+    /// Pure: the citation whose year (or year letter) is `linked`, the last
+    /// words of `context`, which ends with it.
+    nonisolated static func authorYearCitation(linked: String, endingContext context: String) -> PaperCitationMarker.AuthorYear? {
+        let token = linked.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        // A surname the line broke is one word: at its own hyphen ("Lopez-", "Otin"), or
+        // hyphenated by the typesetter ("Harri-", "son"). A justified line may read with no
+        // spaces at all ("Badenochetal,").
+        let words = context
+            .replacingOccurrences(of: #"(?<=\p{L})-\s*\n\s*(?=\p{Lu})"#, with: "-", options: .regularExpression)
+            .replacingOccurrences(of: #"(?<=\p{Ll})-\s*\n\s*(?=\p{Ll})"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"(?<=\p{Ll})etal(?=[,.;)\s]|$)"#, with: " et al", options: .regularExpression)
+            .components(separatedBy: .newlines).joined(separator: " ")
+        let cited = PaperCitationMarker.authorYear(in: words)
+        if token.range(of: #"^(?:1[5-9]|20)\d{2}[a-z]?$"#, options: .regularExpression) != nil {
+            let year = String(token.prefix(4))
+            let suffix = token.count > 4 ? String(token.dropFirst(4)) : nil
+            return cited.last { $0.year == year && $0.suffix == suffix }
+        }
+        // "2000a, b": the letter alone is linked, and names the same author's other paper
+        // of that year.
+        if token.count == 1, let letter = token.first, letter.isLowercase, let last = cited.last, last.suffix != nil,
+           words.range(of: #"\d{4}[a-z](?:\s*,\s*[a-z])*$"#, options: .regularExpression) != nil {
+            return PaperCitationMarker.AuthorYear(surname: last.surname, year: last.year, suffix: String(letter))
+        }
+        return nil
+    }
+
     /// The first glyph of the entry a page-wide band points at. Each column
     /// with a line in the band offers one, and the one whose entry is
-    /// numbered as the link is wins. With no number to go by, or no line so
-    /// numbered, there is none: a band cannot tell an entry from a figure's
-    /// caption or a paragraph, and text from the wrong place is worse than
-    /// nothing.
+    /// numbered as the link is wins; for an author-year citation, the one
+    /// whose entry opens with that author and prints that year (product
+    /// owner, 2026-11-11: "I can click on them and then see inline where it
+    /// came from"). With neither to go by, or no line so opened, there is
+    /// none: a band cannot tell an entry from a figure's caption or a
+    /// paragraph, and text from the wrong place is worse than nothing.
     private nonisolated static func bandEntryStart(
         in band: ClosedRange<CGFloat>,
         citing number: Int?,
+        authorYear: PaperCitationMarker.AuthorYear?,
         on page: PDFPage,
         boxes: [CGRect]
     ) -> Int? {
@@ -405,11 +463,10 @@ actor PDFReferenceEntries {
                 columns.append(start)
             }
         }
-        guard let number else { return nil }
         let text = (page.string ?? "") as NSString
         // Its number is the digits it opens with ("13." or "[13]"); a PDF may
         // read the line with no space after them.
-        return columns.first { column in
+        if let number, let numbered = columns.first(where: { column in
             var position = column.offset
             while position < text.length, [0x5B, 0x28].contains(text.character(at: position)) { position += 1 }
             var digits = ""
@@ -418,7 +475,60 @@ actor PDFReferenceEntries {
                 position += 1
             }
             return digits == String(number)
-        }?.offset
+        }) {
+            return numbered.offset
+        }
+        guard let authorYear else { return nil }
+        // The entry's label as the stored list gives it ("Belsky 2022"), read from the words
+        // the column goes on with. Exactly one column may answer to the citation.
+        let labelled: [(offset: Int, label: String, opens: Bool)] = columns.compactMap { column in
+            let length = min(700, text.length - column.offset)
+            guard length > 0 else { return nil }
+            let lines = text.substring(with: NSRange(location: column.offset, length: length))
+                .components(separatedBy: .newlines)
+                .map { ReferenceEntryShape.unglued($0.trimmingCharacters(in: .whitespaces)) }
+            guard let label = PaperReferenceParser.authorYearLabel(of: lines.joined(separator: " ")) else { return nil }
+            return (column.offset, label, ReferenceEntryShape.opensWithAuthor(lines.first ?? ""))
+        }
+        let named = labelled.filter { authorYearCitation(authorYear, names: $0.label) }
+        if named.count == 1 { return named[0].offset }
+        guard named.isEmpty else { return nil }
+        // The citation's surname may not be readable where it is cited: set on the line or
+        // the column before its year, with a running head read in between. The band still
+        // names the line, so the one column whose line opens an entry of that year is it.
+        let dated = labelled.filter { candidate in
+            candidate.opens && authorYearCitation(authorYear, names: candidate.label, bySurname: false)
+        }
+        return dated.count == 1 ? dated[0].offset : nil
+    }
+
+    /// Whether an entry labelled "Sittig 2016" is the paper the citation names: the same year
+    /// (and year letter, when the citation prints one) and the same surname, give or take one
+    /// letter of a surname of five or more: a PDF's text may drop one of a ligature's letters
+    /// where the paper is cited ("Sitig et al, 2016"). `bySurname` false compares the year alone.
+    nonisolated static func authorYearCitation(
+        _ citation: PaperCitationMarker.AuthorYear,
+        names label: String,
+        bySurname: Bool = true
+    ) -> Bool {
+        if citation.matches(label: label) { return true }
+        guard let space = label.lastIndex(of: " ") else { return false }
+        let tail = label[label.index(after: space)...]
+        guard tail.prefix(4) == citation.year else { return false }
+        if let suffix = citation.suffix, tail.dropFirst(4) != suffix { return false }
+        guard bySurname else { return true }
+        func letters(_ value: some StringProtocol) -> [Character] {
+            Array(value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).filter(\.isLetter))
+        }
+        let printed = letters(label[..<space])
+        let cited = letters(citation.surname)
+        guard min(printed.count, cited.count) >= 5, abs(printed.count - cited.count) <= 1 else { return false }
+        // One letter dropped, added or changed.
+        let (short, long) = printed.count <= cited.count ? (printed, cited) : (cited, printed)
+        var lead = 0
+        while lead < short.count, short[lead] == long[lead] { lead += 1 }
+        let rest = short.count == long.count ? lead + 1 : lead
+        return lead == short.count || Array(short[rest...]) == Array(long[(lead + 1)...])
     }
 
     /// The tallest page-wide rectangle that still names a line: a body line is
@@ -457,19 +567,24 @@ actor PDFReferenceEntries {
         default: return nil
         }
         guard let left = corner.left, let top = corner.top else { return nil }
-        if left > edge + 1 { return Destination(landing: Landing(pageIndex: pageIndex, point: CGPoint(x: left, y: top)), band: nil) }
-        // Springer Nature sets every entry's destination as a rectangle the
-        // width of the page and the height of one line (`/FitR 0 747 596 736`,
-        // its bottom and top written either way round): no column, but the
-        // line is named, so the entry is the one whose first line sits in it,
-        // in whichever column that is (`bandEntryStart`). A `/FitH` or `/XYZ`
-        // at the edge names no band and stays rejected.
-        guard String(cString: kind) == "FitR", let first = number(3), let second = number(5), let right = number(4),
-              right >= crop.maxX - 1, abs(first - second) <= 2 * fullWidthLineHeight, first != second else { return nil }
-        return Destination(
-            landing: Landing(pageIndex: pageIndex, point: CGPoint(x: edge, y: max(first, second))),
-            band: min(first, second)...max(first, second)
-        )
+        // Springer Nature sets every entry's destination as a rectangle most of the page wide
+        // and one line high (`/FitR 0 747 596 736`, `/FitR 0 215 518 204`, `/FitR 78 249 596
+        // 238`, its bottom and top written either way round): no column, but the line is
+        // named, so the entry is the one whose first line sits in it, in whichever column
+        // that is (`bandEntryStart`).
+        if String(cString: kind) == "FitR", let first = number(3), let second = number(5), let right = number(4),
+           right - left >= 0.6 * crop.width, abs(first - second) <= 2 * fullWidthLineHeight, first != second {
+            let inside = left > edge + 1
+            return Destination(
+                landing: Landing(pageIndex: pageIndex, point: CGPoint(x: inside ? left : edge, y: max(first, second))),
+                band: min(first, second)...max(first, second),
+                namesColumn: inside
+            )
+        }
+        // Otherwise only a destination with a left edge inside the page names a place: a
+        // `/FitH` or `/XYZ` at the page's edge names no band and stays rejected.
+        guard left > edge + 1 else { return nil }
+        return Destination(landing: Landing(pageIndex: pageIndex, point: CGPoint(x: left, y: top)), band: nil)
     }
 
     /// The catalog's named destinations: the `/Names /Dests` name tree, and
@@ -1147,10 +1262,56 @@ extension PDFReferenceEntries {
 enum ReferenceEntryShape {
     /// A line that opens an author-year entry: a surname, then either a comma and initials
     /// ("Smith, J.", "van der Berg, A.B.", "Lee, K-H.") or initials without the comma
-    /// ("Albamonte MS,", "Allen JF,").
+    /// ("Albamonte MS,", "Allen JF,"), or a lone author's initials and the year in brackets
+    /// ("Gould SJ (1981)", a book's entry in EMBO's style).
     static let authorYearStart: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"^(?:\p{Lu}[\p{L}'\x{2019}\-]+(?:\s(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du|\p{Lu}[\p{L}'\x{2019}\-]+)){0,3},\s+\p{Lu}[.\p{L}\-]{0,3}(?:[\s.,]|$)|(?:(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du)\s)*\p{Lu}[\p{L}'\x{2019}\-]+\s\p{Lu}{1,3}[,.])"#
+        pattern: #"^(?:\p{Lu}[\p{L}'\x{2019}\-]+(?:\s(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du|\p{Lu}[\p{L}'\x{2019}\-]+)){0,3},\s+\p{Lu}[.\p{L}\-]{0,3}(?:[\s.,]|$)|(?:(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du)\s)*\p{Lu}[\p{L}'\x{2019}\-]+\s\p{Lu}{1,3}(?:[,.]|\s\((?:1[5-9]|20)\d{2}[a-z]?\)))"#
     )
+
+    /// A line of authors a justified column set so tight that the PDF's text has no spaces
+    /// left in it ("HarrisonDE,StrongR,ReifsnyderP,RosenthalN,"): surnames run into their
+    /// initials, commas into the next surname.
+    private static let gluedAuthors: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"^(?:\p{Lu}[\p{Ll}'\x{2019}\-]+\p{Lu}{1,3},){2,}$"#
+    )
+
+    /// A glued line of authors with its spaces put back ("Harrison DE, Strong R, …"); any
+    /// other line as it is.
+    static func unglued(_ line: String) -> String {
+        guard !line.contains(" "),
+              gluedAuthors?.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil else { return line }
+        return line
+            .replacingOccurrences(of: #"(?<=\p{Ll})(?=\p{Lu}{1,3},)"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #",(?=\p{Lu})"#, with: ", ", options: .regularExpression)
+    }
+
+    /// The year an author-year list prints straight after the authors, in brackets:
+    /// "… Miller RA (2026)", "… Hannon E et al (2022)", "Smith, J. (2019)". Not the year a
+    /// numbered list closes an entry on ("Nature 521, 436–444 (2015).").
+    private static let yearAfterAuthors: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"(?:\p{Lu}[\p{L}'\x{2019}\-]+\s\p{Lu}{1,3}|\p{Lu}\.|\bet\sal\.?),?\s*\((?:1[5-9]|20)\d{2}[a-z]?\)"#
+    )
+
+    static func printsYearAfterAuthors(_ line: String) -> Bool {
+        yearAfterAuthors?.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+    }
+
+    /// Whether a line ends on that year, so what follows is the entry's title, not a new entry.
+    static func endsWithYearAfterAuthors(_ line: String) -> Bool {
+        guard let expression = yearAfterAuthors else { return false }
+        let range = NSRange(line.startIndex..., in: line)
+        return expression.matches(in: line, range: range).contains { NSMaxRange($0.range) == range.length }
+    }
+
+    /// A line that leaves the entry open whatever came before: the editors of a chapter's
+    /// book ("… In", "… In Endotext, K.R."), or a list of names still running.
+    static func leavesEntryOpen(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.range(of: #"(?:[,:;&]|\b(?:[Ii]n|and|eds?\.?))$"#, options: .regularExpression) != nil { return true }
+        // A name's initials end a line inside a list of names, as in `looksFinished`.
+        return !trimmed.hasSuffix("U.S.A.")
+            && trimmed.range(of: #"(?:^|[\s,])\p{Lu}\.(?:-?\p{Lu}\.)*$"#, options: .regularExpression) != nil
+    }
 
     /// A line that opens an entry with its first author's initials before the surname, as
     /// machine-learning papers and Science print them ("J. Abramson, J. Adler, …",
@@ -1161,6 +1322,7 @@ enum ReferenceEntryShape {
     )
 
     static func opensWithAuthor(_ line: String) -> Bool {
+        let line = unglued(line)
         let range = NSRange(line.startIndex..., in: line)
         return [authorYearStart, initialsFirstStart].contains { opener in
             opener?.firstMatch(in: line, range: range) != nil

@@ -122,8 +122,16 @@ enum PaperReferenceCatalogMatch {
     ) -> SlideCitationService.ResolvedPaper? {
         let matching = records.filter { accepts($0, entry: entry) }
         let byIdentity = Dictionary(grouping: matching, by: \.identityKey)
-        guard byIdentity.count == 1 else { return nil }
-        return byIdentity.values.first?.first
+        if byIdentity.count == 1 { return byIdentity.values.first?.first }
+        // A paper and its preprint carry one title, one first author and years a year apart, so
+        // both are accepted ("DunedinPACE …" in eLife 11 and on medRxiv). The entry says which
+        // it cites: the one whose volume it prints. Still exactly one, or none.
+        let issued = Dictionary(
+            grouping: matching.filter { record in record.volume.map { printsToken($0, in: entry) } ?? false },
+            by: \.identityKey
+        )
+        guard issued.count == 1 else { return nil }
+        return issued.values.first?.first
     }
 
     static func accepts(_ record: SlideCitationService.ResolvedPaper, entry: String) -> Bool {
@@ -244,11 +252,11 @@ enum PaperCitationMarker {
     }
 
     private static let authorYearExpression: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"(\p{Lu}[\p{L}'\x{2019}\-]+)(?:\s+(?:et\s+al\.?|and\s+\p{Lu}[\p{L}'\x{2019}\-]+|&\s*\p{Lu}[\p{L}'\x{2019}\-]+))?,?\s*\(?((?:19|20)\d{2})([a-z])?\)?"#
+        pattern: #"(\p{Lu}[\p{L}'\x{2019}\-]+)(?:\s+(?:et\s+al\.?|and\s+\p{Lu}[\p{L}'\x{2019}\-]+|&\s*\p{Lu}[\p{L}'\x{2019}\-]+))?,?\s*\(?((?:1[5-9]|20)\d{2})([a-z])?\)?"#
     )
 
     private static let followingYearExpression: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"^\s*[,;]\s*((?:19|20)\d{2})([a-z])?"#
+        pattern: #"^\s*[,;]\s*((?:1[5-9]|20)\d{2})([a-z])?"#
     )
 
     /// The author-year citations in a marker: "Smith et al., 2019", "Smith and Jones (2019)",

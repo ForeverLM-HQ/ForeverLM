@@ -28,7 +28,11 @@ enum PaperReferenceParser {
     /// …" was "metabolism 1970"); OpenAlex is searched by the printed title and a record PubMed
     /// alone indexes links to PubMed. Every list the app read under an older version is read
     /// again, and its entries left without a link are asked of the catalogs again.
-    static let version = 3
+    /// 4 (2026-11-11): an author-year list set as "Authors (year) Title" (EMBO, Springer) is
+    /// split at every entry: a lone author's entry ("Gould SJ (1981)"), the entry after a book's
+    /// (which ends on its publisher, not a page), a line of authors the PDF reads with no
+    /// spaces, and a title no longer cut from its authors where the line ends on the year.
+    static let version = 4
 
     struct Entry: Equatable, Sendable {
         /// The citation number of a numbered list; the position of an author-year one.
@@ -79,7 +83,7 @@ enum PaperReferenceParser {
     static func bodyLines(of text: String) -> [String] {
         let pages: [[String]] = text.components(separatedBy: "\u{000C}").map { page in
             page.components(separatedBy: .newlines)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .map { ReferenceEntryShape.unglued($0.trimmingCharacters(in: .whitespaces)) }
                 .filter { !$0.isEmpty }
         }
         let headDepth = 3
@@ -407,34 +411,64 @@ enum PaperReferenceParser {
         // The last lines of the entry being read are all the checks below look at. They are kept
         // apart: holding the whole entry while appending to it would copy it every line.
         var tail: [String] = []
-        for line in lines {
+        // Whether the entry being read has printed its year after its authors ("Authors (year)
+        // Title", the author-year style of EMBO and Springer). Its authors are then behind it,
+        // so a line that opens with an author opens the next entry, whether or not the entry
+        // looks finished: a book's ends on its publisher ("W. W. Norton"), not on a page.
+        var pastYear = false
+        for (index, line) in lines.enumerated() {
             // The article-type tag a journal prints at the top of each page ("Article") is
             // no part of the entry it falls inside.
             if pageTags.contains(line) { continue }
             if groups.isEmpty {
                 groups.append([line])
                 tail = [line]
+                pastYear = ReferenceEntryShape.printsYearAfterAuthors(line)
                 continue
             }
             // A line of fewer than three words ("Article", a section tag a journal prints on
             // every page) does not open an entry on the strength of the one before it ending.
             let opensByEnding = endsWithParenthesisedYear(tail)
+                && !(tail.last.map(ReferenceEntryShape.endsWithYearAfterAuthors) ?? false)
                 && line.first?.isLetter == true
                 && line.split(whereSeparator: \.isWhitespace).count >= 3
             // Authors printed with their first names (natbib's plain style: "Karel HM van Wely,
             // Jelto Swaving, …") open an entry only after one that closed on its year or its
             // address, since a line inside an author list opens the same way.
             let opensByFullName = endsWithYearOrAddress(tail) && opensWithFullName(line)
-            if looksFinished(tail), opensWithAuthor(line) || opensByEnding || opensByFullName {
+            let opensAfterYear = pastYear && opensWithAuthor(line)
+                && !(tail.last.map(ReferenceEntryShape.leavesEntryOpen) ?? false)
+                && reachesYearAsAuthors(lines, from: index)
+            if opensAfterYear || (looksFinished(tail) && (opensWithAuthor(line) || opensByEnding || opensByFullName)) {
                 groups.append([line])
                 tail = [line]
+                pastYear = ReferenceEntryShape.printsYearAfterAuthors(line)
             } else {
                 groups[groups.count - 1].append(line)
                 tail.append(line)
                 if tail.count > 3 { tail.removeFirst() }
+                // The year may sit on a line of its own start ("(2000a) Gender, age …"), its
+                // author's initials on the line before.
+                if !pastYear {
+                    pastYear = ReferenceEntryShape.printsYearAfterAuthors(tail.suffix(2).joined(separator: " "))
+                }
             }
         }
         return groups
+    }
+
+    /// Whether the lines from `start` run as a list of names up to a year in brackets, as an
+    /// entry of the "Authors (year) Title" style opens. The editors of a chapter's book open
+    /// like authors too ("Herder, K. Dhatariya, … et al., eds.") and reach no year of their own.
+    private static func reachesYearAsAuthors(_ lines: [String], from start: Int) -> Bool {
+        var joined = ""
+        for line in lines[start..<min(start + 7, lines.count)] {
+            joined += joined.isEmpty ? line : " " + line
+            if ReferenceEntryShape.printsYearAfterAuthors(joined) { return true }
+            guard line.contains(","),
+                  line.range(of: #"\b(?:[Ee]ds?|In)\b"#, options: .regularExpression) == nil else { return false }
+        }
+        return false
     }
 
     static func opensWithAuthor(_ line: String) -> Bool { ReferenceEntryShape.opensWithAuthor(line) }
@@ -522,7 +556,7 @@ enum PaperReferenceParser {
     // MARK: Author-year lists
 
     private static let yearExpression: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"\b((?:19|20)\d{2})([a-z]?)\b"#
+        pattern: #"\b((?:1[89]|20)\d{2})([a-z]?)\b"#
     )
 
     /// An unnumbered list split where a line opens with an author after an entry that looks
