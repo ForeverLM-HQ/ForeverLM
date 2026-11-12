@@ -1266,7 +1266,10 @@ enum UserPluginSetupPrompt {
         var prompt = lead ?? """
         Build me a plugin that syncs \(subject ?? "[WHAT — e.g. my Readwise highlights]") into ForeverLM, then set it up to run on a sensible schedule.
         """
+        // Two newlines open this literal on purpose: the lead ends without one,
+        // and the recipe starts a paragraph of its own.
         prompt += """
+
 
         ForeverLM exposes an MCP server (Streamable HTTP) at my personal URL:
         \(mcpURL)

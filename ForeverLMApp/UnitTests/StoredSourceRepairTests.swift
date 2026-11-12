@@ -159,83 +159,13 @@ struct StoredHTMLCharacterReferenceRepairTests {
     }
 }
 
-/// Schema 144: a stored author that is not a name is cleared, and every paper
-/// with a DOI is staged to have its title checked against the registered one.
-/// The fixture is a released schema-143 library: today's shape without the one
-/// table 144 adds. The markup and the profile link go in the way older builds
-/// stored them, straight into the subtype table, because a save through
-/// `StudioArticle` now turns them away.
-@Suite("Stored author repair and registered-title staging")
+/// A stored author that is not a name: a save turns it away. Schema 144's
+/// step, which cleared the ones older builds had stored and staged the
+/// registered-title check, went with the schema floor (174).
+@Suite("A stored author is a name")
 struct StoredAuthorRepairMigrationTests {
-    private static let headID = "src_772d6a3c1740e956a41c0eb9794158ee676fc8a16287282a198b0a67052701ee"
-    private static let profileID = "63339EAA-D59E-49DA-8ED1-E530AA504D67"
-    private static let namedID = "named-article"
-    private static let paperID = "src_901f36ad0112f7d80758f2eb513a32b16d456a4dfdc9f23066a5f132414b8f6a"
-    private static let noDOIID = "paper-without-doi"
     private static let headAuthor = #"width=device-width,initial-scale=1,maximum-scale=1" name="viewport"><link href="/fonts/libre-franklin-v4-latin-regular.woff2" rel="preload" as="font" crossorigin="anonymous"><title>Quantum Country</title><meta content="#
     private static let profileAuthor = "https://www.nytimes.com/by/jasmine-sun"
-    private static let damagedTitle = "Generation of Reactive Oxygen Species in the Reaction Catalyzed by -Ketoglutarate Dehydrogenase"
-
-    private func makeRoot(_ label: String) -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("foreverlm-\(label)-\(UUID().uuidString)", isDirectory: true)
-    }
-
-    /// Build 159 shipped 142 and main carried 143 before 144; neither changed a
-    /// table, so both released shapes are today's without the 144 queue.
-    private func createReleasedLibrary(at root: URL, version: Int32 = 143, extraRows: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root)
-        try Schema154Fixture.restoreGeneration1Tables(store)
-        try store.saveSource(StudioArticle(url: "https://quantum.country/", title: "Quantum Country", sourceType: .article, id: Self.headID))
-        try store.saveSource(StudioArticle(
-            url: "https://www.nytimes.com/2026/01/03/business/chinese-peptides-silicon-valley.html",
-            title: "Chinese peptides",
-            sourceType: .article,
-            id: Self.profileID
-        ))
-        try store.saveSource(StudioArticle(url: "https://example.com/named", title: "Named", sourceType: .article, author: "Jane Doe", id: Self.namedID))
-        var paper = StudioArticle(
-            url: "https://doi.org/10.1523/jneurosci.1842-04.2004",
-            title: Self.damagedTitle,
-            sourceType: .paper,
-            author: "Laszlo Tretter; Vera Adam-Vizi",
-            id: Self.paperID
-        )
-        paper.doi = "10.1523/jneurosci.1842-04.2004"
-        try store.saveSource(paper)
-        try store.saveSource(StudioArticle(url: "https://example.com/paper.pdf", title: "A paper without a DOI", sourceType: .paper, id: Self.noDOIID))
-        try store.execForTesting("UPDATE articles SET author = '\(Self.headAuthor)' WHERE source_id = '\(Self.headID)'")
-        try store.execForTesting("UPDATE articles SET author = '\(Self.profileAuthor)' WHERE source_id = '\(Self.profileID)'")
-        try store.replaceSourceFTS(sourceID: Self.headID, title: "Quantum Country", author: Self.headAuthor, body: "")
-        if extraRows > 0 {
-            // A production-sized library: one article author in a thousand is
-            // a profile link, and every paper has a DOI to check.
-            try store.execForTesting("""
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraRows))
-                INSERT INTO sources (id, date_added, state, source_type)
-                SELECT printf('article-%05d', i), 0, 'ready', 'article' FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraRows))
-                INSERT INTO articles (source_id, url, title, author)
-                SELECT printf('article-%05d', i), printf('https://example.com/a/%d', i), printf('Article %d', i),
-                       CASE WHEN i % 1000 = 0 THEN printf('https://example.com/by/writer-%d', i)
-                            ELSE printf('Writer %d; Editor %d', i, i) END
-                FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraRows))
-                INSERT INTO sources (id, date_added, state, source_type)
-                SELECT printf('paper-%05d', i), 0, 'ready', 'paper' FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraRows))
-                INSERT INTO papers (source_id, url, title, author, doi)
-                SELECT printf('paper-%05d', i), printf('https://doi.org/10.1000/x%d', i),
-                       printf('Mitochondrial study %d', i), printf('Author %d; Colleague %d', i, i), printf('10.1000/x%d', i)
-                FROM n;
-            """)
-        }
-        try store.execForTesting("""
-            DROP INDEX IF EXISTS idx_paper_registered_title_order;
-            DROP TABLE paper_registered_title_queue;
-            PRAGMA user_version = \(version);
-        """)
-    }
 
     private func author(_ sourceID: String, in store: KnowledgeStore) throws -> String? {
         var value: String?
@@ -246,69 +176,6 @@ struct StoredAuthorRepairMigrationTests {
             value = store.string(statement, 0)
         }
         return value
-    }
-
-    private func count(_ sql: String, in store: KnowledgeStore) throws -> Int {
-        var value = 0
-        try store.query(sql) { statement in value = Int(sqlite3_column_int64(statement, 0)) }
-        return value
-    }
-
-    @Test("Schema 144 reads only the author cells that could fail at production scale")
-    func version144ScaleRegression() throws {
-        let root = makeRoot("v144-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try createReleasedLibrary(at: root, extraRows: 5_000)
-
-        let startedAt = Date()
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        let elapsed = Date().timeIntervalSince(startedAt)
-
-        #expect(elapsed < 1.0)
-        // The fixture's two plus the five profile links; nothing else touched.
-        #expect(try author("article-01000", in: migrated) == nil)
-        #expect(try author("article-00999", in: migrated) == "Writer 999; Editor 999")
-        #expect(try migrated.registeredPaperTitleQueueCount() == 5_001)
-    }
-
-    @Test("Schema 144 rolls back and leaves the released library intact")
-    func version144RollsBack() throws {
-        let root = makeRoot("v144-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try createReleasedLibrary(at: root)
-
-        // A structurally incompatible queue table `CREATE TABLE IF NOT EXISTS`
-        // will not replace: staging fails after the author was cleared, inside
-        // the migration transaction.
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        if let database {
-            #expect(sqlite3_exec(
-                database,
-                "DROP TABLE source_sync_repair_queue; CREATE TABLE source_sync_repair_queue (unexpected TEXT)",
-                nil, nil, nil
-            ) == SQLITE_OK)
-            sqlite3_close(database)
-        }
-
-        #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root)
-        }
-
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        defer { sqlite3_close(database) }
-        func text(_ sql: String) -> String? {
-            var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
-            defer { sqlite3_finalize(statement) }
-            guard sqlite3_step(statement) == SQLITE_ROW, let value = sqlite3_column_text(statement, 0) else { return nil }
-            return String(cString: value)
-        }
-        #expect(text("PRAGMA user_version") == "143")
-        #expect(text("SELECT COUNT(*) FROM sources") == "5")
-        #expect(text("SELECT author FROM articles WHERE source_id = '\(Self.headID)'") == Self.headAuthor)
-        #expect(text("SELECT COUNT(*) FROM sqlite_master WHERE name = 'paper_registered_title_queue'") == "0")
-        #expect(text("SELECT COUNT(*) FROM source_fts_state WHERE source_id = '\(Self.headID)'") == "1")
     }
 
     @Test("A save never stores an author that is not a name, for a source or a book")
@@ -411,114 +278,6 @@ struct RegisteredPaperTitleCheckServiceTests {
         #expect(result.restored.isEmpty)
         #expect(try store.loadSourceForSync("renamed")?.title == "My notes on alpha-KGDH")
         #expect(try store.registeredPaperTitleQueueCount() == 0, "both rows leave the queue")
-    }
-}
-
-/// Schema 148: every personal YouTube video staged for the post-launch check
-/// of its stored transcript against its captions.
-@Suite("YouTube transcript check staging")
-struct YouTubeTranscriptCheckMigrationTests {
-    private func makeRoot(_ label: String) -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("foreverlm-\(label)-\(UUID().uuidString)", isDirectory: true)
-    }
-
-    private func count(_ sql: String, in store: KnowledgeStore) throws -> Int {
-        var value = 0
-        try store.query(sql) { statement in value = Int(sqlite3_column_int64(statement, 0)) }
-        return value
-    }
-
-    /// Build 165 shipped 146 and main carried 147 before 148. 147 added
-    /// `research_directions` and nothing else, so 146's shape is today's
-    /// without it and without the 148 queue.
-    private func createReleasedLibrary(at root: URL, version: Int32 = 147, extraVideos: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root)
-        try Schema154Fixture.restoreGeneration1Tables(store)
-        var lecture = StudioArticle(url: "https://www.youtube.com/watch?v=6BqWzEPN3xg", title: "Intact Cell Measurements 1", sourceType: .video, id: "yt-lecture")
-        lecture.content = "[0:00] So hello again. Our class today is about how to measure mitochondrial bioenergetics."
-        lecture.state = .ready
-        try store.saveSource(lecture)
-        try store.saveSource(StudioArticle(url: "https://youtu.be/cvfACkaRwU4", title: "Queued, no transcript yet", sourceType: .video, id: "yt-queued"))
-        try store.saveSource(StudioArticle(url: "https://vimeo.com/76979871", title: "Not YouTube", sourceType: .video, id: "vimeo"))
-        try store.saveSource(StudioArticle(url: "https://www.youtube.com/watch?v=Y0NPG98yEjY", title: "A team's copy", sourceType: .video, id: "yt-team"))
-        try store.saveSource(StudioArticle(url: "https://example.com/post", title: "An article", sourceType: .article, id: "article"))
-        try store.execForTesting("UPDATE sources SET team_id = 'team-1' WHERE id = 'yt-team'")
-        if extraVideos > 0 {
-            // A production-sized library: four in five videos are YouTube's,
-            // each with a few thousand characters of text the migration never reads.
-            try store.execForTesting("""
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraVideos))
-                INSERT INTO sources (id, date_added, state, source_type)
-                SELECT printf('video-%05d', i), 0, 'ready', 'video' FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraVideos))
-                INSERT INTO videos (source_id, url, title)
-                SELECT printf('video-%05d', i),
-                       CASE WHEN i % 5 = 0 THEN printf('https://vimeo.com/%d', i)
-                            ELSE printf('https://www.youtube.com/watch?v=v%010d', i) END,
-                       printf('Lecture %d', i)
-                FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraVideos))
-                INSERT INTO source_content (source_id, content)
-                SELECT printf('video-%05d', i), printf('[0:00] %s', hex(randomblob(1000))) FROM n;
-            """)
-        }
-        try store.execForTesting("""
-            DROP INDEX IF EXISTS idx_youtube_transcript_check_order;
-            DROP TABLE youtube_transcript_check_queue;
-            \(version < 147 ? "DROP TABLE IF EXISTS research_directions;" : "")
-            PRAGMA user_version = \(version);
-        """)
-    }
-
-    @Test("Schema 148 stages ids only at production scale")
-    func version148ScaleRegression() throws {
-        let root = makeRoot("v148-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try createReleasedLibrary(at: root, extraVideos: 5_000)
-
-        let startedAt = Date()
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        let elapsed = Date().timeIntervalSince(startedAt)
-
-        #expect(elapsed < 1.0)
-        // The fixture's two plus the four in five of the extra videos on YouTube.
-        #expect(try migrated.youTubeTranscriptCheckQueueCount() == 4_002)
-        #expect(try count("SELECT COUNT(*) FROM youtube_transcript_check_queue WHERE source_id = 'video-00005'", in: migrated) == 0)
-    }
-
-    @Test("Schema 148 rolls back and leaves the released library intact")
-    func version148RollsBack() throws {
-        let root = makeRoot("v148-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try createReleasedLibrary(at: root)
-
-        // A same-named queue of another shape, which `CREATE TABLE IF NOT
-        // EXISTS` will not replace: the probe fails inside the migration.
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        if let database {
-            #expect(sqlite3_exec(database, "CREATE TABLE youtube_transcript_check_queue (unexpected TEXT)", nil, nil, nil) == SQLITE_OK)
-            sqlite3_close(database)
-        }
-
-        #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root)
-        }
-
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        defer { sqlite3_close(database) }
-        func text(_ sql: String) -> String? {
-            var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
-            defer { sqlite3_finalize(statement) }
-            guard sqlite3_step(statement) == SQLITE_ROW, let value = sqlite3_column_text(statement, 0) else { return nil }
-            return String(cString: value)
-        }
-        #expect(text("PRAGMA user_version") == "147")
-        #expect(text("SELECT COUNT(*) FROM sources") == "5")
-        #expect(text("SELECT COUNT(*) FROM youtube_transcript_check_queue") == "0")
-        #expect(text("SELECT substr(content, 1, 22) FROM source_content WHERE source_id = 'yt-lecture'") == "[0:00] So hello again.")
     }
 }
 

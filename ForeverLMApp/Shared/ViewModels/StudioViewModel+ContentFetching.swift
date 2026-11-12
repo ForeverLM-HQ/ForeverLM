@@ -615,6 +615,9 @@ extension StudioViewModel {
             || articles[idx].sourceType == .manual
             || articles[idx].sourceType == .unclassified
             || articles[idx].sourceType == .xPost
+        // Read before the fetch suspends: the list can change while a page
+        // loads, and `idx` may then point past its end.
+        let podcastWebPageURL = articles[idx].podcastWebPageURL
         do {
             if isWebArticleType {
                 // Archive web articles locally with images for offline reading
@@ -636,7 +639,7 @@ extension StudioViewModel {
             }
         } catch {
             // If primary URL failed and we have a podcast web fallback, try that
-            if let webURL = articles[idx].podcastWebPageURL, !webURL.isEmpty {
+            if let webURL = podcastWebPageURL, !webURL.isEmpty {
                 logger.info("Primary URL failed, trying podcast web page: \(webURL)")
                 content = try await sourceService.fetchContent(from: webURL)
             } else {
@@ -663,10 +666,18 @@ extension StudioViewModel {
             let pageAuthor = page.pageAuthor
             let titleEvidence = page.titleEvidence
             let archivedLocalPath = page.archivedLocalPath
+            // The source is found again by id: it can be removed, or the list
+            // reordered, while its page loads, and the index it started with
+            // then names another source or none (a crash, seen in the unit
+            // tests on 2026-11-11). A source that is gone has nothing to install.
+            guard let current = articles.first(where: { $0.id == articleId }) else {
+                isFetchingContent = false
+                return false
+            }
             if SourceDiscovery.isSecurityVerificationContent(
                 text: content,
-                title: pageTitle ?? articles[idx].title,
-                url: articles[idx].url
+                title: pageTitle ?? current.title,
+                url: current.url
             ) {
                 await recordSecurityChallengeBlock(articleId: articleId)
                 isFetchingContent = false
@@ -694,7 +705,11 @@ extension StudioViewModel {
             await downloadPDFContent(articleId: articleId)
             return false
         } catch {
-            if await recoverFromWebFetchFailure(error, articleId: articleId, idx: idx) == false { return false }
+            guard let currentIdx = articles.firstIndex(where: { $0.id == articleId }) else {
+                isFetchingContent = false
+                return false
+            }
+            if await recoverFromWebFetchFailure(error, articleId: articleId, idx: currentIdx) == false { return false }
         }
         return true
     }

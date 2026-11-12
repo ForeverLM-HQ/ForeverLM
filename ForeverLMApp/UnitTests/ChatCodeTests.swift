@@ -318,7 +318,7 @@ struct ChatCodeTests {
 /// not recalled (product owner, 2026-10-30: the chat "can't run code?? it should!").
 ///
 /// This installs packages, so the first run on a Mac takes about a minute and
-/// needs a network; the environment is kept in the temporary folder, so later
+/// needs a network; the environment is kept in Caches, so later
 /// runs take seconds. It is skipped where no Python can be found or PyPI cannot
 /// be reached and no environment is kept yet.
 @Suite("Chat code tool, end to end", .serialized, .enabled(if: ChatCodeEndToEnd.canRun))
@@ -433,15 +433,19 @@ struct ChatCodeEndToEndTests {
 
 /// Whether the end-to-end suite can run here, and where its environment is kept.
 enum ChatCodeEndToEnd {
-    /// Kept across test runs, so only the first one installs anything.
-    static let environmentRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+    /// Kept across test runs, so only the first one installs anything. In
+    /// Caches, not the temporary folder: macOS removes a temporary folder's
+    /// files one by one once they go three days unread, which left an
+    /// environment with its Python link and without its packages.
+    static let environmentRoot = (FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Caches"))
         .appendingPathComponent("ForeverLMChatCodeEndToEnd", isDirectory: true)
 
     static let canRun: Bool = {
         guard FileManager.default.isExecutableFile(atPath: StudioChatCodeRunner.sandboxExecPath) else { return false }
         guard CodeEnvironment.locateUV() != nil || hasModernPython else { return false }
-        let kept = environmentRoot.appendingPathComponent("venv-\(ChatCode.pythonVersion)/bin/python").path
-        if FileManager.default.isExecutableFile(atPath: kept) { return true }
+        let kept = environmentRoot.appendingPathComponent("venv-\(ChatCode.pythonVersion)", isDirectory: true)
+        if CodeEnvironment.isEnvironment(kept) { return true }
         return pypiIsReachable()
     }()
 

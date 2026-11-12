@@ -685,9 +685,15 @@ struct RealtimeVoiceOwnKeyTests {
 
     @Test("A reply's list price matches the proxy's rates, and an unknown model has none")
     func listCost() throws {
-        var usage = try #require(RealtimeVoiceUsage(responseID: "resp_1", usage: [:]))
-        usage.textInputTokens = 1_000_000
-        usage.audioOutputTokens = 1_000_000
+        // A usage with no tokens is no usage (the initializer returns nil), so
+        // the reply is built from the payload `response.done` carries.
+        let usage = try #require(RealtimeVoiceUsage(responseID: "resp_1", usage: [
+            "input_token_details": ["text_tokens": 1_000_000],
+            "output_token_details": ["audio_tokens": 1_000_000],
+        ]))
+        #expect(usage.textInputTokens == 1_000_000)
+        #expect(usage.audioOutputTokens == 1_000_000)
+        #expect(usage.totalTokens == 2_000_000)
         #expect(abs(try #require(usage.listCostUSD(model: "gpt-realtime-2.1")) - 68) < 1e-9)
         #expect(abs(try #require(usage.listCostUSD(model: "gpt-realtime-2.1-mini")) - 20.6) < 1e-9)
         #expect(usage.listCostUSD(model: "not-a-voice-model") == nil)

@@ -205,47 +205,14 @@ struct CourseNotebookTests {
     }
 }
 
-// MARK: - Schema 150
+// MARK: - The home-notebook column
 
-/// Schema 150 adds `courses.home_notebook_id` and its index: DDL only, no
-/// row read, nothing republished.
-@Suite("Schema 150 migration")
-struct Schema150MigrationTests {
+/// `courses.home_notebook_id` and its index (schema 150) are part of a fresh
+/// store. The step that added them to an older store went with the schema
+/// floor (174), where every store already holds them.
+@Suite("Course home-notebook column")
+struct CourseHomeNotebookColumnTests {
     fileprivate typealias F = CourseNotebookFixtures
-
-    /// A released library at `version`: today's shape without the column and
-    /// its index, and for 148 without the two `review_sessions` columns 149
-    /// added. Dropping them rather than lowering the stamp is what makes each
-    /// step run.
-    private static func createReleasedLibrary(at root: URL, version: Int32, extraSources: Int = 0, extraCourses: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root)
-        try F.seedCourse(store, id: "aging", title: "Systems Aging", sourceIDs: ["src-1", "src-2"])
-        let landscape = try F.makeNotebook(store, title: "Landscape of Aging")
-        try store.linkCourseToNotebook(goalID: landscape.id, courseID: "aging", sourceIDs: [])
-        if extraSources > 0 || extraCourses > 0 {
-            try store.execForTesting("""
-                BEGIN IMMEDIATE;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(max(extraSources, 1)))
-                INSERT INTO sources (id, date_added, state, source_type, status)
-                SELECT printf('source-%05d', n), n, 'ready', 'article', 'active' FROM seq WHERE \(extraSources) > 0;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(max(extraSources, 1)))
-                INSERT INTO articles (source_id, url, normalized_url, title, domain)
-                SELECT printf('source-%05d', n), printf('https://example.com/%05d', n),
-                       printf('example.com/%05d', n), printf('Source %05d', n), 'example.com'
-                FROM seq WHERE \(extraSources) > 0;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(max(extraCourses, 1)))
-                INSERT INTO courses (id, title) SELECT printf('course-%05d', n), printf('Course %05d', n)
-                FROM seq WHERE \(extraCourses) > 0;
-                COMMIT;
-            """)
-        }
-        try store.execForTesting("""
-            DROP INDEX IF EXISTS idx_courses_home_notebook;
-            ALTER TABLE courses DROP COLUMN home_notebook_id;
-            \(version < 149 ? "ALTER TABLE review_sessions DROP COLUMN model_speed; ALTER TABLE review_sessions DROP COLUMN model_effort;" : "")
-            PRAGMA user_version = \(version);
-        """)
-    }
 
     private static let homeColumn = "SELECT COUNT(*) FROM pragma_table_info('courses') WHERE name = 'home_notebook_id'"
 
@@ -256,25 +223,6 @@ struct Schema150MigrationTests {
         _ = try KnowledgeStore(storeDirectory: root)
         #expect(F.scalar(at: root, Self.homeColumn) == "1")
         #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_courses_home_notebook'") == "1")
-    }
-
-    @Test("A production-sized library migrates to 150 in well under a second")
-    func version150Scales() throws {
-        let root = try F.temporaryRoot("v150-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.createReleasedLibrary(at: root, version: 149, extraSources: 20_000, extraCourses: 2_000)
-
-        let started = ContinuousClock.now
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        let elapsed = started.duration(to: .now)
-        // One ALTER TABLE ADD COLUMN with no default and one index over a
-        // small table: no row is read or rewritten per course or source.
-        #expect(elapsed < .seconds(1))
-        #expect(F.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        var visible = 0
-        try migrated.query("SELECT COUNT(*) FROM source_projection") { visible = Int(sqlite3_column_int($0, 0)) }
-        #expect(visible == 20_002, "sources stay visible")
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM courses WHERE home_notebook_id IS NULL") == "2001")
     }
 }
 

@@ -214,7 +214,7 @@ actor CodeEnvironment {
             return .failure(Failure(message: "Could not make the code environment's folder: \(error.localizedDescription)"))
         }
         var created = false
-        if !fm.isExecutableFile(atPath: venvPython.path) {
+        if !Self.isEnvironment(venv) {
             if let failure = await createEnvironment() { return .failure(failure) }
             created = true
         }
@@ -273,6 +273,18 @@ actor CodeEnvironment {
     }
 
     // MARK: Creating
+
+    /// Whether the folder still is a virtual environment. `bin/python` is a
+    /// link to the installation, and `pyvenv.cfg` is what makes Python started
+    /// through it use this folder's packages. With the file gone (a cleaner
+    /// that removes old files leaves the link behind) the same command is the
+    /// bare installation: nothing imports and nothing can be installed. Such a
+    /// folder is made again.
+    static func isEnvironment(_ venv: URL) -> Bool {
+        let fm = FileManager.default
+        return fm.isExecutableFile(atPath: venv.appendingPathComponent("bin/python").path)
+            && fm.fileExists(atPath: venv.appendingPathComponent("pyvenv.cfg").path)
+    }
 
     private func createEnvironment() async -> Failure? {
         let fm = FileManager.default

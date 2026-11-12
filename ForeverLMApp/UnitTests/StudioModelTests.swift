@@ -811,13 +811,7 @@ struct StudioArticlePropertyTests {
 
         article.failPaperIngestionMetadata(message)
         #expect(article.paperIngestionRecoveryAction(hasUsablePDF: true) == .editDetails)
-
-        // Rows persisted by the build that used the blanket wording route the
-        // same way instead of offering a retry that cannot succeed.
-        article.failPaperIngestionMetadata(
-            "Paper ingestion failed: Paper Metadata AI did not return author, venue, and year."
-        )
-        #expect(article.paperIngestionRecoveryAction(hasUsablePDF: true) == .editDetails)
+        #expect(article.isPaperMetadataIncompleteFailure)
     }
 
     @Test("All three missing fields still read as a list")

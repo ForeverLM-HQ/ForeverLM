@@ -550,7 +550,9 @@ struct ChatTranscriptPageTests {
     @Test("A question with a picture shows the picture over its words, and the words alone in the bubble")
     @MainActor
     func attachedPicturesRideAboveTheWords() throws {
-        let picture = "foreverlm://image/attached/0F1E2D3C-4B5A-4C6D-8E7F-0A1B2C3D4E5F"
+        // Lowercase, as `AttachedImageReference.newID()` writes ids: the page
+        // writes each picture back in the reference's own (lowercased) form.
+        let picture = "foreverlm://image/attached/0f1e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f"
         let message = ReviewSessionManager.Message(role: .user, content: "What is this?\n\n![figure](\(picture))")
         let blocks = ReviewChatTranscriptBlock.grouping([message])
         let user = ChatTranscriptPage.userBlock(blocks[0], message: try #require(blocks.first?.userMessage), canEdit: false, isFindMatch: false)

@@ -46,9 +46,9 @@ struct ReplicaStoreTests {
             try handle.query(table.probe, []) { _ in }
         }
         #expect(ReplicaStore.sharedTables.count == 13)
-        #expect(KnowledgeStore.macReplicaTables.count == 11)
+        #expect(KnowledgeStore.macReplicaTables.count == 10)
         let replicaTables = ReplicaStore.sharedTables + KnowledgeStore.macReplicaTables
-        #expect(Set(replicaTables.map(\.name)).count == 24)
+        #expect(Set(replicaTables.map(\.name)).count == replicaTables.count, "no table is declared twice")
         #expect(replicaTables.allSatisfy { $0.name.hasPrefix("ck_") })
     }
 

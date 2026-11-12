@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 import Testing
 @testable import ForeverLM
 #if canImport(AppKit) && canImport(PDFKit)
@@ -2407,26 +2406,6 @@ struct ChatModelTuningPersistenceTests {
     private static let opus = "anthropic/claude-opus-5"
     private static let sonnet = "anthropic/claude-sonnet-4-6"
 
-    private static func temporaryRoot(_ name: String) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("foreverlm-\(name)-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-
-    private static func scalar(at root: URL, _ sql: String) -> String? {
-        var database: OpaquePointer?
-        guard sqlite3_open_v2(
-            root.appendingPathComponent("knowledge.db").path, &database, SQLITE_OPEN_READONLY, nil
-        ) == SQLITE_OK else { return nil }
-        defer { sqlite3_close(database) }
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
-        defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else { return nil }
-        return String(cString: text)
-    }
-
     private static func route(
         _ model: String, effort: AIEffort?, speed: AISpeed?
     ) -> ReviewSessionModelRoute {
@@ -2587,76 +2566,6 @@ struct ChatModelTuningPersistenceTests {
             #expect(odd.effort == nil)
             #expect(odd.speed == nil)
         }
-    }
-
-    // MARK: - Schema 149
-
-    /// A released library at `version`: today's shape without the two
-    /// columns, and for 147 and 146 without what 148 and 147 added (the
-    /// YouTube transcript check queue and `research_directions`). Dropping
-    /// them rather than lowering the stamp is what makes each step run.
-    private static func createReleasedLibrary(at root: URL, version: Int32, extraChats: Int = 0, extraSources: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root)
-        var article = StudioArticle(url: "https://example.com/tmrm", title: "TMRM", sourceType: .article, id: "src-a")
-        article.content = "Readable text."
-        article.state = .ready
-        try store.saveSource(article)
-        try store.createReviewSession(
-            id: "old-chat", topic: "Entropy", sourceIDs: ["src-a"],
-            modelProvider: provider, modelID: opus
-        )
-        _ = try store.addReviewExchange(
-            sessionID: "old-chat", question: "What is entropy?", answer: "A count of microstates.",
-            evaluation: "Right idea.", score: 0.9, knowledgeNote: nil, sourceRefs: ["src-a"]
-        )
-        if extraSources > 0 || extraChats > 0 {
-            try store.execForTesting("""
-                BEGIN IMMEDIATE;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(extraSources))
-                INSERT INTO sources (id, date_added, state, source_type, status)
-                SELECT printf('source-%05d', n), n, 'ready', 'article', 'active' FROM seq WHERE \(extraSources) > 0;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(extraSources))
-                INSERT INTO articles (source_id, url, normalized_url, title, domain)
-                SELECT printf('source-%05d', n), printf('https://example.com/%05d', n),
-                       printf('example.com/%05d', n), printf('Source %05d', n), 'example.com'
-                FROM seq WHERE \(extraSources) > 0;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(extraChats))
-                INSERT INTO review_sessions (id, topic, started_at, model_provider, model_id)
-                SELECT printf('chat-%05d', n), printf('Chat %05d', n), n, '\(provider)', '\(opus)'
-                FROM seq WHERE \(extraChats) > 0;
-                COMMIT;
-            """)
-        }
-        try store.execForTesting("""
-            ALTER TABLE review_sessions DROP COLUMN model_speed;
-            ALTER TABLE review_sessions DROP COLUMN model_effort;
-            \(version < 148 ? "DROP INDEX IF EXISTS idx_youtube_transcript_check_order; DROP TABLE youtube_transcript_check_queue;" : "")
-            \(version < 147 ? "DROP TABLE IF EXISTS research_directions;" : "")
-            PRAGMA user_version = \(version);
-        """)
-    }
-
-    private static let tuningColumns = """
-        SELECT COUNT(*) FROM pragma_table_info('review_sessions') WHERE name IN ('model_effort', 'model_speed')
-        """
-
-    @Test("A production-sized library with thousands of chats migrates to 149 in well under a second")
-    func version149Scales() throws {
-        let root = try Self.temporaryRoot("schema-v149-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.createReleasedLibrary(at: root, version: 148, extraChats: 5_000, extraSources: 20_000)
-
-        let started = ContinuousClock.now
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        let elapsed = started.duration(to: .now)
-        // Two ALTER TABLE ADD COLUMNs with no default: no row is read or
-        // rewritten, so the cost cannot follow the library.
-        #expect(elapsed < .seconds(1))
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        var visible = 0
-        try migrated.query("SELECT COUNT(*) FROM source_projection") { visible = Int(sqlite3_column_int($0, 0)) }
-        #expect(visible == 20_001, "sources stay visible")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM review_sessions WHERE model_effort IS NULL AND model_speed IS NULL") == "5001")
     }
 }
 

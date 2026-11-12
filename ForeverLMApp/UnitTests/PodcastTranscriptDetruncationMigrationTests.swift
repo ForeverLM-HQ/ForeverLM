@@ -1,13 +1,12 @@
 import Foundation
-import SQLite3
 import Testing
 @testable import ForeverLM
 
-/// Schema 167 queues every podcast episode the completeness audit can measure,
-/// because schema 85's audit passed transcripts the retired 50,000-character
-/// cap had cut (it counted 85% of the TTML text as complete) and marked them
-/// done. What the step queues, what it leaves alone and what it never touches
-/// are the contract, asserted against released 165 (build 188) and 164 shapes.
+/// The podcast transcript completeness audit's queue and the transcript
+/// writes that feed it. Schema 167's step, which queued every measurable
+/// episode of an older store, went with the schema floor (174); what queues
+/// an episode now, what records a finding and what a save refuses are the
+/// live contract.
 @Suite("Podcast transcript detruncation migration")
 struct PodcastTranscriptDetruncationMigrationTests {
 
@@ -32,165 +31,11 @@ struct PodcastTranscriptDetruncationMigrationTests {
     private static let ttml = "<tt><body><div><p begin='0' end='1' ttm:agent='SPEAKER_1'>The whole episode, every word of it.</p></div></body></tt>"
     private static let transcript = "A transcript as the library stores it, with enough words to measure."
 
-    /// A released store at `version` (165, build 188, or 164): today's shape
-    /// without schema 167's audit table and queue column, the queue rebuilt
-    /// verbatim from production's `sqlite_master`, and for 164 without the three
-    /// sensemaking tables 165 added. Schema 166's local queue goes too where a
-    /// tree that carries it made the store. Rows are written first, as the
-    /// released builds wrote them, then the shape is taken back: the old
-    /// marker stands on the episodes schema 85 audited or hydration wrote.
-    private static func makeReleasedStore(
-        at root: URL,
-        version: Int32,
-        triggers: Bool = false,
-        populate: (KnowledgeStore) throws -> Void
-    ) throws {
-        let store = try KnowledgeStore(storeDirectory: root)
-        if triggers { try store.installOutboxTriggers() }
-        try populate(store)
-        if triggers {
-            try store.execForTesting("DELETE FROM ck_outbox_fields; DELETE FROM ck_outbox;")
-        }
-        try store.execForTesting("""
-            DROP TABLE IF EXISTS source_text_soft_hyphen_repair_queue;
-            DROP TABLE podcast_transcript_audits;
-            DROP TABLE podcast_transcript_detruncation_queue;
-            CREATE TABLE podcast_transcript_detruncation_queue (
-                    source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
-                    enqueued_at REAL NOT NULL,
-                    attempt_count INTEGER NOT NULL DEFAULT 0,
-                    last_error TEXT
-                );
-            CREATE INDEX idx_podcast_transcript_detruncation_queue_order
-                ON podcast_transcript_detruncation_queue(attempt_count, enqueued_at, source_id);
-        """)
-        if version < 165 {
-            try store.execForTesting("DROP TABLE atlases; DROP TABLE source_levels; DROP TABLE source_faces;")
-        }
-        try store.execForTesting("PRAGMA user_version = \(version)")
-    }
-
-    private static func scalar(at root: URL, _ sql: String) -> String? {
-        Schema154Fixture.scalar(at: root, sql)
-    }
-
     private static func temporaryRoot(_ name: String) throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("foreverlm-\(name)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
-    }
-
-    /// The library the step is measured against: every kind of podcast row the
-    /// audit must queue, and every kind it must leave alone.
-    private static func populateLibrary(_ store: KnowledgeStore) throws {
-        // Passed schema 85's 85% test with its end missing, and marked done.
-        try store.saveSource(episode(id: "capped-marked"))
-        try store.saveTranscript("capped-marked", transcript, rawTTML: ttml)
-        // Hydrated whole, which marked it too. The marker cannot tell the two
-        // apart, so both are measured again.
-        try store.saveSource(episode(id: "hydrated-marked"))
-        try store.saveTranscript("hydrated-marked", transcript, rawTTML: ttml)
-        // Left in schema 85's queue with its attempts spent.
-        try store.saveSource(episode(id: "exhausted"))
-        try store.saveTranscript("exhausted", transcript, rawTTML: ttml)
-        // A hidden episode is audited too; only the formatting is withheld.
-        try store.saveSource(episode(id: "hidden-ttml"))
-        try store.saveTranscript("hidden-ttml", transcript, rawTTML: ttml)
-        try store.setPodcastEpisodeHidden("hidden-ttml", hidden: true)
-        // No TTML here (it never syncs), a public Apple episode: one fetch.
-        try store.saveSource(episode(id: "apple-ttmlless", url: "apple-podcast://episode/1000745466204"))
-        try store.saveTranscript("apple-ttmlless", transcript)
-
-        // Captions from a YouTube video, not Apple's transcript.
-        try store.saveSource(episode(id: "youtube-text", url: "apple-podcast://episode/1000787449271"))
-        try store.savePodcastYouTubeTranscript("youtube-text", transcript, youtubeURL: "https://www.youtube.com/watch?v=abc123")
-        try store.saveSource(episode(id: "youtu-be-text", url: "apple-podcast://episode/1000787449272"))
-        try store.savePodcastYouTubeTranscript("youtu-be-text", transcript, youtubeURL: "https://youtu.be/abc123")
-        // A private feed's placeholder has no public id to fetch by.
-        try store.saveSource(episode(
-            id: "private-feed",
-            url: "apple-podcast://episode/private/" + String(repeating: "0a1b2c3d", count: 8)
-        ))
-        try store.saveTranscript("private-feed", transcript)
-        // No transcript yet: hydration writes it whole.
-        try store.saveSource(episode(id: "transcriptless"))
-        // Archived.
-        try store.saveSource(episode(id: "archived"))
-        try store.saveTranscript("archived", transcript, rawTTML: ttml)
-        try store.archiveSource("archived")
-        // The cap was a podcast import path.
-        var article = StudioArticle(url: "https://example.com/article", title: "An Article", sourceType: .article, id: "article-source")
-        article.domain = "example.com"
-        try store.saveSource(article)
-        try store.saveTranscript("article-source", "Article body text.")
-    }
-
-    /// What a released store held: the old marker on the audited and hydrated
-    /// episodes, and schema 85's spent queue row.
-    private static func stampReleasedState(at root: URL) throws {
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        defer { sqlite3_close(database) }
-        #expect(sqlite3_exec(database, """
-            UPDATE podcasts SET detruncated_ttml_sha256 = 'schema-85-marker'
-            WHERE source_id IN ('capped-marked', 'hydrated-marked', 'hidden-ttml', 'archived');
-            INSERT INTO podcast_transcript_detruncation_queue (source_id, enqueued_at, attempt_count, last_error)
-            VALUES ('exhausted', 1, 3, 'Could not extract transcript text from the stored TTML.');
-        """, nil, nil, nil) == SQLITE_OK)
-    }
-
-    private static func queuedIDs(at root: URL) -> [String] {
-        var ids: [String] = []
-        var database: OpaquePointer?
-        guard sqlite3_open_v2(root.appendingPathComponent("knowledge.db").path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_close(database) }
-        var statement: OpaquePointer?
-        sqlite3_prepare_v2(database, "SELECT source_id FROM podcast_transcript_detruncation_queue ORDER BY source_id", -1, &statement, nil)
-        while sqlite3_step(statement) == SQLITE_ROW { ids.append(String(cString: sqlite3_column_text(statement, 0))) }
-        sqlite3_finalize(statement)
-        return ids
-    }
-
-    @Test("On a store with the outbox triggers the step records nothing in the outbox")
-    func version167SendsNothingToTheOutbox() throws {
-        let root = try Self.temporaryRoot("schema-v167-generation-2")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.makeReleasedStore(at: root, version: 165, triggers: true, populate: Self.populateLibrary)
-        try Self.stampReleasedState(at: root)
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM ck_outbox_fields") == "0")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'ck_outbox_update_podcasts'") == "1")
-
-        _ = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(Self.queuedIDs(at: root).count == 5)
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM ck_outbox_fields") == "0")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM ck_outbox") == "0")
-    }
-
-    @Test("A schema 167 migration that fails leaves the 165 store, its text and its marker as they were")
-    func version167RollsBack() throws {
-        let root = try Self.temporaryRoot("schema-v167-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.makeReleasedStore(at: root, version: 165, populate: Self.populateLibrary)
-        try Self.stampReleasedState(at: root)
-        // A queue of the right name and the wrong shape: the step cannot stage into it.
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        #expect(sqlite3_exec(database, """
-            DROP TABLE podcast_transcript_detruncation_queue;
-            CREATE TABLE podcast_transcript_detruncation_queue (incompatible TEXT);
-        """, nil, nil, nil) == SQLITE_OK)
-        sqlite3_close(database)
-
-        #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root)
-        }
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "165")
-        #expect(Self.scalar(at: root, "SELECT content FROM source_content WHERE source_id = 'capped-marked'") == Self.transcript)
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM podcasts WHERE detruncated_ttml_sha256 = 'schema-85-marker'") == "4")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'podcast_transcript_audits'") == "0")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM pragma_table_info('podcast_transcript_detruncation_queue') WHERE name = 'retry_after'") == "0")
     }
 
     @Test("An audited or hydrated episode is not queued again, and a new transcript without TTML is")

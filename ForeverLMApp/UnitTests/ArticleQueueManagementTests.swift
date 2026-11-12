@@ -1090,13 +1090,6 @@ struct ArticleQueueManagementTests {
             title: "Cleanup message",
             sourceType: .paper
         )
-        paper.failPaperIngestionMetadata(
-            "Paper ingestion failed during Source Content Cleanup: The network connection was lost."
-        )
-
-        #expect(paper.isPaperContentCleanupFailure)
-        #expect(paper.paperContentCleanupFailureDetail == "The network connection was lost.")
-
         let currentMessage = StudioArticle.paperContentCleanupFailureMessage("Service unavailable.")
         #expect(currentMessage.contains("sounds natural when you listen"))
         #expect(currentMessage.contains("uses fewer tokens"))

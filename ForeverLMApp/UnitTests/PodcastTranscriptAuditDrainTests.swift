@@ -244,7 +244,9 @@ struct PodcastTranscriptAuditDrainTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try await Self.seed(storage, id: "offline", trackID: 1_000_783_904_288, stored: Self.capped, ttml: nil)
 
+        let drainStarted = Date().timeIntervalSinceReferenceDate
         let failed = await Self.service(storage, fetch: .failed).drain()
+        let drainEnded = Date().timeIntervalSinceReferenceDate
         #expect(failed.restoredSourceIDs.isEmpty)
         #expect(failed.errorMessage?.contains("could not be reached") == true)
         #expect(failed.remainingCount == 0, "waiting for its retry time, so not due")
@@ -259,8 +261,13 @@ struct PodcastTranscriptAuditDrainTests {
             try store.scalarText("SELECT printf('%.3f', retry_after) FROM podcast_transcript_detruncation_queue WHERE source_id = 'offline'")
         }
         #expect(attempts == 1)
-        let wait = (retryAfter.flatMap(Double.init) ?? 0) - Date().timeIntervalSinceReferenceDate
-        #expect(wait > 14 * 60 && wait <= 15 * 60)
+        // Fifteen minutes from the moment the drain recorded the failure. The
+        // drain's own start and end bracket that moment, so the check does not
+        // depend on how long the test took to read the row back; the
+        // millisecond is the rounding of `%.3f`.
+        let retryTime = try #require(retryAfter.flatMap(Double.init))
+        #expect(retryTime >= drainStarted + 15 * 60 - 0.001)
+        #expect(retryTime <= drainEnded + 15 * 60 + 0.001)
 
         // Its time comes; Apple now says it has no transcript for the episode.
         try await storage.performStoreWork { try $0.execForTesting("UPDATE podcast_transcript_detruncation_queue SET retry_after = 0") }

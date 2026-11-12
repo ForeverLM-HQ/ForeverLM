@@ -187,7 +187,11 @@ struct MCPAuthScopeTests {
         // to a panel on request, and that the paper's own PDF is where it comes from.
         #expect(inspect?.description.contains("as an image") == true)
         #expect(inspect?.description.contains("panel_label") == true)
-        #expect(inspect?.description.contains("never search the web") == true)
+        #expect(inspect?.description.contains("A paper in the library is shown from its own PDF.") == true)
+        // It states where the picture comes from and gives the client no order
+        // about its other tools: a tool directory's scan refuses a description
+        // that tells the model not to search the web.
+        #expect(inspect?.description.contains("never search the web") == false)
         #expect(inspect?.description.contains("Needs the learner's Mac") == true)
 
         let show = byName["show_source_image"]

@@ -1307,7 +1307,10 @@ extension MCPDataStoreTests {
             startedAt: Date()
         )
         let registry = MCPToolRegistry(store: store)
-        let invalidScores: [Any?] = [nil, true, Double.nan, -0.01, 1.01, "0.5"]
+        // A numeric string is read as the number the schema declares
+        // (`argumentsShaped`, 2026-11-10), so "0.5" is a score. A string that
+        // spells no finite number, or one out of range, is still refused.
+        let invalidScores: [Any?] = [nil, true, Double.nan, -0.01, 1.01, "half", "nan", "1.5"]
 
         for invalidScore in invalidScores {
             var arguments: [String: Any] = [
