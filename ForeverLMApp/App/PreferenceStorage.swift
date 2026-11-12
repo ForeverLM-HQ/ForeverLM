@@ -41,12 +41,15 @@ struct PreferenceStorage<Value>: DynamicProperty {
         observer.startObservingIfNeeded()
     }
 
+    /// What the defaults hold under the key now, read without subscribing.
+    fileprivate var storedObject: Any? { UserDefaults.standard.object(forKey: name) }
+
     var wrappedValue: Value {
         get {
             // Reading the revision inside a body subscribes the view to this
             // key's changes, and to nothing else in `UserDefaults`.
             _ = observer.revision
-            return read(UserDefaults.standard.object(forKey: name)) ?? defaultValue
+            return read(storedObject) ?? defaultValue
         }
         nonmutating set {
             switch write(newValue) {
@@ -164,8 +167,7 @@ struct WindowStorage<Value>: DynamicProperty {
     var wrappedValue: Value {
         get {
             guard let windowState else { return preference.wrappedValue }
-            let name = preference.name
-            let object = windowState.viewChoiceObject(named: name) { UserDefaults.standard.object(forKey: name) }
+            let object = windowState.viewChoiceObject(named: preference.name) { preference.storedObject }
             return preference.read(object) ?? preference.defaultValue
         }
         nonmutating set {

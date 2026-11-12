@@ -111,7 +111,7 @@ extension UIZoom {
         return Binding(
             get: {
                 guard let window = keyStudioWindow else { return preference.wrappedValue }
-                let stored = window.viewChoiceObject(named: name) { UserDefaults.standard.object(forKey: name) }
+                let stored = window.viewChoiceObject(named: name) { Preferences.value(Prefs.Studio.zoomStep) }
                 return stored as? Int ?? defaultStep
             },
             set: { step in
