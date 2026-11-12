@@ -257,6 +257,37 @@ struct SpeechDirectoryTests {
         #expect(acme.priceLabel == OpenRouterAudioPrices.unknownPriceLabel)
     }
 
+    @Test("each model keeps the voice it was last given, and a model never given one takes the current voice or its first")
+    func aModelKeepsItsVoice() {
+        let offered = ["marin", "cedar", "alloy"]
+        // Remembered and still offered: it comes back.
+        #expect(ArticleSpeechVoiceMemory.voice(offered: offered, current: "Kore", remembered: "cedar") == "cedar")
+        // Remembered but no longer offered: the current voice when this model has it, else its first.
+        #expect(ArticleSpeechVoiceMemory.voice(offered: offered, current: "alloy", remembered: "retired-voice") == "alloy")
+        #expect(ArticleSpeechVoiceMemory.voice(offered: offered, current: "Kore", remembered: "retired-voice") == "marin")
+        // Never given one.
+        #expect(ArticleSpeechVoiceMemory.voice(offered: offered, current: "alloy", remembered: nil) == "alloy")
+        #expect(ArticleSpeechVoiceMemory.voice(offered: offered, current: "Kore", remembered: nil) == "marin")
+        // A model that names no voices keeps the voice in use.
+        #expect(ArticleSpeechVoiceMemory.voice(offered: [], current: "Kore", remembered: "cedar") == "Kore")
+
+        // One row per model, so one model's pick never overwrites another's.
+        let suiteName = "ArticleSpeechVoiceMemoryTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        Preferences.withStorage(defaults) {
+            #expect(ArticleSpeechVoiceMemory.remembered(forModel: "acme/voice-one") == nil)
+            ArticleSpeechVoiceMemory.remember("cedar", forModel: "acme/voice-one")
+            ArticleSpeechVoiceMemory.remember("Kore", forModel: "acme/voice-two")
+            #expect(ArticleSpeechVoiceMemory.remembered(forModel: "acme/voice-one") == "cedar")
+            #expect(ArticleSpeechVoiceMemory.remembered(forModel: "acme/voice-two") == "Kore")
+            #expect(ArticleSpeechVoiceMemory.voice(switchingTo: "acme/voice-one", offered: ["marin", "cedar"], current: "Kore") == "cedar")
+            // An empty voice is not a pick.
+            ArticleSpeechVoiceMemory.remember("  ", forModel: "acme/voice-one")
+            #expect(ArticleSpeechVoiceMemory.remembered(forModel: "acme/voice-one") == "cedar")
+        }
+    }
+
     @Test("the list is cheapest first by OpenRouter's per-character price, the rest after by name")
     func optionsAreOrderedByPrice() throws {
         let ids = try OpenRouterAudioPrices.$pinnedTable.withValue(AudioPriceFixture.table) {

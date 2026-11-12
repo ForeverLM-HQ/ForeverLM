@@ -303,7 +303,7 @@ extension MCPDataStore {
             id: "read_aloud.model",
             pane: "Voice › Text to Speech",
             title: "\(provider.label) TTS model",
-            detail: "The model text-to-speech audio is generated with: every speech model OpenRouter's directory lists, each served through OpenRouter, and OpenAI's GPT Realtime 2.1 Mini, which ForeverLM reads through its own proxy. Changes what listening is billed at; each option carries OpenRouter's price in the unit it bills the model by (per 1M characters, per 1M tokens, per minute of audio; \"Price unknown\" when OpenRouter has not priced it; the OpenAI voice shows OpenAI's own price per 1M tokens, text in and audio out, with \"BYOK\": it is spoken on ForeverLM's own OpenAI key, and nothing is billed to the learner for it), with usd_per_million_characters only for a model billed by the character, its maker, its voice count and the languages it is documented to read (\"unstated\" when nothing says). If the current voice is not offered by the new model, the voice moves to the model's first one, as in the pane; a model with no voices speaks in its provider's default voice. A model is applied only once one short test synthesis in that voice passes; a refusal answers with OpenRouter's reason and changes nothing.",
+            detail: "The model text-to-speech audio is generated with: every speech model OpenRouter's directory lists, each served through OpenRouter, and OpenAI's GPT Realtime 2.1 Mini, which ForeverLM reads through its own proxy. Changes what listening is billed at; each option carries OpenRouter's price in the unit it bills the model by (per 1M characters, per 1M tokens, per minute of audio; \"Price unknown\" when OpenRouter has not priced it; the OpenAI voice shows OpenAI's own price per 1M tokens, text in and audio out, with \"BYOK\": it is spoken on ForeverLM's own OpenAI key, and nothing is billed to the learner for it), with usd_per_million_characters only for a model billed by the character, its maker, its voice count and the languages it is documented to read (\"unstated\" when nothing says). Each model keeps the voice it was last given: choosing a model brings that voice back, and a model never given one takes the current voice when it offers it, else its first, as in the pane; a model with no voices speaks in its provider's default voice. A model is applied only once one short test synthesis in that voice passes; a refusal answers with OpenRouter's reason and changes nothing.",
             reach: .account,
             kind: .choice,
             // Every provider this entry is built for (not the local server or
@@ -357,8 +357,14 @@ extension MCPDataStore {
                 // the stored voice: tested in the voice it would get first.
                 let currentVoice = MacArticleSpeechSettings.voice(for: provider)
                 let voices = provider == .localQwen3 ? [] : MacArticleSpeechSettings.voices(for: provider, model: model)
-                let voice = voices.isEmpty || voices.contains(currentVoice) ? currentVoice : voices[0]
+                let voice = provider == .openRouter
+                    ? ArticleSpeechVoiceMemory.voice(switchingTo: model, offered: voices, current: currentVoice)
+                    : (voices.isEmpty || voices.contains(currentVoice) ? currentVoice : voices[0])
                 try await requireSpeechQualified(provider: provider, model: model, voice: voice)
+                if provider == .openRouter {
+                    // The model being left keeps the voice it had.
+                    ArticleSpeechVoiceMemory.remember(currentVoice, forModel: MacArticleSpeechSettings.model(for: provider))
+                }
                 MacArticleSpeechSettings.setModel(model, for: provider)
                 if voice != currentVoice {
                     MacArticleSpeechSettings.setVoice(voice, for: provider)
@@ -402,6 +408,9 @@ extension MCPDataStore {
                 // `TextToSpeechSettingsView.selectVoice`.
                 try await requireSpeechQualified(provider: provider, model: model, voice: voice)
                 MacArticleSpeechSettings.setVoice(voice, for: provider)
+                if provider == .openRouter {
+                    ArticleSpeechVoiceMemory.remember(voice, forModel: model)
+                }
             }
         )
     }

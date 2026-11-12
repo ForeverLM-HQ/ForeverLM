@@ -2833,6 +2833,44 @@ extension Notification.Name {
     )
 }
 
+/// The voice each text-to-speech model keeps (product owner, 2026-11-11: "in
+/// the settings, I should be able to set the voice for the text-to-speech
+/// model for each model provider"). There is one selected voice, the selected
+/// model's; a pick is also remembered under its model, so choosing another
+/// model and coming back brings that model's voice back in place of its first.
+enum ArticleSpeechVoiceMemory {
+    // The Mac's Settings and its settings tool read and write the account
+    // rows; the iPhone has no account-preference storage of this kind and
+    // keeps its own per model on the device (`readAloudDeviceVoice`).
+    #if os(macOS)
+    static func remembered(forModel modelID: String) -> String? {
+        let voice = Preferences.value(Prefs.Families.readAloudModelVoice.key(modelID))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return voice?.isEmpty == false ? voice : nil
+    }
+
+    static func remember(_ voice: String, forModel modelID: String) {
+        let voice = voice.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !voice.isEmpty, !modelID.isEmpty else { return }
+        Preferences.set(voice, for: Prefs.Families.readAloudModelVoice.key(modelID))
+    }
+
+    /// The voice a model is given when it is chosen: the one remembered for
+    /// it while the model still offers it, else the voice in use when this
+    /// model offers that too, else the model's first. A model that names no
+    /// voices keeps the voice in use, as before.
+    static func voice(switchingTo modelID: String, offered: [String], current: String) -> String {
+        voice(offered: offered, current: current, remembered: remembered(forModel: modelID))
+    }
+    #endif
+
+    static func voice(offered: [String], current: String, remembered: String?) -> String {
+        guard let first = offered.first else { return current }
+        if let remembered, offered.contains(remembered) { return remembered }
+        return offered.contains(current) ? current : first
+    }
+}
+
 /// The iPhone's text-to-speech model and, per model, its voice.
 ///
 /// Storage is device-local under the `ios.` prefix, which the account

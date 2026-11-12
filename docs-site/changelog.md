@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Each Text to Speech model keeps its own voice.** Pick a voice for a model in Settings › Voice › Text to Speech, switch to another model, and come back: the voice you chose is still that model's, where it used to fall back to the model's first voice.
 - **The OpenAI voice shows its price.** GPT Realtime 2.1 Mini's card in Text to Speech reads "$0.6 / $20 per 1M tokens · BYOK" in place of "Included": OpenAI's price, and that it runs on ForeverLM's own OpenAI key at no charge to you.
 - **On the iPhone, a narration that is still being made no longer jumps back.** Listen plays the opening while the rest is generated and swaps in longer audio as it arrives; each swap now carries on from the second you are at, where it used to go back by as long as the swap took to prepare, twice that at 2x.
 - **Ask voice to play a source.** Say "I want to listen to this article" to the assistant, in CarPlay, on the iPhone or on the Mac, and it starts that source's narration, the audio Listen plays; a paid voice's price is said first. In CarPlay, **Talk** brings the assistant back, and it returns by itself when the narration ends.

@@ -47,6 +47,9 @@ voice, it has a name, an accent flag, and the languages it reads. Other voices
 are shown by their id. Fish Audio's models list no voices on OpenRouter, so they
 use the voice OpenRouter's own sample for them uses. Seed Audio lists none at
 all and speaks in its provider's default voice.
+Each model keeps the voice you last gave it: choose another model and its own
+voice comes back, in place of that model's first. On the Mac this follows your
+account; the iPhone remembers it per model on the phone.
 Voice pickers prefix provider-documented regional accents with their country
 flag and use `🇺🇳` for multilingual voices, and for voices whose languages are
 not published, instead of a generic globe glyph.

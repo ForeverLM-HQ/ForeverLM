@@ -28,6 +28,13 @@ extension Prefs {
         /// One row per model/voice pair. Keeping reactions independent prevents
         /// a thumb changed on one device from overwriting reactions to other voices.
         static let voiceRating = AccountFamily<String, String?>(prefix: "readAloud.voiceRating.", .phoneWritable)
+        /// `readAloud.modelVoice.<model id>`: the voice each text-to-speech
+        /// model was last given in Settings, so going back to a model brings
+        /// its voice back (`ArticleSpeechVoiceMemory`). One row per model, so
+        /// a pick for one never overwrites another's. The Mac writes it; the
+        /// iPhone keeps its own per model on the device
+        /// (`readAloudDeviceVoice`) and follows the account's selected pair.
+        static let readAloudModelVoice = AccountFamily<String, String?>(prefix: "readAloud.modelVoice.", .phoneWritable)
         /// `meetingFolder.image.<groupID>` — one row per meeting folder that has
         /// been given its own sidebar tile, for the same reason. A preference rather
         /// than a column on `meeting_groups`: this is display chrome, not a fact
@@ -181,6 +188,7 @@ extension Prefs {
             aiBackups.erased,
             aiBackground.erased,
             voiceRating.erased,
+            readAloudModelVoice.erased,
             meetingFolderImage.erased,
             lectureQuizScore.erased,
             courseQuizScore.erased,

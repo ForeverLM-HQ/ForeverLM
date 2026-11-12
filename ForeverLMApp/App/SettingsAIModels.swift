@@ -779,8 +779,12 @@ private struct TextToSpeechSettingsView: View {
     private func selectModel(_ model: String) {
         previewService.stop()
         let voices = MacArticleSpeechSettings.voices(for: provider, model: model)
-        let voice = voices.isEmpty || voices.contains(voiceText) ? voiceText : voices[0]
+        // Each model keeps the voice it was last given.
+        let voice = ArticleSpeechVoiceMemory.voice(switchingTo: model, offered: voices, current: voiceText)
+        let leaving = (model: modelText, voice: voiceText)
         testThen(model: model, voice: voice, refusalBelow: .model) {
+            // The model being left keeps the voice it had, picked here or not.
+            ArticleSpeechVoiceMemory.remember(leaving.voice, forModel: leaving.model)
             modelText = model
             adoptSelectableProvider()
             MacArticleSpeechSettings.setModel(model, for: provider)
@@ -793,10 +797,12 @@ private struct TextToSpeechSettingsView: View {
 
     private func selectVoice(_ voice: String) {
         previewService.stop()
-        testThen(model: modelText, voice: voice, refusalBelow: .voice) {
+        let model = modelText
+        testThen(model: model, voice: voice, refusalBelow: .voice) {
             voiceText = voice
             adoptSelectableProvider()
             MacArticleSpeechSettings.setVoice(voice, for: provider)
+            ArticleSpeechVoiceMemory.remember(voice, forModel: model)
         }
     }
 

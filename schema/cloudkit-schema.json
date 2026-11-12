@@ -1241,6 +1241,9 @@
         {"pattern": "aiBackground.metaFreeTrial.<flag>", "type": "bool", "parts": {"flag": ["active", "exhausted"]}, "retired": true, "doc": "Retired with the direct Meta trial (KeychainService.purgeRetiredProviderData)."},
         {"pattern": "aiBackground.metaFreeTrial.<number>", "type": "double", "parts": {"number": ["startedAt", "limitUSD"]}, "retired": true, "doc": "Retired with the direct Meta trial: its start (epoch seconds) and its limit in dollars."}
       ],
+      "readAloud.modelVoice.": [
+        {"pattern": "readAloud.modelVoice.<model>", "type": "string", "mcp": {"tool": "set_app_setting", "setting": "read_aloud.voice"}, "doc": "The voice a text-to-speech model was last given (ArticleSpeechVoiceMemory): choosing the model again brings it back. The selected voice itself is macos.tts.openrouter.voice."}
+      ],
       "readAloud.voiceRating.": [
         {"pattern": "readAloud.voiceRating.<model>|<voice>", "type": "string", "values": ["up", "down"], "mcp": {"tool": "set_app_setting", "setting": "read_aloud.voice_rating"}, "doc": "The learner's thumbs on one model's voice (ArticleSpeechVoiceRating); absent is no rating."}
       ],
