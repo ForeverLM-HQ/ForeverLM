@@ -264,9 +264,9 @@ extension KnowledgeStore {
     }
 
     /// Takes back activity the app recorded on a source that did not happen:
-    /// a review marked by a chat that reviewed nothing (2026-09-28, when a
-    /// chat saved with `mark_reviewed` false marked the seven sources a later
-    /// call linked reviewed). It undoes what recording the activity wrote —
+    /// a review marked by a chat that reviewed nothing (a chat saved with
+    /// `mark_reviewed` false that marked reviewed the sources a later call
+    /// linked). It undoes what recording the activity wrote —
     /// the source's automatic Schedule entry (the placement no one planned,
     /// `is_automatic` 1) with every activity day under it, the read stamp when
     /// it falls on `day`, and the assignments the entry's completion closed
@@ -642,7 +642,7 @@ extension KnowledgeStore {
 
     /// Visible Goal tags for placements, keyed by placement id. Top-level Notebooks
     /// stay out of chips; every timebound Goal, standing alone or in a Notebook,
-    /// is shown, as are the plain goals older builds created.
+    /// is shown, as are plain goals.
     func loadGoalTagsByPlacement() throws -> [String: [GoalTag]] {
         var result: [String: [GoalTag]] = [:]
         try queryBind("""

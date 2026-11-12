@@ -6,9 +6,8 @@ import Foundation
 /// request goes to OpenRouter's transcription endpoint under its slug (product owner,
 /// 2026-09-27: "it can just be done via openrouter"): straight there on the
 /// learner's own OpenRouter key, through the managed proxy otherwise, which
-/// keeps the long-lived key server-side. GPT-4o mini Transcribe went to
-/// OpenAI's own API on the balance until then. Dictation always transcribes
-/// after the recording stops: the live realtime rail went on 2026-10-01.
+/// keeps the long-lived key server-side. Dictation always transcribes
+/// after the recording stops.
 enum ManagedTranscriptionClient {
     struct Result: Sendable {
         let text: String
@@ -79,18 +78,14 @@ enum ManagedTranscriptionClient {
         TranscriptionModelCatalog.models.map(\.id)
     }
 
-    /// Model ids an earlier build stored under a provider's own spelling,
+    /// Model ids stored under a provider's own spelling,
     /// mapped to the slugs OpenRouter's transcription endpoint answers to.
     ///
-    /// The Settings picker used to list bare `whisper-1` and
-    /// `gpt-4o-transcribe` in its OpenAI slot and bare `whisper-large-v3` in
-    /// its Groq one, and a pick from that era is still sitting in
-    /// `stt_model_openai` today. Those leave over OpenRouter, whose directory
-    /// has no such ids — so the proxy could not price the request and refused
-    /// it, and dictation failed with a 403 on every attempt until the learner
-    /// happened to reopen Settings and pick again. Bare
-    /// `gpt-4o-mini-transcribe`, the default until 2026-09-27, named OpenAI's
-    /// own route; that model now goes to OpenRouter too, under its slug.
+    /// A stored pick can be a bare `whisper-1`, `gpt-4o-transcribe`,
+    /// `gpt-4o-mini-transcribe` or `whisper-large-v3`. OpenRouter's
+    /// directory has no such ids, so the proxy could not price the request and
+    /// refused it, and dictation would fail with a 403 on every attempt until the
+    /// learner reopened Settings and picked again.
     /// Renaming a stored pick keeps it working: each of these is the same
     /// model under the id its route knows it by.
     private static let retiredModelIDs = [
@@ -293,7 +288,7 @@ struct TranscriptionModelOption: Identifiable, Hashable, Sendable {
 enum TranscriptionModelCatalog {
     /// Settings › Voice's Suggested dictation models: one per maker, the
     /// best that is still affordable, as Settings › Chat suggests its own.
-    /// Picked from OpenRouter's transcription directory on 2026-09-28. A
+    /// Picked from OpenRouter's transcription directory. A
     /// model OpenRouter stops serving drops off the list.
     static let suggestedModelIDs = [
         "openai/gpt-transcribe",
@@ -309,8 +304,8 @@ enum TranscriptionModelCatalog {
     ]
 
     /// What Settings offered before this device has read the directory: the
-    /// eleven models the picker listed until 2026-09-27, cheapest-capable
-    /// first, named as the directory named them then.
+    /// eleven models the picker lists, cheapest-capable
+    /// first, named as the directory names them.
     static let offeredBeforeDirectory: [TranscriptionModelOption] = [
         .init(id: "openai/gpt-4o-mini-transcribe", name: "GPT-4o Mini Transcribe", maker: "OpenAI"),
         .init(id: "nvidia/parakeet-tdt-0.6b-v3", name: "Parakeet TDT 0.6B v3", maker: "NVIDIA"),

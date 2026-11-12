@@ -9,8 +9,7 @@ import Foundation
 // retires that rewording; and a rewording missed more often than the card's
 // own words over three uses or more retires itself. Retirements are read off
 // the attempts, which are synced and never change, so no device has to write
-// one. Nothing writes new rewordings any more (the day close that did was
-// removed 2026-10-15). Everything here is pure, and compiled into the iPhone
+// one. Nothing writes new rewordings. Everything here is pure, and compiled into the iPhone
 // app too, whose card review asks the same rotation.
 
 enum MemoryCardVariation {

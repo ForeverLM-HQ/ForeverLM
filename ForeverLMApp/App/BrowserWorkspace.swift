@@ -605,8 +605,8 @@ final class BrowserWorkspace {
 /// decides that a link is a PDF: SSRN's Download This Paper
 /// (`Delivery.cfm/….pdf`) answers with a page first — a Cloudflare check, a
 /// sign-in — and a guess would save that page as the paper where any browser
-/// would run it and receive the file (2026-09-23). Only the response decides: a PDF on a paper's page is caught
-/// and attached to the paper, another file goes to Downloads, a page is shown.
+/// would run it and receive the file. Only the response decides: a PDF on a
+/// paper's page is caught and attached to the paper, another file goes to Downloads, a page is shown.
 enum WebPagePolicy {
     enum ActionDecision: Equatable {
         case allow

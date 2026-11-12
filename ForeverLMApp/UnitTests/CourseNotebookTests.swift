@@ -334,20 +334,6 @@ struct StudyNotebookTests {
 struct CourseNotebookViewModelTests {
     fileprivate typealias F = CourseNotebookFixtures
 
-    /// The open library is a preference the unit host shares with the Dev
-    /// app, and these steps run in the open library: each test opens My
-    /// Library and puts the app's choice back.
-    private func capturingOpenLibrary() -> () -> Void {
-        let saved = UserDefaults.standard.object(forKey: StudioViewModel.activeTeamPreferenceKey)
-        return {
-            if let saved {
-                UserDefaults.standard.set(saved, forKey: StudioViewModel.activeTeamPreferenceKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: StudioViewModel.activeTeamPreferenceKey)
-            }
-        }
-    }
-
     @Test("Linking, unlinking and making a study notebook update which notebooks follow a course")
     func followersFollowTheWrites() async throws {
         let restoreLibrary = capturingOpenLibrary()

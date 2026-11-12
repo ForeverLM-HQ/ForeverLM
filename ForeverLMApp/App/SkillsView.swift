@@ -4,14 +4,13 @@ import UniformTypeIdentifiers
 
 // MARK: - Skills, in the Plugins place
 
-/// The Skills tab of the Plugins place, as Codex has Skills beside Plugins
-/// (`skills.appsPage.browseTabs`, `skills.page.*`): the learner's chat skills
-/// by name, a search over their names and descriptions, and a page for each
+/// The Skills tab of the Plugins place, as Codex has Skills beside Plugins:
+/// the learner's chat skills by name, a search over their names and descriptions, and a page for each
 /// (`SkillPage`). A skill is instructions the learner wrote for one kind of
 /// work in the shape of a `SKILL.md` (`SkillRecord`); the chat offers each as
 /// `/name` and `$name` and uses it on its own when a request matches its
-/// description (docs/chat-design.md, "Skills"). Until this list, skills had
-/// no window of their own: only MCP's `save_skill` wrote them.
+/// description (docs/chat-design.md, "Skills"). Skills are also written
+/// over MCP, by `save_skill`.
 ///
 /// The list reads `SkillLibrary`, which reads the store again when a skill is
 /// written here, over MCP or on the other Mac.
@@ -186,7 +185,7 @@ private extension View {
 
 /// One skill's page in the Plugins place: Codex's breadcrumb (Skills › its
 /// name), its name and description, Edit and the ⋯, then the skill itself —
-/// the instructions the chat follows (`plugins.skillDetails.skill`). Edit
+/// the instructions the chat follows. Edit
 /// turns the page into its three fields; a new skill opens that way, with
 /// Import SKILL.md… to fill them from a file. Leaving changes unsaved asks
 /// first.

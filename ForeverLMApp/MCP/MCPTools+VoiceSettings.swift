@@ -6,11 +6,10 @@ import AVFoundation
 // Every control in `VoiceSettingsDetailView` (SettingsAIModels.swift) as a
 // `set_app_setting` entry: the two Speech-to-Text model groups (dictation is
 // transcribed after you stop), the Text-to-Speech card (read aloud) and voice
-// mode's voice (voice_mode.voice). Realtime voice and live dictation went on
-// 2026-10-01, and with them realtime_voice.model, realtime_voice.voice,
-// dictation.realtime and dictation.realtime_model; voice mode came back on
-// 2026-11-07 on ForeverLM's own credits, with only its voice to choose. Each `write` calls the setter the pane
-// calls, so the side effects match — a model change that resets a voice the
+// mode's voice (voice_mode.voice). There is no realtime voice or live dictation entry
+// (realtime_voice.model, realtime_voice.voice, dictation.realtime,
+// dictation.realtime_model); voice mode runs on ForeverLM's own credits, with
+// only its voice to choose. Each `write` calls the setter the pane calls, so the side effects match — a model change that resets a voice the
 // new model does not offer, a provider change that repairs the stored pick.
 //
 // Several of the pane's helpers are `private` to its views (the providers'

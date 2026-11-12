@@ -4,15 +4,14 @@ import OSLog
 
 /// In-memory nearest-neighbour index over source chunk embeddings.
 ///
-/// Replaces the previous ObjectBox/HNSW store, which was both unnecessary and — on
-/// the chunk path — dead code: chunk search never reached it and instead re-read every
-/// vector from SQLite on *every query* and scored them with a scalar cosine loop.
-/// At full coverage (~90k chunks) that is ~175 MB of SQLite reads and ~46M scalar
+/// Chunk search reads every vector from memory here; re-reading every vector from
+/// SQLite on *every query* and scoring them with a scalar cosine loop would cost, at
+/// full coverage (~90k chunks), ~175 MB of SQLite reads and ~46M scalar
 /// float ops per search.
 ///
 /// Measured on this corpus size (90k x 512), the alternatives are:
 ///
-///   scalar loop (the old path)        35.9 ms/query
+///   scalar loop                       35.9 ms/query
 ///   Accelerate sgemv                  18.8 ms/query
 ///   sgemv + partial top-k selection    6.9 ms/query   <- what this does
 ///

@@ -320,7 +320,7 @@ extension StudioViewModel {
     /// After an inbound sync change reloaded the notebooks (`before` is what
     /// this Mac held until then): a source that joined a notebook on another
     /// device — the web, the iPhone, another Mac, a teammate — arrives ticked
-    /// here as an add on this Mac does, so an older client that writes the
+    /// here as an add on this Mac does, so a client that writes the
     /// membership and never the row is covered. An untick made after the
     /// source joined stands (`NotebookChatSelection.inboundArrivals`).
     /// Only rows naming an arrival are read, and only their write dates.
@@ -1229,19 +1229,6 @@ extension StudioViewModel {
     ) -> [String] {
         let rows = Set(rowIDs)
         return approved.filter { rows.contains(rowID($0)) }
-    }
-
-    /// The short description under a Notebook's title on its gallery card. An
-    /// empty draft clears it.
-    func setNotebookSummary(_ summary: String, notebookID: String) async {
-        do {
-            try await storage.setLearningGoalSummary(goalID: notebookID, summary: summary)
-            notebookNamedByLearner(notebookID)
-            await loadLearningGoals()
-        } catch {
-            logger.error("Failed to update Notebook description: \(error)")
-            showToast("Could not save description")
-        }
     }
 
     /// Replace a Notebook's synthesis notes with the supplied Markdown and attach the

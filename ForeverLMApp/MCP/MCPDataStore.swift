@@ -9,8 +9,8 @@ import SQLite3
 /// FULLMUTEX protects individual SQLite calls but does not stop another Task's
 /// read from observing uncommitted rows between those calls. Only a writer can
 /// leave such rows behind, so readers share the connection and a writer holds
-/// it alone. Until 2026-09-18 every tool held it alone, and a `list_teams`
-/// waited half a minute behind a `publish_site` that spent the time uploading.
+/// it alone, so a `list_teams` does not wait behind a `publish_site` that spends
+/// its time uploading.
 ///
 /// Admission is FIFO. A writer that arrives while readers hold the gate waits
 /// for them; readers that arrive behind that writer wait for it. A stream of
@@ -317,15 +317,15 @@ final class MCPDataStore {
     @discardableResult
     /// An integer argument as JSON delivers it — an Int, or a Double when the
     /// number was written with a fraction or an exponent. A value Int cannot
-    /// hold is refused: until 2026-09-19 `Int(1e30)` trapped in the handler and
-    /// one authenticated request took the app, and its tunnel, down.
+    /// hold is refused: `Int(1e30)` traps, and one authenticated request would take
+    /// the app, and its tunnel, down.
     static func intArgument(_ arguments: [String: Any], _ key: String) throws -> Int? {
         try intValue(arguments[key], key)
     }
 
     /// The one way an MCP argument value becomes an `Int`. JSON numbers arrive
     /// as `Double`, and `Int(double)` traps on NaN, infinity or a value `Int`
-    /// cannot hold: `1e30` once took the app and its tunnel down (2026-09-19).
+    /// cannot hold: `1e30` would take the app and its tunnel down.
     /// Every tool's integer read, nested values included, comes through here.
     static func intValue(_ value: Any?, _ key: String) throws -> Int? {
         guard let value else { return nil }

@@ -18,7 +18,7 @@ import Vision
 /// Needs Screen Recording, which only the learner can grant (System Settings
 /// › Privacy & Security › Screen & System Audio Recording).
 ///
-/// Measured 2026-11-08 on ten windows whose titles say little, three runs
+/// Measured on ten windows whose titles say little, three runs
 /// each: titles alone 23 of 30, with the window's words 25 of 30 — a Slack
 /// channel about the paper told from one about the weekend, a family chat
 /// caught; a music app and the Calendar still judged distractions now and then.
@@ -88,7 +88,7 @@ enum FocusScreenReader {
 
     /// The window's words, read with Vision's accurate recogniser. The fast
     /// one garbled a Reader window past use ("miDNA Mui•tlon• Oocytw" for
-    /// "mtDNA Mutations … Oocytes", 2026-11-08); the accurate one read it
+    /// "mtDNA Mutations … Oocytes"); the accurate one read it
     /// cleanly in half a second, after a one-time model load of about half a
     /// minute the first time in a launch (off the main actor).
     static func recognizedText(in image: CGImage) -> String {

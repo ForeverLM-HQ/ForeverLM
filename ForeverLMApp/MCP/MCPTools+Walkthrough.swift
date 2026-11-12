@@ -6,7 +6,7 @@ import Foundation
 ///
 /// `generate_walkthrough` runs the app's own writer; `save_walkthrough` lets an
 /// assistant author the steps itself — the in-Reader form of the figure
-/// companion sites it used to build as separate pages — with the same anchor
+/// companion sites an assistant would otherwise build as separate pages — with the same anchor
 /// checks the writer's draft goes through; `get_walkthrough` reads the steps
 /// back; `delete_walkthrough` removes them. One record a source, whoever wrote
 /// it. The source is a paper, a book chapter, an article or a YouTube video
@@ -15,7 +15,7 @@ import Foundation
 /// video's steps point at moments of the talk (`at`), and only
 /// `save_walkthrough` writes one: the app's writer walks text.
 ///
-/// Since 2026-09-20 a saved animation is a subject too (`animation` in place
+/// A saved animation is a subject too (`animation` in place
 /// of `source_id`): its walk's steps pin the animation's page to its own
 /// steps (`animation_step`, `animation_conditions`), and any walk's step may
 /// show a saved animation that way (`animation` on the step). The chat plays
@@ -87,32 +87,12 @@ extension MCPDataStore {
         return found
     }
 
-    private enum WalkthroughSourceLookup {
-        case found(StudioArticle)
-        case notFound
-        case excluded
-    }
-
-    /// Through the storage actor, never the cached connection: generate_walkthrough
-    /// is off the store gate (`storeGateExemptToolNames`) for its minutes of writing.
-    private func walkthroughSource(forRequestedID requestedID: String) async throws -> WalkthroughSourceLookup {
-        guard let resolvedID = try await notebookFileStorage.resolveSourceID(forLinkToken: requestedID) else {
-            return .notFound
-        }
-        let excluded = try await notebookFileStorage.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        guard !KnowledgeStore.isBlockedFromOpening(resolvedID, excluded: excluded) else { return .excluded }
-        guard let article = try await notebookFileStorage.loadPersistedSources(ids: [resolvedID]).first else {
-            return .notFound
-        }
-        return .found(article)
-    }
-
     func walkthroughSubjectSource(arguments: [String: Any]) async throws -> StudioArticle {
         let requested = ((arguments["source_id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !requested.isEmpty else {
             throw MCPError.invalidInput("source_id is required: the paper, book chapter or article, from list_sources or a search result.")
         }
-        switch try await walkthroughSource(forRequestedID: requested) {
+        switch try await librarySource(forRequestedID: requested) {
         case .found(let article):
             return article
         case .notFound:
@@ -455,7 +435,7 @@ extension MCPDataStore {
                         targetPanel: Self.trimmedOrNil(rawQuiz["target_panel"] as? String)
                     )
                 } else {
-                    // The multiple-choice shape accepted before 2026-09-19.
+                    // The multiple-choice shape, still accepted.
                     // Saved as the open question it becomes in the panel, with
                     // the option marked correct as the reference answer, and
                     // named so the caller moves to the new shape.

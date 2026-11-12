@@ -95,7 +95,7 @@ struct MnemonicQuestion: Identifiable, Equatable, Sendable {
             bytes.append(contentsOf: field.utf8)
         }
         let digest = SHA256.hash(data: bytes)
-        return "mq-" + digest.prefix(16).map { String(format: "%02x", $0) }.joined()
+        return "mq-" + digest.prefix(16).hexString
     }
 
     /// The Memory item answering the question keeps: one per question id
@@ -226,8 +226,8 @@ enum MnemonicReadingDensity: String, CaseIterable, Identifiable, Sendable {
 /// listing the questions under their chapters.
 ///
 /// Sections only grow: a section's questions are added to, never dropped
-/// (`writing(_:in:)`), and two copies merge question by question (`union`),
-/// so a question the learner may have answered never leaves the reading.
+/// (`writing(_:in:)`), so a question the learner may have answered never
+/// leaves the reading.
 struct MnemonicReading: Equatable, Sendable {
     static let formatMarker = "<!-- foreverlm:mnemonic-reading v1 -->"
     static let sourceLinePrefix = "<!-- source:"
@@ -450,42 +450,6 @@ struct MnemonicReading: Equatable, Sendable {
         }
         result.added = added
         return result
-    }
-
-    // MARK: Two copies
-
-    /// Two copies of a reading as one, for a body that arrived from another
-    /// device while this one held a newer body of its own: this copy, with a
-    /// section the other wrote marked written, the other's questions this one
-    /// lacks appended to their section in their order, and the other's
-    /// sections this one lacks appended. Nothing is held for a choice, which
-    /// a reading, never edited as a Doc, could not offer. `mine` itself when
-    /// the other adds nothing; nil unless both are reading bodies.
-    static func union(mine: String, theirs: String) -> String? {
-        guard isReadingMarkdown(mine), isReadingMarkdown(theirs) else { return nil }
-        let other = parse(theirs, fallbackTitle: Self.kindLabel)
-        var merged = parse(mine, fallbackTitle: other.title)
-        var changed = false
-        var ids = Set(merged.questions.map(\.id))
-        for section in other.sections {
-            let missing = section.questions.filter { ids.insert($0.id).inserted }
-            if let index = merged.sections.firstIndex(where: { $0.sourceID == section.sourceID }) {
-                if section.isWritten, !merged.sections[index].isWritten {
-                    merged.sections[index].isWritten = true
-                    changed = true
-                }
-                if !missing.isEmpty {
-                    merged.sections[index].questions.append(contentsOf: missing)
-                    changed = true
-                }
-            } else {
-                var appended = section
-                appended.questions = missing
-                merged.sections.append(appended)
-                changed = true
-            }
-        }
-        return changed ? merged.markdown : mine
     }
 
     // MARK: Text

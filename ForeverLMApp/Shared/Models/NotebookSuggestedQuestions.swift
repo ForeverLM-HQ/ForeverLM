@@ -3,8 +3,8 @@ import Foundation
 
 /// A notebook's suggested questions, kept once they are made
 /// (docs/notebooks-design.md, "The notebook guide"). The guide's Suggest
-/// questions used to call a model and save a chat every time it was pressed;
-/// now the questions its answer suggested stay with the notebook, the guide
+/// questions does not call a model and save a chat every time it is pressed;
+/// the questions its answer suggested stay with the notebook, the guide
 /// offers them in every new chat without a model call, a question once asked
 /// is not offered again, and new questions are suggested only when the
 /// notebook's sources change.
@@ -113,7 +113,7 @@ enum NotebookSuggestedQuestions {
     /// order, gives the same fingerprint on every device.
     static func fingerprint(of sourceIDs: some Sequence<String>) -> String {
         let joined = Set(sourceIDs).sorted().joined(separator: "\n")
-        return SHA256.hash(data: Data(joined.utf8)).prefix(12).map { String(format: "%02x", $0) }.joined()
+        return SHA256.hash(data: Data(joined.utf8)).prefix(12).hexString
     }
 
     /// A question as two askings of it compare: case, accents, spacing and

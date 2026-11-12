@@ -55,7 +55,7 @@ enum ScannedPDFTextLayer {
     /// on nearly every page, and its few pages without any are pictures — a
     /// cover, a photograph, a sponsor's page — whose words are not the book's
     /// text. Read page by page, a 156-page abstract book sent its cover and
-    /// four picture pages to Scanned Page Proofreading (2026-10-13).
+    /// four picture pages to Scanned Page Proofreading.
     static let scannedPageShare = 0.5
 
     /// The pages OCR reads: in a scanned book, those with fewer embedded words

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// How a card looks wherever Memory draws one, on the Mac and on the phone
-/// (docs/memory-design.md, "How a card looks", 2026-10-11): an index card —
+/// (docs/memory-design.md, "How a card looks"): an index card —
 /// paper, a hairline, a soft shadow, lifted a touch in dark mode — with the
 /// question in the review's serif. What is left of a deal shows as the edges
 /// of the cards under the one in front, so the deck thins as it is answered.

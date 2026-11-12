@@ -203,8 +203,8 @@ extension KnowledgeStore {
     /// pending row after the last evaluated exchange, which is right only
     /// while every earlier message got its reply: a turn that ended with
     /// none (a quiz grade cut short by Send now, a failure the learner
-    /// answered past) left its row pending, and on 2026-09-27 every later
-    /// reply in a course quiz landed on an earlier message than its own.
+    /// answered past) left its row pending, and every later
+    /// reply in a course quiz would land on an earlier message than its own.
     @discardableResult
     func answerPendingReviewExchange(
         sessionID: String,

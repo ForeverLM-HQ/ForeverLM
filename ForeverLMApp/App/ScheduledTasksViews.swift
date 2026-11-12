@@ -43,9 +43,9 @@ struct ScheduledTasksReaderPane: View {
             .task { await runner.refresh() }
     }
 
-    /// Quiet chrome (docs/ui-design.md, 2026-10-06): **+** (a new task, in
-    /// Chat) and the ⋯, which holds Keep This Mac Awake for Tasks, the cup
-    /// button on the line until then.
+    /// Quiet chrome (docs/ui-design.md): **+** (a new task, in
+    /// Chat) and the ⋯, which holds Keep This Mac Awake for Tasks (there is
+    /// no cup button on the line).
     private var toolbar: some View {
         HStack(spacing: 8) {
             Spacer()

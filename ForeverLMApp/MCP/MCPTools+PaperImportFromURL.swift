@@ -234,15 +234,6 @@ extension MCPDataStore {
         return try await stageLocalPDFAsPaper(filePath: staged.path, title: title, canonicalURL: canonicalURL)
     }
 
-    /// `importPaperFromDownloadURLOutcome`'s answer alone.
-    func importPaperFromDownloadURL(
-        _ rawURL: String,
-        sourceURL rawSourceURL: String,
-        title: String?
-    ) async throws -> String {
-        try await importPaperFromDownloadURLOutcome(rawURL, sourceURL: rawSourceURL, title: title).message
-    }
-
     func resolvedPaperPDFURL(
         sourceURL: String,
         pageMetadata: PaperService.PaperPageMetadata?,
@@ -254,7 +245,7 @@ extension MCPDataStore {
 
         // A PMC article is fetched from NCBI's own PDF route, whose
         // proof-of-work check `downloadPDF` answers. Europe PMC's render, which
-        // the lookup used to return, answers apps with 403 (2026-09-23).
+        // the lookup returns, answers apps with 403.
         if let route = PaperService.ncbiPMCPDFURL(forArticleURL: sourceURL),
            PaperService.isNCBIPMCURL(sourceURL) {
             return route
@@ -536,10 +527,10 @@ extension MCPDataStore {
     /// answers with its id (or, when it has no PDF, takes this one).
     ///
     /// The store is held only for each lookup and save, never across a
-    /// download or a scholarly lookup. Until 2026-10-12 the dispatcher held it
-    /// alone for the whole import, models included: several imports sent
-    /// together ran one after another, every other call queued behind them,
-    /// and the later clients timed out. Imports now run side by side, so the
+    /// download or a scholarly lookup. Holding it alone for
+    /// the whole import, models included, would run several imports sent
+    /// together one after another, queue every other call behind them, and
+    /// time out the later clients. Imports run side by side, so the
     /// PDF is downloaded into a folder of its own and claimed in the Papers
     /// folder by the move that puts it there (`movePaperIntoPapersFolder`),
     /// and the library is asked again for the paper inside the stretch that
@@ -660,9 +651,9 @@ extension MCPDataStore {
             // The publisher blocking the PDF is not a reason to lose the paper.
             // Studio keeps a paper whose download hits a paywall as a paywalled
             // row, and the bulk download pass marks one the same way; the URL
-            // import used to be the one path that threw and saved nothing, so
-            // the assistant told the learner the paper "wasn't added" even
-            // though every recovery path here works from a saved row. A file
+            // import must not be the one path that throws and saves nothing:
+            // the assistant would tell the learner the paper "wasn't added"
+            // even though every recovery path here works from a saved row. A file
             // turned away as another paper counts as no PDF of this one, and
             // the evidence names it.
             let evidence = (publisherError.flatMap(Self.paperPaywallEvidence(for:))

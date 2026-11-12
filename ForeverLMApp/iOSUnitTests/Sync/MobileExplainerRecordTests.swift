@@ -61,7 +61,7 @@ struct MobileExplainerRecordTests {
         let snapshot = try await MobileReadModels.snapshot(phone.projection)
         let listed = try #require(snapshot.sources.first { $0.id == id })
         #expect(ExplainerScript.explainedSourceID(from: listed.url ?? "") == "src1")
-        #expect(MobileSourceListing.isExplainer(listed), "never a row of its own")
+        #expect(MobileSourceListing.isSpokenScript(listed), "never a row of its own")
         #expect(listed.wordCount == 6)
         let blobs = try #require(writer.blobs)
         let text = try await MobileReadModels.sourceSatellite(id, matching: { $0 == "text" }, projection: phone.projection, blobs: blobs)

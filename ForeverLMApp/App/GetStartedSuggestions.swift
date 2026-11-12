@@ -77,9 +77,9 @@ struct GetStartedSuggestions: View {
         }
     }
 
-    /// A grey glyph and the suggestion's title, one line each (2026-10-06:
-    /// the accent glyphs, a green check and a subline under every row went;
-    /// the source the first two are about is the row's tooltip).
+    /// A grey glyph and the suggestion's title, one line each, with no accent
+    /// glyph, check or subline; the source the first two are about is the
+    /// row's tooltip.
     private func row(_ suggestion: Suggestion) -> some View {
         let isDone = doneBits & suggestion.bit != 0
         let needsSource = suggestion == .read || suggestion == .quiz

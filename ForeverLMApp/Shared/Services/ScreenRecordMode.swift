@@ -534,8 +534,7 @@ struct ScreenRecordScope: Sendable, Equatable {
     /// A team shows when it was made during the take or holds something the
     /// take may show — the recording Notebook, a Notebook or page made during
     /// the take, a page filed under the Notebook — since its name is the
-    /// learner's own (one showed under the Space sidebar's Spaces on build
-    /// 208, 2026-10-10). Made, not joined: a team row that arrives by
+    /// learner's own (one showed under the Space sidebar's Spaces). Made, not joined: a team row that arrives by
     /// sync is stamped joined at that moment. The caller answers
     /// `holdsShownItem` from what it lists (`StudioViewModel.shownTeams`).
     func allowsTeam(createdAt: Date, holdsShownItem: Bool) -> Bool {

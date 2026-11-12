@@ -64,12 +64,11 @@ enum BookFolderNaming {
 /// the library's own copy itself, a file this Mac added before (its sha256 is
 /// in `book_file_digests`), or the same bytes as the copy of a book added
 /// before those were kept; or when the learner chose the book it replaces the
-/// file of. Never by its title or its name. Add Book matched a book by title
-/// until 2026-10-13, so a 1957 monograph called "Bioenergetics" took the row
-/// of a textbook with that title and archived its chapters (product owner,
-/// 2026-10-12: "There was another book called Bioenergetics. That is a
-/// textbook, but that seems to have gotten overwritten by this one that's
-/// also called Bioenergetics").
+/// file of. Never by its title or its name: a 1957 monograph called
+/// "Bioenergetics" must not take the row of a textbook with that title and
+/// archive its chapters (product owner, 2026-10-12: "There was another book
+/// called Bioenergetics. That is a textbook, but that seems to have gotten
+/// overwritten by this one that's also called Bioenergetics").
 ///
 /// A new book gets a folder of its own, never one that is on disk or that a
 /// chapter's file or address names, so it never writes over another book's
@@ -241,7 +240,7 @@ struct BookFilePlacement: Equatable, Sendable {
         for file in files.sorted(by: { $0.path < $1.path }) {
             hasher.update(data: Data("\(file.path)\u{0}\(file.digest)\n".utf8))
         }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return hasher.finalize().hexString
     }
 
     /// The book's file in its folder with this extension: the one named for

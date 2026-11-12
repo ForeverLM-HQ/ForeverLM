@@ -11,7 +11,7 @@ import AppKit
 /// (`AIModelDefaults.suggestedBackgroundModels`,
 /// `suggestedBackgroundImageModels`), the free models, the backups, and under
 /// them all of OpenRouter as a table (`OpenRouterModelTable`), with a search.
-/// It replaced the card grid. Since 2026-11-07 Suggested and Free are one
+/// Suggested and Free are one
 /// list the learner keeps, Your Models, as in Settings › Chat: one for text
 /// work and one for work that reads images (`ChatModelShortlist`), each
 /// task sharing its kind's.
@@ -62,9 +62,9 @@ struct BackgroundModelsPane: View {
                         followsNote(task)
                     }
                     warnings
-                    if let pinned = pinnedRow {
+                    if let pinned = pinnedModel {
                         SettingsModelListSection(title: "Current model") {
-                            pinned
+                            pinnedRow(pinned)
                         }
                     }
                     yourModelsSection
@@ -273,23 +273,36 @@ struct BackgroundModelsPane: View {
         return snapshot?.visionIDs.contains(entry.id) == true
     }
 
+    /// How a pinned model is drawn: as a catalog row or as a directory row.
+    private enum PinnedModel {
+        case catalog(AIModelCatalogEntry)
+        case directory(OpenRouterDirectoryModel)
+    }
+
     /// The model the pane opened on, when neither list shows it.
-    private var pinnedRow: AnyView? {
+    private var pinnedModel: PinnedModel? {
         guard let openedOn else { return nil }
         let slug = OpenRouterModelID.slug(provider: openedOn.provider, model: openedOn.model).lowercased()
         let listed = Set(shownRows.map(\.slug))
         guard !listed.contains(slug) else { return nil }
         if let entry = lists.entryBySlug[slug] {
-            return AnyView(catalogRow(entry, listActions: nil))
+            return .catalog(entry)
         }
         if let model = lists.directoryBySlug[slug] {
-            return AnyView(directoryRow(model, listActions: nil))
+            return .directory(model)
         }
         let maker = lists.identity(ofSlug: slug)
-        return AnyView(catalogRow(
-            AIModelCatalogEntry(maker: maker.logo ?? .other, provider: openedOn.provider, modelID: openedOn.model),
-            listActions: nil
-        ))
+        return .catalog(AIModelCatalogEntry(maker: maker.logo ?? .other, provider: openedOn.provider, modelID: openedOn.model))
+    }
+
+    @ViewBuilder
+    private func pinnedRow(_ model: PinnedModel) -> some View {
+        switch model {
+        case .catalog(let entry):
+            catalogRow(entry, listActions: nil)
+        case .directory(let model):
+            directoryRow(model, listActions: nil)
+        }
     }
 
     @ViewBuilder

@@ -13,7 +13,7 @@ import Foundation
 /// Spark Contributor, whose discount is paid in training consent, and most
 /// free endpoints — NVIDIA's, Thinking Machines', Poolside's and Liquid's
 /// `:free` variants each run on one host that trains on prompts (OpenRouter's
-/// catalog, 2026-09-28).
+/// catalog).
 ///
 /// The switch does two things, both in the learner's favour:
 ///
@@ -30,11 +30,9 @@ import Foundation
 ///   refuses with a "data policy" error, translated here into a message that
 ///   names this setting so the learner knows which of the two to change.
 ///
-/// Until 2026-09-14 ForeverLM's OpenRouter *account* excluded paid endpoints
-/// that train, for every learner, and Contributor was retired as unservable.
-/// The product owner wanted the model back — "even if they train on my data" — with the
-/// switch as the way to keep it out of sight, so the account allows those
-/// endpoints and this switch is the learner's own line. OpenRouter's request
+/// ForeverLM's OpenRouter *account* allows paid endpoints that train, so
+/// Contributor is servable, and this switch is the learner's own line for
+/// keeping them out of sight. OpenRouter's request
 /// fields can tighten an account policy but never loosen it, so should the
 /// account ever exclude them again, the refusal ("Paid model training
 /// violation (account settings)") is recognised and translated without naming
@@ -72,10 +70,9 @@ enum AIDataPolicy {
     /// OpenRouter slugs known to train before any catalog read has answered,
     /// so a fresh install labels them from its first launch. Contributor is
     /// Meta's discounted tier, priced for training consent; 1.3 Contributor
-    /// (2026-09-28) is the same tier, on Meta's one endpoint. Every other
-    /// model that trains is learnt from OpenRouter (`observedTrainingSlugs`):
-    /// until 2026-09-28 this list was the whole answer, and the free
-    /// Nemotrons and Inklings, whose one host trains, went unlabelled.
+    /// is the same tier, on Meta's one endpoint. Every other model that trains
+    /// is learnt from OpenRouter (`observedTrainingSlugs`): the free Nemotrons
+    /// and Inklings, whose one host trains, are not in this list.
     static let trainingModelSlugs: Set<String> = [
         "meta/muse-spark-1.2-contributor",
         "meta/muse-spark-1.3-contributor",
@@ -96,7 +93,7 @@ enum AIDataPolicy {
 
     /// The variants whose endpoint OpenRouter's catalog marks as training
     /// (`endpoint.data_policy.training`), as its last read found them. The
-    /// public API publishes no data policy (checked 2026-09-14); the catalog
+    /// public API publishes no data policy; the catalog
     /// behind openrouter.ai's model pages does, for the endpoint it lists
     /// first. That is exact for a variant with one host, which is every one
     /// that trains today; one whose first host trains while another does not
@@ -221,7 +218,7 @@ enum AIDataPolicy {
 /// beside the data-policy switch: the model's fastest endpoint, among those
 /// that cache the prompt. OpenRouter's default weighs endpoints by price, which
 /// on an open-weight model with thirty hosts lands on the cheapest and slowest
-/// of them (GLM 5.3 Flash, 2026-09-22: 49 s of thinking on a $0.10/M host).
+/// of them (GLM 5.3 Flash: 49 s of thinking on a $0.10/M host).
 /// The price is whatever the chosen endpoint charges, read back from the
 /// generation record, so the ledgers stay exact.
 enum OpenRouterRoutePreference {
@@ -531,8 +528,8 @@ struct OpenRouterHostPreference: Codable, Equatable, Sendable {
 /// which holds only endpoints "whose provider infrastructure is located in
 /// that region" (OpenRouter's In-Region Routing guide). Sending to that
 /// domain needs an OpenRouter Business plan, so requests still go to the
-/// global one, confined to these endpoints by `provider.only`. Checked
-/// 2026-09-28: the global directory lists 34 hosts for GLM 5.3 Flash, among
+/// global one, confined to these endpoints by `provider.only`. For example
+/// the global directory lists 34 hosts for GLM 5.3 Flash, among
 /// them Z.AI, SiliconFlow and StreamLake; the US one lists four (Sail
 /// Research us, DeepInfra fp4, BaseTen fp8, Fireworks us).
 ///
@@ -778,7 +775,7 @@ enum AIFreeModelPrices {
 
     /// True when the last whole read did not list this `:free` id at all,
     /// which is how OpenRouter ends a free variant: the row goes, and a
-    /// request for it is refused ("no longer free", 2026-10-29). The price
+    /// request for it is refused ("no longer free"). The price
     /// watch only sees a model it recorded while it was listed, so this is
     /// what keeps a pick made after the row left from being sent.
     static func isDelisted(_ id: String) -> Bool {
@@ -795,7 +792,7 @@ enum AIFreeModelPrices {
 
 /// Free models OpenRouter refused to run for ForeverLM because it offers them
 /// only inside the apps it lists ("… is only available on agentic harnesses",
-/// seen 2026-09-26 for the Inkling `:free` variants). The directory still
+/// as for the Inkling `:free` variants). The directory still
 /// lists such a model at zero, so neither the price table nor the price watch
 /// can tell; the refusal itself is the only signal. Device-local, like the
 /// price table. A refusal is kept for a week and then forgotten, so a model

@@ -62,8 +62,7 @@ struct IdeaRevealRequest: Equatable {
 struct IdeasHomeView: View {
     @Environment(StudioViewModel.self) private var vm
 
-    /// Under the Docs tab's Ideas chip (2026-09-29, when Ideas left the rail
-    /// for the Artifacts home, which became the Docs tab on 2026-10-06): the
+    /// Under the Docs tab's Ideas chip: the
     /// home draws the title and the search, and scrolls, so
     /// the list comes with its jot field but without a header or a scroll
     /// view of its own.
@@ -166,9 +165,9 @@ struct IdeasHomeView: View {
 
     /// The Space's head (`SpacePlaceHeader`), as the Space's Ideas place draws
     /// over the same list: the name and the search, and no button, since the
-    /// jot field under it is how an idea is made. Its tagline, "Jotted down
-    /// now, chased later.", went on 2026-10-06 (the product owner: "cleaner and fewer
-    /// buttons and bells and whistles").
+    /// jot field under it is how an idea is made. It has no tagline (product
+    /// owner, 2026-10-06: "cleaner and fewer buttons and bells and
+    /// whistles").
     private var header: some View {
         SpacePlaceHeader(searchText: $ownQuery, searchIdentifier: "studio.ideas.search") {
             SpacePlaceTitle(title: "Ideas")
@@ -311,7 +310,7 @@ struct IdeaRow: View {
 
             Spacer(minLength: 0)
 
-            // The day it was jotted, under the pointer only (2026-10-06): a
+            // The day it was jotted, under the pointer only: a
             // date on every row was a column of decoration. Its slot keeps
             // its size, so the words never shift.
             Text(idea.createdAt.formatted(.dateTime.month(.abbreviated).day()))
@@ -409,7 +408,7 @@ struct IdeaRow: View {
         // An element of its own that contains the chips. On a plain container
         // the label, identifier and help below were stamped on every element
         // inside, so each chip read as the Idea's title with the row's
-        // identifier and hint (2026-09-28); the help is here, below the group,
+        // identifier and hint; the help is here, below the group,
         // for that reason. A group offers no press, so the row's click is
         // given to it as its action.
         .accessibilityElement(children: .contain)

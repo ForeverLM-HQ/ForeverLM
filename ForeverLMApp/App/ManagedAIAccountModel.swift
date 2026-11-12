@@ -33,9 +33,8 @@ final class ManagedAIAccountModel {
             if let balance { ScreenRecordMode.recordAdminStatus(balance.isAdmin) }
             // A refusal because the account was closed is the one action error
             // the balance can disprove. Once it reads the account open again the
-            // sentence is stale: on 2026-10-13 a metering failure closed an
-            // account for twelve minutes and Settings still said "disabled"
-            // after it reopened.
+            // sentence is stale: a metering failure that closes an account for a
+            // while would leave Settings saying "disabled" after it reopens.
             if errorIsAccountDisabled, balance?.disabled == false { errorMessage = nil }
         }
     }
@@ -1001,7 +1000,7 @@ enum AppleIdentityToken {
         }
 
         /// Safari in a new macOS 27.0 account ends every sign-in sheet on its
-        /// first navigation (2026-09-22, build 134): it reports the sheet
+        /// first navigation: it reports the sheet
         /// finished about 0.1 s in, with the start page as the "callback",
         /// before foreverlm.com is even fetched. Its own Google sign-in fails
         /// the same way there, so no URL or option the app picks for the sheet

@@ -166,8 +166,8 @@ enum IdeaLinkKind: String, Codable, CaseIterable, Sendable {
     /// The order the chips read in on a row and the groups in a picker.
     static let displayOrder: [IdeaLinkKind] = [.goal, .notebook, .source, .chat, .artifact]
 
-    /// Reads the kind an older build saved as 'project' (a notebook was called a project
-    /// until 2026-10-04) as `.notebook`; writes only the current word.
+    /// Reads the kind a stored record may carry as 'project' (the word a
+    /// notebook was once called) as `.notebook`; writes only the current word.
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
         guard let kind = Self(rawValue: raw == "project" ? Self.notebook.rawValue : raw) else {

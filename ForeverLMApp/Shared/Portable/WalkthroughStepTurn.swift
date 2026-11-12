@@ -3,7 +3,7 @@ import Foundation
 /// The line that opens a walkthrough step the chat plays.
 ///
 /// A walkthrough is a pre-written record a source carries
-/// (`PaperWalkthrough`); since 2026-09-19 the chat beside the Reader plays it,
+/// (`PaperWalkthrough`); the chat beside the Reader plays it,
 /// one assistant turn a step, with no model call (walkthrough-design.md, "the
 /// panel becomes a chat"). The turn's text is the step's Markdown, and its
 /// first line is this tag — `<flm_walk_step source="…" step="…" index="3"

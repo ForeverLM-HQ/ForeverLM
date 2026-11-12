@@ -377,7 +377,7 @@ struct ReportGeneratorService: Sendable {
         where artifact.section == .docs && !artifact.isArchived && !artifact.isHidden
             && !TeamContentIdentity.isDraftArtifactID(artifact.id) {
             if artifact.kind == .audioOverview { continue }
-            // An overview an older build saved back without its kind still
+            // An overview saved back without its kind still
             // has its script source.
             if artifact.kind == nil, !artifact.isLinked,
                try await storage.loadSourceWithoutContent(GeneratedAudioOverview.carrierSourceID(artifactID: artifact.id)) != nil {

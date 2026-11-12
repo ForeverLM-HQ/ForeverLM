@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 // Going through cards on the phone (docs/memory-design.md, "Cards to check on the iPhone"): what To
@@ -135,7 +134,6 @@ enum MobileCardEditWriter {
     /// `KnowledgeStore.askedSomethingElseAttemptID`).
     static func askedSomethingElseAttemptID(sessionKey: String, memoryItemID: String, prompt: String) -> String {
         let fields = [sessionKey, memoryItemID, prompt].joined(separator: "\u{1F}")
-        let digest = SHA256.hash(data: Data(fields.utf8)).map { String(format: "%02x", $0) }.joined()
-        return "memory-asked-else-v1-" + digest
+        return "memory-asked-else-v1-" + fields.sha256Hex
     }
 }

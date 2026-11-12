@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import os
 
@@ -37,7 +36,7 @@ extension AIService {
     /// `error.code` is the status the failure would have had, so it becomes
     /// that HTTP failure, classified, retried and worded like one. Read as a
     /// missing completion instead, it was the final "Invalid AI response"
-    /// that parked a paper's cleanup on free Nemotron (2026-09-27).
+    /// that parked a paper's cleanup on a free model.
     func inBodyProviderFailure(label: String, http: HTTPURLResponse?, json: [String: Any]?) -> AIError? {
         guard let http, let json else { return nil }
         let reported: [String: Any]
@@ -150,8 +149,8 @@ extension AIService {
     /// the lowest level OpenRouter's catalog lists for it (Gemini 3.8 Flash
     /// takes `minimal`), else `low`, which every reasoning model accepts. A
     /// request the learner waits on pays for every level above the floor
-    /// (2026-10-13: `low` in place of `minimal` doubled Gemini 3.8 Flash's
-    /// wait for a canvas edit).
+    /// (`low` in place of `minimal` doubled Gemini 3.8 Flash's wait for a
+    /// canvas edit).
     static func reasoningFloor(model: String) -> String {
         let order = AIEffort.allCases
         let listed = AIRequestOptionSupport.supportedEfforts(provider: .openRouter, model: model)
@@ -371,9 +370,9 @@ extension AIService {
         }
     }
 
-    /// How long a stream may take to send its first byte. On 2026-11-08
-    /// OpenRouter answered a chat with a 408 after 29 s and then held the body
-    /// open; the chat read "Thinking" for eleven minutes until Stop. URLSession
+    /// How long a stream may take to send its first byte. OpenRouter can
+    /// answer a chat with a 408 after 29 s and then hold the body open, which
+    /// reads as "Thinking" until Stop. URLSession
     /// hands over a response only with its first body byte (headers alone,
     /// 200 or 408, never come back from `bytes(for:)`, nor reach a task
     /// delegate), and the AI session has no idle deadline by design, so a
@@ -628,7 +627,7 @@ extension AIService {
     // Text travels on OpenRouter's chat-completions endpoint and nowhere else.
     // The first-party labs are model families on OpenRouter, not transports —
     // the proxy has no route to their own hosts (its first-party media routes
-    // answer 410 since 2026-10-02), and `KeychainService.routedTextConfig`
+    // answer 410), and `KeychainService.routedTextConfig`
     // hands every text call the OpenRouter provider before it reaches this
     // file.
 
@@ -842,7 +841,7 @@ extension AIService {
         // Endpoints already read decide; unread ones are OpenAI's own, since
         // only its open weights (named above) run elsewhere alone. Left
         // unpinned until the endpoints were read, GPT-6 Luna ran on Amazon
-        // Bedrock and billed OpenRouter credits (2026-11-09).
+        // Bedrock and billed OpenRouter credits.
         if let tiers = OpenRouterEndpointTierCatalog.cachedTiers(slug: slug) {
             return tiers.contains(where: { $0.tag == "openai" || $0.tag.hasPrefix("openai/") }) ? "openai" : nil
         }
@@ -853,8 +852,8 @@ extension AIService {
     /// lab's own endpoint. The throughput sort below otherwise lands on
     /// Bedrock or Vertex (Claude) or Azure or Bedrock (GPT), where the lab's
     /// key does not apply, so the call is billed to OpenRouter credits (Opus
-    /// 5.5, 2026-10-24: Bedrock, `is_byok: false`, on every call since the key
-    /// was added). Fallbacks stay off: when the key cannot serve the call, it
+    /// 5.5 ran on Bedrock with `is_byok: false` on every call once the key was
+    /// added). Fallbacks stay off: when the key cannot serve the call, it
     /// fails instead of quietly spending credits. A pinned host, a Speed tier
     /// and a region all name their own endpoints and win.
     static func pinLabModelToItsOwnEndpoint(_ payload: inout [String: Any]) {
@@ -1024,7 +1023,7 @@ extension AIService {
     ///
     /// The tail must stay where the turn began for all of the turn's tool
     /// rounds: everything after it is cached per round, and moving it rewrites
-    /// all of that (on 2026-11-07 one Opus call rewrote 147k tokens for $0.74
+    /// all of that (one Opus call rewrote 147k tokens for $0.74
     /// that way). Two kinds of user-role message arrive mid-turn and are never
     /// the learner's: the follow-up that carries a tool result's pictures
     /// (right after a tool message), and the app's own nudges in a tool loop.
@@ -1124,8 +1123,7 @@ extension AIService {
         }).flatMap { text(from: $0["content"]) } ?? ""
 
         let material = model.lowercased() + "\u{1f}" + stableSystem + "\u{1f}" + opening
-        let digest = SHA256.hash(data: Data(material.utf8))
-        return "flm-" + digest.map { String(format: "%02x", $0) }.joined()
+        return "flm-" + material.sha256Hex
     }
 
     /// Serialize a request body deterministically.

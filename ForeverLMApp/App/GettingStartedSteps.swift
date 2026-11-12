@@ -83,8 +83,8 @@ enum GettingStartedFlow {
 /// learner's own OpenRouter key, billed by OpenRouter at cost, so the step
 /// asks for the key, and any account may run it (the app is free; only MCP
 /// is paid for), so a new learner needs only the key. An account that can
-/// already pay another way (a comp, or balance left from before top-ups were
-/// retired) goes on without one.
+/// already pay another way (a comp, or a leftover balance) goes on without
+/// one.
 enum GettingStartedAIPayment {
     static func isReady(hasOwnKey: Bool, canPayWithoutKey: Bool) -> Bool {
         hasOwnKey || canPayWithoutKey
@@ -101,8 +101,8 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
     case books
     case courses
     case meetings
-    /// Retired with the rest of the tour on 2026-09-24, and with the Planner
-    /// itself on 2026-09-30; kept for its bit, like the cases after it.
+    /// Not a Setup step; the case stays for its synced bit, like the cases
+    /// after it.
     case planner
     case memory
     case ideas
@@ -124,9 +124,9 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
     /// steps later on find something to read.
     ///
     /// The product owner, 2026-09-24: as few screens as possible. Storage says nothing
-    /// the welcome's data page cannot, so it moved there; books, courses,
-    /// meetings and YouTube share `moreSources`; and the workspace tour is
-    /// gone, since the arrival suggestions and each area's own empty state
+    /// the welcome's data page cannot, so it lives there; books, courses,
+    /// meetings and YouTube share `moreSources`; and there is no workspace
+    /// tour, since the arrival suggestions and each area's own empty state
     /// show where things are. Those cases stay only for their synced bits.
     ///
     /// The product owner, 2026-09-25: the subscription question comes last. Its real

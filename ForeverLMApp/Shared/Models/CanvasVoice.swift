@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Speaking to the Canvas (2026-10-13)
+// MARK: - Speaking to the Canvas
 //
 // The learner holds S on the Canvas (or taps it, or picks Speak to the Canvas
 // in its menu) and says what to change; the canvas changes as they said:
@@ -315,7 +315,7 @@ enum CanvasVoice {
     // MARK: A second request when the first is slow to answer
 
     /// How long the first request may go without a word before an identical
-    /// second one goes out (a hedged request). Measured 2026-10-14: the same
+    /// second one goes out (a hedged request). Measured: the same
     /// request's first token came in 0.44 to 1.9 s on one host, 4.4 s at
     /// worst, and in under 0.8 s nine times in ten.
     static let hedgeAfter: TimeInterval = 0.8
@@ -564,7 +564,7 @@ enum CanvasVoice {
 
     /// An edit (its ids already resolved) brought back to what the learner
     /// asked for where a model, now and then, writes otherwise (measured in
-    /// whole spoken sessions, 2026-10-14):
+    /// whole spoken sessions):
     /// - "put these in a region called Fission" written as create_canvas_region
     ///   draws a frame round cards wherever they lie, one region ending up
     ///   inside another; unless the learner said "around", the cards are

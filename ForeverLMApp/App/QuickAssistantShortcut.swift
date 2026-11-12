@@ -217,7 +217,7 @@ private let quickAssistantHotKeySignature: OSType = 0x464C_4D51 // "FLMQ"
 /// is heard in every app and needs no privacy permission. A registration
 /// macOS refuses is reported as `.unavailable` for Settings to say, never
 /// silently ignored. It does not refuse a combination another app holds
-/// (measured 2026-10-02: two processes both registered ⌃⇧F19), so a clash
+/// (two processes both registered ⌃⇧F19), so a clash
 /// with another app shows only as the panel not coming up.
 @Observable
 @MainActor

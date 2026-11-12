@@ -86,7 +86,7 @@ struct GoalEdit: Equatable {
 /// on, the Doc, Site or animation it is for — and shows what the row cannot
 /// fit: the sources, chats and directions on it, each row drawn only once
 /// there is one. Marking done, archiving and deleting sit in the footer's ⋯,
-/// so the row's menu is no longer the only route.
+/// so the row's menu is not the only route.
 ///
 /// Save writes the changed fields and nothing else (`GoalEdit.changes`);
 /// `update_learning_goal` is the same move over MCP.
@@ -161,8 +161,8 @@ struct GoalEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.large) {
-            // The sentence is the sheet's title: no "Goal" heading above it
-            // (2026-10-06). The deadline badge, when it asks for something,
+            // The sentence is the sheet's title: no "Goal" heading above it.
+            // The deadline badge, when it asks for something,
             // stands beside By.
             TextField("I want to understand\u{2026}", text: $edit.title, axis: .vertical)
                 .textFieldStyle(.plain)
@@ -184,7 +184,7 @@ struct GoalEditorSheet: View {
 
             // Sources, Chats and Directions are rows only once there is one:
             // an empty row explained where one comes from, which the actions
-            // above and a drop on the Goal's row already say (2026-10-06).
+            // above and a drop on the Goal's row already say.
             VStack(alignment: .leading, spacing: StudioDesign.Spacing.medium) {
                 row("Draws on") { notebookPicker }
                 if !choices.isEmpty || edit.artifactID != nil {
@@ -290,7 +290,7 @@ struct GoalEditorSheet: View {
 
     /// By, with the Goal's badge beside it while that asks for something
     /// (overdue, due within three days, done or archived). The day said in
-    /// full shows only when the chosen one cannot be saved (2026-10-06): the
+    /// full shows only when the chosen one cannot be saved: the
     /// date field already reads the day.
     private var deadlineSection: some View {
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
@@ -346,8 +346,7 @@ struct GoalEditorSheet: View {
 
     /// The Notebook the Goal draws on. A tag to a Notebook that is archived or
     /// gone stays choosable under its own name, so opening the editor never
-    /// silently changes it. The caption beside it, "Its sources come along.",
-    /// went on 2026-10-06.
+    /// silently changes it.
     private var notebookPicker: some View {
         HStack(spacing: StudioDesign.Spacing.small) {
             NotebookPickerField(label: "Notebook", notebookID: $edit.notebookID)

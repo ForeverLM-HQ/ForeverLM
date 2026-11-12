@@ -1,5 +1,4 @@
 import AVFoundation
-import CryptoKit
 import Foundation
 import os
 
@@ -200,7 +199,7 @@ struct SyncedArticleAudioManifest: Codable, Equatable, Identifiable {
 
     /// False for audio made with no voice named: the provider picked the
     /// speaker for each request, so the recording can change voice every few
-    /// sentences (Fish Audio's Drama 3 did, 2026-11-11), and it is made again
+    /// sentences (Fish Audio's Drama 3 did), and it is made again
     /// (`ArticleSpeechModelOption.takesVoice`). Only the audio: its prepared
     /// narration text (`usesCurrentNarration`) is still reused.
     var speaksInOneVoice: Bool {
@@ -296,11 +295,10 @@ struct ArticleSpeechPlaybackPosition: Codable, Equatable {
 ///
 /// The `playback-position.json` beside each narration is written by whichever
 /// device is playing and read by the next one, but it travels by CloudDocs: the
-/// phone does not fetch a file until something asks for it, and the ask used to
-/// happen in the same instant as the read, so the second device almost always
-/// resumed from the stale copy it already had — or from zero. Two devices
-/// writing the same file also left CloudDocs conflict copies that nothing
-/// resolved.
+/// phone does not fetch a file until something asks for it, so an ask in the
+/// same instant as the read would have the second device almost always resume
+/// from the stale copy it already had — or from zero. Two devices writing the
+/// same file would also leave CloudDocs conflict copies that nothing resolved.
 ///
 /// So every save is mirrored as a synced preference — one `Preference` record
 /// per source, delivered by CloudKit push on the Mac and fetched fresh by the
@@ -436,8 +434,7 @@ enum SyncedArticleAudioStore {
     static var workingFolder: SyncedArticleAudioWorkingFolder? { workingFolderProvider?() }
 
     static func contentSignature(for text: String) -> String {
-        let digest = SHA256.hash(data: Data(text.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        text.sha256Hex
     }
 
     /// Where narration lives: a device's own working folder (`SyncedArticleAudioWorkingFolder`), the
@@ -485,8 +482,8 @@ enum SyncedArticleAudioStore {
     /// content root itself.
     ///
     /// `createDirectory(…, withIntermediateDirectories: true)` is exactly how
-    /// this app used to resurrect a root that iCloud had merely not delivered
-    /// yet, and a resurrected root is one half of a CloudDocs directory conflict
+    /// a root that iCloud had merely not delivered yet is resurrected, and a
+    /// resurrected root is one half of a CloudDocs directory conflict
     /// — the other half being the copy iCloud restores to catch the other Mac's
     /// writes, which lands as `ForeverLM 2`. Audio is the last writer left inside
     /// the container, so it is the last place that can fork this library: a
@@ -1152,102 +1149,11 @@ enum SyncedArticleAudioStore {
     }
 }
 
-#if !os(macOS)
-extension SyncedArticleAudioStore {
-    /// Republishes complete audio from one root into another, the manifest last. Only the
-    /// iPhone tests call it; the app does not.
-    @discardableResult
-    static func recoverLocallyStrandedAudio(from localRoot: URL, to cloudRoot: URL) throws -> Int {
-        let fileManager = FileManager.default
-        let localAudioRoot = localRoot.appendingPathComponent("Audio", isDirectory: true)
-        guard localRoot.standardizedFileURL != cloudRoot.standardizedFileURL,
-              fileManager.fileExists(atPath: localAudioRoot.path) else {
-            return 0
-        }
-
-        let cloudAudioRoot = cloudRoot.appendingPathComponent("Audio", isDirectory: true)
-        try createAudioDirectory(at: cloudAudioRoot)
-        let localDirectories = try fileManager.contentsOfDirectory(
-            at: localAudioRoot,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        )
-
-        var recovered = 0
-        for localDirectory in localDirectories {
-            guard let (manifest, manifestData) = completeManifest(in: localDirectory) else { continue }
-            let cloudDirectory = cloudAudioRoot.appendingPathComponent(
-                localDirectory.lastPathComponent,
-                isDirectory: true
-            )
-            if completeManifest(in: cloudDirectory) != nil { continue }
-
-            let localChunks = localDirectory.appendingPathComponent(chunksDirectoryName, isDirectory: true)
-            let cloudChunks = cloudDirectory.appendingPathComponent(chunksDirectoryName, isDirectory: true)
-            try fileManager.createDirectory(at: cloudChunks, withIntermediateDirectories: true)
-            for chunk in manifest.chunks {
-                let source = localChunks.appendingPathComponent(chunk.fileName)
-                let destination = cloudChunks.appendingPathComponent(chunk.fileName)
-                let existingSize = try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize
-                if let existingSize, existingSize > 0 { continue }
-                if fileManager.fileExists(atPath: destination.path) {
-                    try fileManager.removeItem(at: destination)
-                }
-                try fileManager.copyItem(at: source, to: destination)
-            }
-
-            let localText = localDirectory.appendingPathComponent(sourceTextFileName)
-            if fileManager.fileExists(atPath: localText.path) {
-                let textData = try Data(contentsOf: localText)
-                try textData.write(
-                    to: cloudDirectory.appendingPathComponent(sourceTextFileName),
-                    options: .atomic
-                )
-            }
-            // Publish the manifest last: receivers never see it before all
-            // files it names are present in the cloud directory.
-            try manifestData.write(
-                to: cloudDirectory.appendingPathComponent(manifestFileName),
-                options: .atomic
-            )
-            guard completeManifest(in: cloudDirectory) != nil else {
-                throw SyncedArticleAudioStoreError.recoveryIncomplete(manifest.sourceID)
-            }
-            recovered += 1
-        }
-        return recovered
-    }
-
-    private static func completeManifest(
-        in directory: URL
-    ) -> (SyncedArticleAudioManifest, Data)? {
-        let url = directory.appendingPathComponent(manifestFileName)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let manifest = try? decoder.decode(SyncedArticleAudioManifest.self, from: data),
-              manifest.schemaVersion == SyncedArticleAudioManifest.schemaVersion,
-              !manifest.chunks.isEmpty else {
-            return nil
-        }
-        let chunks = directory.appendingPathComponent(chunksDirectoryName, isDirectory: true)
-        guard manifest.chunks.allSatisfy({ chunk in
-            let url = chunks.appendingPathComponent(chunk.fileName)
-            return ((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) > 0
-        }) else {
-            return nil
-        }
-        return (manifest, data)
-    }
-}
-#endif
-
 enum SyncedArticleAudioStoreError: LocalizedError {
     case emptyAudioChunk(Int)
     case missingAudioChunk(String)
     case missingSourceText
     case iCloudUnavailable
-    case recoveryIncomplete(String)
 
     var errorDescription: String? {
         switch self {
@@ -1259,8 +1165,6 @@ enum SyncedArticleAudioStoreError: LocalizedError {
             return "This source does not have synced review text yet. Play Text to Speech for it again on your Mac."
         case .iCloudUnavailable:
             return "iCloud Drive is not available. Generated audio was not saved locally because it could not sync to your other devices."
-        case .recoveryIncomplete(let sourceID):
-            return "Could not finish moving locally generated audio for \(sourceID) into iCloud Drive."
         }
     }
 }

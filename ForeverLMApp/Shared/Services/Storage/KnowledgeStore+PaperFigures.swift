@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import SQLite3
 
@@ -31,31 +30,31 @@ enum PaperFigureIndexContract {
     /// paper indexed under an older version is read again the next time
     /// anything prepares its figures (`enqueuePaperFigureIndexIfNeeded`
     /// re-queues a state row below this number). The re-read happens per
-    /// paper, on use, and once for the whole library at launch since
-    /// 2026-11-08 (`runDeferredPaperFigureIndexBackfill`, so every paper's
+    /// paper, on use, and once for the whole library at launch
+    /// (`runDeferredPaperFigureIndexBackfill`, so every paper's
     /// figure mentions link): both are the structure-only read
     /// (`prepareStructure`), which runs no vision. Existing analyses survive by
     /// figure id, so only figures new to the index are ever analysed.
     ///
     /// 1: main figures ("Figure 3", "Fig. S2").
-    /// 2 (2026-09-20): Extended Data and Supplementary captions are figures
+    /// 2: Extended Data and Supplementary captions are figures
     ///   too ("Extended Data Figure 1", "Supplementary Figure 2").
-    /// 3 (2026-09-20): a caption that opens a page, under nothing but the
+    /// 3: a caption that opens a page, under nothing but the
     ///   running head, belongs to the figure that filled the page before it
     ///   — Nature's layout for a full-page figure — so the figure is indexed
     ///   on that page, where the Reader can outline it, rather than on the
     ///   caption's, where the vision pass found only the running head.
-    /// 4 (2026-09-21): a caption is its whole printed paragraph, not the line
+    /// 4: a caption is its whole printed paragraph, not the line
     ///   its label opens. Fig. 1 of the cardiac-sodium paper was titled by its
     ///   first line alone, cut where the column wrapped.
-    /// 5 (2026-09-28): one row a figure, on the page that shows it, with its
+    /// 5: one row a figure, on the page that shows it, with its
     ///   caption's words wherever they are printed. A label printed alone
     ///   ("Figure 1.", "See next page for caption") marks the figure's page,
     ///   a legend on a page with no figure is paired with a nearby figure
     ///   page, and a caption behind an arrow ("◀ Figure 2.") is read. The EMBO
     ///   cristae paper had Figures 1 and 5 on their legends' pages of prose,
     ///   and six figures with no words at all.
-    /// 6 (2026-09-28): a legend on a page that shows a figure is that page's
+    /// 6: a legend on a page that shows a figure is that page's
     ///   only when a figure stands beside it
     ///   (`PaperFigureRectRefiner.legendStandsBesideFigure`): JBC prints
     ///   Figure 4's legend at the foot of Figure 5's page, and Cell a legend
@@ -63,22 +62,22 @@ enum PaperFigureIndexContract {
     ///   drawn dark somewhere, not only with a pale watermark, and a caption
     ///   label is read on each printed line, past a watermark the page's text
     ///   runs into it.
-    /// 7 (2026-09-28): a figure's words come from its legend, not from a
+    /// 7: a figure's words come from its legend, not from a
     ///   line of the running text that opens with its label — the line
     ///   above it set in the same size at the text's pitch, as wide, and
     ///   broken off mid-sentence (`PDFTextExtractor.FigureCaption.isRunningText`).
     ///   The Biophysical Journal's Figure 5 was titled "The measured
     ///   fluorescence both inside and outside…".
-    /// 8 (2026-10-23): an entry in a list of figures is no figure — a
+    /// 8: an entry in a list of figures is no figure — a
     ///   caption with a run of leader dots (`PaperFigureCaptionTitle.isContentsEntry`).
     ///   A thesis's List of Figures held 76 rows, each a box over its contents
     ///   page, beside the real ones; a paper indexed before this is read again
     ///   on use and the rows go.
-    /// 9 (2026-11-09): a line that opens with a figure's name and a range of
+    /// 9: a line that opens with a figure's name and a range of
     ///   capital panel letters closed like a reference ("fig. 6 A-C, …)",
     ///   "Extended Data fig. 9B-C).") is prose, not a caption. A bioRxiv
     ///   preprint had two such lines indexed as figures.
-    /// 10 (2026-11-09): supplementary files' looser labels are captions too —
+    /// 10: supplementary files' looser labels are captions too —
     ///   "Supp. Fig. 1", "Supplementary Fig S1", "Fig S1:", "Appendix Figure
     ///   S1", "Supplementary Data Figure 1". About 16 of 201 open-access
     ///   supplements joined to library papers printed only these.
@@ -86,9 +85,7 @@ enum PaperFigureIndexContract {
 
     static func figureID(sourceID: String, figureLabel: String, pageIndex: Int) -> String {
         let material = "\(sourceID)\u{1F}\(pageIndex)\u{1F}\(figureLabel.lowercased())"
-        let digest = SHA256.hash(data: Data(material.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let digest = material.sha256Hex
         return "fig_\(digest)"
     }
 }
@@ -150,7 +147,7 @@ extension KnowledgeStore {
 
     /// The sources whose file can carry a figure index: a paper's row and a
     /// book chapter's, which hold the PDF's path and a title. Book chapters
-    /// joined the figure index on 2026-09-19 so a chapter's walkthrough can
+    /// are in the figure index so a chapter's walkthrough can
     /// outline its figures. No launch indexes a library's books unasked: a
     /// chapter is indexed when something asks for its figures. A chapter of a book kept as one file is
     /// its pages of the book's file, in the stored form `SourcePDFPages`

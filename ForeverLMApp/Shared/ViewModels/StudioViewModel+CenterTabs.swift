@@ -16,22 +16,6 @@ extension StudioViewModel {
         set { activeWindowState.memoryReviewFocusSessionID = newValue }
     }
 
-    /// The window becomes the review: rail, Sources, and every other center tab
-    /// step aside for it. Nothing underneath is changed, so leaving puts the
-    /// workspace back exactly as it was.
-    ///
-    /// Taking the window is the commitment the review promised before it
-    /// started: from here, leaving before the goal ends today's session
-    /// (`MemoryReviewEngagementTracker.beginCommittedSession`). A day's
-    /// review chat from before cards; the card review enters through
-    /// `enterMemoryCardFocus`.
-    func enterMemoryReviewFocus(sessionID: String, in windowState: StudioWindowState? = nil) {
-        let target = windowState ?? activeWindowState
-        target.isVoiceWorkspacePresented = false
-        target.memoryReviewFocusSessionID = sessionID
-        MemoryReviewEngagementTracker.shared.beginCommittedSession()
-    }
-
     /// Leaves the review. `sessionID` leaves only that review, so a chat that
     /// moved on cannot end a review the learner is still in.
     ///
@@ -159,8 +143,7 @@ extension StudioViewModel {
     /// Hides `tab`, which closes its tab. With other tabs open in its pane,
     /// the neighbouring one shows (`Group.closeTab`). As the pane's only tab
     /// it reveals a groupmate instead — the Space, the shell's home surface
-    /// (the Notebooks home was until 2026-10-09, docs/notebooks-design.md):
-    /// closing the last thing in the center lands on it, not on an empty
+    /// (docs/notebooks-design.md): closing the last thing in the center lands on it, not on an empty
     /// Reader. Dismissing the Space itself reveals Chat, since a surface
     /// cannot be replaced by itself. A tab alone in its group dissolves the
     /// group and parks, inactive, at the end of the neighboring one (VS Code's
@@ -747,13 +730,6 @@ extension StudioViewModel {
         reviewChatPanelMode = .chat
         reviewChatFocusRequestID = UUID()
         readerChatSpaceRequestID = UUID()
-    }
-
-    /// Keep Chat visible while revealing the Reader beside it. Assistant
-    /// citations use this path so opening a source never replaces the
-    /// conversation the learner was reading.
-    func revealReaderBesideChat() {
-        revealReader(beside: .chat)
     }
 
     /// Keep `companion` visible while revealing the Reader beside it. A source

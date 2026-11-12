@@ -127,7 +127,7 @@ final class RealtimeVoiceController: ObservableObject {
     private var isLearnerSpeaking = false
 
     /// `readVoice` answers the learner's voice pick (the synced
-    /// `RealtimeVoiceDefaults.voicePreferenceKey`), read at each start so a
+    /// `Prefs.ReadAloud.voiceModeVoice`), read at each start so a
     /// change in Settings applies to the next conversation.
     init(
         platformAudio: RealtimeVoicePlatformAudio,

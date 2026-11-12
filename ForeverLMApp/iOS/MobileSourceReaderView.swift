@@ -434,7 +434,7 @@ struct MobileSourceReaderView: View {
             // One button for the text size, not two: with a smaller and a
             // larger button beside the six below, the bar was wider than an
             // iPhone and its first and last buttons were cut off at the
-            // screen's edges (seen on a 16e and a 17 Pro Max, 2026-11-10).
+            // screen's edges (seen on a 16e and a 17 Pro Max).
             if showsTextReader {
                 textSizeToolbarControl
             }

@@ -12,8 +12,8 @@ import Foundation
 /// the other. A transcript sets its time markers mid-sentence ("transported
 /// on tracks [10:37] which are the microtubules") and capitalises a segment's
 /// first word; get_source_content marks a PDF's pages "[page N]"; curly and
-/// straight apostrophes differ. Until 2026-09-28 a quote had to match the
-/// text with only its whitespace collapsed, and 23 of the 284 quotes in
+/// straight apostrophes differ. A quote that had to match the
+/// text with only its whitespace collapsed failed 23 of the 284 quotes in
 /// the product owner's course quizzes failed, 19 of them the source's own words: a
 /// question missed on one of them never came back in review, and the quiz's
 /// tutor told the learner so (question 23 of "Membranes, Dynamics, and

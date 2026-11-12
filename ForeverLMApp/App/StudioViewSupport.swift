@@ -255,7 +255,7 @@ enum StudioTopBar {
     /// StudioWindowChrome re-centers the traffic lights in the taller bar.
     /// Kept at zero after two failed experiments: shrinking the band itself
     /// (bare titlebar, 46pt) left the sources tab row blank on macOS 26, and
-    /// extending the bar to 60pt (+8, 2026-07-23) shifted the lights off the
+    /// extending the bar to 60pt (+8) shifted the lights off the
     /// sidebar toggle's line and read as dead air around them. The 52pt band
     /// with AppKit's own light centering is the known-good configuration.
     static let extraBandHeight: CGFloat = 0
@@ -346,7 +346,7 @@ struct StudioChromeLineReservation: Equatable {
 /// `NSHostingView.updateConstraints`, AppKit escalates it to
 /// `+[NSApplication _crashOnException:]`, and the main thread never returns —
 /// a permanent beachball until force quit (ui-stall sample + HIExceptions
-/// fault, 2026-07-16 17:10). Track registrations per (observer, keyPath,
+/// fault). Track registrations per (observer, keyPath,
 /// context) and silently drop removals that have no matching registration so
 /// the framework's imbalance can't take down the window.
 final class KVOTolerantToolbar: NSToolbar {
@@ -544,7 +544,7 @@ enum WindowMoveLock {
 /// chrome, as Codex's is, but the panes under it reach into it: a pane's
 /// `.background(Color)` extends into the band (the top safe area) by default,
 /// and a list or scroll view scrolls its rows up under it (both measured in a
-/// stand-alone window with this titlebar, 2026-10-07). Backing every row that
+/// stand-alone window with this titlebar). Backing every row that
 /// hangs in the band covers both, so only the row shows there. Hit-testable,
 /// as the opaque backing was: a press on it falls to the titlebar's window
 /// drag, never to a row hidden underneath.
@@ -553,7 +553,7 @@ enum WindowMoveLock {
 /// the only way another file hangs a row there is `studioBandOverlay`, so no
 /// pane can paint its own backing across the band and show a different color
 /// from the pane beside it (the chat's white title row next to the Review's
-/// grey one, 2026-10-15).
+/// grey one).
 fileprivate struct StudioBandRow<Row: View>: View {
     let band: CGFloat
     @ViewBuilder let row: () -> Row
@@ -1163,8 +1163,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         }
         // The leftmost pane's first tab starts after what the leading edge
         // holds: the traffic lights in the band, and in full screen ‹ › and
-        // the sidebar toggle, which stand on this very row (product owner,
-        // 2026-10-25: the Chat tab sat on the toggle).
+        // the sidebar toggle, which stand on this very row (the Chat tab would
+        // otherwise sit on the toggle).
         .padding(.leading, groupIndex == 0
             ? max(StudioTopBar.centerTabStripHorizontalPadding, headerLeadingInset)
             : StudioTopBar.centerTabStripHorizontalPadding)
@@ -1379,8 +1379,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                             in: windowState
                         )
                         // Dragged from a Docs row: the pane that just opened
-                        // shows that doc. The row no longer selects itself as
-                        // the drag begins — doing so swapped the open doc out
+                        // shows that doc. The row does not select itself as
+                        // the drag begins — doing so would swap the open doc out
                         // from under a drop on its own page — so the edge
                         // split names the doc here instead.
                         if let draggedArtifactID {

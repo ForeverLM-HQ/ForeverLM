@@ -93,9 +93,7 @@ extension ArticleSpeechService {
             info[MPMediaItemPropertyArtwork] = nowPlayingArtwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-        if #available(macOS 12.0, *) {
-            MPNowPlayingInfoCenter.default().playbackState = isPaused ? .paused : .playing
-        }
+        MPNowPlayingInfoCenter.default().playbackState = isPaused ? .paused : .playing
     }
 
     private var playbackNowPlayingRate: Double {
@@ -107,9 +105,7 @@ extension ArticleSpeechService {
 
     func clearNowPlayingInfo() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        if #available(macOS 12.0, *) {
-            MPNowPlayingInfoCenter.default().playbackState = .stopped
-        }
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
     }
 
     func writeSyncedAudioManifest(chunks: [SyncedArticleAudioManifest.Chunk]) {

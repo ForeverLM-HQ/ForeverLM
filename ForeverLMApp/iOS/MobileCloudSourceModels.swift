@@ -434,29 +434,6 @@ struct MobileCloudSourceReviewGuide: Decodable, Equatable, Sendable {
     let generatorVersion: Int
 }
 
-/// Pure payload parsing shared by the iPhone catalog and macOS-hosted contract
-/// tests. Source payloads are encrypted by CloudKit, but their decoded JSON has
-/// the same root-level `sourceReviewGuide` sibling on every device.
-enum MobileSourceReviewGuidePayloadParser {
-    private struct Envelope: Decodable {
-        let sourceReviewGuide: MobileCloudSourceReviewGuide?
-    }
-
-    static func reviewGuide(from payloadData: Data) -> MobileCloudSourceReviewGuide? {
-        try? JSONDecoder().decode(Envelope.self, from: payloadData).sourceReviewGuide
-    }
-}
-
-enum MobilePaperFigurePayloadParser {
-    private struct Envelope: Decodable {
-        let paperFigures: [SyncedPaperFigure]?
-    }
-
-    static func figures(from payloadData: Data) -> [SyncedPaperFigure] {
-        (try? JSONDecoder().decode(Envelope.self, from: payloadData).paperFigures) ?? []
-    }
-}
-
 /// A Notebook synced from the Mac: a companion Learning Goal with no parent
 /// Notebook. Carries the approved source pool so the phone can scope a voice
 /// session to exactly the sources that Notebook holds on the Mac.
@@ -489,9 +466,8 @@ struct MobileCloudNotebook: Identifiable, Equatable, Hashable, Sendable {
     /// Its own approved sources as the Mac knows them: every approved id of
     /// the record, archived and hidden ones included, by the Mac's ids, so a
     /// box written here stays inside the pool the Mac prunes the rows to —
-    /// plus, after each source this phone holds under another id, that id
-    /// (`MobileNotebookSourceIdentityResolver.remap`), so that row's box
-    /// writes. What the member's rows name; the rows this phone lists are
+    /// plus, after each source this phone holds under another id, that id,
+    /// so that row's box writes. What the member's rows name; the rows this phone lists are
     /// `sourceIDs`. Defaults to `sourceIDs`.
     let poolSourceIDs: [String]
     /// Its context notebooks this phone has a record of, in link order, each
@@ -584,132 +560,6 @@ struct MobileCloudContextNotebook: Identifiable, Equatable, Hashable, Sendable {
     /// Its approved sources as the Mac knows them, with this phone's ids
     /// beside them: its record's `poolSourceIDs`, what the member's rows name.
     let poolSourceIDs: [String]
-}
-
-/// A notebook as the phone lists it, from its record and every notebook
-/// record this phone holds (archived ones included, as the Mac's pool counts
-/// them): its own sources narrowed to the ones this phone lists, and its
-/// context notebooks in link order, each with the sources its group lists
-/// and the ids its boxes are kept by. Foundation-only, so the Mac unit tests
-/// build a notebook from records as the catalog does.
-enum MobileNotebookCatalog {
-    /// `isListed` answers whether this phone lists a source: an id whose
-    /// source has not arrived yet stays (the count can then say it is still
-    /// syncing), and one that arrived archived or hidden goes.
-    static func notebook(
-        _ record: MobileCloudNotebook,
-        records: [String: MobileCloudNotebook],
-        isListed: (String) -> Bool
-    ) -> MobileCloudNotebook {
-        let own = record.sourceIDs.filter(isListed)
-        let contextNotebooks = record.relatedNotebookIDs.compactMap { linkedID -> MobileCloudContextNotebook? in
-            guard linkedID != record.id, let linked = records[linkedID] else { return nil }
-            return MobileCloudContextNotebook(
-                id: linked.id,
-                title: linked.title,
-                sourceIDs: linked.sourceIDs.filter(isListed),
-                poolSourceIDs: linked.poolSourceIDs
-            )
-        }
-        return MobileCloudNotebook(
-            id: record.id,
-            title: record.title,
-            instructions: record.instructions,
-            summary: record.summary,
-            repository: record.repository,
-            sourceIDs: own,
-            relatedNotebookIDs: record.relatedNotebookIDs,
-            contextSourceIDs: own,
-            poolSourceIDs: record.poolSourceIDs,
-            contextNotebooks: contextNotebooks,
-            linkedCourseIDs: record.linkedCourseIDs,
-            approvedSourceCount: record.approvedSourceCount,
-            isArchived: record.isArchived,
-            updatedAt: record.updatedAt
-        )
-    }
-}
-
-enum MobileNotebookSourceIdentityResolver {
-    static func remap(
-        notebook: MobileCloudNotebook,
-        identities: [MobileMemorySourceIdentity],
-        sources: [MobileCloudSource],
-        normalizeURL: @escaping (String) -> String
-    ) -> MobileCloudNotebook {
-        let identityIndex = MobileMemorySourceIdentityResolver.Index(
-            sources: sources,
-            normalizeURL: normalizeURL
-        )
-        return remap(
-            notebook: notebook,
-            identities: identities,
-            identityIndex: identityIndex
-        )
-    }
-
-    static func remap(
-        notebook: MobileCloudNotebook,
-        identities: [MobileMemorySourceIdentity],
-        identityIndex: MobileMemorySourceIdentityResolver.Index
-    ) -> MobileCloudNotebook {
-        let identitiesBySourceID = Dictionary(
-            identities.map { ($0.sourceID, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var seen = Set<String>()
-        let sourceIDs = notebook.sourceIDs.compactMap { sourceID -> String? in
-            let resolved = identityIndex.resolvedSourceID(
-                sourceID,
-                identity: identitiesBySourceID[sourceID]
-            )
-            return seen.insert(resolved).inserted ? resolved : nil
-        }
-        var contextSeen = Set<String>()
-        let contextSourceIDs = notebook.contextSourceIDs.compactMap { sourceID -> String? in
-            let resolved = identityIndex.resolvedSourceID(
-                sourceID,
-                identity: identitiesBySourceID[sourceID]
-            )
-            return contextSeen.insert(resolved).inserted ? resolved : nil
-        }
-        // The boxes' pool keeps the Mac's own ids, which the synced rows name
-        // and are pruned against on both sides, so a box ticked here never
-        // drops an untick the Mac wrote for an id this phone holds under
-        // another; the id it holds it under follows, so that row's box writes.
-        // A notebook that links this one reads this pool for its group
-        // (`MobileNotebookCatalog`), so a context notebook's boxes keep the
-        // same ids.
-        var poolSeen = Set<String>()
-        var poolSourceIDs: [String] = []
-        for sourceID in notebook.poolSourceIDs {
-            if poolSeen.insert(sourceID).inserted { poolSourceIDs.append(sourceID) }
-            let resolved = identityIndex.resolvedSourceID(
-                sourceID,
-                identity: identitiesBySourceID[sourceID]
-            )
-            if resolved != sourceID, poolSeen.insert(resolved).inserted { poolSourceIDs.append(resolved) }
-        }
-        guard sourceIDs != notebook.sourceIDs
-            || contextSourceIDs != notebook.contextSourceIDs
-            || poolSourceIDs != notebook.poolSourceIDs else { return notebook }
-        return MobileCloudNotebook(
-            id: notebook.id,
-            title: notebook.title,
-            instructions: notebook.instructions,
-            summary: notebook.summary,
-            repository: notebook.repository,
-            sourceIDs: sourceIDs,
-            relatedNotebookIDs: notebook.relatedNotebookIDs,
-            contextSourceIDs: contextSourceIDs,
-            poolSourceIDs: poolSourceIDs,
-            contextNotebooks: notebook.contextNotebooks,
-            linkedCourseIDs: notebook.linkedCourseIDs,
-            approvedSourceCount: notebook.approvedSourceCount,
-            isArchived: notebook.isArchived,
-            updatedAt: notebook.updatedAt
-        )
-    }
 }
 
 /// The small goal projection the phone needs to label and filter shared
@@ -994,10 +844,6 @@ enum MobilePaywallShelf {
 /// whose page lists it under Audio overviews. Every browsing list runs
 /// through `listed` so the two never disagree.
 enum MobileSourceListing {
-    static func isExplainer(_ source: MobileCloudSource) -> Bool {
-        ExplainerScript.isExplainerURL(source.url ?? "")
-    }
-
     /// A spoken script ForeverLM wrote: an explainer or an audio overview's
     /// carrier. Never a row of its own.
     static func isSpokenScript(_ source: MobileCloudSource) -> Bool {
@@ -1018,67 +864,6 @@ extension MobileCloudSource {
     /// (`SourceAudioAutomation.kind(forSourceType:url:)`).
     var audioAutomationKind: String {
         SourceAudioAutomation.kind(forSourceType: sourceType, url: url)
-    }
-}
-
-/// The memory attempt payload as the phone reads it. It lives with the pure
-/// source projections so macOS unit tests can verify out-of-order delivery
-/// without compiling the phone's CloudKit/UI actor.
-struct MobileCloudMemoryAttemptPayload: Decodable, Sendable {
-    let payloadVersion: Int
-    let attempt: MemoryAttempt
-    let parentCurriculumFingerprint: String?
-
-    init(
-        payloadVersion: Int,
-        attempt: MemoryAttempt,
-        parentCurriculumFingerprint: String? = nil
-    ) {
-        self.payloadVersion = payloadVersion
-        self.attempt = attempt
-        self.parentCurriculumFingerprint = parentCurriculumFingerprint
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case payloadVersion
-        case attempt
-        case parentCurriculumFingerprint
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        payloadVersion = try values.decodeIfPresent(Int.self, forKey: .payloadVersion) ?? 0
-        attempt = try values.decode(MemoryAttempt.self, forKey: .attempt)
-        parentCurriculumFingerprint = try values.decodeIfPresent(
-            String.self,
-            forKey: .parentCurriculumFingerprint
-        )
-    }
-}
-
-enum MobileMemoryAttemptCurriculumProjection {
-    /// Fail closed on missing parents and on malformed/mismatched v2 evidence.
-    /// A nil fingerprint is accepted only for payloads without the parent
-    /// snapshot field.
-    static func compatibleAttempts(
-        items: [MemoryItem],
-        envelopesByRecordName: [String: MobileCloudMemoryAttemptPayload]
-    ) -> [String: MemoryAttempt] {
-        let itemsByID = Dictionary(
-            items.map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return envelopesByRecordName.reduce(into: [:]) { result, entry in
-            let envelope = entry.value
-            guard let parent = itemsByID[envelope.attempt.memoryItemID] else { return }
-            let expected = MemoryTutorIdentity.immutableCurriculumFingerprint(parent)
-            if envelope.payloadVersion >= 2 {
-                guard envelope.parentCurriculumFingerprint == expected else { return }
-            } else if let fingerprint = envelope.parentCurriculumFingerprint {
-                guard fingerprint == expected else { return }
-            }
-            result[entry.key] = envelope.attempt
-        }
     }
 }
 

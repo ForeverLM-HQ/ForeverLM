@@ -3,10 +3,10 @@ import Foundation
 /// A conversation read from the assistant's own record on this Mac rather
 /// than retyped by the assistant into a tool argument.
 ///
-/// `import_review_chat` used to receive the chat only as text the assistant
-/// composed, and an assistant that called it before writing its answer sent a
-/// shortened rendition — the saved chat was a summary of the answer, without
-/// the source links the answer carried. The assistant's client already keeps
+/// `import_review_chat` taking the chat only as text the assistant composed
+/// risks a shortened rendition: an assistant that calls it before writing its
+/// answer sends a summary of the answer, without the source links the answer
+/// carried. The assistant's client already keeps
 /// the exact record: Claude Code writes every session to
 /// `~/.claude/projects/<project>/<session id>.jsonl` as it goes, with what the
 /// learner typed and every text the assistant showed, timestamped. Reading

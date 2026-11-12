@@ -350,9 +350,9 @@ extension MCPDataStore {
     ///
     /// A record that stamps its messages is drawn from those stamps, each one
     /// an observation the way a turn of an in-app chat is, so an hour the
-    /// learner spent away between two messages is not drawn: on 2026-09-28 a
-    /// chat drawn from its first turn to its last covered 14:26–19:04, an
-    /// afternoon spent elsewhere. Without stamps, a declared `started_at` and
+    /// learner spent away between two messages is not drawn (a chat drawn
+    /// from its first turn to its last would cover an afternoon spent
+    /// elsewhere). Without stamps, a declared `started_at` and
     /// `ended_at` are drawn as one span. Returns the sentence to append to the
     /// tool's answer.
     private func recordChatOnDayLog(
@@ -402,9 +402,9 @@ extension MCPDataStore {
     /// The call's own `mark_reviewed` decides when it is given; otherwise the
     /// chat's first import already did. A chat first saved with
     /// `mark_reviewed` false is stored as an ordinary chat (`kind` chat) and
-    /// never marks a source reviewed later: on 2026-09-28 a chat saved that way
-    /// marked the seven sources a later call linked reviewed, placed them on
-    /// the Schedule done and stamped them read. An explicit false on a
+    /// never marks a source reviewed later: otherwise the sources a later call
+    /// links would be marked reviewed, placed on the Schedule done and
+    /// stamped read. An explicit false on a
     /// chat stored before imports wrote the kind stamps it, so the calls after
     /// it remember; a chat with no kind otherwise reads as the review its first
     /// import defaulted to.

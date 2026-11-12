@@ -10,12 +10,6 @@ enum MobileCostFormat {
         centsValue(usd).map { "\($0)¢" } ?? "0¢"
     }
 
-    /// Said aloud. VoiceOver does not reliably voice "¢", so the unit is spelled.
-    static func spokenCents(_ usd: Double) -> String {
-        guard let value = centsValue(usd) else { return "zero cents" }
-        return "\(value) cents"
-    }
-
     private static func centsValue(_ usd: Double) -> String? {
         let cents = usd * 100
         guard cents > 0 else { return nil }
@@ -31,13 +25,6 @@ enum MobileCostFormat {
     /// tens of dollars, where cents would read as "362¢".
     static func usd(_ amount: Double) -> String {
         amount.formatted(.currency(code: "USD").precision(.fractionLength(2)))
-    }
-
-    /// USD for a live chat. Replies commonly cost less than one cent, so keep
-    /// four decimal places there instead of rounding real spend to $0.00.
-    static func chatUSD(_ amount: Double) -> String {
-        if amount > 0, amount < 0.0001 { return "<$0.0001" }
-        return String(format: amount < 0.01 ? "$%.4f" : "$%.2f", amount)
     }
 
     /// Ledger amounts span four orders of magnitude — a single reply is a

@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import OSLog
 import PDFKit
@@ -240,8 +239,7 @@ actor MobileSourceFileStore {
         let directory = caches.appendingPathComponent("ForeverLM/\(kind)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         // Hash the id: source ids are URLs and free text, not filesystem-safe.
-        let digest = SHA256.hash(data: Data(sourceID.utf8))
-        let name = digest.map { String(format: "%02x", $0) }.joined()
+        let name = sourceID.sha256Hex
         return directory.appendingPathComponent("\(name).\(fileExtension)")
     }
 }

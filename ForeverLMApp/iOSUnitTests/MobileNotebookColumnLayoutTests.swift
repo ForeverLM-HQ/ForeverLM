@@ -74,30 +74,6 @@ final class MobileNotebookColumnLayoutTests: XCTestCase {
         XCTAssertEqual(Layout.width(folded: false, totalWidth: 1366), Layout.sideWidth(totalWidth: 1366))
     }
 
-    func testTheChatNeverFallsShortOfItsMinimumWhereTheColumnsShow() {
-        XCTAssertEqual(Layout.chatWidth(totalWidth: 922, sourcesFolded: false, studioFolded: false), 360)
-        var width = Layout.minimumWidth
-        while width <= 2048 {
-            for sources in [false, true] {
-                for studio in [false, true] {
-                    XCTAssertGreaterThanOrEqual(
-                        Layout.chatWidth(totalWidth: width, sourcesFolded: sources, studioFolded: studio),
-                        Layout.chatMinimumWidth,
-                        "\(width) \(sources) \(studio)"
-                    )
-                }
-            }
-            width += 7
-        }
-    }
-
-    func testFoldingGivesTheChatTheSideBackLessTheStrip() {
-        let open = Layout.chatWidth(totalWidth: 1366, sourcesFolded: false, studioFolded: false)
-        let folded = Layout.chatWidth(totalWidth: 1366, sourcesFolded: true, studioFolded: false)
-        XCTAssertEqual(folded - open, Layout.sideWidth(totalWidth: 1366) - Layout.stripWidth, accuracy: 0.001)
-        XCTAssertEqual(Layout.chatWidth(totalWidth: 1366, sourcesFolded: true, studioFolded: true), 1366 - 56 * 2 - 2)
-    }
-
     func testEachSideKeepsItsFoldUnderItsOwnLocalKey() {
         XCTAssertEqual(Layout.foldedDefaultsKey(.sources), "ios.notebooks.columns.sourcesFolded")
         XCTAssertEqual(Layout.foldedDefaultsKey(.studio), "ios.notebooks.columns.studioFolded")

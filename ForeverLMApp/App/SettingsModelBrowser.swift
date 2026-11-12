@@ -169,8 +169,8 @@ enum ModelCostOrder {
 
 // MARK: - Free and discounted
 
-/// What a browser can be narrowed to: Settings › Chat's since 2026-09-28, and
-/// Voice's, Images' and Videos' since 2026-09-29 (the product owner: "for chat models we
+/// What a browser can be narrowed to: Settings › Chat's, Voice's, Images'
+/// and Videos' (the product owner, 2026-09-29: "for chat models we
 /// have filters for free and discounted; i also want those for voice, images
 /// and video"). Both on list either kind: a free model has no price to cut,
 /// so asking for both at once can only mean "free or discounted".

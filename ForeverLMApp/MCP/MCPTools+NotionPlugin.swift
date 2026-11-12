@@ -66,7 +66,7 @@ extension MCPDataStore {
     }
 
     /// Whether a URL's host is one Notion serves pages from: notion.com (the
-    /// app since Notion's move off notion.so), notion.so (still redirected),
+    /// app), notion.so (redirected),
     /// or notion.site (published pages), with or without a subdomain such as
     /// `www.` or `app.` or a workspace's own.
     private static func isNotionHost(_ host: String) -> Bool {

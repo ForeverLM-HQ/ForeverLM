@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import Testing
 @testable import ForeverLM
@@ -186,93 +185,6 @@ struct MobileVoiceSourceResolverTests {
                 publishedDOI: "10.1000/shared"
             )
         ) == "z-regular-doi")
-    }
-
-    @Test("Phone withholds attempts until their exact parent curriculum exists")
-    func memoryAttemptCurriculumProjection() {
-        let parent = MemoryItem(
-            id: "item-parent",
-            kind: .concept,
-            target: "Explain the canonical mechanism",
-            rubricJSON: #"{"criteria":["Names the mechanism"]}"#,
-            sources: [
-                MemoryItemSource(
-                    id: "portable-anchor",
-                    memoryItemID: "item-parent",
-                    sourceID: "local-source",
-                    excerpt: "Canonical evidence.",
-                    sourceSHA256: String(repeating: "a", count: 64),
-                    sortIndex: 0
-                ),
-            ]
-        )
-        let remappedParent = parent.replacingSources([
-            MemoryItemSource(
-                id: parent.sources[0].id,
-                memoryItemID: parent.id,
-                sourceID: "foreign-source",
-                excerpt: parent.sources[0].excerpt,
-                sourceSHA256: parent.sources[0].sourceSHA256,
-                sortIndex: parent.sources[0].sortIndex
-            ),
-        ])
-        let divergentParent = MemoryItem(
-            id: parent.id,
-            kind: parent.kind,
-            target: "Explain a different mechanism",
-            rubricJSON: parent.rubricJSON,
-            sources: parent.sources
-        )
-        func attempt(_ id: String, itemID: String = parent.id) -> MemoryAttempt {
-            MemoryAttempt(
-                id: id,
-                memoryItemID: itemID,
-                prompt: "What causes it?",
-                learnerAnswer: "The mechanism does.",
-                feedback: "Grounded feedback",
-                score: 0.8,
-                scheduleRating: .good,
-                gradeState: .graded
-            )
-        }
-
-        let expected = MemoryTutorIdentity.immutableCurriculumFingerprint(parent)
-        #expect(
-            MemoryTutorIdentity.immutableCurriculumFingerprint(remappedParent) == expected
-        )
-        let projected = MobileMemoryAttemptCurriculumProjection.compatibleAttempts(
-            items: [remappedParent],
-            envelopesByRecordName: [
-                "matching-v2": MobileCloudMemoryAttemptPayload(
-                    payloadVersion: 2,
-                    attempt: attempt("matching"),
-                    parentCurriculumFingerprint: expected
-                ),
-                "divergent-v2": MobileCloudMemoryAttemptPayload(
-                    payloadVersion: 2,
-                    attempt: attempt("divergent"),
-                    parentCurriculumFingerprint: MemoryTutorIdentity
-                        .immutableCurriculumFingerprint(divergentParent)
-                ),
-                "missing-v2": MobileCloudMemoryAttemptPayload(
-                    payloadVersion: 2,
-                    attempt: attempt("missing-v2")
-                ),
-                "missing-parent": MobileCloudMemoryAttemptPayload(
-                    payloadVersion: 2,
-                    attempt: attempt("missing-parent", itemID: "item-not-arrived"),
-                    parentCurriculumFingerprint: expected
-                ),
-                "legacy-v1": MobileCloudMemoryAttemptPayload(
-                    payloadVersion: 1,
-                    attempt: attempt("legacy")
-                ),
-            ]
-        )
-
-        #expect(Set(projected.keys) == Set(["matching-v2", "legacy-v1"]))
-        #expect(projected["matching-v2"]?.id == "matching")
-        #expect(projected["legacy-v1"]?.id == "legacy")
     }
 
     @Test("Phone applies Notebook scope before the due queue limit")
@@ -567,62 +479,6 @@ struct MobileVoiceSourceResolverTests {
         )
     }
 
-}
-
-@Suite("iPhone pre-generated review guides")
-struct MobilePaperReviewGuideTests {
-    private let cleanedText = "Clean canonical paper body without headers or references."
-
-    private func sha256(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
-    }
-
-    @Test("Encrypted Source payload projection retains the pre-generated guide")
-    func parsesSyncedGuide() throws {
-        let data = try JSONSerialization.data(withJSONObject: [
-            "article": ["id": "paper-1", "title": "Mechanisms of Learning"],
-            "sourceReviewGuide": [
-                "sourceSHA256": sha256(cleanedText),
-                "guide": "Question 1: GUIDE-SENTINEL",
-                "generatorVersion": 3,
-                "generatedAt": 1234,
-            ],
-        ])
-
-        let parsed = try #require(MobileSourceReviewGuidePayloadParser.reviewGuide(from: data))
-        #expect(parsed.sourceSHA256 == sha256(cleanedText))
-        #expect(parsed.guide.contains("GUIDE-SENTINEL"))
-        #expect(parsed.generatorVersion == 3)
-    }
-
-    @Test("Encrypted Source payload projection retains vision-analyzed paper figures")
-    func parsesSyncedPaperFigures() throws {
-        let data = try JSONSerialization.data(withJSONObject: [
-            "paperFigures": [[
-                "id": "fig-2",
-                "sourceID": "paper-1",
-                "figureLabel": "Figure 2",
-                "pageIndex": 3,
-                "caption": "Figure 2 | Treatment response.",
-                "analysis": [
-                    "summary": "Treatment separates from control.",
-                    "visualEvidence": ["The blue line rises."],
-                    "figureRect": ["x": 0.1, "y": 0.2, "width": 0.8, "height": 0.6],
-                    "panels": [],
-                    "analysisVersion": 1,
-                    "generatedAt": 1234,
-                ],
-            ]],
-        ])
-
-        let figure = try #require(MobilePaperFigurePayloadParser.figures(from: data).first)
-        #expect(figure.id == "fig-2")
-        #expect(figure.pageNumber == 4)
-        #expect(figure.analysis?.figureRect?.isValid == true)
-        #expect(figure.analysis?.visualEvidence == ["The blue line rises."])
-    }
 }
 
 @Suite("Mobile source type grouping")

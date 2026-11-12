@@ -2,8 +2,8 @@
 import SwiftUI
 
 /// The Reader toolbar's Walk Through control, shown only while the source's
-/// walkthrough is being written (Quiet chrome, docs/ui-design.md,
-/// 2026-10-06): the spinner, its stage as help, and a small cancel. Writing
+/// walkthrough is being written (Quiet chrome, docs/ui-design.md):
+/// the spinner, its stage as help, and a small cancel. Writing
 /// and playing the walk are the ⋯ menu's (`WalkthroughMenuItems`); the chat
 /// beside the Reader plays a new walk as soon as its steps are saved
 /// (walkthrough-design.md, "the panel becomes a chat").
@@ -48,7 +48,7 @@ struct WalkthroughMenuItems: View {
     let article: StudioArticle
     /// Whether the source has a walk, when the host already knows. The
     /// Reader's ⋯ is an `NSHostingMenu` built at each press, where this
-    /// view's own lookup never lands: on 2026-09-21 it offered Write
+    /// view's own lookup never lands: it offered Write
     /// Walkthrough but not Walk Through Paper for a paper with a walk. Nil
     /// looks it up, as the sidebar's context menu does.
     var knownHasWalkthrough: Bool? = nil

@@ -4,10 +4,10 @@ import SwiftUI
 /// The walk as the chat draws it: the deck of cards the learner is on
 /// (`WalkthroughCardDeck`, `WalkthroughDeckView`), the strip under the chat's
 /// title (`WalkthroughPlaybackStrip`), and a step's animation
-/// (`WalkthroughAnimationCard`). Since 2026-09-22 a step's turn is never drawn
+/// (`WalkthroughAnimationCard`). A step's turn is never drawn
 /// as a row while the walk plays — the card is its picture — and a walk left
-/// behind leaves its turns in the transcript as the Markdown they are, so the
-/// no chip row heads each turn (2026-09-23).
+/// behind leaves its turns in the transcript as the Markdown they are, with
+/// no chip row heading each turn.
 
 /// What a step's animation card shows: an inline document the step carries,
 /// or a saved animation's page pinned to a step (`WalkthroughAnimationReference`).
@@ -118,7 +118,7 @@ extension EnvironmentValues {
 /// questions"). The card the learner is on holds one thing: a point of the
 /// step, under the step's title, with the figure or panel it is about cut
 /// out of the PDF above it — or a question, asked on a card of its own. The
-/// authors' sentence is no longer on the face (2026-09-23: "I don't like
+/// authors' sentence is not on the face (product owner, 2026-09-23: "I don't like
 /// that they have these quotes on there"); on the Mac the page beside the
 /// card has it. Under the card, the transcript holds that card's own
 /// conversation and the composer asks about it. A card can be folded to its
@@ -200,7 +200,7 @@ struct WalkthroughCardDeck<Figure: View, Face: View, Chip: View>: View {
                 // two copies (each loading its own figure) and could draw the
                 // plain one in a frame sized for the other, so the figure
                 // shrank to a thumbnail and the text ran out under the footer
-                // until the next layout (2026-09-24).
+                // until the next layout.
                 ScrollView(.vertical) {
                     cardContent
                         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
@@ -237,8 +237,8 @@ struct WalkthroughCardDeck<Figure: View, Face: View, Chip: View>: View {
             eyebrow
             // Next swaps what changed, not the card: the figure keeps its
             // identity across a step's cards so it neither reloads nor
-            // blinks, and only the point under it crossfades. (2026-09-23:
-            // the whole card flew in from the right on every Next.)
+            // blinks, and only the point under it crossfades. (Otherwise
+            // the whole card flies in from the right on every Next.)
             figure(Self.compactFigureHeight)
                 .id(currentStep?.id ?? "")
                 .transition(.opacity)
@@ -999,7 +999,7 @@ private struct WalkthroughCitedWorkCard: View {
     }
 }
 
-/// A chapter's recap card (the lesson's, merged 2026-09-23): the claim the
+/// A chapter's recap card (the lesson's): the claim the
 /// learner can now say, and how the chapter's questions went.
 struct WalkthroughRecapFace: View {
     let claim: String
@@ -1047,7 +1047,7 @@ struct WalkthroughCardFigure: View {
     let caption: String?
     let articleForSourceID: @MainActor (String) async -> StudioArticle?
     /// A prediction's data covered until the learner has guessed (the
-    /// lesson's veil, merged 2026-09-23): the crop is blurred under a line
+    /// lesson's veil): the crop is blurred under a line
     /// that says why.
     var veiled: Bool = false
     /// The tallest the crop may draw: the compact card's 280, or most of the
@@ -1132,7 +1132,7 @@ struct WalkthroughCardFigure: View {
 /// this Mac's store of drawn pictures and set on the same white plate as a
 /// figure. Pressing it opens it large; right-clicking it says which model drew
 /// it and draws it again with another (`GeneratedImageRedraw`). A picture
-/// another Mac drew arrives with the Source record (`WalkthroughPicturePackage`);
+/// another Mac drew arrives by sync;
 /// until it has, the card shows none rather than a placeholder, and reads the
 /// store again when it lands.
 struct WalkthroughCardDrawnPicture: View {
@@ -1214,8 +1214,8 @@ struct WalkthroughCardDrawnPicture: View {
             redraws += 1
         }
         .onReceive(NotificationCenter.default.publisher(for: .generatedImagesArrived)) { note in
-            // The picture came in with the Source record from the Mac that
-            // drew it (`WalkthroughPicturePackage`), after the card was dealt.
+            // The picture came in by sync from the Mac that drew it,
+            // after the card was dealt.
             let arrived = (note.userInfo?[GeneratedImageStore.changedIDsKey] as? [String]) ?? []
             guard arrived.contains(imageID.lowercased()) || listing.map({ arrived.contains($0.imageID) }) == true else { return }
             redraws += 1

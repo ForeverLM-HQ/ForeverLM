@@ -443,9 +443,9 @@ extension KnowledgeStore {
     ///
     /// A book chapter's membership is never the course's. Books and courses
     /// share the `group_members` id space, and an existing `courses` row can carry
-    /// a book's own id: deleting the hidden "Molecular Biology of the Cell"
-    /// course on 2026-09-27 took all 24 of that book's chapters out of it, and
-    /// each one showed as a separate book with its file path for a subtitle.
+    /// a book's own id: deleting a hidden course that carries a book's id would
+    /// take all of that book's chapters out of it, and each one would show as a
+    /// separate book with its file path for a subtitle.
     @discardableResult
     func deleteCourseGroup(name: String) throws -> [String] {
         var affectedSourceIDs: [String] = []
@@ -1397,7 +1397,7 @@ extension KnowledgeStore {
                 // membership instead left the source filed under both its old
                 // group and the series — and a source in two groups fans
                 // `source_projection` out into two rows, which every id-keyed
-                // caller reads as a duplicate (2026-08-31).
+                // caller reads as a duplicate.
                 try execBind("DELETE FROM group_members WHERE source_id = ? AND group_id <> ?") { stmt in
                     bind(stmt, 1, sourceID)
                     bind(stmt, 2, groupID)

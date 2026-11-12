@@ -20,7 +20,7 @@ import Foundation
 /// and MCP's notebook_id (`notebookForImport`, `add_notebook_sources`) apply;
 /// each words the refusal for its own reader.
 enum NotebookImportRefusal: Equatable, Sendable {
-    /// No record has the id any more.
+    /// No record has the id.
     case missing
     case archived
     /// A team's notebook, and the team is not on this Mac.

@@ -249,9 +249,9 @@ extension StudioSidebar {
                 Label("Remove Playlist", systemImage: "trash")
             }
         } else if sidebar.sidebarTab == .meetings {
-            // Recordings whose transcript has never been made. Until now the
-            // only way to start one was to open each recording in the reader
-            // and wait there, which is a poor fit for a folder of forty.
+            // Recordings whose transcript has never been made. Opening
+            // each recording in the reader and waiting there is a poor fit for
+            // a folder of forty, so the group starts them all.
             let isTranscribingGroup = vm.transcribingMeetingGroupNames.contains(groupName)
             let untranscribed = vm.meetingSessionIDsNeedingTranscript(inGroup: groupName)
             if isTranscribingGroup || !untranscribed.isEmpty {

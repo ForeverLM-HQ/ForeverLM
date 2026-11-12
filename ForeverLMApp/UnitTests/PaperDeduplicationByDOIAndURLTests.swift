@@ -405,33 +405,6 @@ struct PreprintPublishedIdentityTests {
         #expect(group.map { Set($0.map(\.id)) } == Set([copy.id, primer.id]))
     }
 
-    @Test("The Reading List adds a paper whose title is held by a paper with another DOI")
-    func readingListAddsSameTitledPaperWithAnotherDOI() {
-        let primer = makePaper(
-            url: "https://www.nature.com/articles/s43586-021-00084-5",
-            title: "DNA-encoded chemical libraries"
-        )
-        let primeView = makePaper(
-            url: "https://www.nature.com/articles/s43586-021-00090-7",
-            title: "DNA-encoded chemical libraries"
-        )
-        let copy = makePaper(url: "https://example.org/del", title: "DNA-encoded chemical libraries")
-
-        let added = StudioViewModel.computeMergeResultOffMain(
-            discovered: StudioViewModel.makeMergeDiscoveredSnapshot(from: [primeView]),
-            dismissedURLs: [],
-            existing: StudioViewModel.makeMergeExistingSnapshot(from: [primer])
-        )
-        #expect(added.newArticleIndexes == [0])
-
-        let skipped = StudioViewModel.computeMergeResultOffMain(
-            discovered: StudioViewModel.makeMergeDiscoveredSnapshot(from: [copy]),
-            dismissedURLs: [],
-            existing: StudioViewModel.makeMergeExistingSnapshot(from: [primer])
-        )
-        #expect(skipped.newArticleIndexes.isEmpty)
-    }
-
     @Test("A published DOI equal to the paper's own DOI is not a self-match")
     func selfMatchIsNotADuplicate() {
         let paper = makePaper(

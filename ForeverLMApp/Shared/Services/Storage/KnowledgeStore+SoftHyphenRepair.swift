@@ -9,7 +9,7 @@ import Foundation
 // `&shy;` — and three articles held the literal `&shy;`, which the decoder did
 // not know. The producers drop them now; this repairs what they stored before.
 
-/// What a soft hyphen older builds stored becomes: nothing.
+/// What a stored soft hyphen becomes: nothing.
 enum StoredSoftHyphens {
     /// The entity a decoder without `shy` left in stored text as written.
     static let entity = "&shy;"

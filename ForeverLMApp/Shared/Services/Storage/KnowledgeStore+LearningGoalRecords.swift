@@ -222,7 +222,7 @@ extension KnowledgeStore {
     /// the row (its pool, open questions, course links and outgoing related
     /// links cascade with it; its file index stays, unfiled), its Schedule
     /// placements and its Directions. A merge and a split that removes
-    /// its parent reach it after `moveNotebookContentsInTransaction`, so the
+    /// its parent reach it after `NotebookChildren.moveAll`, so the
     /// emptied notebook leaves the library the way any deleted one does.
     private func deleteLearningGoalRowInTransaction(_ goalID: String, at now: Date) throws {
         // Placements tagged with this goal, collected before we drop the membership rows.
@@ -477,18 +477,18 @@ extension KnowledgeStore {
                 }
                 let existingQuizDate = existing.lastQuizzedAt
                 let incomingQuizDate = item.lastQuizzedAt
-                existing.lastQuizzedAt = maxOptionalDate(
+                existing.lastQuizzedAt = maxOptional(
                     existingQuizDate,
                     incomingQuizDate
                 )
-                existing.quizCount = maxOptionalInt(existing.quizCount, item.quizCount)
+                existing.quizCount = maxOptional(existing.quizCount, item.quizCount)
                 switch (existingQuizDate, incomingQuizDate) {
                 case let (left?, right?) where right > left:
                     existing.lastScore = item.lastScore ?? existing.lastScore
                 case let (left?, right?) where left > right:
                     existing.lastScore = existing.lastScore ?? item.lastScore
                 default:
-                    existing.lastScore = maxOptionalDouble(
+                    existing.lastScore = maxOptional(
                         existing.lastScore,
                         item.lastScore
                     )
@@ -545,25 +545,7 @@ extension KnowledgeStore {
         return mappedGoal
     }
 
-    private func maxOptionalDate(_ left: Date?, _ right: Date?) -> Date? {
-        switch (left, right) {
-        case let (left?, right?): return max(left, right)
-        case let (left?, nil): return left
-        case let (nil, right?): return right
-        case (nil, nil): return nil
-        }
-    }
-
-    private func maxOptionalDouble(_ left: Double?, _ right: Double?) -> Double? {
-        switch (left, right) {
-        case let (left?, right?): return max(left, right)
-        case let (left?, nil): return left
-        case let (nil, right?): return right
-        case (nil, nil): return nil
-        }
-    }
-
-    private func maxOptionalInt(_ left: Int?, _ right: Int?) -> Int? {
+    private func maxOptional<Value: Comparable>(_ left: Value?, _ right: Value?) -> Value? {
         switch (left, right) {
         case let (left?, right?): return max(left, right)
         case let (left?, nil): return left

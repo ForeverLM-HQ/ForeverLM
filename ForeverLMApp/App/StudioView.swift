@@ -1690,8 +1690,7 @@ private struct StudioToastOverlay: ViewModifier {
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
                     // Background work is an icon in the strip, never a stack
-                    // of banners here (2026-10-06, 2026-10-13;
-                    // StudioWorkButton). What follows asks the learner for
+                    // of banners here (StudioWorkButton). What follows asks the learner for
                     // something, so keeps its own card.
 
                     // A warning label is never filmed: screen record mode keeps
@@ -2034,8 +2033,8 @@ private struct StudioInsetCardModifier: ViewModifier {
     /// or a scroll view scrolls its rows up under it. Half a point down, no
     /// pane meets the band, so none of that reaches it, while the chrome
     /// lines still hang in it (measured in a stand-alone window with this
-    /// titlebar, 2026-10-07: build 197's first run showed the chat pane white
-    /// to the window's top; with the inset the band stays the chrome over a
+    /// titlebar: without the inset the chat pane showed white
+    /// to the window's top; with it the band stays the chrome over a
     /// pane with neither a header nor a backing).
     static let bandClearance: CGFloat = 0.5
 
@@ -2055,8 +2054,8 @@ private struct StudioInsetCardModifier: ViewModifier {
 /// content is laid out below the band, but every pane draws its chrome line up
 /// into the band (`studioChromeLineHeader`); a clip to the card alone cut all
 /// of that away — the Space's tabs, a page's menu and Share, the Reader's
-/// title, ⋯ and × — while they stayed in the accessibility tree (seen
-/// 2026-10-06 in a Dev build of ddcd5dd5b). Nothing paints a background in the
+/// title, ⋯ and × — while they stayed in the accessibility tree (seen in a
+/// Dev build). Nothing paints a background in the
 /// band, so it stays the chrome.
 private struct StudioInsetCardClip: Shape {
     var band: CGFloat

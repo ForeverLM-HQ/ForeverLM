@@ -198,7 +198,7 @@ enum KnowledgeMap {
     }
 
     /// The first canvas: the one Canvas there was before canvases were
-    /// listed in the Space (2026-10-07). Its row is listed like any other;
+    /// listed in the Space. Its row is listed like any other;
     /// it may carry no name and no date, having been written before either.
     static let firstCanvasID = "library"
     static let preferenceKeyPrefix = "map."

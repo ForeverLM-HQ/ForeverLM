@@ -25,7 +25,7 @@ struct ContextDocCard: View {
             // Built only under the pointer, the hidden glyph holding its
             // place: a button at opacity 0 is still a live control, and while
             // an assistive app reads the screen SwiftUI walks every control
-            // in the window for each one an update builds (2026-10-03).
+            // in the window for each one an update builds.
             if isHovering {
                 Button(action: onRemove) {
                     ContextCardRemoveGlyph()
@@ -109,7 +109,7 @@ struct ContextSourceCard: View {
             // Built only under the pointer: a button at opacity 0 is still a
             // live control, and while an assistive app reads the screen
             // SwiftUI walks every control in the window for each one an
-            // update builds (2026-10-03). The padding above holds its room.
+            // update builds. The padding above holds its room.
             if isHovering {
                 Button(action: onRemove) {
                     ContextCardRemoveGlyph()

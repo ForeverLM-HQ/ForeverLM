@@ -1,7 +1,7 @@
 #if os(macOS)
 import Foundation
 
-// MARK: - Stopping paid work started over MCP (2026-09-27)
+// MARK: - Stopping paid work started over MCP
 //
 // The product owner: "please make sure there are cancel tools for each process that gets
 // triggered via the mcp that costs money". The case that prompted it: an
@@ -279,7 +279,7 @@ final class MCPRunningWork: @unchecked Sendable {
     }
 }
 
-// MARK: - The same call made again while it runs (2026-10-13)
+// MARK: - The same call made again while it runs
 //
 // An assistant's `scan_video_for_cited_papers` on an 87-minute talk outlasted
 // the gateway's 60 s, which answered "still working, check the library before

@@ -253,7 +253,7 @@ enum PreferenceStore {
         }
 
         // Preserve call order. Independent detached tasks can reach the storage
-        // actor in either order, so two quick picks (A then B) could previously
+        // actor in either order, so two quick picks (A then B) could
         // leave B in UserDefaults but stale A in knowledge.db. The next rebuild
         // would hydrate A and look as if the setting had not persisted.
         persistenceLock.lock()
@@ -321,7 +321,7 @@ enum PreferenceStore {
     /// the lock is held: a `UserDefaults` write posts `didChangeNotification`
     /// on the writing thread, and an observer on the main queue makes that post
     /// wait for the main thread, which may itself be waiting for this lock in
-    /// `set`. On 2026-09-25 exactly that deadlocked the unit-test host's main
+    /// `set`. Exactly that once deadlocked the unit-test host's main
     /// thread for half an hour in `CoursePersistenceTests`. The serial queue
     /// keeps the snapshots in the order the lock handed them out.
     private nonisolated(unsafe) static var writeJournal = PreferenceWriteJournal(defaults: .standard) { keys in
@@ -392,7 +392,7 @@ enum PreferenceStore {
         // Never let an older queued value win merely because hydration raced it.
         await flushPendingWrites()
         // Nor a write an earlier run queued and lost: the model picked just
-        // before a rebuild came back as the one before it (2026-09-25).
+        // before a rebuild came back as the one before it.
         let unconfirmed = await persistUnconfirmedWrites()
         // A row this Mac holds but cannot read is not "not synced yet". Repair
         // the one damage seen in the wild first, so the loop below reads the
@@ -555,9 +555,9 @@ enum PreferenceStore {
 /// `UserDefaults.didChangeNotification`. That one fires for every defaults write
 /// in the process, and the first read after a write makes CFPreferences re-merge
 /// the domain and diff it for KVO observers: about 45 ms on the main thread with
-/// build 210's 2.4 MB preferences file, paid after every window-frame save and
-/// Sparkle check date by the beta sign-up check that used to listen there (137
-/// samples across six production stall files, 2026-10-11).
+/// a 2.4 MB preferences file, paid after every window-frame save and
+/// Sparkle check date by a beta sign-up check that listened there (137
+/// samples across six production stall files).
 ///
 /// Whoever reads first after a write pays that diff, and other readers remain
 /// (each `SyncedStorageObserver` reads its key on that notification), so what
@@ -615,7 +615,7 @@ final class PreferenceKeyWatcher<Value: Equatable> {
 /// A preference reaches `UserDefaults` at once and knowledge.db later, through
 /// the storage actor. Launch hydration copies knowledge.db back over
 /// `UserDefaults`, so a row that never landed — the app quit, rebuilt or
-/// updated first, or the write hit "database is locked" — used to bring back
+/// updated first, or the write hit "database is locked" — would bring back
 /// the value from before the last change. The journal lives in `UserDefaults`
 /// beside the value itself, so it survives exactly what the lost write did
 /// not, and it is local: the key matches no synced name or prefix.

@@ -434,9 +434,8 @@ enum MeetingProvider: String, CaseIterable, Codable, Hashable, Sendable, Identif
 
     /// Whether this provider arrives through a registered MCP ingest client
     /// rather than a first-party sign-in or a local folder. Settings uses it to
-    /// decide which providers earn a branded card under Your Plugins — a
-    /// question that used to be answered by the tab list, which is why merging
-    /// the tabs would otherwise have cost Read AI its card.
+    /// decide which providers earn a branded card under Your Plugins, whatever
+    /// tab list the meetings are filed under.
     var isPlugin: Bool {
         switch self {
         case .readAI, .zoom: return true

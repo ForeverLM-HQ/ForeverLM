@@ -8,7 +8,7 @@ import PDFKit
 /// Every PDF an import tries — the publisher's link, a PubMed Central copy,
 /// an Unpaywall or OpenAlex location, a preprint — is somebody's claim that
 /// the file is this paper, and the indexes are wrong often enough to matter.
-/// On 2026-09-28 OpenAlex listed an LSE repository copy of Ginsburg et al.,
+/// OpenAlex once listed an LSE repository copy of Ginsburg et al.,
 /// "The global burden of women's cancers" (Lancet 2017), under the DOI
 /// `10.1016/s0140-6736`, and importing Luoma et al. (Lancet 2004) saved it.
 /// The Paper Metadata model then read the wrong PDF faithfully and rewrote the
@@ -25,7 +25,7 @@ import PDFKit
 /// never a mismatch. Its known blind spot is a letter or comment about the
 /// paper, which prints the paper's title and DOI in its references.
 ///
-/// Measured on 2026-09-28 against the library's own 701 PDFs: every one
+/// Measured against the library's own 701 PDFs: every one
 /// confirmed under its stored DOI and title, 75 of 75 sampled under
 /// Crossref's registered title alone, and 375 of 375 turned away when offered
 /// for a different paper of the library (mostly the same field).
@@ -82,14 +82,13 @@ enum PaperPDFIdentity {
     /// The share of a title's content words one stretch of the opening pages
     /// must print. An accepted manuscript's own title can differ a little
     /// from the published one ("an unmet grand challenge" for "a grand
-    /// challenge"); a different paper shares next to none (1 of 11 words,
-    /// 2026-09-28).
+    /// challenge"); a different paper shares next to none (1 of 11 words).
     static let titleCoverageThreshold = 0.6
 
     /// The share needed when the words may lie anywhere in the pages, which is
     /// weaker evidence and so asks for more: three quarters kept Nature's
     /// energy Comment (7 of 8) and turned away a Comment on genes offered for
-    /// the Evo 2 paper (5 of 8) in the 2026-09-28 library sweep.
+    /// the Evo 2 paper (5 of 8) in a library sweep.
     static let scatteredTitleCoverageThreshold = 0.75
 
     static func verdict(for request: Request, evidence: Evidence) -> Verdict {
@@ -251,7 +250,7 @@ enum PaperPDFIdentity {
     /// It recognises a title too short to count words in: a Research
     /// Highlight called "Alternative cycle for citrate" prints the DOI of the
     /// paper it highlights and not its own, and was the one file of 701 in
-    /// the library the DOI rule alone turned away (2026-09-28).
+    /// the library the DOI rule alone turned away.
     private static func printsWholeTitle(_ title: String, letters: String) -> Bool {
         let key = tokens(in: title.decodingTitleMarkup()).joined()
         return key.count >= 16 && letters.contains(key)
@@ -261,8 +260,7 @@ enum PaperPDFIdentity {
     /// prints. The stretch is about twice the title's length, so the words
     /// have to stand together as a title's do: counted anywhere in three
     /// pages, a paper in the same field printed enough of another's title
-    /// words to pass for it (5 of 75 wrong pairings in the library,
-    /// 2026-09-28). A word of four letters or more counts inside the
+    /// words to pass for it (5 of 75 wrong pairings in the library). A word of four letters or more counts inside the
     /// stretch's letters run together, which is how "mito-" + "chondrial"
     /// and "tissue-specific" still read.
     private static func coverage(of title: String, in textWords: [String]) -> Double {

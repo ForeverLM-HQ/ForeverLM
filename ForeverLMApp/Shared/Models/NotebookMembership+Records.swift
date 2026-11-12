@@ -10,8 +10,8 @@ import Foundation
 extension NotebookMembership {
     /// A Doc, Site, animation or audio overview: its home and its links, each
     /// notebook once. A record may link its own home as well, and a list of
-    /// its notebooks named that one twice (the Space's Notebook column read
-    /// "Mitochondria, Mitochondria" on 2026-10-06).
+    /// its notebooks named that one twice (the Space's Notebook column would
+    /// read "Mitochondria, Mitochondria").
     static func filingNotebookIDs(of artifact: ArtifactRecord) -> [String?] {
         var named = Set<String>()
         return ([artifact.homeNotebookID] + artifact.linkedNotebookIDs.map { Optional($0) }).filter { id in

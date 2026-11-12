@@ -43,8 +43,7 @@ extension StudioViewModel {
     /// swaps that remote-PDF view for the local one, cancelling the task: the
     /// extraction then returned at its first cancellation check and left the
     /// paper under "Metadata incomplete" with nothing working on it until a
-    /// later refresh's sweep (2026-10-10, a Nature Communications paper the
-    /// reader had just found).
+    /// later refresh's sweep.
     func enrichPaperMetadataAfterPDFAttachment(
         articleId: String,
         userInitiated: Bool,
@@ -167,7 +166,7 @@ extension StudioViewModel {
 
     /// The paper one PDF resolution holds every downloaded file to, and the
     /// files it has turned away. An index can list another paper's copy under
-    /// this paper's DOI (OpenAlex did on 2026-09-28, for a DOI cut short at
+    /// this paper's DOI (OpenAlex has done so, for a DOI cut short at
     /// its parenthesis), and once the Paper Metadata model has read that copy
     /// it rewrites the title, DOI, authors and year to match, so a wrong file
     /// has to be stopped before it is attached.
@@ -520,7 +519,7 @@ extension StudioViewModel {
             setDownloadStep("Searching PubMed Central…")
             if let pmcResult = await PaperService.lookupPMCByPMCID(pmcid: pmcid) {
                 // NCBI's own route first: Europe PMC's render answers apps with
-                // 403 (2026-09-23), and `downloadPDF` answers NCBI's check.
+                // 403, and `downloadPDF` answers NCBI's check.
                 if let pmcPdfURL = pmcResult.orderedPDFURLs.first {
                     log.append("PMC PDF candidate: \(pmcPdfURL)")
                     pdfURL = pmcPdfURL

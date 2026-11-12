@@ -17,7 +17,7 @@ struct PaperWalkthroughRequest: Equatable, Sendable {
 extension PaperWalkthroughSubject {
     /// The subject a source is, or nil for a source no walkthrough is written
     /// about — a podcast, a meeting, a video off YouTube, an explainer's own
-    /// page. A YouTube video is one since 2026-09-29: the Reader's player is
+    /// page. A YouTube video is one: the Reader's player is
     /// what a moment step seeks.
     static func of(_ article: StudioArticle) -> PaperWalkthroughSubject? {
         switch article.sourceType {

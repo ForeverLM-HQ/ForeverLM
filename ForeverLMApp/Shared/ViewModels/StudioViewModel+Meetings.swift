@@ -183,8 +183,8 @@ extension StudioViewModel {
     /// `explicit` is whether the learner is putting this recording in by hand
     /// — a pasted link. That is the learner asking for the series, so it lifts
     /// a removal tombstone and the hidden flag the way an explicit folder
-    /// import does. Adopting a row that arrived some other way (synced from an
-    /// older build, captured in Web Studio) is not, and a series the learner
+    /// import does. Adopting a row that arrived some other way (synced from
+    /// another Mac, captured in Web Studio) is not, and a series the learner
     /// removed stays out of sight: the row lands in it hidden rather than
     /// standing the series back up.
     func assignZoomMeetingSeries(to article: inout StudioArticle, explicit: Bool) async {
@@ -591,7 +591,7 @@ extension StudioViewModel {
             let title = metadata.title ?? groupID
             if Self.isMeetingGroupRemoved(groupID: groupID, metadata: metadata) {
                 if !Self.hasRecordedMeetingGroupRemovalIdentity(groupID: groupID, metadata: metadata) {
-                    // Adopt a title-only tombstone from an older build into the
+                    // Adopt a title-only tombstone into the
                     // stable identity as soon as the matching folder is known.
                     Self.recordMeetingGroupRemoval(groupID: groupID, metadata: metadata)
                 }
@@ -1239,7 +1239,7 @@ extension StudioViewModel {
         if !recorded.isDisjoint(with: candidates) { return true }
         // Once this build has recorded any exact Drive-folder tombstone, title
         // fallback must not hide a different same-named folder. Titles are used
-        // only to adopt the pre-identity format from older builds.
+        // only to adopt title-only tombstones.
         if candidates.contains(where: { $0.hasPrefix("google-drive-folder:") }),
            recorded.contains(where: { $0.hasPrefix("google-drive-folder:") }) {
             return false

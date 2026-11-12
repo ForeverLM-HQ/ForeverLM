@@ -92,8 +92,8 @@ struct ZoneBootstrap {
     /// Whether the zones and salt this replica holds describe another container, environment or iCloud
     /// account than the one the transport reads now. A moved Apple team, a new container or a switch
     /// between Development and Production all look like a missing root; none of them is a purge, and a
-    /// device that read one as a purge stopped syncing for good (2026-10-11: a Mac moved to the company
-    /// team held the old container's salt, found no root in the new one and showed "removed from iCloud").
+    /// device that read one as a purge stopped syncing for good (a Mac moved to another team held the
+    /// old container's salt, found no root in the new one and showed "removed from iCloud").
     private func holdsForeignState() async throws -> Bool {
         let (binding, account) = try await store.perform { state in
             (try state.replica.engineState(ReplicaStore.EngineScope.containerBinding),

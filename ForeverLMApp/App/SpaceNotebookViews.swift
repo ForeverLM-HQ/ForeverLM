@@ -6,9 +6,8 @@ import SwiftUI
 // What the Space draws for a notebook, now that it is the home (product owner,
 // 2026-10-09: "make sure the home page is also gone; it doesn't add anything
 // i feel"): its row and card under All, its menu, a source dropped on it,
-// and the headings of All's Group by Collection. The Notebooks home that
-// listed them first is gone; docs/docs-design.md, "The Space", says where
-// each of its jobs went.
+// and the headings of All's Group by Collection. docs/docs-design.md, "The
+// Space", says where each job of the former Notebooks home went.
 
 /// The glyph a notebook is drawn by where it has no cover or emoji of its
 /// own: a bound book with writing on it, which is what a notebook is. Not the

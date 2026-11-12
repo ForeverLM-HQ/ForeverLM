@@ -49,17 +49,6 @@ private enum SyntheticPaperPage {
         context.endPDFPage()
         context.closePDF()
     }
-
-    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, size, nil)]
-            )),
-            context
-        )
-    }
 }
 
 @Suite("Paper Figure Crop")
@@ -553,17 +542,6 @@ private enum SyntheticFullPageFigure {
         context.endPDFPage()
         context.closePDF()
     }
-
-    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, size, nil)]
-            )),
-            context
-        )
-    }
 }
 
 @Suite("Paper Figure With Its Caption On The Following Page")
@@ -790,17 +768,6 @@ private enum SyntheticLegendElsewhere {
         }
         context.closePDF()
     }
-
-    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, size, nil)]
-            )),
-            context
-        )
-    }
 }
 
 @Suite("Paper Figure Whose Legend Is On Another Page")
@@ -1006,17 +973,6 @@ private enum SyntheticOffsetPage {
         }
         context.endPDFPage()
         context.closePDF()
-    }
-
-    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, size, nil)]
-            )),
-            context
-        )
     }
 }
 
@@ -1848,17 +1804,6 @@ private enum SyntheticColumnPage {
         context.addLine(to: end)
         context.strokePath()
     }
-
-    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, size, nil)]
-            )),
-            context
-        )
-    }
 }
 
 @Suite("Paper Figure Beside A Column Of Prose")
@@ -1930,26 +1875,26 @@ struct PaperFigureUnderBannerHeadTests {
         let context = try #require(CGContext(consumer: consumer, mediaBox: &box, nil))
         context.beginPDFPage(nil)
         let head = Self.headBaseline
-        Self.draw("Brief Communication", at: CGPoint(x: 40, y: head), size: 9, in: context)
-        Self.draw("https://doi.org/10.1000/synthetic-brief-communication-fixture", at: CGPoint(x: 330, y: head), size: 9, in: context)
+        draw("Brief Communication", at: CGPoint(x: 40, y: head), size: 9, in: context)
+        draw("https://doi.org/10.1000/synthetic-brief-communication-fixture", at: CGPoint(x: 330, y: head), size: 9, in: context)
         let first = head - 14.8, second = head - 24.8, third = head - 34.8
         for (text, x) in [("a", 41), ("b", 184), ("c", 340), ("Technical duplicate", 73),
                           ("Interpolated duplicate", 210), ("Dynamic range fraction", 400)] as [(String, CGFloat)] {
-            Self.draw(text, at: CGPoint(x: x, y: first), size: 8, in: context)
+            draw(text, at: CGPoint(x: x, y: first), size: 8, in: context)
         }
         for (text, x) in [("Affected genes", 192), ("Intermediate genes", 226), ("Unaffected genes", 269),
                           ("Perturbation", 113), ("Good calibration", 418)] as [(String, CGFloat)] {
-            Self.draw(text, at: CGPoint(x: x, y: second), size: 8, in: context)
+            draw(text, at: CGPoint(x: x, y: second), size: 8, in: context)
         }
         for (text, x) in [("Ideal response", 360), ("Mean baseline", 92)] as [(String, CGFloat)] {
-            Self.draw(text, at: CGPoint(x: x, y: third), size: 8, in: context)
+            draw(text, at: CGPoint(x: x, y: third), size: 8, in: context)
         }
         context.setFillColor(gray: 0.2, alpha: 1)
         context.fill(CGRect(x: 60, y: 480, width: 460, height: 230))
         context.setFillColor(gray: 0, alpha: 1)
-        Self.draw(Self.caption, at: CGPoint(x: 40, y: 468), size: 8, in: context)
+        draw(Self.caption, at: CGPoint(x: 40, y: 468), size: 8, in: context)
         for index in 0..<10 {
-            Self.draw("Running prose of the page under the legend goes on across the measure of the column here \(index)",
+            draw("Running prose of the page under the legend goes on across the measure of the column here \(index)",
                       at: CGPoint(x: 40, y: 440 - CGFloat(index) * 12), size: 9, in: context)
         }
         context.endPDFPage()
@@ -1975,17 +1920,6 @@ struct PaperFigureUnderBannerHeadTests {
             #expect(crop.y <= Self.labelsTop + 0.005)
             #expect(crop.y >= Self.headBottom - 0.005)
         }
-    }
-
-    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName("Helvetica" as CFString, size, nil)]
-            )),
-            context
-        )
     }
 }
 

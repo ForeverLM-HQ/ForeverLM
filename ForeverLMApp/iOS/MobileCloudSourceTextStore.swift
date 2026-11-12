@@ -1,6 +1,5 @@
 // The actor that stores the text of synced sources on the phone.
 
-import CryptoKit
 import Foundation
 import OSLog
 
@@ -92,10 +91,7 @@ actor MobileCloudSourceTextStore {
 
     private static func matchesExpectedHash(_ text: String, expectedSHA256: String?) -> Bool {
         guard let expectedSHA256 else { return true }
-        let digest = SHA256.hash(data: Data(text.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
-        return digest == expectedSHA256
+        text.sha256Hex == expectedSHA256
     }
 }
 

@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import os
 
 private let aiResponseCacheLogger = Logger(
@@ -45,7 +44,7 @@ extension RouterModelPromotion {
     /// does not include it. The image and video directories quote the
     /// provider's own price, the catalog's `pricing_json`; OpenRouter's catalog
     /// shows that price less the discount (`display_pricing`: Wan 3.0 at $0.10
-    /// a second listed, $0.085 shown at 15% off, 2026-09-29). Display only.
+    /// a second listed, $0.085 shown at 15% off). Display only.
     func effectiveRate(fromList rate: Double) -> Double {
         rate * (1 - Double(discountBasisPoints) / 10_000)
     }
@@ -102,7 +101,7 @@ struct OpenRouterDirectoryModel: Identifiable, Sendable, Equatable {
     /// Whether the row lists "tools" in `supported_parameters`. The chat agent
     /// sends the whole MCP tool catalog on every turn, so a model that can't
     /// accept tool definitions is not offerable — roughly a fifth of the
-    /// directory (74 of 344 rows on 2026-07-18) falls in that bucket.
+    /// directory (74 of 344 rows when counted) falls in that bucket.
     let supportsTools: Bool
     /// Whether the directory explicitly lists `temperature`. Nil means the
     /// capability was absent from an older or incomplete directory response.
@@ -449,7 +448,7 @@ struct OpenRouterEndpointSpeed: Sendable, Equatable {
 /// Output speed for the pickers, from the statistics behind OpenRouter's own
 /// model page. The public `/models/{slug}/endpoints` API returns
 /// `throughput_last_30m: null` to a request without a key (checked
-/// 2026-09-22 on Sonnet 5, GPT-5.6 Sol, GLM 5.3 Flash and Gemini 3.5 Flash),
+/// on Sonnet 5, GPT-5.6 Sol, GLM 5.3 Flash and Gemini 3.5 Flash),
 /// so this reads `/api/frontend/v1/stats/endpoint`, which the model page
 /// itself calls. That route is undocumented: a response in any other shape
 /// parses to nothing, and the pickers then show no speed rather than a guess.
@@ -494,7 +493,7 @@ enum OpenRouterModelSpeed {
     /// the colon ("free" for `…:free`), else "standard". A `:free` id shares
     /// its permaslug with the paid model, so asking for "standard" quoted the
     /// paid hosts' speed: Nemotron 3 Ultra (free) read 142 tok/s, its paid
-    /// host's median, while NVIDIA's free host ran at 23 (2026-09-28).
+    /// host's median, while NVIDIA's free host ran at 23.
     static func variant(ofSlug slug: String) -> String {
         let trimmed = slug.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let colon = trimmed.lastIndex(of: ":") else { return "standard" }
@@ -633,9 +632,9 @@ extension AIService {
     /// `validateResponse` throws when a reply is one the work cannot use. Such a reply is
     /// not an answer: it is never kept in the response cache, a cached one is asked for
     /// again, and the error moves the call on to the next backup model. A model that
-    /// cannot do the task is no longer taken at its word: on 2026-09-27 the free router
-    /// handed a slide to a safety classifier, whose "User Safety: safe" was taken as the
-    /// slide's read. A router's classifier pick is now refused for every task
+    /// cannot do the task is not taken at its word: the free router has handed a slide
+    /// to a safety classifier, whose "User Safety: safe" would be taken as the
+    /// slide's read. A router's classifier pick is refused for every task
     /// (`AIError.safetyClassifierAnswer`); a validator still catches every other reply
     /// its work cannot use.
     func call(
@@ -948,9 +947,7 @@ extension AIService {
         webSearch: Bool,
         imageJPEGData: Data?
     ) -> String {
-        let imageDigest = imageJPEGData.map { data in
-            SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        } ?? ""
+        let imageDigest = imageJPEGData?.sha256Hex ?? ""
         let material = [
             route.provider.rawValue,
             route.model,
@@ -965,9 +962,7 @@ extension AIService {
             webSearch ? "web-search" : "no-web-search",
             imageDigest,
         ].joined(separator: "\u{1F}")
-        return SHA256.hash(data: Data(material.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
+        return material.sha256Hex
     }
 
     /// How much room a reasoning model needs beyond the answer it is asked for.
@@ -1344,10 +1339,8 @@ extension AIService {
         }
     }
 
-    // The Anthropic Files API client lived here: upload, list, and delete
-    // against api.anthropic.com with a raw provider key. It had no call sites —
-    // chat attachments were never wired to it — and the key it needed no longer
-    // exists, so it could only have failed. Removed rather than ported.
+    // There is no Anthropic Files API client: chat attachments are not wired to
+    // one, and no raw provider key exists to call it with.
     //
     // If attachments are built, OpenRouter takes a PDF as a `file` content part
     // (base64 data URL or plain URL) on any model, and its file-parser plugin

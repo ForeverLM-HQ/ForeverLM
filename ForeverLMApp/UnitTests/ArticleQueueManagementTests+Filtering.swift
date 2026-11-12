@@ -924,16 +924,16 @@ extension ArticleQueueManagementTests {
         vm.articles = [chapter]
 
         vm.searchText = "philip ball"
-        #expect(vm.bookMatchesSearch("book-how-life-works"))
+        #expect(vm.bookMatchesSearchMetadata("book-how-life-works"))
         vm.searchText = "author:philip ball"
-        #expect(vm.bookMatchesSearch("book-how-life-works"))
+        #expect(vm.bookMatchesSearchMetadata("book-how-life-works"))
         vm.searchText = "title:philip ball"
-        #expect(!vm.bookMatchesSearch("book-how-life-works"))
+        #expect(!vm.bookMatchesSearchMetadata("book-how-life-works"))
         vm.searchText = "title:how life"
-        #expect(vm.bookMatchesSearch("book-how-life-works"))
+        #expect(vm.bookMatchesSearchMetadata("book-how-life-works"))
         // A chapter title answers for its book under the same scope.
         vm.searchText = "title:cell as an agent"
-        #expect(vm.bookMatchesSearch("book-how-life-works"))
+        #expect(vm.bookMatchesSearchMetadata("book-how-life-works"))
     }
 
     @Test("source search reads a hyphenated term and its bare spelling as one")
@@ -1107,14 +1107,6 @@ extension ArticleQueueManagementTests {
                 "[Passage.](foreverlm://grounding/book:book-gone)"
             ).isEmpty
         )
-
-        // The picker commits a book row as the collection, not as the chapter
-        // that happens to represent it in the list.
-        #expect(
-            StudioViewModel.notepadGroundingToken(sourceID: first.id, bookID: "book-how-life-works")
-                == "book:book-how-life-works"
-        )
-        #expect(StudioViewModel.notepadGroundingToken(sourceID: "src-a", bookID: nil) == "src-a")
     }
 
     @Test("Docs source picker rows carry the drawn strings, not the source")

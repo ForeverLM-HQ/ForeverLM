@@ -466,7 +466,7 @@ final class KnowledgeMapVoice {
         if applying, map.lens != nil { return refuse("Back to My Canvas first") }
         // Just after launch the library may not have reached the canvas yet:
         // its cards are placed but none has content, and the model would be
-        // told the canvas is empty (seen in Dev, 2026-10-14). Wait for it, a
+        // told the canvas is empty. Wait for it, a
         // few seconds at most.
         if snapshot == nil {
             var tries = 0

@@ -963,7 +963,7 @@ extension InternalReviewPanelContent {
     /// been said under it — no turn in flight, no reply, no error — so there
     /// is no conversation to leave room for. The walk's own work is not
     /// something said: a step being got ready keeps the stage, whose foot
-    /// shows the wait (2026-09-29: giving way for it flipped the card to its
+    /// shows the wait (giving way for it would flip the card to its
     /// compact form and back on every step and every reload of the record).
     /// The transcript is read only when no turn is in flight, so a streaming
     /// reply never re-renders the panel token by token. The bottom-sheet

@@ -3,7 +3,7 @@ import Foundation
 // MARK: - A book is one file (schemas 169 and 170)
 
 extension StudioViewModel {
-    /// Puts each book an older build split into files back into one file, a
+    /// Puts each book that is split into files back into one file, a
     /// book at a time, off the main actor, once the library has loaded: a PDF
     /// book's chapter files (`BookFileMerge`), an EPUB book's unpacked folder
     /// (`EPUBBookFiles.pack`). A no-op once the queue is empty.
@@ -28,7 +28,7 @@ extension StudioViewModel {
             }
             let rows = try await storage.bookFileChapters(bookID: bookID)
             let split = rows.filter { $0.pages == nil && $0.localFilePath?.lowercased().hasSuffix(".pdf") == true }
-            // Nothing is split any more, or not every chapter is a file here: a chapter
+            // Nothing is split, or not every chapter is a file here: a chapter
             // that already names pages came by sync from the Mac that merged the book,
             // and the book's file follows it (`InboundSourceFiles`).
             guard !split.isEmpty, split.count == rows.count else {

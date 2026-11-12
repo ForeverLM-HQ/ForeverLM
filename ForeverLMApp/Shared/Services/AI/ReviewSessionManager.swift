@@ -377,10 +377,10 @@ final class ReviewSessionManager {
     /// The row the running turn's reply is written to: the newest message's
     /// as the turn began (`beginReplyPairing`), so a message saved while the
     /// turn runs waits for a turn of its own. A reply names its row rather
-    /// than taking the oldest row still without one: on 2026-09-27 a course
-    /// quiz's grade cut short by Send now saved nothing, its row stayed open,
-    /// the next reply filled it, and every later answer was stored with the
-    /// reply to a later message.
+    /// than taking the oldest row still without one: a course
+    /// quiz's grade cut short by Send now saves nothing, its row stays open,
+    /// the next reply would fill it, and every later answer would be stored
+    /// with the reply to a later message.
     @ObservationIgnored var turnReplyRow: ReplyRow?
     /// The running turn has begun writing its reply to storage
     /// (`persistAssistantResponse`). A failure after that point must not save
@@ -412,8 +412,8 @@ final class ReviewSessionManager {
     // hard-truncated text. Turns beyond the verbatim recent window are folded
     // into the summary once at least a block of them has accumulated; between
     // folds the deterministic transcript compact covers the not-yet-folded
-    // remainder. Folding runs in the background: it used to block the reply
-    // until the summary came back, which on a reasoning model was a long
+    // remainder. Folding runs in the background: blocking the reply
+    // until the summary came back would be, on a reasoning model, a long
     // silence before the first token.
     let historyDigestFoldBlockMessageCount = 8
     // Desired summary size, not the provider request ceiling. `AIService.callChat`
@@ -422,9 +422,9 @@ final class ReviewSessionManager {
     let historyDigestTargetOutputTokens = 2_000
     let historyDigestFoldTurnCharacterLimit = 4_000
     // Transcript text one fold request may carry. A chat reopened without a
-    // saved summary used to fold its whole backlog in a single request —
+    // saved summary must not fold its whole backlog in a single request —
     // hundreds of turns, minutes of latency, and on a small window a provider
-    // rejection that then repeated on every turn. Catch-up is now a series of
+    // rejection that then repeats on every turn. Catch-up is a series of
     // bounded requests, and the summary is saved so it happens once per chat.
     let historyDigestFoldCharacterLimit = 24_000
     // Safety net on the summary itself, which is resent on every turn. The
@@ -492,7 +492,7 @@ final class ReviewSessionManager {
     let chatResponseMaxOutputTokensCeiling = 32_000
     let compactedRetrySourceContextCharacterLimit = 10_000
     let compactedRetrySectionCharacterLimit = 1_500
-    let genericSelectedSourcesTitle = ReviewSessionTitleHeuristics.genericSelectedSourcesTitle
+    let genericSelectedSourcesTitle = "Selected sources"
     let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
         category: "Review"
@@ -511,7 +511,7 @@ final class ReviewSessionManager {
         self.browserAgent = browserAgent
         self.codeRunner = codeRunner
         // A "sign in" error shown while signed out (a chat or a review tried AI first) is
-        // stale the moment a sign-in stores a session; it used to stay on the home until closed.
+        // stale the moment a sign-in stores a session, so it is cleared then.
         sessionObserver = NotificationCenter.default.addObserver(
             forName: .managedAISessionDidChange,
             object: nil,
@@ -1063,7 +1063,7 @@ final class ReviewSessionManager {
                 speed: savedRoute?.modelSpeed
             )
             if case .unavailable(let saved) = restore {
-                // A chat recorded from realtime voice (removed 2026-10-01)
+                // A chat recorded from realtime voice
                 // names a model typed chat cannot use. Continuing on the
                 // configured text model is expected, so keep this transition
                 // out of the error UI.
@@ -1649,7 +1649,7 @@ final class ReviewSessionManager {
     /// off the storage actor, then the anchor resolved against the page.
     ///
     /// A played step spends no model tokens, so none of this is a turn — and
-    /// none of it used to say anything either, which left the chat blank
+    /// none of it says anything by itself, which would leave the chat blank
     /// through the whole wait (product owner, 2026-09-21, on pressing Walk Through:
     /// "loading that walkthrough actually was crazy long, for the longest time
     /// it just showed nothing"). It borrows the working line and its clock and
@@ -1662,7 +1662,7 @@ final class ReviewSessionManager {
     /// than one caller can ask for the same step in that time — the pane's
     /// Walk Through task running again, or two panes lending one manager —
     /// so a check of `playedStepIDs` alone let each of them append and save
-    /// the step (2026-09-22: step 1 of 14 shown and saved three times).
+    /// the step (step 1 of 14 shown and saved three times).
     var walkthroughStepsBeingPlayed: Set<String> = []
 
     let toolResultEntrySeparator = "\n\n---\n\n"

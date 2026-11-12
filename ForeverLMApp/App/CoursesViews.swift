@@ -30,8 +30,7 @@ struct CoursesPane: View {
                 CoursePageView(courseID: courseID)
                     .id(courseID)
             } else {
-                // The courses are in the Space (2026-10-09): its sidebar beside
-                // the list.
+                // The courses are in the Space: its sidebar beside the list.
                 SpaceFrame(hub: .courses) {
                     CoursesHomeView()
                 }
@@ -157,10 +156,9 @@ struct CoursesHomeView: View {
         SpacePlaceHeader(searchText: $ownQuery, searchIdentifier: "studio.courses.search") {
             SpacePlaceTitle(title: SpaceHub.courses.title)
         } actions: {
-            // One button for the two ways a course begins (2026-10-06,
-            // the product owner: "cleaner and fewer buttons"): a chat that plans it,
-            // which was the bordered Generate beside this, or a YouTube
-            // playlist, which this button opened on its own.
+            // One button for the two ways a course begins (product owner,
+            // 2026-10-06: "cleaner and fewer buttons"): a chat that plans it,
+            // or a YouTube playlist.
             newCourseMenu
                 .accessibilityIdentifier("studio.courses.new")
         }
@@ -241,7 +239,7 @@ struct CourseCard: View {
                         CourseProgressBar(fraction: progress.fractionFinished, isComplete: progress.isComplete)
                         // The bar says how far; its words ("3 of 10 lectures
                         // finished") show under the pointer, in a slot that
-                        // keeps the card's height (2026-10-06).
+                        // keeps the card's height.
                         Text(progress.summary)
                             .zoomedSystemFont(size: 11)
                             .foregroundStyle(.secondary)
@@ -359,7 +357,7 @@ struct CoursePageView: View {
                             isMilestone: true
                         )
                             .padding(StudioDesign.Spacing.small)
-                            // A neutral wash, not indigo (2026-10-06): lists
+                            // A neutral wash, not indigo: lists
                             // are monochrome (ui-design.md).
                             .background(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -421,8 +419,8 @@ struct CoursePageView: View {
 }
 
 /// A course page's header: cover, title, where the course comes from, how far
-/// the learner is, and the one button that goes on from there. Since
-/// 2026-10-06 the progress reads "3 of 10" beside its bar, the lectures and
+/// the learner is, and the one button that goes on from there. The
+/// progress reads "3 of 10" beside its bar, the lectures and
 /// quizzes it counts in its tooltip, and Continue names what it opens in its
 /// tooltip rather than in a line beside it.
 private struct CoursePageHeader: View {
@@ -559,8 +557,7 @@ private struct CourseNotebooksLine: View {
 }
 
 /// A lecture: its number and title, then its rows. Its "2 of 4" shows under
-/// the pointer and in grey (2026-10-06): every card carried it, turning green
-/// when done, beside rows that each already show their own check.
+/// the pointer and in grey: the rows beside it already show their own check.
 private struct CourseUnitCard: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(CourseActionsModel.self) private var actions
@@ -736,7 +733,7 @@ enum CoursePathOpening {
 /// by the fraction right and becomes the green check at a perfect score. Done
 /// rows are drawn a little fainter and the row Continue opens has its ring in
 /// the accent colour, so the page reads at a glance: what is behind, what is
-/// next, what is locked. (Until 2026-10-06 that row was also tinted: one
+/// next, what is locked. (The row is not also tinted: one
 /// mark says it.)
 struct CoursePathRow: View {
     @Environment(StudioViewModel.self) private var vm
@@ -1328,10 +1325,9 @@ private struct CourseNotebookMenuItems: View {
 // MARK: - Course menu
 
 /// The whole-course actions: the course page's ⋯ menu and a card's context
-/// menu. Since 2026-10-06 grouped (the product owner: "cleaner and fewer buttons"):
+/// menu. Grouped (product owner, 2026-10-06: "cleaner and fewer buttons"):
 /// the quiz actions under **Quizzes ▸**, the lectures' under **Lectures ▸**,
-/// instructors, course code and institution under **Edit Details ▸**, every
-/// item under the name it had when the menu was one list of twenty-odd.
+/// instructors, course code and institution under **Edit Details ▸**.
 struct CourseMenuItems: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(CourseActionsModel.self) private var actions

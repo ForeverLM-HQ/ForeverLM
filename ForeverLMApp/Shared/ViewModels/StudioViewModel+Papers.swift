@@ -329,7 +329,7 @@ extension StudioViewModel {
     @discardableResult
     func convergePaperIdentityDuplicates() async -> Int {
         // First, once a launch: a preprint's published DOI is no identity key
-        // (docs/paper-versions.md), and the keys older builds wrote must leave
+        // (docs/paper-versions.md), and the keys written before that rule must leave
         // before duplicate resolution can fold the journal version into it.
         if !didRepairPublishedDOIWorkKeys {
             didRepairPublishedDOIWorkKeys = true

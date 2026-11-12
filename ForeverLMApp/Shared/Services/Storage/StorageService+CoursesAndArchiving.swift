@@ -148,7 +148,7 @@ extension StorageService {
 
     /// Take out of search up to `limit` sources that are out of it yet still hold a part of it
     /// (`KnowledgeStore.sourcesOutOfSearchHoldingSearchRows`: archived or deleted by sync, indexed
-    /// while being archived, or left by an older build), and return how many. Each one's rows go
+    /// while being archived, or left by a writer that did not clear them), and return how many. Each one's rows go
     /// from the store; the vectors in memory go one source at a time for a few, and for more the
     /// index is dropped once and rebuilt from the store by the next search, since each removal
     /// rewrites the whole matrix.

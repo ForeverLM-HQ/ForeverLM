@@ -287,10 +287,10 @@ extension StudioArticle {
     ///
     /// Sync clears it too, whenever another Mac's source files or text land.
     /// Until the warmer runs again, every local PDF answers "unknown", and the
-    /// Reader shows a paper's stored text instead of its PDF. The warmer used to
-    /// run only on a source change a row can see, and text arriving is not one,
-    /// so a paper stayed text for the rest of the session. The clear now says so
-    /// (`resolvedPathCacheDidClear`), and the view model warms the cache again.
+    /// Reader shows a paper's stored text instead of its PDF. The warmer runs
+    /// on a source change a row can see, and text arriving is not one, so the
+    /// clear says so (`resolvedPathCacheDidClear`) and the view model warms the
+    /// cache again.
     static func invalidateAllResolvedPathCaches() {
         resolvedPathCacheLock.lock()
         resolvedPathCache.removeAll(keepingCapacity: true)
@@ -418,9 +418,9 @@ extension StudioArticle {
     /// Every relocation rule (re-homing across Macs, the simulator prefix, iCloud
     /// container swaps, the Knowledge→ForeverLM rename, conflict forks, iCloud
     /// placeholders) lives in `StorageService.sourceFileCandidatePaths`, which is
-    /// the single list the whole app resolves against. This used to carry its own
-    /// partial copy of those rules, and the rules it was missing are what let an
-    /// iCloud conflict fork read as hundreds of papers losing their PDFs.
+    /// the single list the whole app resolves against. A partial copy of those
+    /// rules here would let an iCloud conflict fork read as hundreds of papers
+    /// losing their PDFs.
     private static func locateLocalPath(_ path: String) -> (path: String, found: Bool) {
         if let located = StorageService.locateSourceFile(path) { return (located, true) }
         return (path, false)  // return original if nothing found
@@ -548,7 +548,7 @@ extension StudioArticle {
     /// Judged on `wordCount`, not `content`: a loaded row carries no text until
     /// `hydrateStoredContent` puts it there, and deciding on `content` sent the
     /// reader to the PDF in that gap — whose save then made the source a paper
-    /// holding the whole file (2026-09-23).
+    /// holding the whole file.
     var readsStoredTextOverRemotePDF: Bool {
         guard sourceType != .paper, localFilePath == nil, state == .ready else { return false }
         let hasText = (wordCount ?? 0) > 0

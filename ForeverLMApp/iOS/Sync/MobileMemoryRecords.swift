@@ -274,15 +274,6 @@ extension MobileWrite {
         """, [.text(Self.libraryKey), .text(firstID), .integer(Int64(firstID.count + 1)), .text(firstID + "#")]).map { ($0[0], Int($0[1]) ?? 1) }
     }
 
-    /// The answer a Sitting of this device holds under `answerID`, in whichever part.
-    func heldAnswer(_ answerID: String, sessionID: String?, at date: Date) throws -> SyncJSON? {
-        let scope = sessionID.flatMap { $0.isEmpty ? nil : $0 } ?? "day:\(MemoryReviewGoal.dayKey(for: date))"
-        for (id, _) in try sittingParts(MobileMemoryRecords.sittingID(deviceID: deviceID, scope: scope)) {
-            if let answer = try held(.sitting, id, in: Self.libraryKey)?.fields["answers"]?[answerID], answer != .null { return answer }
-        }
-        return nil
-    }
-
     /// Marks this device's chat Sitting ended (L), when the chat is.
     mutating func endSitting(chatID: String, at date: Date) throws {
         let firstID = MobileMemoryRecords.sittingID(deviceID: deviceID, scope: chatID)

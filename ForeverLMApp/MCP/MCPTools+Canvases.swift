@@ -1,7 +1,7 @@
 #if os(macOS)
 import Foundation
 
-// MARK: - Canvases in the Space over MCP (2026-10-07)
+// MARK: - Canvases in the Space over MCP
 //
 // The learner makes as many canvases as they like, each an item in their
 // Space beside their pages and sites (docs/knowledge-map-design.md,

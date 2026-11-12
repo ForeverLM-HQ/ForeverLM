@@ -152,7 +152,7 @@ extension StudioViewModel {
     /// A search pass asks this of every source in the tab, and analysing a
     /// source's fields — ICU folding, a regex and the catenated fold of each —
     /// is what made a pass over a large library take a third of a second on
-    /// the main thread (215 samples in build 210's stalls, 2026-10-11). So an
+    /// the main thread. So an
     /// unscoped query compares against each source's analysis, made once per
     /// change to its fields (`sidebarSearchAnalysis(of:)`), and the query is
     /// analysed once per pass (`sidebarSearchMatcher(for:)`). The steps and the
@@ -436,13 +436,6 @@ extension StudioViewModel {
     }
 
     static let notepadGroundingBookPrefix = "book:"
-
-    /// The grounding reference for one picker row: a book stands for its whole
-    /// collection, anything else for itself.
-    static func notepadGroundingToken(sourceID: String, bookID: String?) -> String {
-        guard let bookID, !bookID.isEmpty else { return sourceID }
-        return "\(notepadGroundingBookPrefix)\(bookID)"
-    }
 
     /// Resolve grounding references into live source ids, dropping anything the
     /// library no longer holds. A book expands through its current chapters, so a

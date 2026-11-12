@@ -152,8 +152,8 @@ struct TranscriptReaderView: View {
             }
 
             // Update Speakers with AI and Edit Speakers Manually… are the
-            // Reader's ⋯ › Speakers since Quiet chrome (docs/ui-design.md,
-            // 2026-10-06), not a row of their own; while either runs, this
+            // Reader's ⋯ › Speakers since Quiet chrome (docs/ui-design.md),
+            // not a row of their own; while either runs, this
             // line says so, and the outcome arrives as a toast.
             if isUpdatingSpeakersWithAI || isSavingSpeakerEdits {
                 HStack(spacing: 8) {
@@ -379,8 +379,8 @@ struct TranscriptReaderView: View {
         }
     }
 
-    /// Stored-text fallback (no TTML). Memoized: this used to re-parse the full
-    /// transcript inside the render path on every body evaluation. The memo is
+    /// Stored-text fallback (no TTML). Memoized, so the full transcript is not
+    /// re-parsed inside the render path on every body evaluation. The memo is
     /// not observable, so storing from here cannot invalidate views.
     private var storedPodcastTranscript: YouTubeTranscriptDisplayParser.Result {
         let key = podcastTranscriptTaskID
@@ -421,8 +421,8 @@ struct TranscriptReaderView: View {
     /// Stored blobs up to this many UTF-8 bytes are parsed on the spot, inside
     /// the render pass, the first time a reader shows them.
     ///
-    /// Measured in the debug unit-test bundle on 2026-09-19, after the parser
-    /// stopped compiling its regexes per block: a Zoom caption transcript of
+    /// Measured in the debug unit-test bundle, with the parser compiling its
+    /// regexes once rather than per block: a Zoom caption transcript of
     /// the standup's shape (149 timestamped turns, 10 KB) parses in 2 ms, a
     /// Read AI export the size of the largest in the production library (1,158
     /// speaker lines, 135 KB) in 22 ms. The limit sits where the inline cost
@@ -458,8 +458,8 @@ struct TranscriptReaderView: View {
     /// The distinction is the point. Swift's cooperative pool is one thread per
     /// core, shared by every detached job in the app — imports, embeddings,
     /// transcoding, file reads that may block on iCloud — and a new task,
-    /// whatever its priority, waits for a free thread; that queue is where the
-    /// first-open parse used to sit, sometimes for seconds, while the plain text
+    /// whatever its priority, waits for a free thread; that queue is where a
+    /// first-open parse would sit, sometimes for seconds, while the plain text
     /// stood in. A global queue over-commits, so this starts now and the
     /// placeholder lasts the parse and no longer.
     nonisolated static func parseMeetingTranscriptOffMain(_ content: String) async -> MeetingTranscriptParse {

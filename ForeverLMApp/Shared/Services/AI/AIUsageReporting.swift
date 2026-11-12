@@ -211,8 +211,7 @@ struct AIUsageReport: Sendable {
     }
 
     /// The served model when a router picked a safety classifier for the work.
-    /// On 2026-09-27 (a slide) and again on 2026-10-06 (two papers' metadata)
-    /// the Free Models Router chose `nvidia/nemotron-3.5-content-safety:free`,
+    /// The Free Models Router has chosen `nvidia/nemotron-3.5-content-safety:free`,
     /// whose whole reply was "User Safety: safe". A model the learner named
     /// is held to their choice; only a router's pick is judged.
     func routedSafetyClassifier(fromRequested requested: String) -> String? {
@@ -530,6 +529,19 @@ enum AIUsageAttribution {
             }
         }
     }
+
+    /// Runs one workflow whose calls all bill to one ID: the session and the
+    /// activity both carry it, so the ledger groups every nested call together.
+    static func withWorkflow<Result>(
+        _ workflowID: String = UUID().uuidString,
+        operation: () async throws -> Result
+    ) async rethrows -> Result {
+        try await $sessionID.withValue(workflowID) {
+            try await $activityID.withValue(workflowID) {
+                try await operation()
+            }
+        }
+    }
 }
 
 /// Deterministic identity and display metadata for one stored source. Identity
@@ -736,8 +748,8 @@ struct AIUsageEvent: Identifiable, Codable, Sendable {
     /// An OpenRouter row that recorded nothing the response could have said:
     /// no usage object, no quantity, no reported cost. OpenRouter returns
     /// usage with every generation it bills, so such a row is a failed
-    /// attempt that billed nothing. `AIService.recordUsage` no longer writes
-    /// these; this prices the ones written before it stopped.
+    /// attempt that billed nothing. `AIService.recordUsage` does not write
+    /// these; this prices the ones already stored.
     private var isOpenRouterResponseWithoutUsage: Bool {
         provider.caseInsensitiveCompare("OpenRouter") == .orderedSame
             && rawUsageJSON == nil
@@ -801,9 +813,9 @@ enum AICreditEntitlement {
             || planEraPurchaseRequiredMessages.contains { message.contains($0) }
     }
 
-    /// The message's wordings from while the key needed a plan (until the
-    /// lock of 2026-10-11), the phone's first and the Mac's second. Nothing
-    /// says them now; stored chats still hold them.
+    /// The message's wordings from when the key needed a plan, the phone's
+    /// first and the Mac's second. Nothing says them now; stored chats still
+    /// hold them.
     static let planEraPurchaseRequiredMessages = [
         "Chat runs on your own OpenRouter key with a ForeverLM plan. Add your key and choose a plan in Settings → Billing "
             + "to pick up exactly where you left off — everything you've set up stays exactly as it is.",
@@ -1080,7 +1092,7 @@ enum AIProviderPricing {
     /// hard-coded prices"). No provider's own rate card stands in (product owner,
     /// 2026-09-27: "no need for any other routes to models").
     ///
-    /// A row an earlier build recorded on a maker's own API (OpenAI's
+    /// A stored row recorded on a maker's own API (OpenAI's
     /// `gpt-4o-mini-tts`, xAI's voices, Google's Gemini) is priced at
     /// OpenRouter's row for the same model, which passes the maker's price
     /// through, when OpenRouter lists one. A host's row (Groq, Together AI)
@@ -1117,7 +1129,7 @@ enum AIProviderPricing {
     /// Priced by the model's own slug, not by the provider slot a picker or
     /// an old row names: the picker's OpenAI slot once listed mostly
     /// OpenRouter slugs, so asking a table for "openai" missed every
-    /// router-only model. Every model routes to OpenRouter now (2026-09-27).
+    /// router-only model. Every model routes to OpenRouter.
     static func sttDisplayRatePerHour(model: String) -> Double? {
         sttRatePerMinute(model: model).map { $0 * 60 }
     }
@@ -1125,8 +1137,8 @@ enum AIProviderPricing {
     /// OpenRouter's catalog, in the unit it bills the model by: per second,
     /// minute or hour of audio for most, and no duration rate for a
     /// token-billed model, which `audioTokenPrice` prices by its tokens.
-    /// `canonicalModel` names the slug the rail sends today, so a row an
-    /// earlier build recorded on Groq or OpenAI under a bare id
+    /// `canonicalModel` names the slug the rail sends today, so a stored row
+    /// recorded on Groq or OpenAI under a bare id
     /// (`whisper-large-v3`) is priced at OpenRouter's row for that model.
     private static func sttRatePerMinute(model: String) -> Double? {
         OpenRouterAudioPrices.transcriptionUSDPerHour(
@@ -1355,7 +1367,7 @@ enum AIProviderPricing {
         // free slug took its paid sibling's rate (nemotron-3-super:free billed
         // as nemotron-3-super), and the directory's 0/0 row for it reads as
         // "no price information" in `applyingRemote`. Only a positive price
-        // the live directory now lists — the free period ended — outranks it.
+        // the live directory lists — the free period ended — outranks it.
         if provider == "openrouter", AIFreeModels.isFreeModelID(model) {
             if let remote, (remote.input ?? 0) > 0 || (remote.output ?? 0) > 0,
                let listed = applyingRemote(remote, to: nil) {
@@ -1496,7 +1508,7 @@ enum AIProviderPricing {
         // podcast cleanup route, so it cannot lean on the remote overlay:
         // a launch that had not loaded it recorded thousands of such calls
         // with no cost. Rates checked against the OpenRouter directory's
-        // first-party rows on 2026-09-25.
+        // first-party rows.
         if model.hasPrefix("gpt-5-nano") { return TokenRates(input: 0.05, output: 0.40, cachedInput: 0.005, perWebSearchCall: 0.01) }
         if model.hasPrefix("gpt-5-mini") { return TokenRates(input: 0.25, output: 2, cachedInput: 0.025, perWebSearchCall: 0.01) }
         if model == "gpt-5" || model.hasPrefix("gpt-5-20") {
@@ -1938,7 +1950,7 @@ final class AIInFlightCalls: @unchecked Sendable {
         attach(id) { work.cancel() }
         // Nothing after the wait touches isolated state: at -O the hop back
         // after a wait inside withTaskCancellationHandler can be lost (the
-        // pacer crash of 2026-10-12), so only this locked registry is used.
+        // pacer crash), so only this locked registry is used.
         do {
             let value = try await withTaskCancellationHandler {
                 try await work.value

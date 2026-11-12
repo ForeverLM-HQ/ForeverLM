@@ -203,12 +203,6 @@ final class MobileProjection: @unchecked Sendable {
         let title: String?
     }
 
-    /// Where the library's move to the new container stands (`ZoneRoot.seed`, §13.6).
-    struct LibrarySeed: Equatable, Sendable {
-        let state: String?
-        let metadataCompleteAt: Int64?
-    }
-
     // MARK: - The structure
 
     /// Reads the structure from the index alone: no record is decoded but each space's root.
@@ -503,17 +497,6 @@ final class MobileProjection: @unchecked Sendable {
             guard let text = try replica.connection.scalarText("SELECT value_json FROM m_settings WHERE zone_key = ? AND key = ?", [.text(zoneKey), .text(key)])
             else { return nil }
             return try? SyncJSON(parsing: Data(text.utf8))
-        }
-    }
-
-    /// The personal root's seed, which tells the phone whether its library has moved (§13.6).
-    func librarySeed() async throws -> LibrarySeed? {
-        try await replica.read { replica in
-            guard let root = try replica.replica.record(zoneKey: Self.libraryKey, recordName: SyncSchema.rootRecordName),
-                  let envelope = replica.decode(root.payload)
-            else { return nil }
-            let seed = envelope.fields["seed"]
-            return LibrarySeed(state: seed?["state"]?.stringValue, metadataCompleteAt: seed?["metadataCompleteAt"]?.int64Value)
         }
     }
 

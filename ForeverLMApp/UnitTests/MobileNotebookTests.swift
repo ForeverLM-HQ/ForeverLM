@@ -353,7 +353,7 @@ struct MobileNotebookTests {
         let phone = rows.excluded.sorted()
         #expect(phone == ["src-2", "zoom:examplefellowship.zoom.us#7"])
 
-        let phoneXML = try #require(MobileNotebookChatSelection.rowValueXML(excluded: phone))
+        let phoneXML = try #require(MobilePreferencePlist.encode(phone))
         let macXML = try #require(PreferenceStore.encodePlist(phone))
         #expect(phoneXML == macXML)
         #expect(Data(phoneXML.utf8) == Data(macXML.utf8))
@@ -378,15 +378,6 @@ struct MobileNotebookTests {
         }
         #expect(MobilePreferencePlist.decode("") == nil)
         #expect(MobilePreferencePlist.decode("not a plist") == nil)
-    }
-
-    @Test("Ticking every box removes the row rather than writing an empty one")
-    func allTickedIsNoRow() {
-        let mito = notebook(own: ["a", "b"], context: [])
-        let cleared = written(.all(inChat: true), in: mito, from: .init(excluded: ["a"]))
-        #expect(cleared.excluded.isEmpty)
-        #expect(MobileNotebookChatSelection.rowValueXML(excluded: cleared.excluded.sorted()) == nil)
-        #expect(MobileNotebookChatSelection.rowValueXML(excluded: ["a"]) != nil)
     }
 
     /// The account's Preference rows, as the phone reads and writes them.
@@ -467,105 +458,6 @@ struct MobileNotebookTests {
         let plain = notebook("x", sources: ["a"])
         #expect(plain.poolSourceIDs == ["a"], "an unspecified pool is the notebook's own sources")
         #expect(plain.contextNotebooks.isEmpty)
-    }
-
-    @Test("A notebook built from its records carries its context notebooks in link order, each with its rows and the Mac's ids")
-    func contextNotebooksFromRecords() throws {
-        let now = Date(timeIntervalSince1970: 1_790_000_000)
-        func record(_ id: String, _ title: String, sources: [String], links: [String] = [], status: String = "active") throws -> MobileCloudNotebook {
-            let goal = LearningGoalRecord(
-                id: id,
-                title: title,
-                startAt: now,
-                endAt: LearningGoalRecord.openEndedEndAt,
-                createdAt: now,
-                updatedAt: now,
-                status: status,
-                items: sources.enumerated().map { LearningGoalItem(id: "\(id)-\($0.offset)", goalID: id, sourceID: $0.element, addedAt: now) },
-                kind: LearningGoalRecord.companionKind,
-                relatedNotebookIDs: links
-            )
-            return MobileCloudNotebook(
-                id: id, title: title, instructions: nil, sourceIDs: goal.approvedSourceIDs,
-                relatedNotebookIDs: links, isArchived: status == "archived", updatedAt: now
-            )
-        }
-        let mito = try record("p", "Mito Phenotyping", sources: ["a", "b"], links: ["gdf15", "unsynced", "aging"])
-        let gdf15 = try record("gdf15", "GDF15", sources: ["c", "hidden"])
-        // Archived, still linked: the Mac's pool counts it, so its group shows.
-        let agingRecord = try record("aging", "🧬 Landscape of Aging", sources: ["s1", "b"], status: "archived")
-        // This phone holds aging's s1 under another id.
-        var phoneCopy = source("phone-s1")
-        phoneCopy.url = "https://example.org/a"
-        let aging = MobileNotebookSourceIdentityResolver.remap(
-            notebook: agingRecord,
-            identities: [MobileMemorySourceIdentity(sourceID: "s1", url: "https://example.org/a", normalizedURL: nil, doi: nil, publishedDOI: nil)],
-            sources: [phoneCopy],
-            normalizeURL: { $0 }
-        )
-        let built = MobileNotebookCatalog.notebook(
-            mito,
-            records: [mito.id: mito, gdf15.id: gdf15, aging.id: aging],
-            isListed: { $0 != "hidden" }
-        )
-        #expect(built.relatedNotebookIDs == ["gdf15", "unsynced", "aging"])
-        #expect(built.contextNotebooks.map(\.id) == ["gdf15", "aging"], "in link order; a link with no record here has no group")
-        #expect(built.contextNotebooks.map(\.title) == ["GDF15", "🧬 Landscape of Aging"])
-        #expect(built.contextNotebooks.map(\.sourceIDs) == [["c"], ["phone-s1", "b"]], "a group's rows are what this phone lists")
-        #expect(built.contextNotebooks.map(\.poolSourceIDs) == [["c", "hidden"], ["s1", "phone-s1", "b"]],
-                "its boxes keep the Mac's ids, this phone's beside them")
-        #expect(MobileNotebookChatSelection.linked(of: built) == [
-            NotebookChatContext.ContextNotebook(id: "gdf15", sourceIDs: ["c", "hidden"]),
-            NotebookChatContext.ContextNotebook(id: "unsynced", sourceIDs: []),
-            NotebookChatContext.ContextNotebook(id: "aging", sourceIDs: ["s1", "phone-s1", "b"]),
-        ])
-        #expect(built.sourceIDs == ["a", "b"])
-        #expect(built.contextSourceIDs == ["a", "b"], "a conversation on the notebook reads its own sources")
-        #expect(built.poolSourceIDs == ["a", "b"])
-        // Linked and out, as every existing link starts: its own sources alone.
-        #expect(MobileNotebookChatSelection.chatSourceIDs(of: built, selection: .init()) == ["a", "b"])
-        let agingIn = NotebookChatContext.Selection(contextNotebookIDs: ["aging"])
-        #expect(MobileNotebookChatSelection.chatSourceIDs(of: built, selection: agingIn) == ["a", "b", "s1", "phone-s1"])
-    }
-
-    @Test("A notebook's Share counts the approved sources its record names, a hidden one and one this phone holds under another id included, as the Mac's popover counts them")
-    func shareCountsTheApprovedSources() throws {
-        let now = Date(timeIntervalSince1970: 1_790_000_000)
-        let goal = LearningGoalRecord(
-            id: "p",
-            title: "Mito",
-            startAt: now,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            createdAt: now,
-            updatedAt: now,
-            status: "active",
-            items: [
-                LearningGoalItem(id: "p-1", goalID: "p", sourceID: "a", addedAt: now),
-                LearningGoalItem(id: "p-2", goalID: "p", sourceID: "s1", addedAt: now, reviewState: LearningGoalItemReviewState.approved.rawValue),
-                LearningGoalItem(id: "p-3", goalID: "p", sourceID: "hidden", addedAt: now),
-                LearningGoalItem(id: "p-4", goalID: "p", sourceID: "suggested", addedAt: now, origin: LearningGoalItemOrigin.discovered.rawValue, reviewState: LearningGoalItemReviewState.pending.rawValue),
-            ],
-            kind: LearningGoalRecord.companionKind
-        )
-        let record = MobileCloudNotebook(
-            id: goal.id, title: goal.title, instructions: nil, sourceIDs: goal.approvedSourceIDs,
-            isArchived: false, updatedAt: now
-        )
-        // This phone holds s1 under another id.
-        var phoneCopy = source("phone-s1")
-        phoneCopy.url = "https://example.org/a"
-        let remapped = MobileNotebookSourceIdentityResolver.remap(
-            notebook: record,
-            identities: [MobileMemorySourceIdentity(sourceID: "s1", url: "https://example.org/a", normalizedURL: nil, doi: nil, publishedDOI: nil)],
-            sources: [phoneCopy],
-            normalizeURL: { $0 }
-        )
-        let built = MobileNotebookCatalog.notebook(remapped, records: [remapped.id: remapped], isListed: { $0 != "hidden" })
-        #expect(built.approvedSourceCount == goal.approvedSourceIDs.count)
-        #expect(built.approvedSourceCount == 3)
-        #expect(built.sourceIDs == ["a", "phone-s1"], "the rows this phone lists leave the hidden one out")
-        #expect(built.poolSourceIDs.count == 4, "the boxes' pool carries this phone's id beside the Mac's")
-        #expect(NotebookShareLine.text(sourceCount: built.approvedSourceCount) == "Shares the notebook and its 3 sources")
     }
 
     @Test("Add a Notebook to Context offers every other notebook not linked yet")
@@ -919,64 +811,6 @@ struct MobileNotebookTests {
         #expect(MobileAudioOverviewListening.lengthLabel(duration: 12 * 60 + 20) == "12 min")
         #expect(MobileAudioOverviewListening.lengthLabel(duration: 65 * 60) == "1 hr 5 min")
         #expect(MobileAudioOverviewListening.lengthLabel(duration: 120 * 60) == "2 hr")
-    }
-
-    @Test("A notebook's course links and its boxes' pool survive the identity remap")
-    func linkedCourseIDs() throws {
-        let now = Date(timeIntervalSince1970: 1_790_000_000)
-        let goal = LearningGoalRecord(
-            id: "p1",
-            title: "Aging",
-            startAt: now,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            createdAt: now,
-            updatedAt: now,
-            status: "active",
-            items: [LearningGoalItem(id: "i1", goalID: "p1", sourceID: "s1", addedAt: now)],
-            kind: LearningGoalRecord.companionKind
-        )
-        let parsed = MobileCloudNotebook(
-            id: goal.id, title: goal.title, instructions: nil, sourceIDs: goal.approvedSourceIDs,
-            linkedCourseIDs: ["c1", "c2"], isArchived: false, updatedAt: now
-        )
-
-        // This phone holds the source under another id: the remap rebuilds
-        // the notebook and must carry its course links and its boxes' pool.
-        var phoneCopy = source("phone-s1")
-        phoneCopy.url = "https://example.org/a"
-        let remapped = MobileNotebookSourceIdentityResolver.remap(
-            notebook: parsed,
-            identities: [MobileMemorySourceIdentity(sourceID: "s1", url: "https://example.org/a", normalizedURL: nil, doi: nil, publishedDOI: nil)],
-            sources: [phoneCopy],
-            normalizeURL: { $0 }
-        )
-        #expect(remapped.sourceIDs == ["phone-s1"])
-        // The boxes' pool keeps the Mac's id, which the synced row names, and
-        // adds this phone's after it: a tick here never prunes the Mac's untick.
-        #expect(remapped.poolSourceIDs == ["s1", "phone-s1"])
-        #expect(remapped.linkedCourseIDs == ["c1", "c2"])
-        let remappedAgain = MobileNotebookSourceIdentityResolver.remap(
-            notebook: remapped,
-            identities: [MobileMemorySourceIdentity(sourceID: "s1", url: "https://example.org/a", normalizedURL: nil, doi: nil, publishedDOI: nil)],
-            sources: [phoneCopy],
-            normalizeURL: { $0 }
-        )
-        #expect(remappedAgain.poolSourceIDs == ["s1", "phone-s1"], "remapping twice changes nothing")
-        // The Mac unticked s1; any write here keeps that untick.
-        let macRows = NotebookChatContext.Selection(excluded: ["s1"])
-        #expect(
-            MobileNotebookChatSelection.stored(
-                MobileNotebookChatSelection.applying(
-                    .sources([], inChat: true, through: nil),
-                    own: MobileNotebookChatSelection.own(of: remapped),
-                    linked: MobileNotebookChatSelection.linked(of: remapped),
-                    to: macRows
-                ),
-                own: MobileNotebookChatSelection.own(of: remapped),
-                linked: MobileNotebookChatSelection.linked(of: remapped)
-            ) == macRows,
-            "the phone's pool keeps the Mac's untick"
-        )
     }
 
     @Test("A Doc reads on the phone: pictures by their words, links the phone can follow kept")

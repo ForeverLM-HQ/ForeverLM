@@ -46,11 +46,7 @@ enum AudioOverviewScript {
 
     /// The id of the Artifact a carrier URL belongs to, or nil for any other URL.
     static func artifactID(fromCarrierURL urlString: String) -> String? {
-        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix(urlPrefix) else { return nil }
-        let id = String(trimmed.dropFirst(urlPrefix.count))
-        guard !id.isEmpty, !id.contains("/") else { return nil }
-        return id
+        ExplainerScript.idAfterPrefix(urlPrefix, in: urlString)
     }
 
     /// The narration pace the lengths assume, the explainer's.

@@ -7,7 +7,7 @@ import SwiftUI
 /// `ForeverLMApp.swift` turns `.textSelection(.enabled)` on for the whole Studio
 /// window, so a user bubble's `Text` is hosted by SwiftUI's selection overlay
 /// rather than drawn directly. That overlay does main-thread work per line of
-/// text on every graph update, and on 2026-09-17 an 11 KB meeting transcript
+/// text on every graph update, and an 11 KB meeting transcript
 /// pasted into the composer — 166 lines — pinned the main thread in
 /// `SelectionOverlay.updateNSView` → `FallbackAlignmentProvider` →
 /// `-[NSControl setFont:]` until the app had to be force-quit. No app frame

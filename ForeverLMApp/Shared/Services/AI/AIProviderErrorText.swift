@@ -6,8 +6,8 @@ import Foundation
 /// stream that dies mid-event, a gateway that answers with an HTML page, a
 /// proxy that echoes the request back — each hands us a slice of what we
 /// *sent*: the system prompt, the learner's sources, the conversation. That
-/// used to reach the chat's red error row verbatim, pasting the whole
-/// instruction block onto the screen. Every provider-authored string now passes
+/// would reach the chat's red error row verbatim, pasting the whole
+/// instruction block onto the screen. Every provider-authored string passes
 /// through here first, so the worst case is a vague error instead of a leaked
 /// prompt.
 enum AIProviderErrorText {

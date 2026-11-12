@@ -268,10 +268,9 @@ extension InternalReviewPanelContent {
                 // ChatGPT's empty chat: the greeting, the composer and the few
                 // starting points under it stand together as one group a little
                 // above the middle, and the composer slides to the foot once
-                // the chat begins. The 2026-10-11 Codex layout (greeting in the
-                // middle, composer pinned to the foot, suggestions just above
-                // it) left a void between them (product owner, 2026-11-08:
-                // "this spacing looks terrible").
+                // the chat begins. A greeting in the middle with the composer
+                // pinned to the foot leaves a void between them (product
+                // owner, 2026-11-08: "this spacing looks terrible").
                 Spacer(minLength: 12)
                 idleWelcomeHeading
                     .padding(.bottom, StudioDesign.Spacing.large)
@@ -427,9 +426,8 @@ extension InternalReviewPanelContent {
                 columnWidth: idleWelcomeColumnWidth
             )
         } else {
-            // The greeting alone. Its subtitle went on 2026-10-06: most days
-            // it said "Ready when you are.", and the day's plan it otherwise
-            // named is the first suggestion under the composer.
+            // The greeting alone, with no subtitle: the day's plan is the first
+            // suggestion under the composer.
             Text(idleGreetingTitle)
                 .font(.system(size: 24, weight: .medium, design: .serif))
                 // Notebook titles run longer than "Good afternoon".
@@ -475,7 +473,7 @@ extension InternalReviewPanelContent {
     /// saved and has not finished, newest first, in place of the suggestions
     /// (product owner, 2026-11-09: "it just opens cleanly and it shows basically
     /// a list of recent things we added to the reading list"). With nothing
-    /// waiting, the suggestions as before.
+    /// waiting, the suggestions.
     @ViewBuilder
     private var homeOffers: some View {
         let waiting = vm.toReadSources()
@@ -599,8 +597,8 @@ extension InternalReviewPanelContent {
     }
 
     /// At most `idleSuggestionLimit` suggestions under the composer, as quiet
-    /// rows with no card around them and no header (2026-10-06, ChatGPT's
-    /// new chat; they were a card of up to seven under a Today card), in the
+    /// rows with no card around them and no header (ChatGPT's
+    /// new chat), in the
     /// order `allIdleSuggestions` ranks them; the restore link once every one
     /// has been hidden.
     @ViewBuilder
@@ -705,7 +703,7 @@ extension InternalReviewPanelContent {
                 // coming, and a hidden glyph holds its place. A button at
                 // opacity 0 is still a live control, and while an assistive
                 // app reads the screen SwiftUI walks every control in the
-                // window for each one an update builds (2026-10-03).
+                // window for each one an update builds.
                 Group {
                     if isHovered {
                         Button(action: onDismiss) {
@@ -1023,8 +1021,7 @@ extension InternalReviewPanelContent {
     private func allIdleSuggestions(_ schedule: IdleScheduleSnapshot) -> [IdleSuggestion] {
         var suggestions: [IdleSuggestion] = []
 
-        // Today's plan leads, as its card stood over everything else until
-        // 2026-10-06; its row opens the plan (`IdleTodayPlanList`).
+        // Today's plan leads; its row opens the plan (`IdleTodayPlanList`).
         if !schedule.pendingToday.isEmpty {
             let items = schedule.pendingToday
             suggestions.append(IdleSuggestion(

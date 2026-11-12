@@ -301,7 +301,7 @@ struct PaperTextToSpeechPreparationService: Sendable {
             throw AIError.apiError(reason)
         }
 
-        let sourceSignature = Self.sha256(normalized)
+        let sourceSignature = normalized.sha256Hex
         let preparationSignature = Self.preparationSignature(config: config)
         let cacheKey = "\(source.id)\u{1F}\(sourceSignature)\u{1F}\(preparationSignature)"
         if let cached = await PaperNarrationMemoryCache.shared.value(for: cacheKey) {
@@ -539,7 +539,7 @@ struct PaperTextToSpeechPreparationService: Sendable {
             config.speed?.rawValue ?? "",
             AITask.paperTextToSpeechPreparation.effectivePrompt ?? Prompts.paperTextToSpeechPreparation,
         ].joined(separator: "\u{1F}")
-        return PaperNarrationFilter.preparationContractPrefix + sha256(material)
+        return PaperNarrationFilter.preparationContractPrefix + material.sha256Hex
     }
 
     private static func syncedNarration(
@@ -560,9 +560,5 @@ struct PaperTextToSpeechPreparationService: Sendable {
             sourceContentSignature: sourceSignature,
             preparationSignature: preparationSignature
         )
-    }
-
-    private static func sha256(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }

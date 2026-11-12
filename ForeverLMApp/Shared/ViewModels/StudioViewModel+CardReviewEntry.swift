@@ -13,12 +13,11 @@ import Foundation
 // (`requestCardReview(scope:)`).
 //
 // None of them gives the window over: a window that empties itself on one
-// click is startling (the product owner asked for the review to ask first on
-// 2026-09-08). Each opens the Memory pane — inside a notebook window, the
+// click is startling (the product owner asked for the review to ask first).
+// Each opens the Memory pane — inside a notebook window, the
 // notebook's panes, which leaves the notebook as it was — and only
-// the pane's Start Review or Practice gives the window to the review, as only
-// the Review mode sheet's Start Review did before cards; since C7 also a
-// notebook's own Practice, which the learner picks from its Studio's Cards
+// the pane's Start Review or Practice gives the window to the review, as does
+// a notebook's own Practice, which the learner picks from its Studio's Cards
 // menu or row (`startNotebookPractice(notebookID:)`).
 
 // `MemoryReviewScope`, which kept cards a card review deals, is in
@@ -225,10 +224,9 @@ extension StudioViewModel {
     /// daily review would leave for tomorrow). Nothing starts on a day whose
     /// review was ended early.
     ///
-    /// A review chat made for today — by an older build on the other Mac,
-    /// or by the phone — is never resumed: its shape is the topic review's,
-    /// which no entry reaches any more. It stays readable from the history
-    /// grid.
+    /// A review chat made for today — on the other Mac or by the phone —
+    /// in the topic review's shape is never resumed: no entry reaches that
+    /// shape. It stays readable from the history grid.
     func startCardReview(scope: MemoryReviewScope) {
         startCardSitting(scope: scope, kind: nil, commitment: MemoryReviewEngagementTracker.shared.state)
     }

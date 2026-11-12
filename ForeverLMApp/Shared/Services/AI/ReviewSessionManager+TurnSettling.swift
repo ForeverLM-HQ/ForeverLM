@@ -215,7 +215,7 @@ extension ReviewSessionManager {
     /// A turn that failed after it had begun to answer saves what it wrote, as
     /// Stop does. The words stay on screen either way; unsaved, they vanished
     /// the next time the chat opened, and a "keep going" after them read as a
-    /// reply to nothing (2026-11-07).
+    /// reply to nothing.
     ///
     /// Not when the turn had begun its own save, which a later failure must
     /// not repeat, and not in a memory review, whose replies are stored only
@@ -237,7 +237,7 @@ extension ReviewSessionManager {
 
     /// A turn stopped before it said anything — during its source search, say
     /// — leaves the learner's message as a pending row. The next reply names
-    /// its own row, so it no longer lands here; the row is still closed with
+    /// its own row, so it does not land here; the row is still closed with
     /// an empty reply, which reopening skips, because a build that pairs
     /// replies with the oldest pending row (another Mac, not yet updated)
     /// would otherwise give it the next one.
@@ -435,9 +435,9 @@ extension ReviewSessionManager {
                 guard let presentation = sourcePresentationFromActiveArticles(sourceID) else {
                     // A chat in today's review has no article either: its row
                     // carries the id in `detail` and the briefing's title, so
-                    // the turn survives the reply settling. Until 2026-09-26
-                    // the line was dropped, and the card turning to a chat
-                    // lost its heading and its place in the deck.
+                    // the turn survives the reply settling; dropping the line
+                    // would cost the card turning to a chat its heading and
+                    // its place in the deck.
                     guard memoryReviewSourceIDs.contains(sourceID),
                           let title = memoryReviewMaterialTitles[sourceID] else { continue }
                     flushProse()

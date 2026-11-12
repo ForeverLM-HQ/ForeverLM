@@ -212,7 +212,7 @@ extension StudioArticle {
     /// A paper whose text is final: metadata attested and the current
     /// clean-up committed. Listen, Explain and text-to-speech gate on this. The
     /// Listen derivative is prepared when the learner presses Listen, or at
-    /// once for the kinds automatic audio covers (2026-09-24), so its absence
+    /// once for the kinds automatic audio covers, so its absence
     /// is not a failed ingestion.
     var isPaperReadyForListenPreparation: Bool {
         guard sourceType == .paper else { return true }
@@ -237,7 +237,7 @@ extension StudioArticle {
     }
 
     /// Metadata, canonical cleanup, and the durable Listen derivative are all
-    /// ready. Since Listen became lazy (2026-09-24) nothing gates a control on
+    /// ready. Since Listen became lazy nothing gates a control on
     /// this: a paper without a derivative yet is still fully readable and
     /// listenable, and `isPaperReadyForListenPreparation` is the gate.
     var hasSuccessfulPaperIngestion: Bool {
@@ -427,8 +427,8 @@ extension StudioArticle {
             return .configureAI
         }
         // Every "add your OpenRouter key" wording: today's, and those from
-        // while the key also needed a plan ("… and choose a plan", until
-        // 2026-10-10), still stored on older rows. "AI balance is empty" and
+        // while the key also needed a plan ("… and choose a plan"), still
+        // stored on older rows. "AI balance is empty" and
         // "top up" are the wordings from before the prepaid balance was
         // retired.
         if message.localizedCaseInsensitiveContains("add your OpenRouter key")

@@ -47,7 +47,7 @@ extension InternalReviewPanelContent {
             // centered and, in a split, capped well short of the pane, which
             // left a control stranded mid-header on a wide pane. Anchored here
             // it lands one control gap in from the pin instead. Quiet chrome
-            // (docs/ui-design.md, 2026-10-06): the title, a review's way out
+            // (docs/ui-design.md): the title, a review's way out
             // while it has the window, the ⋯ and the pane's ×; Copy
             // conversation and the notebook's Chats are the ⋯'s.
                 .overlay(alignment: .trailing) {
@@ -196,11 +196,9 @@ extension InternalReviewPanelContent {
 
     /// Whether the header carries New chat: in a notebook window, once this
     /// chat has something in it. A blank chat is already the new one, and the
-    /// button would only reload it. Before 2026-10-24 the way to a second
-    /// chat in a notebook was ⋯ ▸ Chats in This Notebook ▸ New Chat, or ⌘N,
-    /// or a + that showed only under the pointer on the rail's row (product
-    /// owner, 2026-10-24: "within the notebook view, how can I actually do a
-    /// new chat? This has to be a lot easier").
+    /// button would only reload it. A second chat in a notebook is one click
+    /// away (product owner, 2026-10-24: "within the notebook view, how can I
+    /// actually do a new chat? This has to be a lot easier").
     private var showsNewNotebookChatButton: Bool {
         headerNotebookID != nil && windowState != nil
             && (manager.currentSessionID != nil || manager.chatMessageCount > 0)
@@ -254,11 +252,11 @@ extension InternalReviewPanelContent {
 
     /// The header's ⋯: the notebook's chats, where this chat can go — the
     /// pane beside it, another window — its address and its transcript. The
-    /// sidebar's row has carried these all along, but the chat in front of
-    /// the learner had no menu at all (product owner, 2026-09-21: "I also don't have
-    /// a, you know, three dots where I can be like, move to the other
-    /// window"). Since 2026-10-06 (Quiet chrome, docs/ui-design.md) it also
-    /// holds what stood beside it on the line: **Chats in This Notebook** ▸
+    /// sidebar's row carries these too, and the chat in front of the learner
+    /// needs them as much (product owner, 2026-09-21: "I also don't have a,
+    /// you know, three dots where I can be like, move to the other
+    /// window"). Quiet chrome (docs/ui-design.md) also puts in it what would
+    /// otherwise stand beside it on the line: **Chats in This Notebook** ▸
     /// (`NotebookChatsMenuItems`, also the notebook rail's Chats menu) and
     /// **Copy Conversation**.
     ///
@@ -313,7 +311,7 @@ extension InternalReviewPanelContent {
     @ViewBuilder
     private func chatActionsMenuItems(sessionID: String?) -> some View {
         // A notebook window's chats, which the rail's icon strip lists too
-        // (and no longer under the notebook's folder).
+        // (not under the notebook's folder).
         if let notebookID = headerNotebookID, windowState != nil {
             Menu("Chats in This Notebook", systemImage: "bubble.left.and.bubble.right") {
                 NotebookChatsMenuItems(notebookID: notebookID, currentSessionID: manager.currentSessionID)
@@ -370,10 +368,9 @@ extension InternalReviewPanelContent {
         } label: {
             Label("Copy Link", systemImage: "link")
         }
-        // The whole transcript, named for what it does (product owner, 2026-09-22,
-        // asking for a copy-the-whole-chat button that was already there,
-        // wearing each answer's own copy glyph on the header). The header's
-        // button went on 2026-10-06 (Quiet chrome): this is the one place.
+        // The whole transcript, named for what it does (product owner,
+        // 2026-09-22, asking for a copy-the-whole-chat button). The header
+        // has no button of its own (Quiet chrome): this is the one place.
         Button {
             copyConversation()
         } label: {
@@ -418,8 +415,8 @@ extension InternalReviewPanelContent {
             }
         }
         // The context ring's breakdown of the context and this chat's cost.
-        // The composer draws the ring only once the context is filling up
-        // (2026-10-06); this opens the breakdown before that.
+        // The composer draws the ring only once the context is filling up;
+        // this opens the breakdown before that.
         if manager.contextBreakdown != nil {
             Divider()
             Button {
@@ -702,8 +699,7 @@ extension InternalReviewPanelContent {
     /// chats included, then anything attached beside it. A chat is review
     /// material under its own session id without being a source row, so it has
     /// no article and is named from the briefing's header; leaving chats out
-    /// hid the source a review opened on, and no chip was current
-    /// (2026-09-22, twelve of that day's nineteen sources).
+    /// hid the source a review opened on, and no chip was current.
     private var memoryReviewStripEntries: [MemoryReviewStripEntry] {
         let attached = reviewSources
         let attachedByID = Dictionary(attached.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -923,9 +919,9 @@ extension InternalReviewPanelContent {
     func steerMemoryReview(to source: MemoryReviewStripEntry) async {
         let reviewed = manager.memoryReviewStatusBySource[source.id] != nil
         // The source whose contour is open and unanswered is the question
-        // already on the card. Asking to "do it now" only re-asks it, and on
-        // 2026-09-26 the second wording listed the very ideas the first had
-        // left to memory.
+        // already on the card. Asking to "do it now" only re-asks it, and the
+        // second wording would list the very ideas the first had left to
+        // memory.
         if !reviewed, source.id == manager.memoryReviewCurrentSourceID { return }
         var note: String?
         if manager.offersMemoryReviewSteer, source.id == manager.memoryReviewCurrentSourceID {

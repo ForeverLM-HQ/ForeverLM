@@ -16,11 +16,9 @@ import OSLog
 /// The result is one small JPEG under the library root, referenced by the
 /// relative path convention the rest of the app uses, so it survives a move
 /// between content roots. It reaches another Mac as `meetingIconAsset` on the
-/// source's CloudKit record. That used to be the ubiquity container's job — the
-/// icon travelled as ordinary source content — and when content moved local on
-/// 2026-08-18 nothing replaced it: the path kept syncing and the picture
-/// stopped, leaving meetings on the receiving Mac showing a glyph beside a path
-/// to a file they had never been sent.
+/// source's CloudKit record. Source content is local, so nothing else carries the
+/// picture: syncing the path alone would leave meetings on the receiving Mac
+/// showing a glyph beside a path to a file they had never been sent.
 actor MeetingIconService {
     static let shared = MeetingIconService()
 

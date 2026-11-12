@@ -44,7 +44,7 @@ extension KnowledgeStore {
     /// Enrollments from the `course.focus.*` rows. Each is idempotent, bounded by the library's courses,
     /// in its own transaction, and reads generation-1 truth only. A quiz's revision needs no
     /// derivation: schema 157 made it 1 on every row. Nothing is derived for a course's home: a course
-    /// lives in no notebook (2026-10-03), and `home_notebook_id` is left unread.
+    /// lives in no notebook, and `home_notebook_id` is left unread.
     static let courseActivationDerivations: [ActivationDerivation] = [
         ActivationDerivation(id: "courseRows") { store in try store.inDerivationTransaction { try $0.deriveCourseRows() } },
         ActivationDerivation(id: "courseEnrollments") { store in try store.inDerivationTransaction { try $0.deriveCourseEnrollments() } },

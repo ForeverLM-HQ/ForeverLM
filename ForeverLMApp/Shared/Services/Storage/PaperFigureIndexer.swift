@@ -62,8 +62,8 @@ actor PaperFigureIndexer {
         // The index alone: the reading below is the one pass with a deadline.
         // An index built under older rules is read again first: one built
         // before Extended Data captions counted (version 2) answered "Extended
-        // Data Figure 1 was not found" for a Nature paper whose PDF prints it
-        // (2026-11-08), because a stored index that was not empty was always
+        // Data Figure 1 was not found" for a Nature paper whose PDF prints it,
+        // because a stored index that was not empty was always
         // taken as it was.
         let figures = try await figuresForReading(sourceID: sourceID)
         guard let match = Self.figure(labelled: requested, in: figures) else { return figures }

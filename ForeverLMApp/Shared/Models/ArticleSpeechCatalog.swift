@@ -178,7 +178,7 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
     /// A Fish Audio row with no voice list is the exception: a Fish request
     /// that names no reference voice is spoken by a different random speaker
     /// each time, so a paper narrated in several requests changed voice every
-    /// few sentences (Drama 3 on the iPhone, 2026-11-11). It takes the Fish
+    /// few sentences (Drama 3 on the iPhone). It takes the Fish
     /// reference voice every other Fish model takes (`fishS21Voices`).
     init(directoryRow row: OpenRouterAudioModelRow) {
         let takesFishReference = row.supportedVoices.isEmpty
@@ -750,12 +750,12 @@ private actor OpenRouterAudioDirectoryLoader {
 ///
 /// The source is the catalog openrouter.ai's own model pages draw from
 /// (`/api/frontend/v1/catalog/models`), not the public directory, for two
-/// reasons a session found on 2026-09-26: the directory's `pricing.prompt`
+/// reasons: the directory's `pricing.prompt`
 /// carries no unit, and the unit differs by model — seconds of audio for
 /// Parakeet, hours for MAI-Transcribe (read as seconds, $0.36 became $1,296
 /// an hour); and where a model has several hosts the directory can quote one
 /// requests do not go to (Kokoro at Together's $4 per million characters
-/// while OpenRouter routes it to DeepInfra at $0.62, still so on 2026-09-27).
+/// while OpenRouter routes it to DeepInfra at $0.62).
 /// Each catalog row names the endpoint OpenRouter routes to and prices it
 /// with an explicit unit (`display_pricing`): per second, minute or hour of
 /// audio, per character, per UTF-8 byte, or per input and output token. A
@@ -951,7 +951,7 @@ enum OpenRouterAudioPrices {
             else { continue }
             // `display_pricing` is the price after the cut, like the public
             // directory's (AssemblyAI's Universal 3.5 Pro at $0.225 an hour,
-            // 50% off, in both on 2026-09-29).
+            // 50% off, in both).
             if let discount = number(pricing["discount"]), discount > 0, discount < 1 {
                 let basisPoints = Int((discount * 10_000).rounded())
                 if basisPoints > 0, basisPoints < 10_000 { price.discountBasisPoints = basisPoints }
@@ -1141,10 +1141,8 @@ enum OpenRouterAudioPrices {
 ///
 /// Every request names the OpenRouter slug and goes to OpenRouter's speech
 /// endpoint: straight there on the learner's own OpenRouter key, through the
-/// managed proxy otherwise (`ManagedAI.rewrite`). Until 2026-09-27 Grok went to
-/// xAI's own API and the default Gemini model to Google's; both are OpenRouter
-/// models like the rest now, under the same slugs, so no stored selection
-/// changes.
+/// managed proxy otherwise (`ManagedAI.rewrite`). Grok and the default Gemini
+/// model are OpenRouter models like the rest, under the same slugs.
 ///
 /// Prices are OpenRouter's, in the unit it bills each model by
 /// (`OpenRouterAudioPrices`); none is written here.
@@ -1161,7 +1159,7 @@ enum ArticleSpeechCatalog {
 
     /// Settings › Voice's Suggested text-to-speech models: one per maker, the
     /// best that is still affordable, as Settings › Chat suggests its own.
-    /// Picked from OpenRouter's speech directory on 2026-09-28. A model
+    /// Picked from OpenRouter's speech directory. A model
     /// OpenRouter stops serving drops off the list.
     static let suggestedModelIDs = [
         "google/gemini-3.8-flash-tts",
@@ -1187,7 +1185,7 @@ enum ArticleSpeechCatalog {
     /// read again in halves.
     static let openAIRealtimeModelID = "openai/gpt-realtime-2.1-mini"
 
-    /// gpt-realtime-2.1-mini's voices (developers.openai.com, 2026-11-11);
+    /// gpt-realtime-2.1-mini's voices (developers.openai.com);
     /// OpenAI recommends marin and cedar, so they lead.
     static let openAIRealtimeVoices: [ArticleSpeechVoice] = [
         .init("marin", "Marin", detail: "Recommended"),
@@ -1413,9 +1411,9 @@ enum ArticleSpeechCatalog {
         modelID.lowercased().hasPrefix("fish-audio/")
     }
     static let realtimeChunkLimit = 2_000
-    // Flux's free route babbled and truncated on ~1,950-character units on
-    // 2026-09-09 (two units of a 44-unit paper came back as nonsense, one came
-    // back a third short). Shorter units bound how much one bad response
+    // Flux's free route babbled and truncated on ~1,950-character units (two
+    // units of a 44-unit paper came back as nonsense, one came back a third
+    // short). Shorter units bound how much one bad response
     // garbles; the route stays labelled best effort because it is.
     static let fluxChunkLimit = 1_000
     // Grok Voice can take roughly a minute to synthesize a 4k-character unit.
@@ -1423,7 +1421,7 @@ enum ArticleSpeechCatalog {
     // bound the damage if the model returns a semantically malformed waveform.
     static let grokChunkLimit = 1_000
     /// Seed Audio returns at most 120 seconds of audio per request (its
-    /// OpenRouter description, 2026-09-27); 1,000 characters is about 80
+    /// OpenRouter description); 1,000 characters is about 80
     /// seconds at 750 spoken characters a minute, leaving room for a slower
     /// reading.
     static let seedAudioChunkLimit = 1_000
@@ -1591,7 +1589,7 @@ enum ArticleSpeechCatalog {
             voices: geminiVoices,
             languages: geminiLanguages,
             // OpenRouter's Gemini adapter returns Google's 24 kHz PCM, which
-            // own-key narration has transcoded since 2026-09-22.
+            // own-key narration transcodes.
             responseFormat: .pcm,
             chunkLimit: geminiChunkLimit,
             leadChunkLimit: geminiLeadChunkLimit
@@ -1620,8 +1618,8 @@ enum ArticleSpeechCatalog {
         ),
     ]
 
-    /// What ForeverLM learned on 2026-09-27, when the catalog started
-    /// following the directory, about models it had not offered: the voice a
+    /// What ForeverLM knows about models the directory lists but the catalog
+    /// does not pin: the voice a
     /// model with no voice list takes, a per-request cap, a family's voice
     /// names and unit sizes. Laid over their rows only while the directory
     /// lists them; before its first read they are not offered.
@@ -1822,10 +1820,10 @@ enum ArticleSpeechCatalog {
     /// by one is regenerated, and one the directory still lists is left out.
     ///
     /// - Orpheus 3B: expressive on short samples but resets its prosody every
-    ///   ~180 characters, so it cannot narrate long-form (retired 2026-08-04,
-    ///   22bea7224). OpenRouter still lists it.
-    /// - Zonos v0.1: dropped from the catalog on 2026-08-15 (8268a5d52) and
-    ///   no longer in OpenRouter's directory; kept so its audio is remade.
+    ///   ~180 characters, so it cannot narrate long-form. OpenRouter still
+    ///   lists it.
+    /// - Zonos v0.1: no longer in OpenRouter's directory; kept so its audio is
+    ///   remade.
     static func isRetiredModel(_ model: String) -> Bool {
         model.caseInsensitiveCompare("canopylabs/orpheus-3b-0.1-ft") == .orderedSame
             || model.caseInsensitiveCompare("zyphra/zonos-v0.1-transformer") == .orderedSame
@@ -2695,16 +2693,6 @@ enum SourceAudioAutomation {
         return parts.joined(separator: "\n")
     }
 
-    /// Shown after Stop. Deliberately states that the switches are still on,
-    /// because stopping a run does not revoke the opt-ins.
-    static func stoppedRunMessage(completedCount: Int) -> String {
-        let generated = completedCount == 1
-            ? "1 source was generated and is billed"
-            : "\(completedCount) sources were generated and are billed"
-        return "Stopped this run — \(generated). The source types stay switched on, so the next "
-            + "source that arrives starts generating again. Switch them off to stop for good."
-    }
-
     /// "812,430 characters · about $32.50 of speech", or nil when the
     /// current backlog cannot be sized and priced.
     ///
@@ -2776,62 +2764,6 @@ enum SourceAudioAutomation {
         let label = rateLabel(ratePerMillionCharacters: rate) ?? "its listed rate"
         return "Paid voices are allowed: every source of a switched-on type is narrated at "
             + "\(label) — including your existing library — and billed to your OpenRouter key."
-    }
-
-    /// Alert title for the confirmation shown before a type is switched on.
-    static func enableConfirmationTitle(sourceType: String) -> String {
-        "Automatically generate audio for \(noun(forSourceType: sourceType, count: 2))?"
-    }
-
-    /// Alert body: what the standing charge is, what clearing the current
-    /// backlog costs, and the rate behind the estimate.
-    static func enableConfirmationMessage(
-        sourceType: String,
-        backlog: Backlog,
-        ratePerMillionCharacters rate: Double?,
-        allowsPaidVoices: Bool = false
-    ) -> String {
-        let plural = noun(forSourceType: sourceType, count: 2)
-        let singular = noun(forSourceType: sourceType, count: 1)
-        guard let rate else {
-            return "This voice has no published price, so automatic audio cannot be turned on. "
-                + "Choose a voice with a listed rate."
-        }
-        guard rate == 0 || allowsPaidVoices else {
-            return "Choose a free voice before turning on automatic audio, or allow paid voices "
-                + "first."
-        }
-        var sentences: [String]
-        if rate == 0 {
-            sentences = ["Every new \(singular) is narrated with the selected free voice."]
-        } else {
-            let label = rateLabel(ratePerMillionCharacters: rate) ?? "its listed rate"
-            sentences = [
-                "Every new \(singular) is narrated with the selected paid voice at \(label), "
-                + "billed to your OpenRouter key.",
-            ]
-        }
-
-        if backlog.sourceCount > 0 {
-            let counted = "\(backlog.sourceCount) \(noun(forSourceType: sourceType, count: backlog.sourceCount))"
-            let verb = backlog.sourceCount == 1 ? "has" : "have"
-            let pronoun = backlog.sourceCount == 1 ? "it" : "them"
-            let opening = "\(counted) already in your library \(verb) no audio yet, so switching "
-                + "this on starts generating \(pronoun) now"
-            if let estimate = estimateLabel(for: backlog, ratePerMillionCharacters: rate) {
-                sentences.append(opening + " — \(estimate).")
-            } else {
-                sentences.append(opening + ".")
-            }
-        } else {
-            sentences.append("No \(plural) are waiting, so nothing is generated until the next one arrives.")
-        }
-
-        if rate > 0 {
-            sentences.append("You can stop a run in progress, but what has already been "
-                + "narrated is billed.")
-        }
-        return sentences.joined(separator: " ")
     }
 }
 

@@ -3,38 +3,8 @@ import Foundation
 import XCTest
 @testable import ForeverLM
 
-/// A reader on a weak connection who taps Listen used to get "iCloud could not
-/// be reached, so this setting could not be checked" at once, with no retry and
-/// no word about what did not start. These pin the one silent retry and the
-/// wording that names the activity.
+/// These pin the wording that names the activity a failed iCloud read stopped.
 final class MobileModelRouteErrorTests: XCTestCase {
-    func testTransientCloudKitFailuresAreRetriedOnce() {
-        for code: CKError.Code in [.networkUnavailable, .networkFailure, .requestRateLimited, .serviceUnavailable, .zoneBusy, .accountTemporarilyUnavailable] {
-            let delay = MobileModelRouteError.transientRetryDelay(for: CKError(code))
-            XCTAssertNotNil(delay, "\(code) should be retried")
-            XCTAssertEqual(delay, .seconds(2), "\(code) without a hint waits the default two seconds")
-        }
-    }
-
-    func testNonTransientFailuresAreNotRetried() {
-        XCTAssertNil(MobileModelRouteError.transientRetryDelay(for: CKError(.unknownItem)))
-        XCTAssertNil(MobileModelRouteError.transientRetryDelay(for: CKError(.serverRecordChanged)))
-        XCTAssertNil(MobileModelRouteError.transientRetryDelay(for: CKError(.permissionFailure)))
-        XCTAssertNil(MobileModelRouteError.transientRetryDelay(for: CancellationError()))
-        XCTAssertNil(MobileModelRouteError.transientRetryDelay(for: URLError(.notConnectedToInternet)))
-    }
-
-    func testRetryHonoursCloudKitsHintWithinBounds() {
-        func throttled(after seconds: Double) -> CKError {
-            CKError(.requestRateLimited, userInfo: [CKErrorRetryAfterKey: NSNumber(value: seconds)])
-        }
-        XCTAssertEqual(MobileModelRouteError.transientRetryDelay(for: throttled(after: 1.5)), .seconds(1.5))
-        // "Retry after 14.7 seconds" must not hold a tap on Listen for a quarter of a minute.
-        XCTAssertEqual(MobileModelRouteError.transientRetryDelay(for: throttled(after: 14.7)), .seconds(3))
-        // And a zero hint does not retry straight back into the same outage.
-        XCTAssertEqual(MobileModelRouteError.transientRetryDelay(for: throttled(after: 0)), .seconds(0.5))
-    }
-
     func testUnreachableICloudNamesWhatDidNotStart() throws {
         let listen = MobileModelRouteError.from(CKError(.networkUnavailable), activity: AITask.paperTextToSpeechPreparation.mobileActivityName)
         let message = try XCTUnwrap(listen.errorDescription)

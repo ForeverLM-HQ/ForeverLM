@@ -27,7 +27,7 @@ import OSLog
 // this design, only a different design. The Mac's `AppleTextEmbedder` has the
 // right one (`NLContextualEmbedding`, 20 Latin-script languages in a single
 // cross-lingual space), but it costs 12.6 ms per title on a Mac against 5.4 ms
-// here (measured 2026-08-19), and this cache is in-memory and cold on every Siri
+// here (measured), and this cache is in-memory and cold on every Siri
 // launch. At thousands of sources that is a minute of dead air before Siri
 // answers. Moving to it needs a persisted vector store first; until then a
 // non-English topic simply ranks poorly, and the caller falls back to the

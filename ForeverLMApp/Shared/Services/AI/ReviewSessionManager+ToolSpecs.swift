@@ -36,7 +36,7 @@ extension ReviewSessionManager {
         // "Which Huberman episodes are about mitochondria" asked in a paper's
         // chat is a list by show, and a ranked search over the whole library
         // let every other mitochondria podcast crowd out the one episode that
-        // mattered (2026-09-22). The listing and the exact-word sweep are what
+        // mattered. The listing and the exact-word sweep are what
         // answer a request for the complete set.
         "filter_sources",
         "list_shows",
@@ -53,8 +53,8 @@ extension ReviewSessionManager {
         // learner asks about it in is the chat on the Notebook or the paper — a
         // study chat, not the agent surface. Without these two a study chat can
         // only search the library, and a library search never says what a
-        // channel says (2026-09-05: nine "Searched sources" rows and no Slack
-        // read, in a Notebook chat asked about a PDF posted that week).
+        // channel says (a Notebook chat asked about a PDF posted that week
+        // showed nine "Searched sources" rows and no Slack read).
         "list_slack_channels",
         "read_slack_channel",
         "read_slack_thread",
@@ -71,7 +71,7 @@ extension ReviewSessionManager {
         "create_doc",
         "read_doc",
         "write_doc",
-        // A long Doc cannot be re-emitted through write_doc (2026-09-07: a chat
+        // A long Doc cannot be re-emitted through write_doc (a chat
         // asked to fold a Google Doc's ideas into two reports, one of 237k
         // characters, created a third Doc rather than risk truncating them).
         // edit_doc changes passages in place, and publish_doc is how a chat
@@ -84,7 +84,7 @@ extension ReviewSessionManager {
         "adopt_page",
         // "make a site" means a site, not a Doc (product owner, 2026-09-09): HTML
         // the chat writes is kept in the library and served as written, and
-        // never put on the web (2026-10-10).
+        // never put on the web.
         "save_site",
         "read_site_file",
         // "show me how it works" on a paper means an animation (product owner,
@@ -102,15 +102,14 @@ extension ReviewSessionManager {
         "get_walkthrough",
         "list_walkthroughs",
         "save_walkthrough",
-        // "Make cards" from the chat about the source (decisions 2026-10-01,
-        // 3): the chat drafts them itself and saves them, free, to wait in
-        // Memory's To Check until the learner keeps them — or, asked to,
+        // "Make cards" from the chat about the source (decision 3): the chat drafts them
+        // itself and saves them, free, to wait in Memory's To Check until the learner keeps them — or, asked to,
         // has ForeverLM draft them from the sources' whole text with the
         // learner's Card Drafting model, priced first like every paid maker.
         "save_card_drafts",
         "draft_cards",
-        // "Quiz me on this paper's cards" is said in the chat about it too
-        // (2026-10-13): the chat chooses the kept cards and the app's card
+        // "Quiz me on this paper's cards" is said in the chat about it too:
+        // the chat chooses the kept cards and the app's card
         // review opens on them.
         "list_cards",
         // "Which sources have no cards yet?" is asked in the chat too: the
@@ -122,7 +121,7 @@ extension ReviewSessionManager {
         "find_card_sources",
         "practice_cards",
         // "Make a mnemonic reading of this book" is said in the chat about
-        // the book (2026-10-03): ForeverLM writes the questions, priced first
+        // the book: ForeverLM writes the questions, priced first
         // like draft_cards, or the chat saves its own, free. Going through a
         // reading is done in the reading itself, not in a chat, so the
         // reading and answering tools stay with the agent surface.
@@ -149,9 +148,9 @@ extension ReviewSessionManager {
         // agent chat, and every tool listed here is paid for on every study turn.
         "create_scheduled_task",
         // "Plan my day and schedule those papers" is said in the chat about the
-        // papers. On 2026-09-22 a study chat that had create_scheduled_task and
-        // no day tool made three one-off scheduled tasks, told the learner the
-        // papers were scheduled, and left the day empty. Putting a reading on
+        // papers. A study chat that has create_scheduled_task and no day tool
+        // makes one-off scheduled tasks, tells the learner the papers are
+        // scheduled, and leaves the day empty. Putting a reading on
         // the clock is an event on the Mac's Calendar; the goals are what it
         // serves.
         "get_calendar_events",
@@ -163,7 +162,7 @@ extension ReviewSessionManager {
         // "Open this notebook", "show me that paper" are said in any chat, and
         // a study chat had no way to put anything on screen: asked to open the
         // Notebook it had just made, a chat answered that it had opened it and
-        // nothing moved (2026-10-11). open_in_app does what a click does;
+        // nothing moved. open_in_app does what a click does;
         // list_notebooks finds a Notebook the learner names by its title.
         "open_in_app",
         "list_notebooks",
@@ -665,8 +664,8 @@ extension ReviewSessionManager {
 
         // The picture tools take any source in the library, attached or not,
         // so they are on offer in every chat: a learner who asks about a paper
-        // a search just found gets its figure from the library's own PDF. On
-        // 2026-09-12 "highlight figure 2a in that paper" ended on
+        // a search just found gets its figure from the library's own PDF. For
+        // example "highlight figure 2a in that paper" ended on
         // pmc.ncbi.nlm.nih.gov in the browser because the paper was in the
         // library but not in this chat, both tools refused its ID as "not
         // attached", and the model went and fetched the publisher's page.
@@ -760,9 +759,9 @@ extension ReviewSessionManager {
         // beside the chat and scrolls to and outlines what the reply is about,
         // the way a played step does (walkthrough-design.md, "Focus is a chat
         // tool"). Like the picture tools it takes any source in the library,
-        // so it rides every chat a pane shows: on 2026-10-11 "explain the key
+        // so it rides every chat a pane shows: "explain the key
         // points and walk through the figures" of a paper a search had just
-        // found left the Reader shut, because the tool came only with an
+        // found would leave the Reader shut if the tool came only with an
         // attached source (product owner: "from the chat it should be able to
         // open the reader and show what it means"). A manager no pane shows
         // has no Reader to point, so it is not offered there.
@@ -1045,10 +1044,9 @@ extension ReviewSessionManager {
         }
 
         if appToolExecutor != nil {
-            // The chat's own tools win over an MCP tool of the same name. The
-            // 2026-09-22 case: inspect_paper_figure gained an MCP twin, the
-            // agent chat sent both, and Google refused the whole request as a
-            // duplicate function declaration.
+            // The chat's own tools win over an MCP tool of the same name. A tool
+            // with an MCP twin (inspect_paper_figure) would be sent twice, and
+            // Google refuses the whole request as a duplicate function declaration.
             let nativeNames = Set(specs.map(\.name))
             let surface = appToolSurface()
             for tool in surface.sent where !nativeNames.contains(tool.name) {

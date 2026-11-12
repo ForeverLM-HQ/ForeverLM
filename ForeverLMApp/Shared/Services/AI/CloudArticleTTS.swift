@@ -106,8 +106,8 @@ enum CloudArticleTTS {
     /// Body requests started the moment a source's generation begins, beside
     /// the opening. The rest join one per completion until the ceiling above
     /// is reached. Smaller than the ceiling on purpose: the second and third
-    /// units are the ones that must land before the opening runs out, and on
-    /// 2026-09-09 six Gemini requests in flight together each took 25–31 s
+    /// units are the ones that must land before the opening runs out, and six
+    /// Gemini requests in flight together each took 25–31 s
     /// while the lone opening took 10 s — parallel requests slow each other,
     /// so the head of the queue is better off with fewer neighbours.
     private static let openingBodyLaunchWave = 3
@@ -495,10 +495,10 @@ enum CloudArticleTTS {
 
             // The opening either survives from an interrupted attempt or is
             // requested now — and the body requests below go out at the same
-            // moment, not after it. Waiting for the opening first used to cost
+            // moment, not after it. Waiting for the opening first would cost
             // the whole opening latency twice: once before sound started, and
             // again as silence when the opening ran out before the second
-            // request could possibly have landed (measured on 2026-09-09: a
+            // request could possibly have landed (measured: a
             // 240-character Gemini opening took 10 s and played for 11 s, and
             // the first body request, started only after it, took 25 s).
             let store: ProgressiveChunkStore

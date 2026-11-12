@@ -71,7 +71,7 @@ enum PaperFigureCaptionTitle {
 
     /// Whether a caption line prints its figure's label and none of its
     /// words: EMBO's "Figure 1." under a figure whose legend is set on the
-    /// page before or after it (the EMBO cristae paper, 2026-09-28), or a
+    /// page before or after it (the EMBO cristae paper), or a
     /// pointer to that page, Nature's "Fig. 3 | See next page for caption."
     /// A stub is printed with the figure; the words are somewhere else.
     static func isStub(_ caption: String) -> Bool {
@@ -97,8 +97,8 @@ enum PaperFigureCaptionTitle {
     /// Where a line's caption begins: after the marks some journals set
     /// before it. EMBO points from a legend to the page its figure is on —
     /// "◀ Figure 2. The DΨm-sensitive dye…" opens the page after Figure 2 —
-    /// and until 2026-09-28 the arrow hid six of the cristae paper's eleven
-    /// legends from the index. Nil when the line is only marks.
+    /// and a caption read from its first word alone would miss the legends
+    /// that carry the arrow. Nil when the line is only marks.
     static func captionStart(in line: String) -> String.Index? {
         line.firstIndex { character in
             !character.unicodeScalars.allSatisfy {
@@ -142,7 +142,7 @@ enum PaperFigureCaptionTitle {
         // range closes like a reference too: "fig. 6 A-C, Sup. Table 9-11)"
         // and "Extended Data fig. 9B-C). A significant…" opened lines of a
         // bioRxiv preprint and were indexed as Figure 6 and Extended Data
-        // Figure 9B (2026-11-09). A capital panel letter, or a range of them,
+        // Figure 9B. A capital panel letter, or a range of them,
         // followed by a bracket, comma or the line's end is a reference; a
         // capital that begins a title ("Figure 2 – A model of…") is not.
         //
@@ -158,8 +158,8 @@ enum PaperFigureCaptionTitle {
         //
         // Journals' supplementary files label their figures more loosely than
         // the articles do, and a joined supplement (`PaperSupplementPDF`) is
-        // read with the same pattern. Of 201 open-access supplements fetched for
-        // the library on 2026-11-09, about 16 printed only "Supp. Fig. 1",
+        // read with the same pattern. Of 201 open-access supplements fetched
+        // for the library, about 16 printed only "Supp. Fig. 1",
         // "Supplementary Fig S1", "Fig S1:", "Appendix Figure S1" (EMBO) or
         // "Supplementary Data Figure 1" (Nature Medicine), so their figures
         // never reached the index. "Fig" without its period is a caption under
@@ -383,22 +383,6 @@ enum WalkthroughStepPanelNote {
         }
         flush()
         return paragraphs
-    }
-
-    /// Whether the step's body takes several panels in turn — the shape a
-    /// walk written before 2026-09-21 gave a multi-panel figure, one step
-    /// reading "panel a … panel b … panel c" under one outline. Only such a
-    /// step has words for one panel that are not simply its opening; a step
-    /// about one panel says it all in the bubble already.
-    static func toursSeveralPanels(_ body: String) -> Bool {
-        var named: Set<String> = []
-        for paragraph in paragraphs(of: body) {
-            for sentence in sentences(of: paragraph) {
-                named.formUnion(panels(in: sentence))
-                if named.count > 1 { return true }
-            }
-        }
-        return false
     }
 
     private static func plain(_ text: String) -> String {

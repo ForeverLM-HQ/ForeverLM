@@ -6,8 +6,6 @@ import SwiftUI
 // notebook's row in the Space, the headings of All's Group by Collection, and
 // the questions both ask (a name, whether to delete). The rows and their rules
 // are `NotebookCollections`; the writes are `StudioViewModel+NotebookCollections`.
-// The chips and the stack cards of the Notebooks home's Collections tab went
-// with the home (2026-10-09).
 
 /// Add to Collection ▸ on a notebook's row or card in the Space: each collection, ticked when
 /// the notebook is in it (a click puts it in or takes it out), then New

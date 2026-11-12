@@ -10,19 +10,6 @@ import Testing
 struct NotebookSchema156ActivationTests {
     typealias F = NotebookSyncFixture
 
-    /// A preference row as `PreferenceStore` mirrors one into `user_preferences`.
-    static func setPreference(_ store: KnowledgeStore, _ key: String, _ value: Any?) throws {
-        guard let value else {
-            try store.execute("DELETE FROM user_preferences WHERE key = ?", [.text(key)])
-            return
-        }
-        let data = try PropertyListSerialization.data(fromPropertyList: ["v": value], format: .xml, options: 0)
-        try store.execute("""
-            INSERT INTO user_preferences (key, value, updated_at) VALUES (?, ?, 1)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        """, [.text(key), .text(String(decoding: data, as: UTF8.self))])
-    }
-
     static func runDerivations(_ store: KnowledgeStore) throws {
         for derivation in KnowledgeStore.notebookActivationDerivations { try derivation.run(store) }
     }
@@ -109,7 +96,7 @@ struct NotebookSchema156ActivationTests {
         let (root, store) = try F.makeStore("156-duplicates", triggers: false)
         defer { try? FileManager.default.removeItem(at: root) }
         try Self.generation1Library(store)
-        try Self.setPreference(store, "notebook.chatExcluded.nb-a", ["src-2", "src-2", "src-1"])
+        try setPreference(store, "notebook.chatExcluded.nb-a", ["src-2", "src-2", "src-1"])
         try Self.runDerivations(store)
         let a = try #require(try NotebookStateRow.load("nb-a", connection: store))
         #expect(Set(a.excluded.keys) == ["src-1", "src-2"])
@@ -128,8 +115,8 @@ struct NotebookSchema156ActivationTests {
         try store.execute("UPDATE learning_goal_items SET sequence = -1 WHERE source_id = 'src-1'")
         try store.execute("UPDATE learning_goals SET research_questions = ? WHERE id = 'nb-a'",
                           [.text(KnowledgeStore.encodeResearchQuestions(["Why?", "How?", "What next?"]))])
-        try Self.setPreference(store, "notebook.chatExcluded.nb-a", nil)
-        try Self.setPreference(store, "notebook.chatContextNotebooks.nb-a", nil)
+        try setPreference(store, "notebook.chatExcluded.nb-a", nil)
+        try setPreference(store, "notebook.chatContextNotebooks.nb-a", nil)
         try Self.runDerivations(store)
 
         var studyOrder: [String] = []

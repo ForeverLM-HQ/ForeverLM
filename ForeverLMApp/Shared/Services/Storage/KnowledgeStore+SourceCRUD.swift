@@ -743,7 +743,7 @@ extension KnowledgeStore {
     /// Write the count of the text just stored into whichever per-type table
     /// holds the source. A writer of `source_content` knows the text, so it
     /// writes the count with it; a count left for the caller to remember is
-    /// what left 637 podcast transcripts reading "no text yet" (2026-10-12).
+    /// what leaves podcast transcripts reading "no text yet".
     func writeStoredWordCount(sourceID: String, text: String) throws {
         let count = Int64(Self.storedWordCount(of: text))
         for table in Self.sourceWordCountTables {
@@ -1006,8 +1006,8 @@ extension KnowledgeStore {
     /// its book's `.epub`), Latin-1 when not UTF-8, as a few older EPUB exports
     /// are; any other file only as UTF-8. A PDF's text is in its pages, never
     /// its bytes: read through the Latin-1 fallback, which decodes any bytes,
-    /// a paper or a PDF book's chapter took its file's raw bytes as its text
-    /// on unarchive (from e5ac5bb, 2026-10-12).
+    /// a paper or a PDF book's chapter would take its file's raw bytes as its text
+    /// on unarchive.
     static func textOfLocalFile(atPath path: String) -> String? {
         let lower = path.lowercased()
         if lower.hasSuffix(".html") || lower.hasSuffix(".htm") || lower.hasSuffix(".xhtml") {
@@ -1021,7 +1021,7 @@ extension KnowledgeStore {
     /// and whether it is active or archived. Ids with no `sources` row are
     /// absent, which is the one case that means the source is gone; a planner
     /// block or a Now-chip row that only checked the active list read an
-    /// archived paper as deleted (2026-09-19).
+    /// archived paper as deleted.
     func sourceRowSummaries(for sourceIDs: some Collection<String>) throws -> [String: SourceRowSummary] {
         let uniqueIDs = Array(Set(sourceIDs.filter { !$0.isEmpty }))
         guard !uniqueIDs.isEmpty else { return [:] }
@@ -1266,10 +1266,7 @@ extension KnowledgeStore {
                 }
             }
             let replacesText = try replacesStoredText(sourceID: sourceId, with: text)
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                self.bind(stmt, 1, sourceId)
-                self.bind(stmt, 2, text)
-            }
+            try writeSourceContent(sourceID: sourceId, content: text)
             if replacesText {
                 try invalidateReplacedText(sourceID: sourceId)
             }
@@ -1376,10 +1373,7 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             let replacesText = try replacesStoredText(sourceID: sourceId, with: text)
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                self.bind(stmt, 1, sourceId)
-                self.bind(stmt, 2, text)
-            }
+            try writeSourceContent(sourceID: sourceId, content: text)
             if replacesText {
                 try invalidateReplacedText(sourceID: sourceId)
             }

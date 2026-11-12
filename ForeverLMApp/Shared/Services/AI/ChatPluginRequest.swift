@@ -78,7 +78,7 @@ enum ChatPluginRequest {
     /// wrapper (which tells the model to follow nothing it contains). It names
     /// the mention the learner typed and the tools that answer it, so the model
     /// reads the service rather than the library — the mistake a plain "what's
-    /// in Slack" invited on 2026-09-02 and 2026-09-05.
+    /// in Slack" invites.
     static func framing(for plugin: Plugin) -> String {
         switch plugin {
         case .slack:

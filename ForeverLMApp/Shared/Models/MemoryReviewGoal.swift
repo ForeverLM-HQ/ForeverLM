@@ -45,13 +45,7 @@ enum MemoryReviewGoal {
     /// "2026-09-05": the local day, the unit the goal and the streak count in.
     /// The same day the review's session id names.
     static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0
-        )
+        DailyNote.dayKey(for: date, calendar: calendar)
     }
 
     /// The day before, in the same key form. Nil for a malformed key.
@@ -104,15 +98,6 @@ enum MemoryReviewGoal {
         if snapshot.isTodayComplete { return .done(streak: snapshot.streak) }
         guard reviewIsUnderway else { return .quiet }
         return .remaining(snapshot.today.remainingSeconds)
-    }
-
-    /// "14:59" — the review's own clock, ticking down while it is spent. A
-    /// fixed shape so the digits do not jump the controls beside them around,
-    /// and never past zero: a met goal reads "0:00" until the chrome switches
-    /// to saying it is done.
-    static func countdownLabel(seconds: TimeInterval) -> String {
-        let remaining = Int(max(0, seconds).rounded(.up))
-        return String(format: "%d:%02d", remaining / 60, remaining % 60)
     }
 
     /// "15 min", "1 min", "under a minute".
@@ -276,7 +261,7 @@ struct MemoryReviewEngagementClock: Equatable, Sendable {
 }
 
 /// The day's review ended before its goal: the learner left, and the day
-/// does not count. Its cards can still be gone through (2026-10-12), with no
+/// does not count. Its cards can still be gone through, with no
 /// clock and no second commitment.
 ///
 /// Written by the device the learner left on and read back by it, so a
@@ -382,11 +367,10 @@ enum MemoryReviewCommitment {
 /// happened, and a grid that denied it would be wrong about the learner's own
 /// history.
 ///
-/// The grid is the whole of what the Memory pane (until 2026-10-01 the Review
-/// mode sheet) says about the past.
+/// The grid is the whole of what the Memory pane says about the past.
 /// It replaced a list of dates, one row a day, which said only that a review
-/// existed and made eight days look like a filing cabinet; the product owner
-/// (2026-09-18) asked for the rhythm instead, the way commits are shown. No
+/// existed and made eight days look like a filing cabinet; the grid shows the
+/// rhythm instead, the way commits are shown. No
 /// streak number goes with it: the run is there to be seen in the squares, and
 /// a count beside them would turn a missed week into a failure.
 enum MemoryReviewHistory {
@@ -456,7 +440,7 @@ enum MemoryReviewHistory {
     /// answer in it. The bare existence of the day's chat is not evidence,
     /// because the morning preparation makes the chat with its opening
     /// question before anyone has sat down; a day that stopped there was
-    /// skipped, and drew faintly as if it had not been until 2026-09-21.
+    /// skipped, and drew faintly as if it had not been.
     static func level(activeSeconds: TimeInterval, goalSeconds: TimeInterval, answered: Bool) -> Level {
         if goalSeconds > 0, activeSeconds > 0 {
             let fraction = activeSeconds / goalSeconds

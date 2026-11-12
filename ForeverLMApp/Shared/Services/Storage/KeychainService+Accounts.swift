@@ -1,4 +1,4 @@
-// Connector and account credential accessors, moved out of KeychainService.swift.
+// Connector and account credential accessors.
 
 import Foundation
 import Security
@@ -130,7 +130,7 @@ extension KeychainService {
 
     // MARK: The retired Google Calendar plugin
 
-    /// The Google Calendar plugin went with the Planner on 2026-09-30: the
+    /// The Google Calendar plugin is gone: the
     /// day is the Mac's Calendar, which holds a Google account itself through
     /// System Settings › Internet Accounts. Its grants rode iCloud Keychain,
     /// so without this they would sit there for good with no pane left to
@@ -363,7 +363,7 @@ extension KeychainService {
     private static func randomHex(_ bytes: Int) -> String {
         var data = [UInt8](repeating: 0, count: bytes)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes, &data)
-        return data.map { String(format: "%02x", $0) }.joined()
+        return data.hexString
     }
 
     // MARK: - X (Twitter) accounts

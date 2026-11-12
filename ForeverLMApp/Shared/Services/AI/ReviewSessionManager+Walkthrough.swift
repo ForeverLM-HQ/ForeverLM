@@ -374,7 +374,7 @@ extension ReviewSessionManager {
                 return false
             }
             // A record written before figure steps kept the authors' sentence
-            // about their panel (2026-09-21) is given it here, from the text
+            // about their panel is given it here, from the text
             // the record was written against; nothing is saved back.
             if loaded.needsSourceMentions, let text = await storage.loadSourceContent(article.id), !text.isEmpty {
                 loaded = loaded.fillingSourceMentions(from: text)
@@ -393,10 +393,10 @@ extension ReviewSessionManager {
                 logger.error("Reading the figure index target for the walkthrough failed: \(error.localizedDescription, privacy: .public)")
                 target = nil
             }
-            // An index read by an older build is read again before the walk
-            // shows it: the walk otherwise keeps that build's pages, like
-            // Figure 1 of the EMBO cristae paper on its legend's page of prose
-            // (2026-09-28). Structure only — no model, nothing spent.
+            // An index read under an older index contract is read again before
+            // the walk shows it: the walk otherwise keeps its pages, like
+            // Figure 1 of the EMBO cristae paper on its legend's page of prose.
+            // Structure only — no model, nothing spent.
             if let stale = target, stale.targetVersion < PaperFigureIndexContract.currentVersion,
                let fresh = try? await paperFigureIndexer.prepareStructure(sourceID: article.id), !fresh.isEmpty {
                 records = fresh
@@ -786,7 +786,7 @@ extension ReviewSessionManager {
     /// A question card graded by the learner after seeing the answer. Kept in
     /// the walk's own record, and as a Memory attempt on the question, so a
     /// question forgotten comes back in spaced review (quantum.country's
-    /// mnemonic medium, which the 2026-09-22 deck left as "not yet"). No
+    /// mnemonic medium). No
     /// model call and no chat: a self-grade needs no tutor, and typing an
     /// answer in the walk's chat still gets one graded.
     func gradeWalkthroughRecall(remembered: Bool) async {
@@ -1069,7 +1069,7 @@ extension ReviewSessionManager {
             walkthroughFocusHandler?(.clear)
             return
         }
-        // A question card's page (the lesson's emphasis, merged 2026-09-23):
+        // A question card's page (the lesson's emphasis):
         // a prediction still waiting for its guess covers the panel's data;
         // a Find it makes each panel a click target where the index has its
         // rectangle. Answered, both are outlined as any step is.
@@ -1234,10 +1234,10 @@ extension ReviewSessionManager {
             return AppToolResult(text: Self.sourceNotInLibraryMessage(requestedID), isError: true)
         }
         // A video is pointed at by its moment: the Reader's player is sought
-        // there, paused, as a video walk's step does. On 2026-11-07 a tutor
-        // pointing at a passage of a recorded talk was refused with "is a
-        // video", a failed row in the middle of its reply, though the talk's
-        // transcript times every passage.
+        // there, paused, as a video walk's step does. A tutor pointing at
+        // a passage of a recorded talk must not be refused with "is a video",
+        // a failed row in the middle of its reply: the talk's transcript times
+        // every passage.
         if article.sourceType == .video {
             return await focusVideoMoment(article, arguments: arguments)
         }
@@ -1285,10 +1285,9 @@ extension ReviewSessionManager {
                 )
             }
             // A paper's figure index is built the first time something asks
-            // for it, and a paper nobody has asked about has none: on
-            // 2026-10-28 "Figure 1" of a freshly imported preprint was refused
-            // as "not found" with 700 papers still queued, though its caption
-            // is printed. Reading the captions is free (no model, nothing
+            // for it, and a paper nobody has asked about has none: "Figure 1"
+            // of a freshly imported preprint would be refused as "not found"
+            // with its papers still queued, though its caption is printed. Reading the captions is free (no model, nothing
             // spent), so it is done here as inspect_paper_figure does it; a
             // failed read is reported as that, never as a missing figure.
             if figures.isEmpty {

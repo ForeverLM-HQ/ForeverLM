@@ -461,25 +461,6 @@ extension StudioViewModel {
         ChatNamedSources.shared.revoke(articleId)
     }
 
-    /// Toggle a source in/out of chat context.
-    func toggleSourceContext(_ articleId: String) {
-        if contextSourceIds.contains(articleId) {
-            removeSourceFromContext(articleId)
-        } else {
-            addSourceToContext(articleId, explicit: true)
-        }
-    }
-
-    /// Select all visible sources for context.
-    func selectAllSources() {
-        let visibleIds = activeTabArticles
-            .filter { isSourceIncludedInKnowledge($0) }
-            .map(\.id)
-        for id in visibleIds where !contextSourceIds.contains(id) {
-            contextSourceIds.append(id)
-        }
-    }
-
     /// Clear all source context.
     func clearSourceContext() {
         contextSourceIds = []
@@ -612,7 +593,7 @@ extension StudioViewModel {
     /// whatever fragment of it survives a corpus-wide cut. Grouped tabs (courses,
     /// meetings, videos) render whole groups matched on their own group metadata,
     /// so they are left alone. Books are the exception: the pool is the tab's
-    /// chapters, and `bookMatchesSearch` lets a book answer for any chapter whose
+    /// chapters, and `bookMatchesSearchContent` lets a book answer for any chapter whose
     /// text matched — a term that appears only inside one chapter of a book was
     /// otherwise unfindable from the Books tab.
     ///

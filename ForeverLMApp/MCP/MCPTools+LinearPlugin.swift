@@ -9,8 +9,8 @@ import Foundation
 /// Over MCP these tools are executed by the gateway, because only the gateway
 /// holds the learner's Linear grant. The Mac is an MCP *host*, so its in-app
 /// chat sees the local catalog and never the gateway's additions; without these
-/// twins a chat could not read Linear at all (the Slack tools were added for
-/// exactly this reason on 2026-09-02, `MCPTools+SlackPlugin.swift`).
+/// twins a chat could not read Linear at all (the Slack tools exist for
+/// exactly this reason, `MCPTools+SlackPlugin.swift`).
 ///
 /// Each twin asks the gateway for the same read over a `GET /linear/…` route,
 /// authenticated with the managed Sign in with Apple session, and the gateway

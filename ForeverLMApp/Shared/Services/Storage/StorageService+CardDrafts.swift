@@ -277,7 +277,7 @@ extension StorageService {
         MemoryCardStateStore.reload()
     }
 
-    /// A deck record an older build saved back — as a Doc, its kind dropped,
+    /// A deck record saved back — as a Doc, its kind dropped,
     /// perhaps filed under a Notebook — is put back to what a deck is: kind
     /// `.flashcards`, no home, no Notebook links, grounded on its source.
     private func keepDeckPrivate(_ record: ArtifactRecord, sourceID: String, store: KnowledgeStore) throws {

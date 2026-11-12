@@ -183,7 +183,7 @@ struct ChatSourceImage: Encodable, Sendable {
     /// A slide is named by its video's stored content, which the sidebar's
     /// catalog rows do not carry: `contentForSourceID` reads it from storage
     /// when the article came without it. Without that read every slide of a
-    /// library video drew as "picture unavailable" (2026-09-25).
+    /// library video draws as "picture unavailable".
     ///
     /// A slide comes back with the papers `citedPapersForSource` holds for its
     /// video that were read off that frame.

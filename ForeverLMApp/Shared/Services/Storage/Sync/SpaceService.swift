@@ -317,17 +317,6 @@ struct SpaceService {
         return try await create(kind: "doc", name: title, owner: owner, primaryID: artifactID)
     }
 
-    /// `SpaceService.copyCourse` (§5.5): a course copied into a team or family space, with what its
-    /// lessons name; the Mac's store only.
-    func copyCourse(_ courseID: String, into space: SpaceSummary) async throws -> CourseTeamCopy {
-        guard let mac = store as? MacPrivateSyncStore else { throw SpaceServiceError.syncNotRunning }
-        let spaceID = space.spaceID
-        let teamID = space.localTeamID
-        return try await mac.onStore { store in
-            try store.copyCourseIntoSpace(courseID, spaceID: spaceID) { path in try SpaceCopyFiles.copy(relativePath: path, teamID: teamID) }
-        }
-    }
-
     // MARK: - Teams
 
     /// Mirrors every team and family space this Mac holds into `teams` (§13.7): a new space gets a row

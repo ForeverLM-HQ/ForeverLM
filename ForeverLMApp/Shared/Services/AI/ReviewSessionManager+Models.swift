@@ -216,9 +216,8 @@ extension ReviewSessionManager {
 
             /// Human-readable verb for the tool, so the row reads as an action rather
             /// than an identifier. Falls back to the raw name for tools without a phrase.
-            /// A failed tool call says it failed: until 2026-09-25 a refused
-            /// `save_site` read "Saved site" beside its warning glyph, row
-            /// after row, while nothing had been saved.
+            /// A failed tool call says it failed: a refused `save_site` must
+            /// not read "Saved site" beside its warning glyph.
             var title: String {
                 if let customTitle { return customTitle }
                 guard kind == .tool, state == .failed else { return doneTitle }
@@ -690,7 +689,7 @@ extension ReviewSessionManager {
     /// One turn's tally of app-tool refusals, keyed by their wording. There
     /// is still no ceiling on how many calls a turn makes — long commands
     /// chain many — but a refusal that comes back word for word is not
-    /// progress. On 2026-09-25 a chat asked to add one compound to a Site
+    /// progress: a chat asked to add one compound to a Site once
     /// called save_site, publish_site and read_site_file some sixty times in
     /// fifteen minutes, each refused with the same sentence. Once a refusal
     /// has come back `limit` times, the model is told to stop and explain,

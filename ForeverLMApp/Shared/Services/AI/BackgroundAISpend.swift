@@ -3,12 +3,11 @@ import os
 
 // MARK: - Spend control for background AI
 //
-// On 2026-09-23 cleaner v19 (schema 132) re-queued every ready paper and
-// article, about 1,380 sources, for canonical clean-up, and each clean-up
-// commit queued a paid Text-to-Speech Preparation pass behind it. That came to
-// about 5,500 model calls and $27.50 in five hours on the learner's own
-// OpenRouter key, against the commit's "$5-10" estimate, when only about 280
-// sources were affected by the change. The product owner asked for three controls:
+// A change to the cleaner can re-queue every ready paper and article for
+// canonical clean-up, and each clean-up commit queues a paid Text-to-Speech
+// Preparation pass behind it: thousands of model calls on the learner's own
+// OpenRouter key, when only a fraction of the sources are affected by the
+// change. Three controls keep that spend in the learner's hands:
 //
 // 1. A bulk re-queue into a paid background queue waits for the learner to
 //    choose: run all of it, run only what the change affects, or skip it
@@ -17,8 +16,8 @@ import os
 //    (`BackgroundAIDailyCap`, `BackgroundAIBudget`).
 // 3. Listen is prepared when someone listens, or for the kinds automatic
 //    audio covers, not after every change to a source's text
-//    (`KnowledgeStore.enqueueSourceListenableContentPreparation`). Since
-//    2026-09-25 that includes a new import: most papers are read, not heard.
+//    (`KnowledgeStore.enqueueSourceListenableContentPreparation`). That
+//    includes a new import: most papers are read, not heard.
 
 extension AITask {
     /// Whether this task's calls are background work: the daily cap counts
@@ -109,7 +108,7 @@ extension AITask {
              .courseLectureNaming,
              .sourceIdeaExtraction,
              // Card Drafting runs when the learner presses Make Cards as well
-             // as in the background (decisions 2026-09-30): the ledger counts
+             // as in the background: the ledger counts
              // both, and only the background runs pause at the cap
              // (`CardDraftingSpendGate`).
              .cardDrafting,

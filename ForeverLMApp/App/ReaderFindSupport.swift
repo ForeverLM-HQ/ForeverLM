@@ -287,12 +287,11 @@ enum ReaderScrollPreservation {
     /// Keeps the reader anchored to the same scroll fraction when the viewport
     /// width changes (e.g. collapsing a side panel widens the reader and reflows text).
     ///
-    /// Only the viewport width counts. This used to watch the document element
-    /// for any resize, and a document grows many times while it loads: on the
-    /// way back from a link the article reloads, the first growth was measured
-    /// at the top, and that "top" was re-applied 50ms later — after WebKit had
-    /// already restored the reading position. Height changes never need this
-    /// anyway: text does not reflow when only the height moves.
+    /// Only the viewport width counts. A document grows many times while it
+    /// loads: on the way back from a link the article reloads, and a growth
+    /// measured at the top would re-apply that "top" 50ms later — after WebKit
+    /// had already restored the reading position. Height changes never need
+    /// this anyway: text does not reflow when only the height moves.
     static let injectionScript = """
     (function() {
         if (window.foreverLMScrollPreserveInstalled) { return; }
@@ -753,7 +752,7 @@ struct ReaderFindBar: View {
 /// The find bar inside a transcript, under a video's player or above a
 /// podcast's or meeting's turns. Like `ReaderFindBar` it shows only once
 /// asked for, by ⌘F or the ⋯'s Find in Reader, and Escape or its × closes it
-/// (Quiet chrome, docs/ui-design.md, 2026-10-06: it was a search field over
+/// (Quiet chrome, docs/ui-design.md: it is not a search field over
 /// every transcript at all times). While it is on screen the Reader's own bar
 /// stands down (`ReaderFindState.hasInlineBar`).
 struct TranscriptFindBar: View {
@@ -1073,8 +1072,8 @@ enum ReaderPinchAnchor {
     ///
     /// The scroll goes to an absolute offset. A relative `scrollBy` lands
     /// right inside the script and is then re-applied by WebKit's scrolling
-    /// layer at the asked distance divided by the page zoom (measured
-    /// 2026-09-29: 2,355 px asked at 1.4 settled 1,682 px down).
+    /// layer at the asked distance divided by the page zoom (measured:
+    /// 2,355 px asked at 1.4 settled 1,682 px down).
     private static let restoreScript = """
     function (y) {
         var anchor = window.__foreverLMPinchAnchor;
@@ -1387,7 +1386,7 @@ final class ReaderShortcutRouter {
     }
 
     /// The reader containing the current first responder, if any. A visible
-    /// reader no longer takes Cmd+=/- away from a neighboring sidebar or panel;
+    /// reader does not take Cmd+=/- away from a neighboring sidebar or panel;
     /// document zoom wins only while keyboard focus is actually in the reader.
     func focusedHandlers(for window: NSWindow?) -> Handlers? {
         guard let window,
@@ -2057,9 +2056,8 @@ class FindableTextView: NSTextView {
 /// ForeverLM's one web view. A Browser tab, a source in the reader, an EPUB
 /// chapter and a linked Doc or Site are all this class, so the click that
 /// brings a window forward, Cmd+F, keyboard zoom, pinch and the link menu work
-/// the same on every page. Three subclasses used to split this between them,
-/// and a fix to one — first-mouse, a link command, a menu target — kept
-/// missing the other two.
+/// the same on every page, so a fix — first-mouse, a link command, a menu
+/// target — reaches all of them.
 ///
 /// What differs is only what the owner hands in: a reader sets its commands
 /// and link handlers, a linked page its source-card actions, and a Browser tab
@@ -2161,9 +2159,9 @@ final class ForeverLMWebView: WKWebView {
     /// commands have to be held — until the *next* menu opens, not until this
     /// one closes. AppKit sends the chosen item's action after `didCloseMenu`,
     /// so a target released there is gone by the time the action is sent and
-    /// the item does nothing: build 93's "Open in Window 1" on a Site's source
-    /// card left the other window on what it was reading. (Measured with a
-    /// popUpContextMenu harness on 2026-09-10: didCloseMenu, then the action
+    /// the item does nothing: "Open in Window 1" on a Site's source card would
+    /// leave the other window on what it was reading. (Measured with a
+    /// popUpContextMenu harness: didCloseMenu, then the action
     /// 0.6 ms later, both before popUpContextMenu returns.) The reader's own
     /// items survive because they target the view itself.
     private var linkMenuTargets: [MenuActionTarget] = []
@@ -2551,7 +2549,7 @@ enum ReaderFindPerformer {
 
     /// WebKit also paints its match in the find colour, a yellow box that is
     /// neither the selection nor anything a page script can reach, and the box
-    /// stays after the selection goes (measured 2026-10-10 on macOS 27 with
+    /// stays after the selection goes (measured on macOS 27 with
     /// the configuration above). `_hideFindUI` takes it away and leaves any
     /// selection alone. A WebKit without it gets a find that cannot match,
     /// which clears the box too but drops whatever is selected with it.
@@ -2647,7 +2645,7 @@ struct SourceReaderBestMatchBanner: View {
                 .frame(width: 18, height: 18)
 
             // No score beside the heading: the ranking's number says nothing
-            // the excerpt does not (Quiet chrome, 2026-10-06).
+            // the excerpt does not (Quiet chrome).
             VStack(alignment: .leading, spacing: 3) {
                 Text("Best match")
                     .font(.caption.weight(.semibold))

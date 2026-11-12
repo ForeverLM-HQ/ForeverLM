@@ -652,7 +652,7 @@ actor YouTubeSlideExtractionService {
     /// It is asked of YouTube's visionOS client. The ANDROID client this service uses for
     /// everything else lists the same 720p and 1080p streams, but googlevideo answers 403 to
     /// any byte of them past roughly the first minute of the video. IOS and ANDROID_VR fare the
-    /// same (measured 2026-10-13): those copies are gated on a playback token. The visionOS
+    /// same (measured): those copies are gated on a playback token. The visionOS
     /// client's copies answer to the end of the file. It needs a visitor id from an ANDROID
     /// answer; without one it is turned away as a possible bot. If YouTube closes this too, the
     /// first refused segment ends the stream and the progressive one takes the rest.
@@ -675,7 +675,7 @@ actor YouTubeSlideExtractionService {
             }
             if answer.status == 400, attempt < Self.visionOSVisitorAttempts {
                 // The visionOS client turns some visitor ids away for good: HTTP 400,
-                // FAILED_PRECONDITION, for about one in eight on 2026-10-13, and the same id
+                // FAILED_PRECONDITION, for about one in eight, and the same id
                 // failed every time it was retried while a fresh one went through. So a refusal
                 // asks the ANDROID client for a new id rather than repeating the request.
                 attempt += 1

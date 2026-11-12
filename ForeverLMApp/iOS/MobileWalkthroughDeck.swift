@@ -71,9 +71,8 @@ struct MobileWalkthroughDeck: Decodable, Equatable, Sendable {
         let pictureFigureLabel: String?
         let picturePanelLabel: String?
         /// Or the picture drawn for the step, by its image-store id: the
-        /// Source record carries the file beside the walk
-        /// (`WalkthroughPicturePackage`), and the phone reads it from
-        /// there (`MobileSourceFileStore.walkthroughPicture`). Nil when the
+        /// Source record carries the file beside the walk, and the phone
+        /// reads it from there (`MobileSourceFileStore.walkthroughPicture`). Nil when the
         /// step's picture is a figure, as on the Mac.
         let pictureImageID: String?
         var hasAnimation: Bool { animationHTML != nil || hasAnimationReference }

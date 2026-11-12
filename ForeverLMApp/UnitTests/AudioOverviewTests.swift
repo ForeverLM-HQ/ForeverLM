@@ -108,36 +108,6 @@ private func makeTemporaryStorage() -> (StorageService, URL) {
     return (StorageService(storeRoot: root), root)
 }
 
-@discardableResult
-private func seedSource(
-    _ storage: StorageService,
-    url: String,
-    title: String,
-    type: StudioSourceType = .article,
-    content: String?
-) async throws -> StudioArticle {
-    var article = StudioArticle(url: url, title: title, sourceType: type, discoveryOrigin: .manual)
-    if let content {
-        article.content = content
-        article.wordCount = content.split(separator: " ").count
-        article.state = .ready
-    }
-    try await storage.saveSource(article)
-    return article
-}
-
-private func makeNotebook(_ storage: StorageService, title: String, sourceIDs: [String]) async throws -> LearningGoalRecord {
-    try await storage.createCompanionGoal(
-        title: title,
-        topic: title,
-        startAt: Date(),
-        endAt: LearningGoalRecord.openEndedEndAt,
-        dailyTarget: 3,
-        discoveryEnabled: false,
-        seedSourceIDs: sourceIDs
-    )
-}
-
 /// A route with the window and price the test names; the model is unknown to
 /// every catalog, so the run's own window check has nothing to trim against.
 private func testRoute(

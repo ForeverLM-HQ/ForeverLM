@@ -20,7 +20,7 @@ actor AIService {
     /// its own the moment it is cancelled, and the task is cancelled when the
     /// last of them is: awaiting the task's `value` directly would outlast the
     /// caller's cancellation, which is how Stop in a quiz's chat sat out a
-    /// grading call for minutes (2026-09-27).
+    /// grading call for minutes.
     struct OneShotRequestInFlight {
         let id: UUID
         let task: Task<String, Error>
@@ -700,7 +700,7 @@ struct AIStreamDeltaExtractor {
 /// cancelled the turn and the turn sat on until the slowest work inside it
 /// finished of its own accord: an app tool that took no notice of the cancel
 /// held Stop, and the tool watchdog with it, for as long as it ran, whichever
-/// model the chat was on (2026-09-27). Here the caller's cancellation ends
+/// model the chat was on. Here the caller's cancellation ends
 /// the wait at once with `CancellationError` and cancels the work, which
 /// winds down in its own time with no one waiting for it.
 enum CancellableWait {

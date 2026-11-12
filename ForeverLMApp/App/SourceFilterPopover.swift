@@ -385,9 +385,9 @@ struct HiddenItemsModel {
                         // because a removal was interrupted before it finished
                         // and left it hidden. One still inside its Undo window
                         // is not listed — the banner is its affordance. Unhiding
-                        // unarchives the sessions too: an older build's removal
-                        // archived them, and a group that came back without them
-                        // came back empty.
+                        // unarchives the sessions too: a removal can leave them
+                        // archived, and a group that came back without them would
+                        // come back empty.
                         unhide: { await vm.restoreMeetingGroup(groupName) },
                         // Delete for good, sessions included — the same path the
                         // sidebar's Delete takes once its Undo window closes.

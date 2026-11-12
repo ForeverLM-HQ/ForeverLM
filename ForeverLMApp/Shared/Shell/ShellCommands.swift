@@ -235,7 +235,7 @@ enum ShellAction: String, CaseIterable, Sendable {
     /// The keys, the menu bar's first. Empty for a command with no key.
     var keys: [ShellKey] {
         switch self {
-        // Codex's two keys. ⌘K was Open Chat until 2026-10-13 (now ⇧⌘K).
+        // Codex's two keys; Open Chat is ⇧⌘K.
         case .commandMenu: return [.command("k"), ShellKey("p", [.command, .shift])]
         case .keyboardShortcuts: return [.command("/")]
         case .settings: return [.command(",")]
@@ -669,7 +669,7 @@ struct ShellShortcutEntry: Hashable, Sendable {
 /// holds only what a learner changes.
 enum ShellKeyboardShortcuts {
     /// Keys bound outside `ShellAction`, which the menu bar reads from here.
-    /// Each moved off a key Codex uses (⌥⌘A, ⌥⌘S) on 2026-10-13.
+    /// Each avoids a key Codex uses (⌥⌘A, ⌥⌘S).
     static let atlas = [ShellKey("a", [.command, .control])]
     static let notebookSources = [ShellKey("s", [.command, .option, .control])]
     static let saveCanvasVersion = [ShellKey("s", [.command, .option, .shift])]

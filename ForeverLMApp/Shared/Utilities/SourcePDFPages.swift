@@ -65,14 +65,6 @@ struct SourcePDFPages: Hashable, Sendable {
         return SourcePDFPages(path: url.path, pages: pages)
     }
 
-    /// The page of the file a page of the source is, or nil when the source
-    /// has no such page.
-    func filePage(_ sourcePage: Int) -> Int? {
-        guard let pages else { return sourcePage >= 0 ? sourcePage : nil }
-        let page = pages.lowerBound + sourcePage
-        return sourcePage >= 0 && pages.contains(page) ? page : nil
-    }
-
     #if canImport(PDFKit)
     /// The source's pages as a document numbered from its first page: the file
     /// itself, or a chapter's pages copied out of its book. Nil when the file

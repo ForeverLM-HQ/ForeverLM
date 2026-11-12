@@ -750,8 +750,7 @@ enum AIModelPriceWatch {
     /// A `:free` id with no earlier record is judged by this read alone: the
     /// record only holds models seen while listed, so a pick made after its
     /// row left, or a task's own pick the record never took, would otherwise
-    /// never be noticed (the Card Wording Check on a delisted Nemotron,
-    /// 2026-10-29). `announced` holds the ids already reported that way, so a
+    /// never be noticed (the Card Wording Check on a delisted Nemotron). `announced` holds the ids already reported that way, so a
     /// model nothing could replace is not announced on every read.
     static func compare(
         watched: Set<String>,

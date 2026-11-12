@@ -969,7 +969,7 @@ extension MCPDataStore {
     // MARK: - Memory Review (daily retention)
 
     /// Spaced-repetition retention across the library, in two buckets:
-    /// **refreshes** — previously-studied sources that are fading (by recency + last
+    /// **refreshes** — sources studied before that are fading (by recency + last
     /// recall score) — and **first reviews** — sources the learner has consumed but
     /// never reviewed, which otherwise never enter the retention loop at all and are
     /// simply forgotten. Both come from `MemoryReviewScheduler`; the day's limit is
@@ -1679,8 +1679,8 @@ extension MCPDataStore {
     func companionGoalHeadline(_ goal: LearningGoalRecord, calendar: Calendar, today: Date) -> [String: Any] {
         let openEnded = goal.isOpenEnded
         // The same whole-days count list_goals and the Goals tab draw (`LearningGoalRecord.daysRemaining`): 0 on the day a Goal
-        // falls due, negative once late. Until 2026-09-20 this added one, so
-        // a Goal the rail called "due today" listed here with a day left.
+        // falls due, negative once late, so a Goal the rail calls "due today"
+        // lists here with no day left.
         let remaining = goal.daysRemaining(asOf: today, calendar: calendar) ?? 0
         let approvedCount = goal.items.filter { $0.isApproved }.count
         let pendingCount = goal.items.filter { $0.isPendingApproval }.count
@@ -1754,7 +1754,7 @@ extension MCPDataStore {
         guard let artifactID = goal.linkedArtifactID,
               let record = try? knowledgeStore().loadArtifact(artifactID) else { return nil }
         // The tools' word, not `ArtifactSection.noun`: the app calls a Doc a
-        // Page since 2026-10-06, and the wire keeps "doc" (AGENTS.md).
+        // Page, and the wire keeps "doc" (AGENTS.md).
         let kind: String
         switch record.section {
         case .docs: kind = "doc"

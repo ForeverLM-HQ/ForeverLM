@@ -874,9 +874,9 @@ extension KnowledgeStore {
     /// Queues one source for publishing again: its text, PDF or a derived output changed. A source already
     /// queued is stamped again with its tries cleared, since what it holds is new: a publish whose upload
     /// was under way read the rows before this change, and the new stamp keeps the source on the queue when
-    /// that publish points it (`pointPublishedSourceFiles`). Until 2026-10-13 a source already queued was
-    /// left as it was, so a change made while its publish was in flight was dropped with the row, and its
-    /// pointer named the text from before the change on every other device.
+    /// that publish points it (`pointPublishedSourceFiles`). Leaving a source already queued as it was
+    /// would drop a change made while its publish was in flight, and its pointer would name the text from
+    /// before the change on every other device.
     func queueSourceFilesRefresh(sourceID: String) throws {
         try execute("""
             INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)

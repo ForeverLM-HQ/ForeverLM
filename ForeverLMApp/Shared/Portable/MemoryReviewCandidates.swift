@@ -335,7 +335,7 @@ enum MemoryReviewCandidates {
 /// Which of a chat's sources the chat was actually about.
 ///
 /// A chat carries every source it was opened with, and a Notebook chat opens
-/// with the whole Notebook. On 2026-09-06 one question asked across a
+/// with the whole Notebook. One question asked across a
 /// 122-source Notebook put all 122 into the next morning's memory review as
 /// "discussed yesterday", each a guaranteed first pass, when only a handful
 /// had ever been opened. Attachment says what the tutor could see, not what

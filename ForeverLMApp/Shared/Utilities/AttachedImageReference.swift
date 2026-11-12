@@ -373,7 +373,7 @@ enum VideoMomentFrames {
 /// none of the three grammars reads names nothing any client could draw.
 ///
 /// A model copies these addresses from tool results, and it can also make
-/// one up. On 2026-09-28 a quiz tutor on a flash model that had not called
+/// one up. A quiz tutor on a flash model that had not called
 /// the grader pasted `foreverlm://image/generated/8e4d5b2c-…` beside its own
 /// verdict, an id no tool had given it, and the chat drew "picture
 /// unavailable on this device" where question 6's picture belonged.
@@ -413,9 +413,9 @@ enum ChatPictureAddress: Equatable, Sendable {
     /// this device does not have. Every tool that hands the model a drawn,
     /// kept, captured or attached picture stores it first, so a new reply
     /// that shows one this device lacks shows the "picture unavailable on this
-    /// device" note, whatever else says the id exists. Until 2026-09-28 an id
-    /// anywhere in the text the model was handed counted too, for a picture
-    /// drawn on the other Mac. A made-up id that a reply saved before the
+    /// device" note, whatever else says the id exists. An id merely present in
+    /// the text the model was handed does not count, even for a picture drawn
+    /// on the other Mac. A made-up id that a reply saved before the
     /// check then passed it as soon as the chat went on: the same quiz chat
     /// reused `generated/8e4d5b2c-…`, which it had made up at 15:18, for
     /// question 13's picture at 18:08. Source and unreadable targets are not

@@ -18,9 +18,9 @@ struct YouTubeTranscriptCheckResult: Sendable {
 /// Holds each staged YouTube video's stored transcript to its captions, once.
 ///
 /// Transcript Formatting dropped caption runs, repeated and invented text, and
-/// set markers on the wrong words (measured 2026-09-28 on the fourteen
-/// lectures behind the product owner's quizzes); since 441dbce7b a new transcript is held
-/// to its captions as it is formatted (`ReadableTranscriptMarkers.checked`).
+/// set markers on the wrong words (measured on fourteen lectures); a
+/// new transcript is held to its captions as it is formatted
+/// (`ReadableTranscriptMarkers.checked`).
 /// Schema 148 staged every personal YouTube video in
 /// `youtube_transcript_check_queue` for the ones stored before. A video keeps
 /// no raw captions, so this fetches them again — one InnerTube and one

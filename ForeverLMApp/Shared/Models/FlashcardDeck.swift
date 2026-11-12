@@ -236,9 +236,8 @@ struct FlashcardDeck: Equatable, Sendable {
     // MARK: Two Macs
 
     /// Two copies of a deck as one, for a body that arrived from another Mac
-    /// while this one held a newer body of its own (`CloudKitRecordMapper
-    /// .mergeArtifactServerConflict`). A deck only grows, so the merge is
-    /// this copy with the other's cards it lacks appended in their order —
+    /// while this one held a newer body of its own. A deck only grows, so the
+    /// merge is this copy with the other's cards it lacks appended in their order —
     /// nothing is held for a choice, which a deck, never opened as a Doc,
     /// could not offer. Two drafts of one seed, minted apart, both stay: To
     /// Check offers only the first (`MemoryCardTriage.toCheck`). `mine`
@@ -432,7 +431,7 @@ struct Flashcard: Identifiable, Equatable, Sendable {
     /// its front's text is; two cards with one front stay apart by order.
     static func stableID(front: String, occurrence: Int) -> String {
         let digest = SHA256.hash(data: Data("\(normalizedFront(front))#\(occurrence)".utf8))
-        return "card_" + digest.prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "card_" + digest.prefix(8).hexString
     }
 
     /// A front as the deck compares fronts: lower case, its spacing collapsed.

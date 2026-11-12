@@ -9,7 +9,7 @@ struct MobileShareInboxItem: Sendable {
     let sourceType: String
     let createdAt: Date
     /// The notebook the share sheet filed it into; nil for the library only,
-    /// and for every item an older build queued.
+    /// and for an item queued without one.
     let notebookID: String?
 
     init(
@@ -199,7 +199,7 @@ actor MobileShareInbox {
         return try operation(database)
     }
 
-    /// A queue an older build made has no notebook column: it gains one, and
+    /// A queue made without a notebook column gains one, and
     /// the items already in it are filed into no notebook. The share sheet and
     /// the app may both get here first, so a column the other just added is
     /// no failure.

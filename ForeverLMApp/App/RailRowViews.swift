@@ -8,8 +8,7 @@ import AppKit
 /// ChatGPT's sidebar draws them (product owner, 2026-10-06: "cleaner and fewer
 /// buttons and bells and whistles"). A selected row is told by its fill
 /// alone; its icon is never tinted. Open Beside, Open in Other Window and
-/// Hide are on its menu, and the row drags to the center's edge; the
-/// hover glyph that opened it beside went that day.
+/// Hide are on its menu, and the row drags to the center's edge.
 /// The strip's drop handling for one icon, or for the strip's free space
 /// (`target` nil). A strip icon's own drag (`StudioDragVisibility`'s
 /// `draggedStripEntry`) takes the place of each icon of its group it
@@ -183,7 +182,7 @@ struct RailButtonRow: View {
 }
 
 /// An icon strip glyph in its 36 × 30 square. Lit, a symbol is filled, as
-/// Codex's strip draws its lit icon (measured off its window, 2026-10-12); a
+/// Codex's strip draws its lit icon (measured off its window); a
 /// symbol with no fill keeps its outline. A logo (`assetImage`) is drawn as
 /// it is, the selection fill behind it saying it is lit.
 struct RailGlyph: View {

@@ -296,7 +296,7 @@ struct ReviewChatMessageContent: View {
                     // `Text`: with the window-wide `.textSelection(.enabled)`,
                     // an 11 KB transcript in this bubble pinned the main thread
                     // in SwiftUI's selection overlay until the app was
-                    // force-quit (2026-09-17). See `ChatLongUserMessage`.
+                    // force-quit. See `ChatLongUserMessage`.
                     ReviewChatLongUserMessageView(content: content)
                 } else if let quoted = ChatQuoteDraft.split(userMessage: content) {
                     // A message that opened with a quoted passage draws the

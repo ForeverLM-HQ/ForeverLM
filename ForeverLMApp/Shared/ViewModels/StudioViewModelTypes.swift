@@ -1149,7 +1149,7 @@ struct ArtifactRevealRequest: Equatable {
     var section: ArtifactSection = .docs
     /// The Studio window the request was made for (`StudioWindowState.id`).
     /// Every window's canvas observes the one request, so without this a doc
-    /// revealed in one window came forward in every window (2026-09-12).
+    /// revealed in one window would come forward in every window.
     let windowID: UUID
     /// The block to show once the doc is open — a block reference or a
     /// linked reference followed (`openDoc(_:revealing:in:)`); nil opens the

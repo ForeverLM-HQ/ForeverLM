@@ -548,14 +548,14 @@ struct MCPAuthScopeTests {
     func importFromDownloadAddressRequiresProvenance() async {
         let store = MCPDataStore()
         await #expect(throws: MCPError.self) {
-            try await store.importPaperFromDownloadURL(
+            try await store.importPaperFromDownloadURLOutcome(
                 "https://plugin.foreverlm.com/slack/files/F1/x.pdf",
                 sourceURL: "not a url",
                 title: nil
             )
         }
         await #expect(throws: MCPError.self) {
-            try await store.importPaperFromDownloadURL("", sourceURL: "https://acmelab.slack.com/files/U1/F1/x.pdf", title: nil)
+            try await store.importPaperFromDownloadURLOutcome("", sourceURL: "https://acmelab.slack.com/files/U1/F1/x.pdf", title: nil)
         }
     }
 

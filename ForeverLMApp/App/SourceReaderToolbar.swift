@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 /// in order against the width SwiftUI actually proposes, so a long title or a
 /// state control cannot push the trailing ⋯ and close offscreen.
 ///
-/// What the bar carries at all is the Quiet chrome rule (docs/ui-design.md,
-/// 2026-10-06): the way back, the title, Add to Sources on a page the library
+/// What the bar carries at all is the Quiet chrome rule (docs/ui-design.md):
+/// the way back, the title, Add to Sources on a page the library
 /// does not hold, and what is under way now — Listen while it prepares or
 /// plays, a walkthrough, explainer or cards being written, "Cards · N to
 /// check" while drafts wait. Every other Reader command lives in the ⋯ at
@@ -185,8 +185,8 @@ struct SourceReaderToolbarIdentity: View {
     var draggableSource: StudioArticle? = nil
     /// Whether a chat is on screen to drop the source into. The title drags
     /// either way; while a chat is showing, a grip at its head says so, while
-    /// the pointer is over the line (Quiet chrome, docs/ui-design.md,
-    /// 2026-10-06: it was drawn whenever a chat was on screen).
+    /// the pointer is over the line (Quiet chrome, docs/ui-design.md:
+    /// it is not drawn whenever a chat is on screen).
     var showsChatDragIcon = false
 
     @State private var isPointerOverLine = false
@@ -563,32 +563,7 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
 
     /// This view is transparent, so snapshotting it would drag an empty rect.
     private func dragGhostImage() -> NSImage {
-        let text = title as NSString
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.labelColor,
-        ]
-        let textSize = text.size(withAttributes: attributes)
-        let textWidth = min(textSize.width, 220)
-        let size = NSSize(width: textWidth + 20, height: 24)
-        return NSImage(size: size, flipped: false) { rect in
-            let pill = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
-            NSColor.windowBackgroundColor.withAlphaComponent(0.9).setFill()
-            pill.fill()
-            NSColor.separatorColor.setStroke()
-            pill.stroke()
-            text.draw(
-                with: NSRect(
-                    x: 10,
-                    y: (rect.height - textSize.height) / 2,
-                    width: textWidth,
-                    height: textSize.height
-                ),
-                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
-                attributes: attributes
-            )
-            return true
-        }
+        studioDragGhostImage(title: title, maxTextWidth: 220)
     }
 }
 
@@ -598,8 +573,8 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
 /// and hovers. In particular, `ViewThatFits` may construct and measure more
 /// than one candidate; a popover inside those candidates can otherwise open
 /// from an off-screen copy or disappear when the selected density changes.
-/// A book's Contents is not here: it opens from the ⋯ (Quiet chrome,
-/// 2026-10-06), as a popover off that button.
+/// A book's Contents is not here: it opens from the ⋯ (Quiet chrome),
+/// as a popover off that button.
 struct SourceReaderStableNavigation: View {
     let showsBrowserNavigation: Bool
     let canGoBack: Bool
@@ -746,7 +721,7 @@ struct SourceReaderBrowserNavigation: View {
 
 /// What the docked Reader's bar shows between the title and the ⋯: the page
 /// loading, Add to Sources on a page the library does not hold, and what is
-/// under way now (Quiet chrome, docs/ui-design.md, 2026-10-06). Listen shows
+/// under way now (Quiet chrome, docs/ui-design.md). Listen shows
 /// only while it prepares, makes a narration or plays; an explainer or a
 /// walkthrough only while it is being written; cards while they are drafted
 /// or wait to be checked. Each starts from the ⋯: Listen, Walk Through,
@@ -985,17 +960,7 @@ final class ReaderTitlebarActionButton: NSButton {
     }
 
     override func updateTrackingAreas() {
-        if let hoverTrackingArea {
-            removeTrackingArea(hoverTrackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        hoverTrackingArea = area
+        hoverTrackingArea = replacingHoverTrackingArea(hoverTrackingArea)
         super.updateTrackingAreas()
     }
 
@@ -1123,11 +1088,10 @@ struct PaperVersionsMenuItems: View {
 
 // MARK: - A reader's own commands in the ⋯
 
-/// Commands a reader view keeps state for, listed in the Reader's ⋯. Until
-/// Quiet chrome (docs/ui-design.md, 2026-10-06) a video's slides, papers and
-/// transcript layout sat on a bar above its transcript, and a podcast's
-/// Speakers menu on a row of its own; they are the ⋯'s **Video ▸** and
-/// **Speakers ▸** now, under the same names. The reader on screen publishes
+/// Commands a reader view keeps state for, listed in the Reader's ⋯ (Quiet chrome,
+/// docs/ui-design.md), not on a bar above the transcript: a video's slides,
+/// papers and transcript layout are the ⋯'s **Video ▸**, and a podcast's
+/// speakers its **Speakers ▸**. The reader on screen publishes
 /// them here as its state changes and withdraws them as it leaves; the docked
 /// Reader's ⋯, built at each press, and the pop-out's read them for the
 /// source they show. Handed to the readers through the environment.
@@ -1313,16 +1277,7 @@ final class ReaderTitleLineHoverTrackingView: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        if let hoverTrackingArea {
-            removeTrackingArea(hoverTrackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
-            owner: self
-        )
-        addTrackingArea(area)
-        hoverTrackingArea = area
+        hoverTrackingArea = replacingHoverTrackingArea(hoverTrackingArea)
     }
 
     override func mouseEntered(with event: NSEvent) {

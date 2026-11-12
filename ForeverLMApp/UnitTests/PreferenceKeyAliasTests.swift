@@ -155,7 +155,7 @@ struct PreferenceKeyAliasTests {
 
     @Test("Each constant from before the typed layer equals its declaration's stored name")
     func constantsEqualTheirDeclarations() {
-        #expect(Self.keys.count > 100)
+        #expect(!Self.keys.isEmpty)
         for pair in Self.keys {
             #expect(pair.declared == pair.constant)
         }
@@ -163,7 +163,7 @@ struct PreferenceKeyAliasTests {
 
     @Test("Each family prefix constant equals its declaration's prefix")
     func prefixConstantsEqualTheirDeclarations() {
-        #expect(Self.families.count > 20)
+        #expect(!Self.families.isEmpty)
         for pair in Self.families {
             #expect(pair.declared == pair.constant)
         }

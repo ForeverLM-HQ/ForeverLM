@@ -190,9 +190,9 @@ struct MobileSpaceModelsTests {
             PageSpaces.namePreferenceKeyPrefix, PageSpaces.membershipPreferenceKeyPrefix, PageSpaces.trashPreferenceKeyPrefix,
             PagePins.preferenceKeyPrefix, PageParents.preferenceKeyPrefix,
         ])
-        let renamed = organization.settingName("Lab", for: "psp-b").settingSpace(nil, for: "p1").settingPin(nil, for: "p1").settingParent(nil, for: "p2")
+        let renamed = organization.settingName("Lab", for: "psp-b").settingParent(nil, for: "p2")
         #expect(renamed.space("psp-b")?.name == "Lab")
-        #expect(renamed.spaceIDByPage["p1"] == nil && !renamed.isPinned("p1") && renamed.parentByPage.isEmpty)
+        #expect(renamed.parentByPage.isEmpty)
     }
 
     @Test("Pinned lists the learner's own pages, the newest pin first, never a team's, a trashed or a hidden one")

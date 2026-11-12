@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// Every projection a build runs (docs/cloudkit-schema-design.md §14.1), by record type and by local
@@ -79,6 +78,6 @@ struct MergedProjectedTable: Sendable {
 extension ProjectionRegistry {
     /// sha256 of `text`, as the installer records `trigger_hash`.
     static func hash(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        text.sha256Hex
     }
 }

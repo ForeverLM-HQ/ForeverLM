@@ -327,7 +327,7 @@ extension KnowledgeStore {
         }
     }
 
-    // MARK: - Stopping a released run (2026-09-27)
+    // MARK: - Stopping a released run
     //
     // The product owner: "make sure there are cancel tools for each process that gets
     // triggered via the mcp that costs money". A run_all or run_affected

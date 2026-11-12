@@ -230,10 +230,9 @@ final class WhatsNewCenter {
 /// each highlight as a plain row: a grey symbol and its bold lead, the
 /// detail shown when the row is clicked (product owner, 2026-09-20: "the user can
 /// click on a high level title … and if they click they can see details").
-/// Until 2026-10-06 the header was a 96pt icon over an iridescent wash with
-/// the build in a pill, and each highlight a card with an accent tile and its
-/// detail always beneath (product owner, 2026-10-06: "fewer buttons and bells and
-/// whistles").
+/// There is no large icon header over a wash with the build in a pill, and a
+/// highlight is no card with an accent tile and its detail always beneath
+/// (product owner, 2026-10-06: "fewer buttons and bells and whistles").
 struct WhatsNewSheet: View {
     let entries: [ReleaseNotesEntry]
     let onContinue: () -> Void
@@ -347,8 +346,8 @@ struct WhatsNewSheet: View {
         }
     }
 
-    /// "Version 0.8.0". The build number and the date went on 2026-10-06:
-    /// About and the Full Changelog carry them.
+    /// "Version 0.8.0". The build number and the date are in
+    /// About and the Full Changelog.
     static func subtitle(for entry: ReleaseNotesEntry) -> String {
         "Version \(entry.version)"
     }

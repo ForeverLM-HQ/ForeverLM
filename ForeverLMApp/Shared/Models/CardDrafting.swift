@@ -148,7 +148,7 @@ enum CardDraftingSeedKey {
     }
 
     private static func digest(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).prefix(6).map { String(format: "%02x", $0) }.joined()
+        SHA256.hash(data: Data(text.utf8)).prefix(6).hexString
     }
 }
 

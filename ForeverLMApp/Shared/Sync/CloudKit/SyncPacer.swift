@@ -3,7 +3,7 @@ import Foundation
 /// The one pacer of a container's database (docs/cloudkit-schema-design.md §2.3, D43). CloudKit
 /// throttles the client (account × container), not the zone, so the private engine's feeder,
 /// SpaceSync and BlobStore share one token bucket: a satellite storm can never stall small-record
-/// sync again (the 2026-08-30 failure, 555 refusals in a row).
+/// sync again (555 refusals in a row once).
 ///
 /// - Every request takes one token; tokens come back at `refillPerSecond` up to `capacity`.
 /// - Small records have strict priority: while the engine or SpaceSync waits for a token, BlobStore

@@ -97,7 +97,7 @@ struct RailNotebookRow: View {
             // glyph holding each one's place. A button at opacity 0 is still
             // a live control, and while an assistive app reads the screen
             // SwiftUI walks every control in the window for each one an
-            // update builds (2026-10-03). The row's actions below reach both
+            // update builds. The row's actions below reach both
             // with no pointer.
             if hovering {
                 Button(action: newChat) {

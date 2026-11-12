@@ -235,23 +235,22 @@ final class StudioAssistantSessionStore {
     /// composer, whatever that has staged; any conversation — even one about
     /// the same paper — is left as it is and the passage starts a new chat
     /// (product owner, 2026-09-19: "when i click chat, it should add to a new
-    /// chat"; 2026-09-23, after a passage joined a chat about its own paper:
+    /// chat"; 2026-09-23, of a passage that joined a chat about its own paper:
     /// "when i highlight something in a paper; the chat it opens should be a
     /// new chat").
     ///
     /// A chat still on its way into this pane counts as a conversation. A
     /// relaunch asks for the window's last chat, and when Chat is not on
     /// screen that request waits for the pane; the Chat press that brings
-    /// the pane up then met an empty composer, joined it, and the old chat
-    /// hydrated over the passage a moment later (2026-09-26: a passage from
-    /// an article landed in the morning's unrelated chat as "Added 1 article
-    /// to context").
+    /// the pane up would then meet an empty composer, join it, and the old
+    /// chat would hydrate over the passage a moment later (a passage from an
+    /// article landing in an unrelated chat as "Added 1 article to context").
     ///
     /// A walk is never an idle composer, though dealing its cards makes no
     /// chat and so no conversation. It takes a passage from what it walks —
     /// the composer under its card is where a question about that page goes
     /// (walkthrough-design.md) — and nothing else: a passage from another
-    /// paper joined the card of a walk through an unrelated source (product owner,
+    /// paper would join the card of a walk through an unrelated source (product owner,
     /// 2026-09-29: "When I highlight something like that, it should open a
     /// totally new chat, obviously"). What's New and Find directions are
     /// research, and never become a turn of the walk.
@@ -306,8 +305,8 @@ final class StudioAssistantSessionStore {
     /// A chat still on its way into this pane counts as a conversation, as
     /// it does for a passage. After a relaunch the window asks for its last
     /// chat, and with Chat behind another tab that request waits for the
-    /// pane; Walk Through, which brings the pane up, met an empty chat, the
-    /// walk joined it, and the old chat landed under the walk's card
+    /// pane; Walk Through, which brings the pane up, would meet an empty chat, the
+    /// walk would join it, and the old chat would land under the walk's card
     /// (product owner, 2026-09-30, of a card drawn above a search across his
     /// sources: "a walkthrough got mixed with a chat").
     func walkthroughOpensNewChat(of subjectID: String) -> Bool {
@@ -539,15 +538,6 @@ final class StudioAssistantSessionStore {
 
     func setDraft(_ text: String, for scope: ChatDraftScope) {
         drafts.set(text, for: scope)
-    }
-
-    /// Carries a draft to another scope, for a new chat that changes the Notebook
-    /// it would start in while text is already in the composer.
-    func moveDraft(from old: ChatDraftScope, to new: ChatDraftScope) {
-        guard old != new else { return }
-        let text = drafts.text(for: old)
-        drafts.set("", for: old)
-        setDraft(text, for: new)
     }
 
     // MARK: Chat tabs

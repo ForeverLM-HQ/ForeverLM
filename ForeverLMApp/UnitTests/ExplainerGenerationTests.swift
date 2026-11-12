@@ -60,7 +60,7 @@ private func makeTemporaryStorage() -> (StorageService, URL) {
     return (StorageService(storeRoot: root), root)
 }
 
-private func seedSource(
+private func seedAuthoredSource(
     _ storage: StorageService,
     url: String,
     title: String,
@@ -178,7 +178,7 @@ struct ExplainerGenerationTests {
     func writesAndReplaces() async throws {
         let (storage, root) = makeTemporaryStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        let source = try await seedSource(
+        let source = try await seedAuthoredSource(
             storage, url: "https://journal.example/paper", title: "Deep Breathing", type: .article,
             content: "The full text of the article, long enough to matter."
         )
@@ -234,7 +234,7 @@ struct ExplainerGenerationTests {
     func cancelledRunSavesNothing() async throws {
         let (storage, root) = makeTemporaryStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        let source = try await seedSource(
+        let source = try await seedAuthoredSource(
             storage, url: "https://journal.example/late", title: "Late", type: .article,
             content: "Text enough to explain."
         )
@@ -260,7 +260,7 @@ struct ExplainerGenerationTests {
     func deleteCascade() async throws {
         let (storage, root) = makeTemporaryStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        let source = try await seedSource(
+        let source = try await seedAuthoredSource(
             storage, url: "https://journal.example/paper2", title: "P2", type: .article, content: "Text."
         )
         let service = ExplainerGeneratorService(
@@ -279,14 +279,14 @@ struct ExplainerGenerationTests {
     func refusals() async throws {
         let (storage, root) = makeTemporaryStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        let textless = try await seedSource(
+        let textless = try await seedAuthoredSource(
             storage, url: "https://journal.example/none", title: "None", type: .article, content: nil
         )
         // A book's chapters are not explained (podcast episodes are, since 8f34972).
-        let book = try await seedSource(
+        let book = try await seedAuthoredSource(
             storage, url: "https://books.example/ch", title: "Ch", type: .book, content: "Chapter."
         )
-        let article = try await seedSource(
+        let article = try await seedAuthoredSource(
             storage, url: "https://journal.example/ok", title: "OK", type: .article, content: "Text."
         )
         let good = CannedExplainerBackend(draft: ExplainerDraft(title: "T", script: "Script."))

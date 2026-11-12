@@ -286,19 +286,6 @@ final class MobileNotebookCollectionsStoreTests: XCTestCase {
         XCTAssertEqual(writes, ["remove notebookCollection.nbc-reading", "remove notebook.collections.p2"])
     }
 
-    func testADeletedNotebookTakesItsRowWithIt() async throws {
-        let rows = await seeded()
-        let collections = store(rows)
-        try await collections.load(notebookIDs: ["p1", "p2"])
-
-        await collections.forgetNotebook(notebookID: "p1")
-
-        let writes = await rows.writes
-        XCTAssertEqual(writes, ["remove notebook.collections.p1"])
-        XCTAssertTrue(collections.state.collections(ofNotebook: "p1").isEmpty)
-        XCTAssertNotNil(collections.state.collection("nbc-lab"), "the collection stays")
-    }
-
     func testAFailedWritePutsTheNotebookBack() async throws {
         let rows = await seeded()
         let collections = store(rows)

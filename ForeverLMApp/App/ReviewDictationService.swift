@@ -5,8 +5,8 @@ import os
 
 #if os(macOS)
 /// One line per finished dictation with where its time went. At `.notice` so
-/// it survives in the unified log; "dictation is slow" was undiagnosable on
-/// 2026-09-07 because nothing recorded how long any step took.
+/// it survives in the unified log; "dictation is slow" can be diagnosed from
+/// how long each step took.
 private let dictationLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
     category: "Dictation"
@@ -60,9 +60,8 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
         errorMessage = nil
 
         // Every recording is transcribed after it stops, through OpenRouter's
-        // speech-to-text (`ManagedTranscriptionClient`). The live realtime
-        // rail went on 2026-10-01 with every model that OpenRouter does not
-        // serve.
+        // speech-to-text (`ManagedTranscriptionClient`). There is no live
+        // realtime rail: it needed models that OpenRouter does not serve.
         do {
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
             guard granted else {
@@ -250,11 +249,11 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
             "Dictation transcribed model=\(result.model, privacy: .public) audio_s=\(result.report.durationSeconds ?? 0, format: .fixed(precision: 1), privacy: .public) encode_ms=\(result.encodeMilliseconds, privacy: .public) round_trip_ms=\(result.roundTripMilliseconds, privacy: .public) total_ms=\(totalMilliseconds, privacy: .public)"
         )
         // The proxy's debit is the record that matters; this mirror is for
-        // the usage pane. It used to be awaited here, which put a write on the
-        // storage actor — behind whatever maintenance held its lane — between
-        // the transcript arriving and the composer showing it. It is written
-        // while the words go into the composer instead, and a failure is
-        // logged and counted by the ledger health the same way it always was.
+        // the usage pane. It is not awaited before the words show, since that
+        // would put a write on the storage actor — behind whatever maintenance
+        // held its lane — between the transcript arriving and the composer
+        // showing it. It is written while the words go into the composer
+        // instead, and a failure is logged and counted by the ledger health.
         let usageTask = usageTask
         Task.detached(priority: .utility) {
             do {

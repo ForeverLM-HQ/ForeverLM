@@ -260,7 +260,7 @@ enum DayNow {
 /// The rows at the foot of the Now chip's popover, in order: what can be done
 /// with the day from the chip. **Activity** — what the day actually held, on a
 /// clock — is the last of them whatever the calendar's state: since shell
-/// stage 4 (2026-10-01) the rail has no Activity row, and the chip, which
+/// stage 4 the rail has no Activity row, and the chip, which
 /// shows the day, is where the day's record is reached.
 enum DayNowMenuRow: String, Equatable, Sendable, CaseIterable {
     /// Plan the Day (or Tomorrow, late in the day) in a chat that writes the

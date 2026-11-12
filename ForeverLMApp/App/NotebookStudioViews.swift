@@ -4,9 +4,9 @@ import SwiftUI
 /// The notebook's **Studio** column, the workspace's right-hand part
 /// (docs/notebooks-design.md, "Studio"): its title and fold on the chrome
 /// line over what can be made and what was made (`NotebookStudioColumn`);
-/// folded, it leaves the window (2026-10-17: no strips beside the chat), and
-/// the window's top-left toggle brings it back. Studio has the column to itself since
-/// 2026-10-02: the library is the Sources column's search, and About is the
+/// folded, it leaves the window (no strips beside the chat), and
+/// the window's top-left toggle brings it back. Studio has the column to itself:
+/// the library is the Sources column's search, and About is the
 /// notebook's settings sheet.
 struct NotebookStudioPanel: View {
     @Environment(StudioViewModel.self) private var vm
@@ -825,7 +825,7 @@ struct NotebookStudioBadge: View {
 /// "42 kept · 6 due · 9 to check" (`NotebookCardCounts`), with **Practice**
 /// — its kept cards and its cards to check, in the window-filling review —
 /// and **Make Cards…** for the ticked sources, shown while the pointer is
-/// over the row (2026-10-06; they were always drawn, repeating the Cards
+/// over the row (always drawn, they would repeat the Cards
 /// tile's menu above). A click opens the Memory pane narrowed to the
 /// notebook in a pane of the window: its To Check while cards wait
 /// there, else its Review (`openNotebookCards`); the right-click opens it in
@@ -1113,7 +1113,7 @@ private struct NotebookOutputRow: View {
             // control: while an assistive app reads the screen, SwiftUI
             // walks every control in the window for each control an update
             // builds, so a hidden menu per row doubled what opening a
-            // notebook cost (2026-10-03). The right-click has the same items.
+            // notebook cost. The right-click has the same items.
             if isHovering {
                 Menu {
                     menuItems

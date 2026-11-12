@@ -41,8 +41,8 @@ struct MemoryCardToCheck: Equatable, Identifiable, Sendable {
     let ideaID: String?
     /// When it was drafted.
     let draftedAt: Date?
-    /// The learner asked for this draft. To Check decides it like any other
-    /// (since 2026-10-12); the corner card counts only the drafts not asked for.
+    /// The learner asked for this draft. To Check decides it like any other;
+    /// the corner card counts only the drafts not asked for.
     let isRequested: Bool
     /// The item the card is kept as, when it has one.
     let memoryItemID: String?
@@ -258,9 +258,9 @@ enum MemoryCardTriage {
 /// other reader of the stored reply — the iPhone, the web, an MCP transcript —
 /// sees a link that names them.
 ///
-/// Until 2026-10-06 a reply said in prose what it had saved, and the learner
-/// asked "where are these cards?". The prose had also miscounted them: "10
-/// cards" for six saved, three the deck already held and one refused.
+/// A reply that said in prose what it had saved left the learner asking
+/// "where are these cards?", and the prose could miscount them: "10 cards"
+/// for six saved, three the deck already held and one refused.
 struct ChatSavedCards: Equatable, Sendable {
     /// The cards in the order the call listed them: those it saved, then those
     /// the deck already held (drafted before from the same seed or front).
@@ -307,8 +307,8 @@ struct ChatSavedCards: Equatable, Sendable {
     }
 
     /// What the in-app chat's model is told with the result: the cards are on
-    /// screen already, so its reply need not list or count them. On
-    /// 2026-10-06 a reply listed them and miscounted them.
+    /// screen already, so its reply need not list or count them, which a
+    /// listed reply could get wrong.
     static let shownInChatNote = "The chat shows the learner these cards above your reply, drawn as cards, each with where it stands and a button that opens To Check at it. Do not list, recount or describe the cards again: say in a sentence what you made them from, and why any were not saved."
 
     /// A `save_card_drafts` result with `shown_in_chat` added, for the in-app

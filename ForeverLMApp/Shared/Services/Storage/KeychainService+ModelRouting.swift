@@ -1,4 +1,4 @@
-// AI model routing preferences (chat, background and per-task routes), moved out of KeychainService.swift.
+// AI model routing preferences (chat, background and per-task routes).
 
 import Foundation
 
@@ -277,8 +277,8 @@ extension KeychainService {
     /// (`aiSeeded.task.<task>`), as Canvas Voice's.
     /// Gives Card Answer Check its starting model
     /// (`AIModelDefaults.cardAnswerCheck`) as a model of its own, once for the
-    /// account, when it has none. Check followed the chat's model, which can
-    /// be a free one that no longer answers, and had no model of its own to
+    /// account, when it has none. Without it Check follows the chat's model, which can
+    /// be a free one that stops answering, with no model of its own to
     /// change. It then shows, and is changed, in Settings › Background › Tasks.
     static func seedCardAnswerCheckRoute() {
         guard canHaveOwnRoute(.cardAnswerCheck),
@@ -617,8 +617,8 @@ extension KeychainService {
     ///
     /// Unlike its model, a chat's effort does not reset with each new chat.
     /// Starting every new chat on the model's default effort would have the product owner
-    /// set Low again in each one: "whenever I set the level of reasoning, I
-    /// want that to persist" (2026-09-28). A chat whose model does not offer
+    /// set Low again in each one (product owner, 2026-09-28: "whenever I set the level of
+    /// reasoning, I want that to persist"). A chat whose model does not offer
     /// the chosen effort runs on that model's default; the choice itself is
     /// kept for the next model that does.
     static func taskEffort(_ task: AITask) -> AIEffort? {
@@ -651,7 +651,7 @@ extension KeychainService {
     /// Tuning a chat still following the Settings default therefore had nowhere
     /// to live: `enabledChatSessionRoute()` stayed nil, the read came back
     /// empty, and the composer's effort chip snapped back to Medium the moment
-    /// its storage sync ran (2026-09-04). Pinning the resolved default model
+    /// its storage sync ran. Pinning the resolved default model
     /// makes the pick the same session-scoped route a model pick makes, so a
     /// new chat still returns to the Settings default with it.
     private static func pinChatSessionRouteToResolvedModelIfMissing() {
@@ -683,7 +683,7 @@ extension KeychainService {
     ///
     /// Like its effort, a chat's speed does not reset with each new chat: the
     /// product owner set Fast and found every next chat back on Standard
-    /// (2026-11-10: "like next chat, it's already gone again"). A model whose
+    /// (product owner, 2026-11-10: "like next chat, it's already gone again"). A model whose
     /// hosts OpenRouter has listed without that tier runs at standard speed;
     /// the choice itself is kept for the next model that has it.
     static func taskSpeed(_ task: AITask) -> AISpeed? {

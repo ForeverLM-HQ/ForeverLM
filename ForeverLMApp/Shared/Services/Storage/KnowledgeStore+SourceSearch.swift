@@ -94,13 +94,13 @@ extension KnowledgeStore {
     /// a time, and drops it, so a library of book-length sources costs one
     /// source's text in memory rather than the corpus.
     ///
-    /// The keywords are not in the SQL. Until 2026-09-26 a `LIKE` per keyword
-    /// chose the rows and Swift counted in them, and the two disagreed: `LIKE`
+    /// The keywords are not in the SQL. A `LIKE` per keyword choosing the rows
+    /// while Swift counted in them would disagree with the count: `LIKE`
     /// folds ASCII case only and compares the text's own characters, so `Δψ`,
-    /// bound as `δψ`, found nothing in a chapter that says `Δψ` 58 times, and
-    /// `Differential` missed the PDFs that extract `Diﬀerential` — while the
-    /// count, which folds as Unicode does, found both whenever another keyword
-    /// let the row in. `SourceKeywordSearch.Screen` now rules texts out from
+    /// bound as `δψ`, finds nothing in a chapter that says `Δψ` 58 times, and
+    /// `Differential` misses the PDFs that extract `Diﬀerential` — while the
+    /// count, which folds as Unicode does, finds both whenever another keyword
+    /// lets the row in. `SourceKeywordSearch.Screen` rules texts out from
     /// their bytes with the count's own folding, and the count decides.
     func sourcesContainingKeywords(
         _ keywords: [String],

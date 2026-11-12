@@ -260,7 +260,7 @@ final class StudioHoverLinger {
 
 /// The swap action on a divider between two panes, shown while the pointer is
 /// over the divider or the button (docs/ui-design.md, "Direct pane
-/// arrangement" and "Quiet chrome"). Until 2026-10-06 it was drawn on every
+/// arrangement" and "Quiet chrome"). It is not drawn on every
 /// divider at all times. Apply after the divider's drag gesture, so the
 /// button's press is a swap and not a drag.
 struct StudioPaneSwapAffordance: ViewModifier {
@@ -436,7 +436,7 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
                     // trailing side, under the clip below, and not equally to
                     // both sides, where the leading half was drawn over the
                     // sidebar beside the pane (the Library at 218pt beside a
-                    // 200pt sidebar, 2026-10-28).
+                    // 200pt sidebar).
                     .frame(width: contentWidth, alignment: .leading)
                     .frame(maxHeight: .infinity)
                     // The pane lives inside the outer center column; both may

@@ -307,10 +307,6 @@ function inAppLink(href) {
   }
 }
 
-function isPrivateAddress(href) {
-  return String(href ?? '').toLowerCase().startsWith(editorSchemePrefix)
-}
-
 function post(type, detail = {}) {
   const message = { type, ...detail }
   if ((type === 'markdownChanged' || type === 'saveRequested') && typeof detail.markdown === 'string') {

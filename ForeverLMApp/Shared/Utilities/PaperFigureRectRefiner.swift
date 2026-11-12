@@ -74,7 +74,7 @@ enum PaperFigureRectRefiner {
     /// Below this the mark is a figure's own, not a watermark's. The
     /// "ARTICLE IN PRESS" set diagonally across every page of Nature's
     /// accepted manuscripts is drawn at 210 to 219; a figure draws its lines,
-    /// markers and letters far darker (2026-09-28).
+    /// markers and letters far darker.
     static let strongInkThreshold: UInt8 = 200
 
     /// A row or column counts as blank below this share of dark pixels. One
@@ -157,7 +157,7 @@ enum PaperFigureRectRefiner {
         // the text of every page before it answers — 1.3 s on a 60-page
         // preprint, paid again each time the document is reopened — while
         // the page's string is one page and a selection over a range of it
-        // carries the same geometry (0.3 ms on the same page, 2026-09-19).
+        // carries the same geometry (0.3 ms on the same page).
         if let text = page.string {
             for length in [60, 30, 14] {
                 let needle = String(trimmed.prefix(length))
@@ -208,8 +208,8 @@ enum PaperFigureRectRefiner {
 
     /// The lines of text in `selection`, less the placeholder PDFKit reads
     /// for an embedded picture: in the Biophysical Journal's PDFs each
-    /// figure is one "line" holding only U+FFFC, as large as the figure
-    /// (2026-09-28). Taken for text, it made the figure prose to
+    /// figure is one "line" holding only U+FFFC, as large as the figure.
+    /// Taken for text, it made the figure prose to
     /// `figureSide` and blank to `pageInk`.
     static func textLines(of selection: PDFSelection) -> [PDFSelection] {
         selection.selectionsByLine().filter { $0.string?.rangeOfCharacter(from: .alphanumerics) != nil }
@@ -252,7 +252,7 @@ enum PaperFigureRectRefiner {
     ///
     /// The vision model reads rectangles off the page by eye and gets whole
     /// figures wrong: a full-width box over a one-column figure (Nature,
-    /// Fig. 1 of the mtDNA-in-blood paper, 2026-10-23), a strip over the
+    /// Fig. 1 of the mtDNA-in-blood paper), a strip over the
     /// running head, a box that takes in the paragraph above. Over the 79
     /// stored rectangles in the library, 29 overlapped the caption's crop by
     /// less than 0.7 (IoU), and in the sheet of the worst 16 it was the
@@ -343,7 +343,7 @@ enum PaperFigureRectRefiner {
     /// caption opens the next page, under the running head, and the figure's
     /// own page has nothing printed to say where the figure stops except the
     /// body text that shares the page with it. Fig. 6 of the cardiac-sodium
-    /// paper (2026-09-20) was indexed to its caption's page, whose only ink
+    /// paper was indexed to its caption's page, whose only ink
     /// above the caption is the running head: the crop was the head, and the
     /// vision pass reported that the figure was not on the page.
     ///
@@ -478,12 +478,11 @@ enum PaperFigureRectRefiner {
         // A line of text registers in the strip holding most of its glyphs,
         // and its ascenders reach into the strip above: the band would end on
         // a sliver of the first line of body text (page 8 of the
-        // cardiac-sodium paper, 2026-09-20). Give a strip back on each side
+        // cardiac-sodium paper). Give a strip back on each side
         // that meets body text; a figure and its neighbouring paragraph are
         // always further apart than that. The bounds are trimmed as plain
         // integers: a one- or two-strip gap between paragraphs trims past
-        // itself, and building that Range traps (build 138 crashed on launch
-        // while a paper's figures were being located, 2026-09-23).
+        // itself, and building that Range traps.
         var lower = best.lowerBound
         var upper = best.upperBound
         if lower > 0, bodyText[lower - 1] { lower += 1 }
@@ -515,7 +514,7 @@ enum PaperFigureRectRefiner {
     // MARK: - Whether a page shows a figure
 
     /// A page inked outside its lines of text over less than this share of
-    /// its body shows no figure. Measured 2026-09-28: pages of prose and
+    /// its body shows no figure. Measured: pages of prose and
     /// caption boxes stay at or under 0.003 (the EMBO cristae paper's at
     /// 0.0000, an Advanced Science paper's with their rules and margin
     /// bands at 0.0016–0.0024), a figure page reaches 0.05 and up, and the
@@ -546,8 +545,8 @@ enum PaperFigureRectRefiner {
         /// its rules and shading are ink outside the text too, but its cells
         /// outweigh them — is not, whatever it also shows. The pages a legend
         /// printed elsewhere is paired with must be figure pages: a
-        /// supplementary table overleaf a legend was taken for its figure
-        /// (2026-09-28). Some of that ink is dark: a Nature accepted
+        /// supplementary table overleaf a legend was taken for its figure.
+        /// Some of that ink is dark: a Nature accepted
         /// manuscript sets "ARTICLE IN PRESS" across every page in a pale
         /// grey, and its page of one sentence was taken for a figure's. A
         /// page drawn dark, off any rules, over half as much as its text
@@ -591,7 +590,7 @@ enum PaperFigureRectRefiner {
         // without its rule under "Article" the page of Extended Data Fig. 10
         // of 10.1038/s41586-025-09969-x, a few thin structures over their
         // legend, fell under `figureInkMinimumShare`, and the legend was
-        // paired with the Reporting Summary after it (2026-09-30).
+        // paired with the Reporting Summary after it.
         let headBottom = runningHead(on: page, mask: mask, includingHeadsThatRun: false).flatMap {
             PixelBox(pdfRect: $0.bounds, pageBounds: box, in: mask)?.bottom
         } ?? -1
@@ -636,7 +635,7 @@ enum PaperFigureRectRefiner {
     /// leave about half a line between them, a figure's rows of labels a whole
     /// one. A gap of a full row height let Nature's "Brief Communication"
     /// head take in Figure 1's three top rows (panel letters, panel titles,
-    /// legends), 68 pt in all, and the crop started under them (2026-10-26).
+    /// legends), 68 pt in all, and the crop started under them.
     /// Over the 2,979 figure pages of the library, 0.6 changed the head of 65
     /// pages, every one a head that had taken in figure rows or body text, and
     /// left the one head set 0.52 of a row under a badge line (RSC's "View
@@ -701,17 +700,17 @@ enum PaperFigureRectRefiner {
     /// their line pitch over it are passed over, as Nature's "Article" over
     /// the head is. A row with a margin's gap above it is the page's body,
     /// and the search ends there: only a folio set alone over the head
-    /// (`folioMaximumCharacters`) is passed over across a margin. Until
-    /// 2026-09-28 the head was any single line half the page wide in the top
-    /// eighth: EMBO's split head was not one, and Figure 1's row of panel
-    /// titles under it was, so the cristae paper's figures lost their top
-    /// row of titles. Until 2026-09-29 every row too narrow to be the head
-    /// was passed over, margin or not, so a head set short at one side led
-    /// the search into the page's body: on 1,862 pages of the library the
-    /// head was the body's first lines, and on the white paper "Engineered
-    /// human resilience and durability" it was Figure 2's panel letter joined
-    /// to the other column's second line of text, and on another page
-    /// Figure 3's row of stage titles, each cut off the top of its figure.
+    /// (`folioMaximumCharacters`) is passed over across a margin. The head is
+    /// not simply any single line half the page wide in the top
+    /// eighth: EMBO's split head is not one, and Figure 1's row of panel
+    /// titles under it is, so the cristae paper's figures would lose their top
+    /// row of titles. Nor is every row too narrow to be the head passed
+    /// over, margin or not: a head set short at one side would lead
+    /// the search into the page's body (on 1,862 pages of the library the
+    /// head would be the body's first lines, and on the white paper "Engineered
+    /// human resilience and durability" it would be Figure 2's panel letter
+    /// joined to the other column's second line of text, and on another page
+    /// Figure 3's row of stage titles, each cut off the top of its figure).
     ///
     /// With `mask`, the page's ink, a head set short is found as well: the
     /// page's topmost line, when it is written text with white under it at
@@ -725,8 +724,8 @@ enum PaperFigureRectRefiner {
     /// a few points over the figure's panel letters, the boxed "LETTER |
     /// RESEARCH", Nature Reviews' "REVIEWS" beside its red bar, "SCIENCE
     /// ADVANCES | RESEARCH ARTICLE", a Springer Nature journal's authors
-    /// over their rule and folio. Until 2026-09-30 none was, and a crop
-    /// that reached the top of its page took the journal's head in with its
+    /// over their rule and folio. Each counts as a head, or a crop
+    /// that reached the top of its page takes the journal's head in with its
     /// figure. And a hairline running off the page's edge with nothing over
     /// it is a head too (`bareHeadRule(in:)`): Nature rules a left-hand page
     /// so, with no label.
@@ -759,7 +758,7 @@ enum PaperFigureRectRefiner {
             // Nature's left column, joined with the rotated axis title of the
             // plot beside them into one wide row, were read as a head and wiped
             // the top third of that plot out of the crop (Fig. 1 of the
-            // mtDNA-in-blood paper, 2026-10-23). What is above them stays.
+            // mtDNA-in-blood paper). What is above them stays.
             if bodyText.contains(where: { $0.intersects(row.bounds) }) { break }
             above = row.bounds
             guard row.bounds.width >= box.width * runningHeadMinimumWidthShare else {
@@ -768,8 +767,7 @@ enum PaperFigureRectRefiner {
                 // "ll" over Cell Press's head). A figure's row of panel letters
                 // and titles is none of them: passing it over let the row of
                 // tick labels under it become the head, and Fig. 5 of the
-                // mtDNA-in-blood paper was cropped from under its top panels
-                // (2026-10-30).
+                // mtDNA-in-blood paper was cropped from under its top panels.
                 guard isFolio(row.text)
                     || row.bounds.width <= box.width * runningHeadMarkMaximumWidthShare
                     || isWrittenLine(row.bounds, characters: row.text.filter { !$0.isWhitespace }.count, on: box) else { break }
@@ -1140,13 +1138,13 @@ enum PaperFigureRectRefiner {
     /// two-column journals set columns at 0.4 of the page and up — while a
     /// figure's labels, ticks and legend keys are a few words each.
     ///
-    /// Width, not size, is what tells them apart. Prose used to be lines set
-    /// at 9 pt or larger, a floor that held for preprints and let Nature
-    /// Communications through: its columns are 8.2 pt, so no line on the
-    /// page counted as body text, the side check abstained, and the ink vote
-    /// cropped Fig. 1 of the cardiac-sodium paper (2026-09-20) to the two
-    /// columns of Results under its caption. Measuring the body size off the
-    /// page instead lost the legends set smaller than the body — a 12 pt book
+    /// Width, not size, is what tells them apart. A floor of 9 pt for prose
+    /// holds for preprints but misses Nature Communications, whose columns are
+    /// 8.2 pt: no line on the page would count as body text, the side check
+    /// would abstain, and the ink vote would crop Fig. 1 of the cardiac-sodium
+    /// paper to the two columns of Results under its caption. Measuring the
+    /// body size off the page instead loses the legends set smaller than the
+    /// body — a 12 pt book
     /// with 10 pt legends, Science at 8.5 pt with 7.5 pt legends — and those
     /// are prose too. A figure's own text, whatever its size, is short.
     static let proseLineMinimumWidthShare: CGFloat = 0.25
@@ -1156,7 +1154,7 @@ enum PaperFigureRectRefiner {
     ///
     /// The ink vote in `band` counts marks, and a long legend under a caption
     /// carries more marks than a sparse figure above it — Fig. 3 of the
-    /// lysosome-aging preprint (2026-09-19) cropped to its own legend that
+    /// lysosome-aging preprint cropped to its own legend that
     /// way. Prose is easy to tell from a figure without counting ink: it is
     /// column-wide lines (`proseLineMinimumWidthShare`) covering most of
     /// their band, while a figure's text is short and sparse. When exactly one
@@ -1346,7 +1344,7 @@ enum PaperFigureRectRefiner {
     /// white gutter between the two panels.
     ///
     /// Read by eye, neighbouring panels' rectangles overlap: on Figure 1 of
-    /// the MitoSpace paper (Cell, 2026-09-23) panel A ran 0.023 of the page
+    /// the MitoSpace paper (Cell) panel A ran 0.023 of the page
     /// into panel B, which put B's heading, "Fragmented-to-Fused Phenotype",
     /// cut in half along the foot of A's card. No
     /// growing or trimming can take that out: the heading is ink inside A's
@@ -1450,7 +1448,7 @@ enum PaperFigureRectRefiner {
     ///
     /// The vision model reads rectangles off the page by eye, and the edge it
     /// gets wrong most is the one that slices ink: Figure 2h of the
-    /// cardiac-sodium paper (2026-09-22) stopped a group of bars short of the
+    /// cardiac-sodium paper stopped a group of bars short of the
     /// panel's right edge, and the figure's own rectangle stopped short of
     /// the same labels, so the crop cut "ouab+CGP" in half. An edge that lands
     /// on ink moves outward until it lands on white, as `grown` does for a
@@ -1494,12 +1492,12 @@ enum PaperFigureRectRefiner {
     /// line-height of its width is written text. A paragraph's lines print
     /// 1.5 to 2.5; a figure's row of panel letters or tick labels, which
     /// `selectionsByLine` joins across side-by-side panels into one
-    /// page-wide line, 0.1 to 0.8 (measured 2026-09-28).
+    /// page-wide line, 0.1 to 0.8.
     static let proseLineMinimumDensity: CGFloat = 1.2
 
     /// A line of text taller than this share of the page is not one line: a
     /// display title, or the labels of a plot that `selectionsByLine` joined
-    /// into one box (Nature Aging, 2026-09-28).
+    /// into one box (Nature Aging).
     static let writtenLineMaximumHeightShare: CGFloat = 0.035
 
     /// Three lines justified to one measure at least this share of the page
@@ -1674,7 +1672,7 @@ enum PaperFigureRectRefiner {
         /// level with its left edge, is its last line all the same, when it
         /// is one line of text: a rotated axis title level with a column, its
         /// box as tall as the plot, joined the paragraph over the plot and
-        /// took the plot with it (Nature Aging). All measured 2026-09-28.
+        /// took the plot with it (Nature Aging).
         static func paragraphs(of lines: [Line], pageWidth: CGFloat) -> [Paragraph] {
             let order = lines.indices.sorted { lines[$0].bounds.maxY > lines[$1].bounds.maxY }
             let alignment = pageWidth * 0.025
@@ -1892,9 +1890,9 @@ enum PaperFigureRectRefiner {
     /// that is its own; nil when no figure lies beside the caption — a
     /// legend printed away from its figure, on a page that shows another.
     ///
-    /// The band a figure was looked for in used to be the half of the page
-    /// on its side of the caption, and everything inked there was cropped in
-    /// (until 2026-09-28): the legend of the figure above it, the column of
+    /// The band a figure is looked for in is not the half of the page on its
+    /// side of the caption, where everything inked would be cropped in: the
+    /// legend of the figure above it, the column of
     /// text beside it, the figures sharing its page. The text layer says what
     /// those are. A paragraph — two or more column-wide lines of written
     /// text, one under the other (`PageText.paragraphs`) — is never a figure:
@@ -1981,7 +1979,7 @@ enum PaperFigureRectRefiner {
         // legend — a run set between two paragraphs of a column is the
         // running text's, an equation's rules or a table's, and a run that is
         // one hairline is the rule a journal sets under a legend (Nature
-        // Aging, 2026-09-28). Each is left out.
+        // Aging). Each is left out.
         if side == .above || side == .below {
             var claimed: [PixelBox] = []
             for line in text.lines where line.captionLabel != nil {
@@ -2002,7 +2000,7 @@ enum PaperFigureRectRefiner {
                 if taken * 2 >= total {
                     // The claimed figure comes off. Two figures with no clean
                     // white column between them are one run (a bioRxiv
-                    // page, 2026-09-28): what is left is read again in runs,
+                    // page): what is left is read again in runs,
                     // and one that stands clear of every claim and is a
                     // figure stays; one that touches a claim is the claimed
                     // figure reaching past its caption's width.
@@ -2045,7 +2043,7 @@ enum PaperFigureRectRefiner {
     /// Whether the figure a caption line on this page names stands beside
     /// it: its region holds one (`figureRegion`), or the line is no legend
     /// but a sentence of the running text that opens with a reference
-    /// ("Supplementary Figure S3A …", a Leukemia paper, 2026-09-28), which
+    /// ("Supplementary Figure S3A …", a Leukemia paper), which
     /// says nothing of where the figure is and leaves it where it was.
     static func legendStandsBesideFigure(captionAnchor anchor: CGRect, text: PageText, mask: PageInkMask) -> Bool {
         if figureRegion(captionAnchor: anchor, text: text, mask: mask) != nil { return true }
@@ -2062,7 +2060,7 @@ enum PaperFigureRectRefiner {
     /// band holds no figure once that text is gone. The band runs on to the
     /// nearest paragraph above and below it: `proseFreeBand` counts a
     /// strip's characters, and a panel's rows of labels count as prose to
-    /// it, so a bioRxiv figure lost its top two panels (2026-09-28).
+    /// it, so a bioRxiv figure lost its top two panels.
     static func figureRegion(band: CGRect, on page: PDFPage, mask: PageInkMask) -> FigureRegion? {
         guard let text = PageText(page: page, mask: mask),
               var region = PixelBox(pdfRect: band, pageBounds: text.pageBounds, in: mask) else { return nil }
@@ -2261,12 +2259,11 @@ extension PDFPage {
     ///
     /// `draw(with: .mediaBox, to:)` already puts the box's own origin at the
     /// context's origin, so only the region's offset inside the box is
-    /// translated away. Until 2026-09-28 every renderer also translated by
-    /// the box's origin, which displaced a page whose box does not start at
+    /// translated away. Translating by the box's origin as well would
+    /// displace a page whose box does not start at
     /// (0, 0): the JBC paper 10.1074/jbc.M809512200 starts at (9, 9), its
-    /// text boxes missed its ink by 9 points each way, and `pageInk` read its
-    /// prose pages as figures. A crop stored from those renders on such a
-    /// page sits that far off (walkthrough-design.md).
+    /// text boxes would miss its ink by 9 points each way, and `pageInk` would
+    /// read its prose pages as figures.
     func drawMediaBox(_ region: CGRect? = nil, to context: CGContext) {
         if let region {
             let box = bounds(for: .mediaBox)

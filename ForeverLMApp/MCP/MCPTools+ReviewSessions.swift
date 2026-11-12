@@ -1172,8 +1172,8 @@ extension MCPDataStore {
     /// Filed through add_notebook_sources' own write (`fileSourcesInTeamPool`):
     /// a team's Notebook holds the team's copies of the learner's own sources,
     /// never their ids, what arrives is ticked for the Notebook's chats, and a
-    /// team this account can only read takes nothing. Until 2026-09-30 this
-    /// wrote the member's own ids straight into a team's Notebook. The review
+    /// team this account can only read takes nothing. The member's own ids
+    /// are never written straight into a team's Notebook. The review
     /// goes on either way — a read-only member may review a team notebook's
     /// sources, only its pool is not theirs to change — so a refusal is
     /// logged, never raised. A source the Notebook already reaches (its id, or

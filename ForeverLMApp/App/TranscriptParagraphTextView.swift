@@ -31,10 +31,10 @@ final class TranscriptParagraphNSTextView: NSTextView {
     /// at all. SwiftUI asks for all of these on every layout pass — a row's
     /// HStack probes each paragraph at zero, unbounded and the real width
     /// before placing it — and only the text or the font changes the answer.
-    /// With one cached width (up to build 173, 2026-09-29) each probe threw
-    /// the previous layout away, so one pass typeset every paragraph of the
+    /// With one cached width each probe would throw
+    /// the previous layout away, so one pass would typeset every paragraph of the
     /// transcript four times, once with a character to a line, and a hover or
-    /// a find on an hour's talk wedged the main thread for seconds
+    /// a find on an hour's talk would wedge the main thread for seconds
     /// (`UIResponsivenessMonitor` samples ending in `ensureLayoutForTextContainer:`).
     private var heightsByWidth: [CGFloat: CGFloat] = [:]
     private var unconstrainedSizeCache: CGSize?

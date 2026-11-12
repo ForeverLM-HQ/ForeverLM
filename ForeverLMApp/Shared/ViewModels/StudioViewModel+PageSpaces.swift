@@ -390,11 +390,6 @@ extension StudioViewModel {
         pageSpaces.space(ofPage: artifactID)
     }
 
-    /// The open library's records in the space, in the library's order.
-    func pageSpaceArtifacts(in spaceID: String) -> [ArtifactRecord] {
-        artifacts.filter { pageSpaces.spaceID(ofPage: $0.id) == spaceID }
-    }
-
     /// Whether a record can be put in a space: the learner's own page, linked
     /// Google Doc, site or reading in My Library, as the Space lists them
     /// (`SpaceCatalog`). An animation, an audio overview, a card deck, a

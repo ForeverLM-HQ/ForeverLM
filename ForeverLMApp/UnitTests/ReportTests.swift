@@ -95,36 +95,6 @@ private func makeTemporaryStorage() -> (StorageService, URL) {
     return (StorageService(storeRoot: root), root)
 }
 
-@discardableResult
-private func seedSource(
-    _ storage: StorageService,
-    url: String,
-    title: String,
-    type: StudioSourceType = .article,
-    content: String?
-) async throws -> StudioArticle {
-    var article = StudioArticle(url: url, title: title, sourceType: type, discoveryOrigin: .manual)
-    if let content {
-        article.content = content
-        article.wordCount = content.split(separator: " ").count
-        article.state = .ready
-    }
-    try await storage.saveSource(article)
-    return article
-}
-
-private func makeNotebook(_ storage: StorageService, title: String, sourceIDs: [String]) async throws -> LearningGoalRecord {
-    try await storage.createCompanionGoal(
-        title: title,
-        topic: title,
-        startAt: Date(),
-        endAt: LearningGoalRecord.openEndedEndAt,
-        dailyTarget: 3,
-        discoveryEnabled: false,
-        seedSourceIDs: sourceIDs
-    )
-}
-
 /// A route with the window and price the test names; the model is unknown to
 /// every catalog, so the run's own window check has nothing to trim against.
 private func testRoute(
@@ -855,7 +825,7 @@ struct ReportTests {
         ]
 
         #expect(ReportEntry.isAvailable)
-        #expect(vm.canMakeReport(in: "nb-live"))
+        #expect(vm.reportRefusal(notebookID: "nb-live") == nil)
         vm.presentReportOptions(notebookID: "nb-live", format: .studyGuide)
         let target = try #require(coordinator.optionsTarget(in: windowID))
         #expect(target.notebookID == "nb-live")
@@ -875,7 +845,7 @@ struct ReportTests {
         #expect(coordinator.optionsTarget(in: windowID) == target)
 
         coordinator.dismissOptions(in: windowID)
-        #expect(!vm.canMakeReport(in: "nb-archived"))
+        #expect(vm.reportRefusal(notebookID: "nb-archived") != nil)
         vm.presentReportOptions(notebookID: "nb-archived", format: nil)
         #expect(coordinator.optionsTarget(in: windowID) == nil)
         #expect(vm.toastMessage == "A report can\u{2019}t be made in \u{2018}Old\u{2019}: it is archived.")

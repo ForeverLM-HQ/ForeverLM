@@ -4,8 +4,8 @@ import UniformTypeIdentifiers
 /// Deadline state, drawn only while it asks for something: a Goal overdue,
 /// due within three days, or finished. Any other Goal reads by its date
 /// alone (product owner, 2026-10-06: "make the app more slick; kind of like the
-/// chatgpt app … fewer buttons and bells and whistles"); until then every
-/// row carried "12 days left" in a tinted capsule above the date it repeats.
+/// chatgpt app … fewer buttons and bells and whistles"): a "12 days left"
+/// capsule would only repeat the date.
 /// Overdue is deliberately distinct from done: a passed deadline with the
 /// work still open is late, not finished.
 struct GoalStatusBadge: View {
@@ -162,12 +162,10 @@ struct GoalDeadlinePopover: View {
 /// A Goal is the thing someone says out loud — "I want to understand Zara's
 /// thesis work" — so it lives at the top level rather than inside a Notebook.
 /// A Notebook is a pool of sources, which a Goal may or may not draw on; here
-/// it is a tag on the row and nothing more (goals-design.md). From
-/// 2026-10-06 this was the **Goals** tab beside the Space's, on the Space's
-/// tab bar; the bar went on 2026-10-10 (product owner: "goals can perhaps
-/// just be visible via chat"), so the chat lists and sets Goals
-/// (`list_goals`, `create_learning_goal`) and this pane opens only where a
-/// Goal is linked from: an Idea it grew from (`openIdeaLink`).
+/// it is a tag on the row and nothing more (goals-design.md). The chat lists
+/// and sets Goals (`list_goals`, `create_learning_goal`; product owner,
+/// 2026-10-10: "goals can perhaps just be visible via chat"), and this pane
+/// opens only where a Goal is linked from: an Idea it grew from (`openIdeaLink`).
 struct GoalsPane: View {
     var body: some View {
         GoalsHomeView()
@@ -266,8 +264,8 @@ struct GoalsHomeView: View {
     /// The Space's head (`SpacePlaceHeader`), as every list of the learner's
     /// things has: the name, the search and the one New Goal pill. On a list's
     /// page the Space draws all three, its pill being Add Goals ▾
-    /// (`SpaceListAddMenu`), so the embedded list has no head. The line that
-    /// said what a Goal is went on 2026-10-06 (the product owner: "cleaner and fewer
+    /// (`SpaceListAddMenu`), so the embedded list has no head. No line
+    /// says what a Goal is (product owner, 2026-10-06: "cleaner and fewer
     /// buttons and bells and whistles").
     private var header: some View {
         SpacePlaceHeader(searchText: $ownQuery, searchIdentifier: "studio.goals.search") {
@@ -362,16 +360,16 @@ private func goalDragProvider(for transfer: StudioGoalTransfer, title: String) -
 }
 
 /// One Goal: what it is, how long is left, what it draws on and what it is
-/// for. The week's hours went with the Planner on 2026-09-30: they counted
-/// time drawn in blocks toward the Goal, and the day is the Mac's Calendar now.
+/// for. The row shows no week's hours: the day is the Mac's Calendar, not
+/// blocks of time drawn toward the Goal.
 ///
 /// The row is clickable (product owner, 2026-09-19: "it might be good if goals are
 /// actually clickable") and opens the Goal itself — `GoalEditorSheet`, where
 /// everything the row says can be changed. The chips inside open what they
-/// name: the Notebook, the sources, the Doc or Site the Goal is for. Until
-/// 2026-09-20 a click on a Goal for nothing yet opened a picker asking what it
-/// was for, and the product owner called that "very poorly designed": a click on a
-/// thing opens the thing, and most Goals are for no artifact at all.
+/// name: the Notebook, the sources, the Doc or Site the Goal is for. A
+/// click never opens a picker asking what the Goal is for (product owner,
+/// 2026-09-20: "very poorly designed"): a click on a thing opens the thing,
+/// and most Goals are for no artifact at all.
 struct GoalRow: View {
     @Environment(StudioViewModel.self) private var vm
     let goal: LearningGoalRecord
@@ -618,8 +616,7 @@ struct GoalRow: View {
                 Button("Move Down") { Task { await vm.moveGoal(goal.id, by: 1) } }
                     .disabled(!vm.canMoveGoal(goal.id, by: 1))
                 // The way back to deadline order, once any Goal was placed
-                // by hand (a button in the first band's header until
-                // 2026-10-06).
+                // by hand.
                 if vm.hasHandOrderedGoals {
                     Button("Sort Goals by Deadline") { Task { await vm.sortGoalsByDeadline() } }
                         .help("Forget the order you made and read the goals nearest deadline first")
@@ -651,7 +648,7 @@ struct GoalRow: View {
         // is. On a plain container the label, identifier, help and button
         // trait were stamped on every element inside, the chips included,
         // so each read as a button named for the Goal with its hint
-        // (2026-09-28); the help is here, below the group, for that reason.
+        // ; the help is here, below the group, for that reason.
         // The row's click is its action rather than a button trait, which on
         // the group would make it a button that holds buttons and has no
         // press of its own.
@@ -681,8 +678,8 @@ struct GoalRow: View {
 
     /// What the Goal is for, on the row: the artifact's title under its kind's
     /// glyph, opening it — or, quiet and tertiary, the offer to name one,
-    /// which opens the Goal on the field where that is chosen. Since
-    /// 2026-10-06 the offer shows only while the pointer is over the row, in
+    /// which opens the Goal on the field where that is chosen. The
+    /// offer shows only while the pointer is over the row, in
     /// a slot that keeps its size (the product owner: "fewer buttons and bells and
     /// whistles"); the row's menu has **Link a Page or Site…** at all times.
     @ViewBuilder

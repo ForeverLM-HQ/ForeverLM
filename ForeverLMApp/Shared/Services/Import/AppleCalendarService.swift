@@ -443,13 +443,10 @@ actor AppleCalendarService {
     /// existing calendar a new identifier, and that must not bring back a
     /// calendar the learner left off.
     nonisolated static let knownAccountIDsKey = Prefs.Planner.dayKnownAccountIDs.name
-    /// Where the Planner kept the Mac calendars it drew. It drew them beside
-    /// the Google Calendar plugin, so a Google account's calendars were often
-    /// left off here so as not to draw an event twice, and some Macs kept no
-    /// calendar at all. The plugin went with the Planner on 2026-09-30 and
-    /// the Mac's Calendar became the whole day, so that choice hid the day:
-    /// The product owner's chip said "Nothing on the calendar" over ten events,
-    /// six of them the evening a chat had just planned into iCloud.
+    /// Where the retired Planner kept the Mac calendars it drew. Its choice
+    /// left calendars off (a Google account's, so as not to draw an event
+    /// twice) while the Mac's Calendar is now the whole day, so honouring it
+    /// would hide events; the keys are only cleared.
     nonisolated static let retiredPlannerSelectionKeys = [
         Prefs.Planner.retiredAppleCalendarSelectedIDs.name,
         Prefs.Planner.retiredAppleCalendarKnownAccountIDs.name,

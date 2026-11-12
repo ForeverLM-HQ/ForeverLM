@@ -206,8 +206,6 @@ struct PageSpacesMacTests {
 
             vm.movePages(["doc-1", "doc-2"], toPageSpace: research.id)
             #expect(defaults.string(forKey: "page.space.doc-1") == research.id, "a page is in one space at a time")
-            #expect(vm.pageSpaceArtifacts(in: research.id).map(\.id) == ["doc-1", "doc-2"])
-            #expect(vm.pageSpaceArtifacts(in: studio.id).isEmpty)
 
             vm.movePages(["doc-2"], toPageSpace: nil)
             #expect(defaults.object(forKey: "page.space.doc-2") == nil, "a page in no space has no row")

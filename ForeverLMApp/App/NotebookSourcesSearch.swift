@@ -101,7 +101,7 @@ struct NotebookSourcesSearchField: View {
     @FocusState private var isFocused: Bool
     @State private var isHovering = false
     /// Library | Web show while the field is in use — focused or typed in —
-    /// and fold away otherwise (2026-10-06, the product owner: "cleaner and fewer
+    /// and fold away otherwise (product owner, 2026-10-06: "cleaner and fewer
     /// buttons and bells and whistles"); the glyph and the placeholder still
     /// say a scope other than Library (`settleScopes`).
     @State private var showsScopes = false
@@ -195,7 +195,7 @@ struct NotebookSourcesSearchField: View {
         let isSelected = candidate == scope
         return Button { scope = candidate } label: {
             // Grey, never the accent: the chosen scope is a step of grey with
-            // no outline, as every selection is (2026-10-12).
+            // no outline, as every selection is.
             Text(candidate.title)
                 .zoomedSystemFont(size: 11, weight: .medium)
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)

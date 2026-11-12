@@ -380,7 +380,7 @@ enum LinkedPage {
 
     /// Whether the text a frame of the page reports is the page's content.
     ///
-    /// A Claude artifact is three documents deep, observed 2026-09-08: the top
+    /// A Claude artifact is three documents deep: the top
     /// frame is claude.ai's chrome ("Content is user-generated and unverified",
     /// Copy), inside it a `www.claudeusercontent.com` wrapper whose whole text
     /// is "Loading...", and inside that the artifact itself as an
@@ -423,7 +423,7 @@ enum LinkedPage {
 
     /// How long a page may go without answering before the pane says it is
     /// waiting. WebKit's own main-frame timeout is 60 seconds; a Google Doc
-    /// whose request sat on a dead pooled connection (2026-09-13) was a white
+    /// whose request sat on a dead pooled connection was a white
     /// pane for all of it. Eight seconds is the reader's stall threshold.
     static let slowLoadNoticeDelay: TimeInterval = 8
 

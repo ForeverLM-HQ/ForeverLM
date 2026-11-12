@@ -1111,7 +1111,7 @@ actor GoogleDriveService {
     /// Recordings are the largest thing this app caches and the cheapest to get
     /// back, because Drive still has them. Two weeks of them, capped at 2 GB,
     /// keeps the meetings anyone is actually working through instant while
-    /// bounding a directory that used to only grow.
+    /// bounding a directory that would otherwise only grow.
     private static let recordingCacheBudget: Int64 = 2 * 1024 * 1024 * 1024
     private static let recordingCacheLifetime: TimeInterval = 14 * MemoryTutorScheduler.secondsPerDay
 
@@ -1703,7 +1703,7 @@ private final class GoogleDriveOAuthCallbackServer: @unchecked Sendable {
             guard let connection = self.browserConnection else { return }
             self.browserConnection = nil
             let title = success ? "Google Drive connected" : "Google Drive sign-in failed"
-            let body = "<html><head><meta charset=\"utf-8\"><title>\(title)</title></head><body style=\"font-family:-apple-system,sans-serif;padding:32px\"><h1>\(title)</h1><p>\(self.escape(message))</p></body></html>"
+            let body = "<html><head><meta charset=\"utf-8\"><title>\(title)</title></head><body style=\"font-family:-apple-system,sans-serif;padding:32px\"><h1>\(title)</h1><p>\(message.htmlEscaped)</p></body></html>"
             self.send(connection, status: 200, reason: "OK", body: body, contentType: "text/html; charset=utf-8")
         }
     }
@@ -1790,11 +1790,4 @@ private final class GoogleDriveOAuthCallbackServer: @unchecked Sendable {
         })
     }
 
-    private func escape(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-    }
 }

@@ -22,8 +22,8 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// source opens it in the window's Reader. Transient, as the second chat
     /// is: not permanent, and not stored with the layout.
     case secondaryReader
-    /// A second Browser beside the window's own, made by the split button
-    /// (2026-11-07), with tabs of its own (`BrowserWorkspace.forSidePane`):
+    /// A second Browser beside the window's own, made by the split button,
+    /// with tabs of its own (`BrowserWorkspace.forSidePane`):
     /// it opens on the page the browser it was split from showed. An "Open in
     /// Browser" from anywhere still opens in the window's Browser. Transient,
     /// as the side chat and side reader are.
@@ -39,82 +39,76 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     case reader
     /// Recurring instructions the app runs by itself: an instruction on a clock.
     case tasks
-    /// The Day: the Mac Calendar's day on a clock. The raw value is what the
-    /// log's pane was called until 2026-10-09, kept for stored layouts; the
-    /// log left it for its own tab on 2026-11-07 (`activityLog`).
+    /// The Day: the Mac Calendar's day on a clock. The raw value is the name
+    /// of the activity log's own pane, kept so stored layouts still read
+    /// (`activityLog` is the log's tab).
     case activity
     /// Activity: what the app saw the learner do on one day — the papers
     /// read, the episodes heard, the chats had — and every day's time spent.
-    /// Split out of the Planner on 2026-09-22, drawn beside the calendar in
-    /// the Day from 2026-10-09, and its own tab since 2026-11-07 (product owner:
-    /// "There should be a separate view for that").
+    /// It has its own tab and is also drawn beside the calendar in the Day
+    /// (product owner: "There should be a separate view for that").
     case activityLog
     /// The Goals tab: everything the learner wants to be true by a date, in
-    /// deadline order. Added 2026-09-18; a Goal stands on its own and a
-    /// Notebook is only a tag on it (goals-design.md).
+    /// deadline order. A Goal stands on its own and a Notebook is only a tag
+    /// on it (goals-design.md).
     case goals
     /// The Courses tab: every course as a card, and one course's page, its
-    /// lectures and quizzes laid out Khan Academy style. Moved here from a
-    /// Sources tab on 2026-09-27: a course is a structure over sources, not
-    /// a source (courses-design.md).
+    /// lectures and quizzes laid out Khan Academy style. A course is a
+    /// structure over sources, not a source, so it is not a Sources tab
+    /// (courses-design.md).
     case courses
     /// The Ideas tab: what the learner jotted down, newest first, and what
-    /// each thought is linked to. Added 2026-09-20; a corollary to Goals — an
-    /// Idea has no date until it becomes one (ideas-design.md).
+    /// each thought is linked to. A corollary to Goals: an Idea has no date
+    /// until it becomes one (ideas-design.md).
     case ideas
     case notepad
     /// Pages that live elsewhere and open here as themselves — Claude
-    /// artifacts and Codex sites — split out of Docs on 2026-09-08.
+    /// artifacts and Codex sites — kept apart from Docs.
     case sites
     /// A WebKit browser with profiles — separate cookie jars — so a site can
     /// be signed in to under one Google account while the Drive plugin
     /// holds another, and any page can be added to Sources from where it is
-    /// read. Added 2026-09-08.
+    /// read.
     case browser
     /// The explainer films ForeverLM has made and the composer that makes
-    /// one; a video is an ordinary source under Videos. Added 2026-09-10; see
+    /// one; a video is an ordinary source under Videos. See
     /// docs/explainer-video-design.md.
     case videos
     /// Moving explanations of the library's sources, hosted like a site and
-    /// listed apart from Sites by the record's kind. Added 2026-09-17; see
+    /// listed apart from Sites by the record's kind. See
     /// docs/animations-design.md.
     case animations
-    /// The Space: ChatGPT's Space, the home of the app since 2026-10-09 —
+    /// The Space: ChatGPT's Space, the home of the app —
     /// every page, site, picture, idea, canvas, list, notebook and course in
     /// one list, with its own sidebar (docs/docs-design.md, "The Space").
-    /// Added 2026-09-17 as the Artifacts home over everything made; cut to
-    /// the Docs, Sites and Ideas of every notebook on 2026-10-06, when the
-    /// one-off kinds (pictures, animations, audio overviews, films,
-    /// walkthroughs, narrations) went to their notebooks' Studio alone, and
-    /// copied from ChatGPT's Space the same day. The raw value stays
-    /// `artifacts`, as stored layouts name it.
+    /// The one-off kinds (pictures, animations, audio overviews, films,
+    /// walkthroughs, narrations) live in their notebooks' Studio alone. The
+    /// raw value stays `artifacts`, as stored layouts name it.
     case artifacts
     /// The Memory pane: today's card review across every notebook or one
     /// (Start Review), the cards to check, and every kept card. The rail's
-    /// Memory row opens it; added 2026-10-01 with the card review
-    /// (docs/memory-design.md, "The card review"). In a notebook window it
+    /// Memory row opens it (docs/memory-design.md, "The card review"). In a notebook window it
     /// opens in a pane of the notebook's window.
     case memory
     /// The full-window Library: the whole library's Sources list laid out
     /// wide for managing it — every kind, search, imports, multi-select with
     /// a bulk bar, and the notebooks each source is in. The rail's Library
-    /// row and ⇧⌘L open it; added 2026-10-01 (decisions v5, 2;
-    /// docs/notebooks-design.md, "The full-window Library"). It leaves a
+    /// row and ⇧⌘L open it (docs/notebooks-design.md, "The full-window
+    /// Library"). It leaves a
     /// notebook the way the Space does: inside a notebook the library is its
     /// Sources column's search.
     case library
     /// The Map: the whole library on one zoomable plane, which the learner
     /// arranges and a chat may show a lens over. The rail's Map row opens it;
-    /// added 2026-10-05 (docs/knowledge-map-design.md). It leaves a notebook
+    /// (docs/knowledge-map-design.md). It leaves a notebook
     /// the way the Library does: the Map is the library's, not a notebook's.
     case knowledgeMap
     /// The Atlas: a topic laid out as concepts at levels of abstraction,
     /// grounded in the library (docs/atlas-design.md). A place like the
-    /// Canvas; it leaves a notebook the way the Canvas does. Added 2026-10-05.
+    /// Canvas; it leaves a notebook the way the Canvas does.
     case atlas
-    /// Plugins, Codex's (2026-10-13): every plugin and its state, and each
-    /// plugin's own page, which were Settings' Plugins pane until then
-    /// (docs/codex-shell-plan.md, Track 2). The strip's Plugins row opens it;
+    /// Plugins, Codex's: every plugin and its state, and each
+    /// plugin's own page (docs/codex-shell-plan.md, Track 2). The strip's Plugins row opens it;
     /// it leaves a notebook the way the Library does.
     case plugins
 
@@ -261,7 +255,7 @@ struct StudioCenterTabGroups: Equatable {
         /// lone one included, so it can be dragged, closed and added to with
         /// the strip's + (product owner, 2026-11-02: "every pane should
         /// always be a tab ... and i should be able to add additional
-        /// tabs"). Until then a pane with one tab drew none.
+        /// tabs").
         var showsTabStrip: Bool { true }
 
         /// Takes `tab` out of the pane, its strip included. When it was the
@@ -304,10 +298,8 @@ struct StudioCenterTabGroups: Equatable {
     var groups: [Group]
 
     /// The Space across the center, every other surface behind it in the same
-    /// pane: the first-launch shape since the home became what a window
-    /// holding no notebook shows (2026-10-01), and the Space has been that
-    /// home since the Notebooks home went (2026-10-09, docs/docs-design.md,
-    /// "The Space"). Before, Chat sat beside the reading surfaces. Subsequent
+    /// pane: the first-launch shape, since the Space is what a window holding
+    /// no notebook shows (docs/docs-design.md, "The Space"). Subsequent
     /// launches restore the learner's saved arrangement, and a source, a chat
     /// or a pane opened from the Space opens as a tab or beside it by the
     /// ordinary rules.
@@ -322,8 +314,8 @@ struct StudioCenterTabGroups: Equatable {
 
     /// Hard cap on the panes the learner makes: a third or a fourth appears
     /// only when they drag a tab to an edge or split a pane (product owner,
-    /// 2026-11-07, after the split button: "Yes, allow four"; three until
-    /// then). Five are never restored: extras fold into the fourth.
+    /// 2026-11-07, after the split button: "Yes, allow four"). Five are never
+    /// restored: extras fold into the fourth.
     static let draggedGroupCount = 4
 
     /// True when the app may open another pane on its own (`maximumGroupCount`).
@@ -576,10 +568,9 @@ struct StudioCenterTabGroups: Equatable {
                 let isActive = name.hasSuffix("*")
                 let isOpen = name.hasSuffix("+")
                 if isActive || isOpen { name.removeLast() }
-                // The Notebooks home is gone (2026-10-09; it was the Projects
-                // tab before 2026-10-04): a layout that still names it shows
-                // the Space in its place, which is where every notebook is
-                // listed now. The one place the retired names are read.
+                // The Notebooks home is gone: a layout that still names it
+                // shows the Space in its place, which is where every notebook
+                // is listed. The one place the retired names are read.
                 if Self.retiredHomeTabNames.contains(name) {
                     name = StudioCenterTab.artifacts.rawValue
                 }
@@ -634,8 +625,8 @@ final class StudioWindowState: Identifiable {
         /// The notebook the window holds, without its moments
         /// (`NotebookWorkspace.persisted`). Scene-only: it rides the scene
         /// storage, the last session and named workspaces, and never a
-        /// template key. Absent in records older builds wrote, which decode
-        /// as a window holding no notebook; older builds ignore it.
+        /// template key. Absent in records saved without it, which decode
+        /// as a window holding no notebook.
         var notebook: NotebookWorkspace? = nil
         /// The chat the window last had open in each notebook it held, by
         /// Notebook id (`StudioWindowState.notebookChats`). Scene-only, like
@@ -670,8 +661,7 @@ final class StudioWindowState: Identifiable {
     /// the Library a row was clicked in, the Space, Pages. Once the Reader has
     /// no source of its own to go back to, its ‹ shows that surface again
     /// (`returnFromReaderCover`), as a notebook's Reader gives its document
-    /// slot back. Until 2026-10-12 a source opened over the Library left ‹
-    /// greyed out, and the list it came from was one rail click away.
+    /// slot back.
     struct ReaderCover: Equatable {
         /// The pane the Reader took, by `Group.id`.
         let groupID: UUID
@@ -786,7 +776,7 @@ final class StudioWindowState: Identifiable {
     /// together, wherever it was pressed, so moving between Home, the Space
     /// and a place of its own never makes the sidebar appear or vanish
     /// (product owner, 2026-10-26: "when I click memory, the left sidebar
-    /// disappears randomly ... get rid of that"; 2026-11-07, of the Space:
+    /// disappears randomly ... get rid of that"; product owner, 2026-11-07, of the Space:
     /// "randomly that like left chats bar disappears, which kind of looks
     /// weird"). Never the icon strip. Returns the Space sidebar's hidden
     /// state to store in `space.sidebarHidden`, or nil in a notebook.
@@ -830,7 +820,7 @@ final class StudioWindowState: Identifiable {
     /// card to themselves (`ShellPlace.sidebar` nil) — the Library, the
     /// Canvas, the Atlas and Memory. Chats, the Reader and the rest of what
     /// the learner opens from the Space are Home's. There is no Notebooks home
-    /// page since 2026-10-09.
+    /// page.
     var isOnHome: Bool {
         guard notebook == nil, !showsSpace else { return false }
         return !centerTabGroups.groups.contains { ShellPlaces.descriptor(for: $0.activeTab).sidebar == nil }
@@ -849,7 +839,7 @@ final class StudioWindowState: Identifiable {
 
     /// Transient presentation belongs to the window too. It is deliberately not
     /// included in `Snapshot`, so relaunch never restores a half-open mode.
-    /// Nothing sets this since the Mac's voice conversation went (2026-10-01).
+    /// Never set to true: the Mac has no voice workspace that takes the center.
     var isVoiceWorkspacePresented = false
     /// The memory review this window is giving itself over to, if any.
     ///
@@ -862,10 +852,10 @@ final class StudioWindowState: Identifiable {
     /// `Snapshot`, so relaunch never reopens a half-finished review as a
     /// takeover.
     ///
-    /// Since 2026-10-01 the review the Memory pane's Start Review gives the
-    /// window to is a card review (`MemoryCardSessionView`); a day's review
-    /// chat from before cards is focused the old way only by code that still
-    /// names one (docs/memory-design.md, "The card review").
+    /// The review the Memory pane's Start Review gives the window to is a card
+    /// review (`MemoryCardSessionView`); a day's review chat is focused the
+    /// other way only by code that names one (docs/memory-design.md, "The card
+    /// review").
     ///
     /// The rail comes back beside the review only when the learner asks with
     /// its toggle (`memoryReviewFocusShowsSidebar`); each review starts with
@@ -1034,8 +1024,8 @@ final class StudioWindowState: Identifiable {
     var splitFromPane: [UUID: UUID] = [:]
     /// The Notebook this window's Docs canvas is scoped to — its list, and
     /// where a doc made there is filed — or nil for every doc. A notebook's
-    /// own Docs scope it to the notebook (`openArtifactsBeside(notebookID:)`,
-    /// and `revealArtifact` for a doc filed there); the rail's Docs row and a
+    /// own Docs scope it to the notebook (`revealArtifact` for a doc filed
+    /// there); the rail's Docs row and a
     /// doc filed elsewhere clear it, and so does the notebook leaving the
     /// window (`notebook`): the Docs pane underneath and the next notebook's
     /// slot share this canvas, and must not come back on the last notebook's
@@ -1447,7 +1437,7 @@ struct StudioWindowPlacement: Codable, Equatable {
     /// CoreGraphics' persistent display UUID. Unlike `NSScreenNumber`, this
     /// survives ordinary display reconfiguration and disambiguates two
     /// monitors that publish the same product name. Optional so workspace
-    /// records saved by older builds and Web Studio keep decoding.
+    /// records saved without it, and Web Studio's, keep decoding.
     var displayUUID: String? = nil
     var displayID: String?
     var displayName: String?
@@ -1582,7 +1572,7 @@ struct StudioWindowContent: Codable, Equatable {
 struct StudioSavedWorkspaceWindow: Codable, Equatable {
     var snapshot: StudioWindowState.Snapshot
     var placement: StudioWindowPlacement?
-    /// Absent in records saved by older builds and in named workspaces, which
+    /// Absent in records saved without it and in named workspaces, which
     /// describe an arrangement rather than a moment.
     var content: StudioWindowContent? = nil
 
@@ -1618,12 +1608,11 @@ enum StudioLastSessionStore {
     /// More Studio windows than anyone arranges by hand. The store is capped
     /// here, and the coordinator closes live windows past it, because a saved
     /// session that has grown beyond this is a bug's output, not a workspace:
-    /// on 2026-09-03 a Dev library was relaunching into 269 cascaded copies of
-    /// two windows, because each launch reopened the saved count on top of the
-    /// windows SwiftUI had already restored and the quit then saved the sum.
-    /// The cap was twelve; on 2026-09-06 a Dev library quit with seven windows
-    /// that verification runs had opened, and every one of the 31 launches the
-    /// next morning put six Studio windows back, all of them under the cap.
+    /// a launch that reopened the saved count on top of the windows SwiftUI
+    /// had already restored, and a quit that saved the sum, once grew a library
+    /// into 269 cascaded copies of two windows; a library that quit with seven
+    /// windows opened by verification runs put six Studio windows back on every
+    /// launch after it, all of them under a cap of twelve.
     /// Four is one or two windows on each of two displays; anything past that
     /// is left over from something that opened windows, not an arrangement.
     static let maximumWindows = 4
@@ -2054,10 +2043,9 @@ enum StudioSidebarTab: String, CaseIterable, Codable {
     /// A saved order is a preference about *arrangement*, never about
     /// membership — hiding a tab is `hiddenTabs`, which is stored separately. So
     /// any case missing from the persisted array is appended rather than
-    /// dropped: that heals orders written by an older build (or delivered by a
-    /// partial sync) instead of letting them silently delete tabs. Meetings
-    /// slots in right after Books rather than trailing at the very end for
-    /// users upgrading from before that tab existed.
+    /// dropped: that heals orders written before a tab existed (or delivered by
+    /// a partial sync) instead of letting them silently delete tabs. Meetings
+    /// slots in right after Books rather than trailing at the very end.
     ///
     /// Must be applied at *every* assignment to the stored order, not just at
     /// load: adopting a short array verbatim persists it through `didSet` and
@@ -2077,8 +2065,7 @@ enum StudioSidebarTab: String, CaseIterable, Codable {
     }
 
     /// Tabs fed wholly from outside the app by a plugin, rather than by
-    /// the learner's own ingestion on this Mac. None today: Slack was the last
-    /// such tab, and it went away with saved Slack threads — Slack is read live
+    /// the learner's own ingestion on this Mac. None today: Slack is read live
     /// through the plugin and files nothing. Meetings is deliberately not one
     /// even though Read AI and Zoom feed it: it is a source *family* with
     /// several providers behind it, so Settings draws their branded cards from

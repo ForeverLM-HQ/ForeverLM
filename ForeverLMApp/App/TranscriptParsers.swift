@@ -465,7 +465,7 @@ enum YouTubeTranscriptDisplayParser {
     // Compiled once. Building these from their pattern on each call would run
     // the block-level ones once per block: for a Zoom standup of 149
     // turns that is some 750 regex compilations per parse, most of the 8 ms the
-    // parse took in the debug test bundle (2026-09-19), and 70 ms of a 135 KB
+    // parse took in the debug test bundle, and 70 ms of a 135 KB
     // Nexus session's. The patterns are constants, so a failed compile is a
     // programming error, not a runtime condition.
     private static let sectionBreakRegex = try! NSRegularExpression(pattern: #"\n(?=#{1,3}\s)"#)

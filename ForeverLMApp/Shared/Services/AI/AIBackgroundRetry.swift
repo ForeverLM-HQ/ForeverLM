@@ -116,10 +116,8 @@ enum AIBackgroundRetry {
 // MARK: - Backup models
 
 /// Up to ten models a background model setting falls back to, in order, when
-/// the model it names cannot give an answer. The product owner asked for this on
-/// 2026-09-27, after a paper's cleanup stopped on free Nemotron: "for certain
-/// models, especially free ones, we can add some backup models", and raised
-/// the limit from two the same day. Both of Settings › Background's models
+/// the model it names cannot give an answer, so a task that stopped on a free
+/// model that was busy or gone carries on. Both of Settings › Background's models
 /// can list them, Text-only and Multimodal, and every background task uses the
 /// backups of the one it runs on.
 ///
@@ -134,9 +132,8 @@ enum AIBackgroundRetry {
 ///
 /// A chat the learner types in has no backups: they chose the model they are
 /// talking to. The Chat model's backups (slot `chat`) serve the chats nobody
-/// is watching, a scheduled task's runs (`ScheduledTaskRunner`, the product owner,
-/// 2026-09-27: a task turned on overnight, on a free model, should not simply
-/// error out). They are chosen on the Chat pane's cards like any other
+/// is watching, a scheduled task's runs (`ScheduledTaskRunner`: a task turned on
+/// overnight, on a free model, should not simply error out). They are chosen on the Chat pane's cards like any other
 /// setting's.
 enum AIBackupModels {
     /// Synced: `aiBackups.<slot>` holds a JSON array of provider and model
@@ -543,9 +540,8 @@ actor AIRequestPacer {
 /// A model the learner sets for the task itself is theirs
 /// (`KeychainService.taskRoute(for:)`) and is not second-guessed.
 ///
-/// A rule rather than a setting: until 2026-09-28 Setup kept meetings paid
-/// by giving each meeting task a model of its own, and those went with the
-/// Specific tasks menu.
+/// A rule rather than a setting: meeting tasks have no model of their own;
+/// this switch is the only thing that keeps them on a paid model.
 enum MeetingModels {
     /// Synced, with the rest of `aiBackground.`: Setup's answer. False, the
     /// recommendation, keeps meetings on a paid model.

@@ -26,7 +26,7 @@ enum GeneratedAudioOverview {
     }
 
     /// Whether a record is an audio overview, read without its body: its
-    /// kind says so, or — for a record an older build saved back without
+    /// kind says so, or — for a record saved back without
     /// the kind — the library holds the carrier its id names. A list cannot
     /// read every Doc's body to find the marker
     /// (`AudioOverviewScript.isOverview(_:markdown:)`, for where the body is
@@ -588,11 +588,8 @@ struct AudioOverviewGeneratorService: Sendable {
         artifactID: String = UUID().uuidString.lowercased(),
         onStage: @escaping @Sendable (AudioOverviewStage) async -> Void = { _ in }
     ) async throws -> AudioOverviewResult {
-        let workflowID = UUID().uuidString
-        return try await AIUsageAttribution.$sessionID.withValue(workflowID) {
-            try await AIUsageAttribution.$activityID.withValue(workflowID) {
-                try await runStages(plan, artifactID: artifactID, onStage: onStage)
-            }
+        try await AIUsageAttribution.withWorkflow {
+            try await runStages(plan, artifactID: artifactID, onStage: onStage)
         }
     }
 

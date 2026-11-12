@@ -9,7 +9,7 @@ import PDFKit
 /// text inside the figure, and a PDF made from vector figures keeps them in
 /// its text layer: a bold single-letter run, set a size or two above the axis
 /// labels and legends around it. On the page index 20 of the lysosome-aging
-/// preprint (2026-09-19), the letters are Arial-BoldMT at 8.8 pt while every
+/// preprint, the letters are Arial-BoldMT at 8.8 pt while every
 /// tick label and legend is bold at 4.2 pt or regular at 6.2 pt. That gap is
 /// what this reads: the lines whose first token is one letter in a bold face
 /// at a size near the largest such letter are the panel labels.

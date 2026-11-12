@@ -28,12 +28,12 @@ import Foundation
 /// accents, hyphens and spaces all count.
 enum SourceKeywordSearch {
 
-    /// The most keywords one sweep takes. It was 10, and a chat asked about the
-    /// 25 compounds in one paper spent two calls on the refusal (2026-09-23).
+    /// The most keywords one sweep takes. A cap of 10 made a chat asked about the
+    /// 25 compounds in one paper spend two calls on the refusal.
     /// A whole-library sweep of 30 that match nothing — the worst case, since
     /// every keyword is looked for in every text — measured 2.5 s over 3,916
     /// sources and 190 MB of text when a SQL `LIKE` did the looking, and 0.3 s
-    /// over a 188 MB fixture once `Screen` took over (2026-09-26); scoped to a
+    /// over a 188 MB fixture with `Screen`; scoped to a
     /// chat's sources it costs nothing.
     static let maximumKeywords = 30
 
@@ -51,7 +51,7 @@ enum SourceKeywordSearch {
     /// Foundation's case-insensitive search needs that. Handed a keyword whose
     /// fold is longer than the keyword — `ß` folds to `ss`, `ﬁ` to `fi` — it
     /// compares the first letter of the fold and then accepts any character at
-    /// all, so on 2026-09-26 `ß` was counted ×500 in every paper that had one,
+    /// all, so `ß` would be counted ×500 in every paper that had one,
     /// once per "s " and "si". Folded first, the keyword holds no such
     /// character, and the text's own `ß` and `ﬁ` still match `ss` and `fi`.
     struct Keyword: Equatable, Sendable {
@@ -107,7 +107,7 @@ enum SourceKeywordSearch {
     /// folds to: the only way a text can hold a keyword's ASCII letters without
     /// holding those letters. The search reads `eﬀect` as `effect`, which is
     /// right — the ligature is what PDF extraction hands back, and 91 sources in
-    /// one library spelled "ff" only as U+FB00 (2026-09-26) — so ruling a source
+    /// one library spelled "ff" only as U+FB00 — so ruling a source
     /// out on its ASCII bytes alone has to know them. Found by folding every
     /// assigned scalar; `SourceKeywordSearchTests` folds them all again, so a
     /// Unicode revision that adds one fails there rather than in a sweep.

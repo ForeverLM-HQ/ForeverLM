@@ -98,10 +98,9 @@ extension MCPDataStore {
     /// Existing stable IDs win; a unique title resolves to that ID; only a genuine
     /// miss creates a course, under a fresh UUID with the input as its title —
     /// the identity `create_course` and the app's playlist import give a course.
-    /// Until 2026-09-26 a miss keyed the new course by its display title, so a
-    /// course first named through add_source kept its title as its ID for good:
-    /// "Mitochondrial Bioenergetics Graduate Course" was one, and renaming it
-    /// would have left the old title standing as its identity.
+    /// A miss is never keyed by the display title: a course first named
+    /// through add_source would keep its title as its ID for good, and renaming
+    /// it would leave the old title standing as its identity.
     func resolveOrCreateCourseID(input: String, store: KnowledgeStore) throws -> String {
         let identifier = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !identifier.isEmpty else { return identifier }
@@ -461,8 +460,8 @@ extension MCPDataStore {
     }
 
     /// Return the canonical paper sources attached to one lecture. Paper identity
-    /// comes from the source record, not the lecture-item role: older builds stored
-    /// papers as `reading`, and callers may also have used `reference` or `other`.
+    /// comes from the source record, not the lecture-item role: papers may be
+    /// stored as `reading`, `reference` or `other`.
     func getLecturePapers(lectureID input: String) throws -> String {
         let store = try knowledgeStore()
         let lectureID = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1297,11 +1296,10 @@ extension MCPDataStore {
     /// lecture, fills the course metadata from the playlist, and fetches the
     /// transcripts. The playlist page itself is never a source.
     ///
-    /// Before this tool an assistant asked to "ingest this playlist course" had
-    /// only add_source, and assembled the course by hand (2026-09-13): the
-    /// playlist page went in as a course source, the course took its title as
-    /// its ID, and lessons were typed `course` rather than `video` — three of
-    /// them were still wrong two weeks later. add_source now refuses a playlist
+    /// An assistant asked to "ingest this playlist course" with only add_source
+    /// assembles the course by hand: the playlist page goes in as a course
+    /// source, the course takes its title as its ID, and lessons are typed
+    /// `course` rather than `video`. add_source therefore refuses a playlist
     /// URL and names this tool instead.
     ///
     /// A playlist some course already names is imported into that course, so

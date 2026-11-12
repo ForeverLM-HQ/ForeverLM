@@ -12,10 +12,9 @@ extension StudioViewModel {
     /// Put sources on the Schedule — the Sources sidebar's Add to Schedule and
     /// Schedule for Today. They join the active Goal or Notebook when there is
     /// one. With none they are placed untagged: the Schedule holds a source
-    /// whether or not a Goal claims it. A plain goal an older build created is
-    /// never joined; it stays in the library untouched, but nothing plans
-    /// against it any more. Either way a source already planned keeps its day
-    /// unless `day` names one.
+    /// whether or not a Goal claims it. A plain goal is never joined; it stays in
+    /// the library untouched, and nothing plans against it. Either way a
+    /// source already planned keeps its day unless `day` names one.
     func scheduleSources(_ sourceIDs: [String], on day: Date? = nil) async {
         let uniqueIDs = orderedUniqueSourceIDs(expandedLearningGoalSourceIDs(sourceIDs))
         guard !uniqueIDs.isEmpty else { return }

@@ -183,10 +183,10 @@ extension KnowledgeStore {
     /// wrote in: cited by in-app link in one of the chat's turns, or the one
     /// source the chat was opened on (`ChatSourceEvidence.discussedSourceIDs`).
     ///
-    /// Attachment alone no longer counts. A Notebook chat attaches the whole
-    /// Notebook, and on 2026-09-06 one question across 122 sources made every
-    /// one of them "discussed yesterday" — 150 of the next morning's 157
-    /// review sources had only ever been context behind such a question. The
+    /// Attachment alone does not count. A Notebook chat attaches the whole
+    /// Notebook, so one question across 122 sources would make every
+    /// one of them "discussed yesterday" — most of the next morning's
+    /// review sources would only ever have been context behind such a question. The
     /// exchange rows' `source_refs` carry the same attached set, so they are
     /// not read here either; the turns' text is, and only the rows that hold
     /// a link are pulled out of the table.

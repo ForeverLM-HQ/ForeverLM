@@ -20,8 +20,8 @@ extension StudioViewModel {
 /// a clock, its all-day events above it, and nothing of the log. The calendar
 /// stays the ground truth, so nothing here writes an event.
 ///
-/// The log shared this clock from 2026-10-09 and left for its own tab,
-/// Activity (`ActivityLogPane`), on 2026-11-07 (the product owner, at a Day of
+/// The log is its own tab, Activity (`ActivityLogPane`), not part of this
+/// clock (product owner, 2026-11-07, at a Day of
 /// meetings with reading glances between them: "in the day view we see the
 /// tracking of all the sources we looked at … It's not clean. There should be
 /// a separate view for that."). It reads `DayModel.shared`.
@@ -173,10 +173,9 @@ struct DayNavigationBar: View {
 /// written — one row per thing (By Source), or every day's time spent
 /// (History), from its ⋯.
 ///
-/// Split out of the Planner on 2026-09-22 (the product owner: "the planner and
-/// the tracker of what I've actually read … are now kind of intertwined …
-/// These should just be two separate views"), drawn beside the calendar in
-/// the Day from 2026-10-09, and its own tab again since 2026-11-07. See
+/// Separate from the calendar and the planning (product owner, 2026-09-22:
+/// "the planner and the tracker of what I've actually read … are now kind of
+/// intertwined … These should just be two separate views"). See
 /// docs/planner-design.md, "The log is its own view".
 struct ActivityLogPane: View {
     /// The pane's mark on the rail and its tab.
@@ -323,8 +322,7 @@ struct ActivityLogPane: View {
         }
     }
 
-    /// The day's totals, the content's first line: on the chrome line until
-    /// 2026-10-06. A day with nothing logged says so in the rows' own empty
+    /// The day's totals, the content's first line. A day with nothing logged says so in the rows' own empty
     /// state.
     @ViewBuilder
     private var dayTotals: some View {
@@ -621,15 +619,14 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
 /// its sittings drawn as bars along a time axis to the right, the logged
 /// minutes banded darker inside each. Longest first, as the groups come.
 ///
-/// Added 2026-09-23 beside the clock (product owner, on a Wednesday of fourteen
-/// things: "any way to show this better?"). On the clock a paper returned to
-/// four times was four cards each repeating a two-line title, and a burst of
-/// short sittings split the clock four ways until every title was cut. Here
-/// a return is another bar on the same row, and a day of a dozen things fits
-/// without scrolling. The axis spans the hours the log covers, not the
-/// learner's whole day. Glances stay off it; the totals line above counts
-/// them. Since 2026-11-07 it is the log's one drawing: the sitting cards
-/// left the calendar's clock.
+/// The log's one drawing (product owner, 2026-09-23, on a Wednesday of
+/// fourteen things: "any way to show this better?"). On a clock a paper
+/// returned to four times would be four cards each repeating a two-line
+/// title, and a burst of short sittings would split the clock four ways until
+/// every title was cut. Here a return is another bar on the same row, and a
+/// day of a dozen things fits without scrolling. The axis spans the hours the
+/// log covers, not the learner's whole day. Glances stay off it; the totals
+/// line above counts them.
 struct DayActivityBySourceView: View {
     let activityGroups: [DayActivityGroup]
     let nowMinute: Int?

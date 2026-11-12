@@ -194,8 +194,8 @@ extension InternalReviewPanelContent {
 
     /// What the empty field says. "Ask anything", ChatGPT's own, for as long
     /// as the chat goes on (product owner, 2026-10-06: "make the app more slick;
-    /// kind of like the chatgpt app"); until then it went blank after the
-    /// first turn. What the field is for right now — a guess, an aside, a
+    /// kind of like the chatgpt app"), not blank after the first turn.
+    /// What the field is for right now — a guess, an aside, a
     /// passage, a walk's card, a mode — says so instead.
     var chatInputPlaceholder: String {
         if pendingGuessedQuestion != nil {

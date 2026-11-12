@@ -145,16 +145,16 @@ public enum ForeverLMCore {
     /// Studio.
     ///
     /// Every meeting routes to one `meetings` tab whatever provider it came
-    /// from. Provider used to pick between `read-ai` and `google-drive` here,
-    /// which made a presentation split out of a fact about the session and left
-    /// locally imported folders with no tab at all. It is now a badge and a
-    /// filter on the row, read from `discoveryOrigin` at the point of display.
+    /// from. The provider does not pick a tab (`read-ai` or `google-drive`),
+    /// which would make a presentation split out of a fact about the session
+    /// and leave locally imported folders with no tab at all. It is a badge and
+    /// a filter on the row, read from `discoveryOrigin` at the point of display.
     ///
     /// Zoom joined them: a cloud recording of a call is a meeting, so it is
     /// typed `meeting` at ingest and routed by that type like every other
-    /// provider. This used to re-read the URL shape to fork `video` into a
-    /// separate `zoom` tab, which is why a Zoom recording could never sit in
-    /// the series it was an occurrence of. A recording synced from a build that
+    /// provider. Re-reading the URL shape to fork `video` into a separate
+    /// `zoom` tab would keep a Zoom recording out of the series it is an
+    /// occurrence of. A recording synced from a build that
     /// still stored it as a `video` is caught by the URL check below, so it
     /// lands in Meetings rather than among YouTube videos.
     ///
@@ -385,10 +385,8 @@ public enum NotebookSummary {
 ///
 /// The Mac's `LearningGoalRecord` answers `isOpenEnded`, `isNotebook` and
 /// `isGoal` through here and the phone reads its CloudKit payloads through
-/// here, so the two cannot disagree about a record again: the phone's own rule
-/// was "any parentless companion record" until 2026-10-02, which listed a
-/// Mac's standalone Goals as notebooks, while the notebooks it created carried
-/// a 30-day deadline and were Goals on every Mac. `library-core.js`
+/// here, so the two cannot disagree about a record: "any parentless companion
+/// record" would list a Mac's standalone Goals as notebooks. `library-core.js`
 /// (`learningGoalIsNotebook`) carries the rule for Web Studio and
 /// `hosted-projection.ts` for hosted MCP.
 ///

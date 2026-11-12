@@ -16,7 +16,7 @@ import SwiftUI
 /// (`workers/mcp-gateway`, `workers/mcp-relay`) charge nothing for a tool call,
 /// record none, and write error lines only, never bodies; always-on MCP's hosted
 /// cache is the one documented exception. Provider training terms were checked
-/// against each company's published API terms on 2026-09-12; when one changes,
+/// against each company's published API terms; when one changes,
 /// change the sentence here in the same commit. The fuller account is the
 /// privacy policy the pane links to.
 struct DataPrivacySettingsDetailView: View {
@@ -25,7 +25,7 @@ struct DataPrivacySettingsDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Your name, the account's, since General went (2026-11-08).
+                // Your name, the account's.
                 SettingsNameSection()
 
                 SettingsSection(title: "Your library") {

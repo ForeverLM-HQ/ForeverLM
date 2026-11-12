@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import OSLog
 import UniformTypeIdentifiers
@@ -1446,7 +1445,7 @@ extension StorageService {
     }
 
     private nonisolated static func artifactRevision(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        data.sha256Hex
     }
 }
 

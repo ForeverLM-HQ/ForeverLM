@@ -1115,14 +1115,6 @@ actor SourceService {
         }
     }
 
-    nonisolated private static func htmlEscaped(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-    }
-
     /// Fetch a web article and archive it locally with images for offline reading.
     /// Saves cleaned HTML + downloaded images to `Articles/<sourceId>/` under the ForeverLM root.
     /// Always returns plain text; the HTML archive is best-effort.
@@ -1181,8 +1173,8 @@ actor SourceService {
         // publisher content and is archived through the normal reader path; a
         // metadata-only record still gets its canonical title persisted.
         if let metadata = await fetchFigshareMetadata(for: url) {
-            let escapedTitle = Self.htmlEscaped(metadata.title)
-            let escapedAuthor = metadata.author.map(Self.htmlEscaped)
+            let escapedTitle = metadata.title.htmlEscaped
+            let escapedAuthor = metadata.author.map(\.htmlEscaped)
             let byline = escapedAuthor.map { "<p>\($0)</p>" } ?? ""
             let descriptionHTML = metadata.descriptionHTML ?? ""
             let document = """
@@ -1453,7 +1445,7 @@ actor SourceService {
     /// Source Content Cleanup when the article was ingested and is already free
     /// of site furniture. Re-running that pass would be the expensive half of a
     /// refetch and could only turn a good `ready` source into an error. Nor does
-    /// it check that the text is whole: one an older build cut short is
+    /// it check that the text is whole: one cut short is
     /// completed from this archive by the canonical cleanup
     /// (`CanonicalContentCleanupService.withCompleteArticleExtraction`).
     ///
@@ -1523,13 +1515,13 @@ actor SourceService {
 
         #if os(macOS)
         // A page whose article its scripts write answers plain HTTP with the
-        // empty frame they write into, and a 200 with that frame used to be
+        // empty frame they write into, and a 200 with that frame must not be
         // taken as the article. Substack's app link, fetched with the Substack
         // sign-in this session's cookie store holds, is 29 words of navigation
         // and "This site requires JavaScript", the post only in script data:
-        // seven posts were saved as their navigation bar (2026-09-16 to
-        // 2026-10-06). `fetchWebContent` has always read so thin a page again
-        // in a browser; this path, the one ingestion uses, now does too.
+        // such posts would be saved as their navigation bar.
+        // `fetchWebContent` reads so thin a page again in a browser; this path,
+        // the one ingestion uses, does too.
         if let fetchedHTML,
            Self.readableWordCount(ofHTML: fetchedHTML) >= Self.scriptRenderedPageWordThreshold {
             return fetchedHTML
@@ -1728,7 +1720,7 @@ actor SourceService {
     /// its words ran straight into the sentence: "accurately predicting an
     /// atom’s distances to nearby atomsSpecifically, for an atom-pair l,m, we
     /// ignore the loss…", 27 times over in The Illustrated AlphaFold
-    /// (2026-10-06), in the reader, in the stored text and in Listen alike.
+    /// in the reader, in the stored text and in Listen alike.
     /// The element is the template's own markup for a footnote, not a guess
     /// from a class name, so it is drawn the way the template draws it: a
     /// numbered reference where it stood, and the note, whole, in a numbered
@@ -1774,8 +1766,8 @@ actor SourceService {
     ///
     /// A table of contents links to `#priority-1`, but the matching id almost
     /// always sits on a wrapper — `<div class="anchor" id="priority-1">` — and
-    /// wrappers aren't in the allow list. Stripping them left every in-page
-    /// link pointing at an id that no longer existed, so clicking did nothing.
+    /// wrappers aren't in the allow list. Stripping them would leave every in-page
+    /// link pointing at an id that does not exist, so clicking would do nothing.
     /// Replace those opening tags with an empty `<a id="…">`, which survives.
     /// Ids on allowed tags already survive and are left alone, and only linked
     /// ids are kept — pages carry hundreds of unreferenced block ids.

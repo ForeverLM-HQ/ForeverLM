@@ -23,7 +23,7 @@ actor MobileModelPreferenceStore {
     /// The route for `task`, after refreshing the account's settings. A transient
     /// iCloud failure comes back naming what did not start ("Listen could not
     /// start because…") rather than "this setting", so the banner says what to
-    /// retry; the read itself has already been retried once by then.
+    /// retry.
     func resolve(_ task: AITask) async throws -> ResolvedAITextRoute {
         try await resolve(task, overriding: nil)
     }
@@ -145,8 +145,8 @@ actor MobileModelPreferenceStore {
             return try resolved(preference, task: task, routingMode: routingMode, deniesDataCollection: deniesDataCollection)
         }
 
-        // A task the learner gave a model of its own runs on it (2026-10-07,
-        // as the Mac's `KeychainService.ownRoute(for:)` reads it). Every other
+        // A task the learner gave a model of its own runs on it
+        // (as the Mac's `KeychainService.ownRoute(for:)` reads it). Every other
         // task runs on the account's Background model.
         if let descriptor = AITaskSettingsCatalog.descriptor(forRawID: task.rawValue),
            descriptor.showInAdvancedSettings, descriptor.usesBackgroundModelDefault,
@@ -467,12 +467,12 @@ enum MobileModelRouteError: LocalizedError {
     /// unavailable due to bad or missing auth token", which reads as though the
     /// account or the model configuration were broken when neither is.
     ///
-    /// The busy and offline codes belong in the same bucket and were missed the
-    /// first time round. A throttled container reports "Operation throttled by
-    /// previous server http 429 reply. Retry after 14.7 seconds", and that was
-    /// being announced as a settings problem too — on a simulator with no iCloud
-    /// account it is the *only* thing the app says, so it reads as the model
-    /// configuration being broken when nothing is wrong but a busy container.
+    /// The busy and offline codes belong in the transient bucket too. A
+    /// throttled container reports "Operation throttled by previous server http
+    /// 429 reply. Retry after 14.7 seconds"; announced as a settings problem,
+    /// it would read as the model configuration being broken when nothing is
+    /// wrong but a busy container (on a simulator with no iCloud account it is
+    /// the only thing the app says).
     static func from(_ error: Error, activity: String? = nil) -> MobileModelRouteError {
         guard let ckError = error as? CKError else {
             return .cannotVerifySettings(error.localizedDescription)
@@ -483,9 +483,8 @@ enum MobileModelRouteError: LocalizedError {
         return .cannotVerifySettings(error.localizedDescription)
     }
 
-    /// The CloudKit failures that pass on their own, and so are both retried
-    /// once and, if they persist, reported as iCloud being unreachable rather
-    /// than as a settings problem.
+    /// The CloudKit failures that pass on their own, and so are reported as
+    /// iCloud being unreachable rather than as a settings problem.
     static let transientCodes: Set<CKError.Code> = [
         .notAuthenticated,
         .accountTemporarilyUnavailable,
@@ -496,17 +495,6 @@ enum MobileModelRouteError: LocalizedError {
         .networkUnavailable,
         .networkFailure,
     ]
-
-    /// How long to wait before the one silent retry of a CloudKit call, or nil
-    /// when the failure is not the transient kind. CloudKit's own retry-after
-    /// hint is honoured, floored so a zero does not retry instantly into the
-    /// same outage and capped so a throttled container ("Retry after 14.7
-    /// seconds") does not hold a tap on Listen for a quarter of a minute.
-    static func transientRetryDelay(for error: Error) -> Duration? {
-        guard let ckError = error as? CKError, transientCodes.contains(ckError.code) else { return nil }
-        let suggested = ckError.retryAfterSeconds ?? 2
-        return .seconds(min(max(suggested, 0.5), 3))
-    }
 
     var errorDescription: String? {
         switch self {

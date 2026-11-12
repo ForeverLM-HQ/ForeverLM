@@ -23,8 +23,8 @@ import Foundation
 /// The proxy decides all of it: it returns the account's access with every
 /// session and balance fetch (`access`, and its `unlocked` / `state` /
 /// `free_until` at the top level too); docs/managed-ai-billing.md → App
-/// plans. On the wire `unlocked` has meant "MCP may run" since 2026-10-16;
-/// the name is older than the decision and is kept so a stored access still
+/// plans. On the wire `unlocked` means "MCP may run";
+/// the name is older than that meaning and is kept so a stored access still
 /// decodes.
 ///
 /// The iPhone and iPad app has no MCP connection, so it never shows a price,
@@ -66,7 +66,7 @@ extension ManagedAI {
         /// build does not know reads as the free days: a missing or strange
         /// answer never locks.
         enum State: String, Codable, Sendable {
-            /// MCP is free for every account (2026-11-08): nothing to pay,
+            /// MCP is free for every account: nothing to pay,
             /// no free days counting down, nothing locks.
             case free
             case freeDays = "free_days"
@@ -107,7 +107,7 @@ extension ManagedAI {
             enum CodingKeys: String, CodingKey {
                 case onceCents = "once_cents"
                 case monthlyCents = "monthly_cents"
-                /// The paid-once price under its name from before 2026-10-10.
+                /// The paid-once price under its earlier name.
                 case proCents = "pro_cents"
             }
 

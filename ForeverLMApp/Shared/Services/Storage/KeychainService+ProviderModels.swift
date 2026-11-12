@@ -1,4 +1,4 @@
-// AI provider and per-provider model preferences, moved out of KeychainService.swift.
+// AI provider and per-provider model preferences.
 
 import Foundation
 

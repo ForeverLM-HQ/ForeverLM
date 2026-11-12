@@ -41,10 +41,9 @@ enum MCPBrandDomains {
 /// down at that moment.
 ///
 /// A relayed request is answered whether or not the socket that carried it is
-/// still open: the tool has run — on 2026-09-19 an `add_goal_sources` write landed
-/// in the store while the Mac, starved by a compiler build, lost its socket — and
-/// dropping the answer left the caller to time out and be told the tool did not
-/// exist. The relay keeps a request pending for `REQUEST_BUDGET_MS` (60 s) after
+/// still open: the tool has run, and its write is in the store even when the Mac
+/// lost its socket under load, so dropping the answer would leave the caller to
+/// time out and be told the tool did not exist. The relay keeps a request pending for `REQUEST_BUDGET_MS` (60 s) after
 /// the socket closes, so an answer that arrives on the reconnected socket inside
 /// that window still reaches the caller. Held responses are therefore bounded the
 /// same way: anything older than the relay's budget cannot be matched and is
@@ -150,14 +149,14 @@ actor MCPRelayClient {
     private var onPermanentDisconnect: (@Sendable (String) -> Void)?
 
     /// Called once per reconnect loop when retries have failed long enough that
-    /// calling this an outage is no longer honest. Retrying continues; this
+    /// calling this an outage is not honest. Retrying continues; this
     /// exists so the UI can stop claiming to be connecting and show what failed.
     private var onSustainedFailure: (@Sendable (String) -> Void)?
 
     /// Called when a connected socket drops for a reason other than another
     /// instance taking the tunnel over, or when the instance this client stepped
     /// aside for has left, as the relay starts reconnecting on its own. Without
-    /// it the launcher kept reporting `.running` through the whole
+    /// it the launcher would keep reporting `.running` through the whole
     /// outage, and a launcher that believes it is running ignores both app
     /// activation and Connect. Reconnecting succeeds through onConnectionRestored.
     private var onConnectionLost: (@Sendable (String) -> Void)?
@@ -535,13 +534,13 @@ actor MCPRelayClient {
         webSocket = nil
         urlSession?.invalidateAndCancel()
         urlSession = nil
-        // Public: the persisted log said only "<private>" on 2026-09-29, and a
+        // Public: the persisted log would otherwise say only "<private>", and a
         // URLError's description carries no URL or token.
         logger.warning("WebSocket disconnected: \(error.localizedDescription, privacy: .public)")
         if replaced, let tunnelURL {
-            // Reconnecting here is what made two instances knock each other
-            // off once a second: each reconnect replaced the other's socket,
-            // which reconnected in turn. The one that was replaced waits.
+            // Reconnecting here would make two instances knock each other
+            // off once a second: each reconnect replaces the other's socket,
+            // which reconnects in turn. The one that was replaced waits.
             stepAside(reason: "Another ForeverLM signed in to this Apple ID took over \(tunnelURL). This one reconnects when it stops.")
         } else {
             scheduleReconnect()
@@ -562,7 +561,7 @@ actor MCPRelayClient {
     // one connects — another Mac signed in to the same Apple ID, or a development
     // build running beside the installed app — and a socket the relay has let
     // go of can stay open on this side indefinitely: the receive loop never
-    // fails, and a ping with no pong used to wait forever, so the app kept
+    // fails, and a ping with no pong waits forever, so the app would keep
     // reporting "running" while every request to its URL got the offline page.
     // The monitor therefore puts every ping on a deadline and, every other
     // tick, sends a request through the public tunnel URL that has to come back
@@ -601,11 +600,10 @@ actor MCPRelayClient {
     //
     // `URLSessionWebSocketTask.sendPing` ignores task cancellation, and on a
     // half-open socket (after a network or VPN route change) its pong handler
-    // never runs. Both pings here used to race a sleeping child in a task group,
-    // and that deadline could not fire: a group returns only once every child
-    // has finished, and the ping child never did. On 2026-09-29 the installed
-    // app's reconnect sat on one such ping from 14:05 until integrations were
-    // switched off and on at 17:26, logging nothing after "WebSocket
+    // never runs. A ping raced against a sleeping child in a task group
+    // could not have its deadline fire: a group returns only once every child
+    // has finished, and the ping child never would. A reconnect could then sit
+    // on one such ping indefinitely, logging nothing after "WebSocket
     // disconnected" while its tunnel served the relay's offline page.
     //
     // So the pong, the deadline and cancellation of the waiting task each try to
@@ -836,8 +834,8 @@ actor MCPRelayClient {
     /// Whether the relay is getting its tunnel back by itself right now, so a
     /// fresh connect would only interrupt it: a reconnect loop that is still
     /// making attempts, or a wait for another instance to leave the tunnel. A
-    /// loop that has stopped moving does not count. One sat on a single ping for
-    /// three hours on 2026-09-29.
+    /// loop that has stopped moving does not count (one can sit on a single
+    /// ping indefinitely).
     func isRecoveringOnItsOwn() -> Bool {
         if yieldedToAnotherInstance, yieldMonitorTask != nil { return true }
         guard reconnectTask != nil, let reconnectLoopMovedAt else { return false }

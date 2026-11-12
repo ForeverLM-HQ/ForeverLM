@@ -36,8 +36,7 @@ enum MobileNotebookRailRules {
     /// When each notebook was last worked in for Recent and the Recent sort:
     /// opened on this phone, or the end of its latest chat on any device,
     /// whichever is later; the record's own change is read beside them
-    /// (`NotebookRecency.lastWorkedAt`). Until 2026-10-03 Home's order read
-    /// the chats and the record alone (`MobileNotebookOrdering`).
+    /// (`NotebookRecency.lastWorkedAt`).
     static func recency(opened: NotebookRecency, lastChatAt: [String: Date]) -> NotebookRecency {
         var merged = opened
         for (notebookID, date) in lastChatAt.sorted(by: { $0.key < $1.key })

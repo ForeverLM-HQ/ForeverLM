@@ -15,7 +15,7 @@ extension MCPDataStore {
         dueDate: String?,
         notes: String?
     ) async throws -> String {
-        let team = try await requireFamilyTeam(rawTeamID)
+        let team = try await requireTeamRecord(rawTeamID)
         guard team.canEdit else {
             throw MCPError.invalidInput("Team ‘\(team.name)’ is read-only for this account, so nothing can be assigned in it.")
         }
@@ -82,7 +82,7 @@ extension MCPDataStore {
                 "guidance": "These are what other members assigned to this account. Open a source with get_source_content; reading it to the end or reviewing it marks the task done, and update_notebook_task can mark it done by hand.",
             ] as [String: Any])
         }
-        let team = try await requireFamilyTeam(rawTeamID)
+        let team = try await requireTeamRecord(rawTeamID)
         let notebookID = TeamContentIdentity.assignmentsNotebookID(teamID: team.id)
         let tasks = try await notebookFileStorage.loadNotebookTasks(notebookID: notebookID)
             .filter { showDone || $0.status != .done }
@@ -134,7 +134,7 @@ extension MCPDataStore {
 
     func setFamilyPlan(teamID rawTeamID: String?, enabled: Bool?) async throws -> String {
         guard let enabled else { throw MCPError.invalidInput("enabled is required: true to turn the family plan on, false to turn it off.") }
-        let team = try await requireFamilyTeam(rawTeamID)
+        let team = try await requireTeamRecord(rawTeamID)
         guard team.role == .owner else {
             throw MCPError.invalidInput("Only the owner of ‘\(team.name)’ can turn its family plan on or off.")
         }
@@ -157,7 +157,7 @@ extension MCPDataStore {
     /// member, then seals it to their device. The learner has to finish the
     /// sign-in there; this call waits for it (up to five minutes).
     func connectFamilyMemberKey(teamID rawTeamID: String?, member rawMember: String?) async throws -> String {
-        let team = try await requireFamilyTeam(rawTeamID)
+        let team = try await requireTeamRecord(rawTeamID)
         guard team.role == .owner, team.isFamily else {
             throw MCPError.invalidInput("‘\(team.name)’ has no family plan of this account's. Call set_family_plan first.")
         }
@@ -179,17 +179,6 @@ extension MCPDataStore {
     }
 
     // MARK: - Helpers
-
-    private func requireFamilyTeam(_ rawTeamID: String?) async throws -> TeamRecord {
-        let teamID = (rawTeamID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !teamID.isEmpty else {
-            throw MCPError.invalidInput("team_id is required. Use list_teams to find it.")
-        }
-        guard let team = try await notebookFileStorage.loadTeam(teamID) else {
-            throw MCPError.notFound("No team with id \(teamID) on this Mac. Use list_teams.")
-        }
-        return team
-    }
 
     /// A member by user_record_name, or by display name when exactly one
     /// member has it.

@@ -109,13 +109,7 @@ struct ExchangeProjection: RecordProjection {
 
     static func encodeRows(_ rows: ExchangeRows) -> [String: SyncJSON] {
         func text(_ column: String) -> String? { rows.columns[column]?.textValue }
-        func real(_ column: String) -> Double? {
-            switch rows.columns[column] {
-            case .real(let value)?: return value
-            case .integer(let value)?: return Double(value)
-            default: return nil
-            }
-        }
+        func real(_ column: String) -> Double? { rows.columns[column]?.realValue }
         func parsed(_ column: String) -> SyncJSON? { text(column).flatMap { try? SyncJSON(parsing: Data($0.utf8)) } }
 
         var fields: [String: SyncJSON] = ["chatID": .string(text("session_id") ?? "")]

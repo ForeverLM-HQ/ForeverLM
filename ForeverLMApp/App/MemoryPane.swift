@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Memory pane (docs/memory-design.md, "The Memory pane"): what the rail's
-/// Memory row opens since the card review (2026-10-01). Three sections:
+/// Memory row opens. Three sections:
 ///
 /// - **Review**: today's cards in the scope ("6 due · 4 new"), the promise
 ///   starting makes in one line, **Start Review** — with **Practice**, the only thing
@@ -18,8 +18,7 @@ import SwiftUI
 ///
 /// The sources and their cards are not a section: the Library's rows carry
 /// each source's kept cards and its verdicts, and its No Cards pill lists
-/// what still has none (`StudioViewModel+SourceCards.swift`; one list, since
-/// 2026-10-16).
+/// what still has none (`StudioViewModel+SourceCards.swift`; one list).
 ///
 /// The scope is every notebook, or one, and the section and scope are the
 /// window's (`StudioWindowState.memoryPaneScope`, `.memoryPaneSection`): the
@@ -173,7 +172,7 @@ struct MemoryPane: View {
     /// The notebook the pane was opened on — by its Cards tile, its Cards
     /// row, or the Reader's Cards count inside it — as a quiet word, and the
     /// × that widens the pane to every notebook. Over every notebook the top
-    /// line holds nothing more: the notebook menu it once had is gone
+    /// line holds nothing more: it has no notebook menu
     /// (product owner, 2026-10-13: "why even have this 'all notebooks' button
     /// for cards?"), and some of the cards are reviewed by asking in chat
     /// (`practice_cards`).
@@ -236,8 +235,7 @@ struct MemoryPane: View {
 
     // MARK: Review
 
-    /// Since 2026-10-11 (docs/memory-design.md, "How a card looks") today's
-    /// cards are drawn as the deck the review deals: one card with how many
+    /// Today's cards (docs/memory-design.md, "How a card looks") are drawn as the deck the review deals: one card with how many
     /// there are, the edges of the rest under it, the promise in a line, and
     /// one dark pill — the review's own Start Review — with Practice a quiet
     /// word beside it. The history grid sits under them.
@@ -383,8 +381,8 @@ struct MemoryPane: View {
     /// The promise above Start Review, by state, in one short line. Pure, so
     /// the words cannot drift from the rule: starting gives the window to
     /// the day's minutes, and leaving before the cards are done ends the
-    /// day's session. Since 2026-10-06 one line, not three sentences
-    /// (the product owner: "cleaner and fewer buttons and bells and whistles"): the
+    /// day's session. One line, not three sentences
+    /// (product owner, 2026-10-06: "cleaner and fewer buttons and bells and whistles"): the
     /// minutes and what leaving early does, which Start Review cannot say.
     static func promise(state: MemoryReviewCommitment.State, budgetMinutes: Int) -> String {
         let budget = MemoryReviewBudget.label(budgetMinutes)
@@ -402,7 +400,7 @@ struct MemoryPane: View {
 
     /// The primary button, by state: Start Review while the day is open and
     /// a card waits, Keep Going on a done or ended day with cards left —
-    /// cards waiting always have a button (2026-10-12) — nothing with no
+    /// cards waiting always have a button — nothing with no
     /// card waiting.
     static func primaryTitle(state: MemoryReviewCommitment.State, counts: MemoryCardDayCounts) -> String? {
         guard counts.today > 0 else { return nil }
@@ -466,9 +464,9 @@ struct MemoryPane: View {
         }
     }
 
-    /// Since 2026-10-10 (product owner, at a full-width list with "Due" on every
-    /// row: "this looks bad and should be redesigned") the list reads like
-    /// To Check: a centred column under a one-line count, each source headed
+    /// The list reads like To Check (product owner, 2026-10-10, at a
+    /// full-width list with "Due" on every row: "this looks bad and should
+    /// be redesigned"): a centred column under a one-line count, each source headed
     /// by its cover and how many of its cards are due, folding away on a
     /// click, and each card its front in the review's serif over its back.
     /// When a card is next asked shows under the pointer; the group says
@@ -808,9 +806,8 @@ struct MemoryCardEditorSheet: View {
 // MARK: - The history grid
 
 /// The run of review days: a square a day, a column a week, the darkest
-/// squares the days whose goal was met (`MemoryReviewHistory`). Moved here
-/// from the Review mode sheet the Memory pane replaced. A square with a
-/// review chat behind it — a day from before cards — opens that chat; a card
+/// squares the days whose goal was met (`MemoryReviewHistory`). A square with a
+/// review chat behind it — a day that was reviewed as a chat — opens that chat; a card
 /// day is coloured by its minutes and opens nothing.
 struct MemoryReviewHistoryGrid: View {
     var earlierReviews: [ReviewSessionRecord]

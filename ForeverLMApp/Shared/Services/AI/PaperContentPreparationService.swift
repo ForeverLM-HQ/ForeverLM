@@ -113,11 +113,10 @@ struct CanonicalContentCleanupDrainResult: Sendable {
 /// Every failed round spends one of the source's attempts, a transient one
 /// (a rate limit, a timeout) included, and the source then waits before it is
 /// picked again: 15 minutes, doubling each time, never more than 12 hours.
-/// Until 2026-10-13 a transient failure spent nothing and waited for nothing,
-/// so a paper whose free model hit its 32,768-token output cap, and whose
-/// backup then answered 429, was cleaned 32 times in four hours, once per
-/// drain: the backup's 429 was what the chain reported
-/// (`AIBackupModels.chainFailure`). The eight attempts span about 28 hours,
+/// Without that wait a paper whose free model hit its 32,768-token output cap,
+/// and whose backup then answered 429, would be cleaned once per drain: the
+/// backup's 429 is what the chain reports (`AIBackupModels.chainFailure`).
+/// The eight attempts span about 28 hours,
 /// long enough to outlast a free model's daily quota.
 ///
 /// When the attempts run out, a source the learner just added is parked with
@@ -190,7 +189,7 @@ struct PaperContentPreparationService: Sendable {
 
     /// Keeps the actionable reason at the front of a compact article row. The
     /// generic pipeline prefix remains useful for model and network failures,
-    /// but it previously pushed the empty-credit explanation out of view.
+    /// but it would push the empty-credit explanation out of view.
     static func articleIngestionFailureMessage(for error: Error) -> String {
         let detail: String
         if let urlError = error as? URLError,
@@ -231,9 +230,9 @@ struct PaperContentPreparationService: Sendable {
     /// timeout rows heal after an update without interpreting arbitrary source
     /// titles or user-authored text as executable state.
     ///
-    /// Cancellations belong here for the same reason. An earlier build treated
-    /// an interrupted drain as a verdict and parked the paper with Swift's
-    /// cancellation description as its reason; those rows describe work that
+    /// Cancellations belong here for the same reason. A drain that was interrupted
+    /// must not read as a verdict: a paper parked with Swift's
+    /// cancellation description as its reason describes work that
     /// never ran, so they re-stage themselves instead of waiting for the
     /// learner to press Retry on each one.
     static func isTransientIngestionFailure(_ storedMessage: String?) -> Bool {
@@ -341,15 +340,15 @@ struct PaperContentPreparationService: Sendable {
         )
         try Task.checkCancellation()
         // The model occasionally skips a Box heading it was told to rule on
-        // (2026-10-09, an IGVF Nature paper). The plan is sampled, so a second
+        // (seen on a Nature paper). The plan is sampled, so a second
         // request usually rules on every heading; a repeat omission still fails
         // the cleanup rather than guessing where a Box belongs.
         var deletionPlan = AIService.PaperContentDeletionPlan.empty
         for attempt in 1...2 {
             deletionPlan = AIService.PaperContentDeletionPlan.empty
             // A chunk whose plan runs into the output cap is halved and asked
-            // again, rather than failing the source. On 2026-10-19 a free
-            // reasoning model spent 20k of its 32,768 output tokens thinking
+            // again, rather than failing the source. A free
+            // reasoning model once spent 20k of its 32,768 output tokens thinking
             // about the first 75k-token chunk of a bioRxiv paper and was cut
             // off mid-plan; the same chunk at half the size leaves it room.
             var pendingChunks = requestChunks
@@ -441,8 +440,8 @@ struct PaperContentPreparationService: Sendable {
     }
 
     /// Every whole block the plan deletes is read a second time, on its own,
-    /// and any the model calls source content goes back in. On 2026-09-23 a
-    /// Cell paper's cleanup deleted from its References heading to the last
+    /// and any the model calls source content goes back in. A
+    /// Cell paper's cleanup once deleted from its References heading to the last
     /// line, taking the STAR★Methods and Key Resources Table printed after the
     /// bibliography with it; chat then told the learner the methods were
     /// missing. Seen apart from the document, a reagent table or a cell-culture
@@ -772,7 +771,7 @@ struct PaperContentPreparationService: Sendable {
     }
 
     static func sha256(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        text.sha256Hex
     }
 
     static func semanticBlocks(_ text: String) -> [AIService.PaperContentBlock] {
@@ -818,8 +817,8 @@ struct PaperContentPreparationService: Sendable {
         return result
     }
 
-    /// The largest cleanup request, in characters (about 50k tokens). On
-    /// 2026-10-13 a free model given a 265k-token bioRxiv paper in one request
+    /// The largest cleanup request, in characters (about 50k tokens). A
+    /// free model given a 265k-token bioRxiv paper in one request
     /// ran nine minutes a try, stopped at the 32,768-token output cap every
     /// time, and was retried for four hours; a 29k-token paper's plan came
     /// back at 5k tokens. Requests this size keep the plan well inside the
@@ -927,7 +926,8 @@ struct PaperContentPreparationService: Sendable {
         }
     }
 
-    private static func isSidebarHeading(_ text: String) -> Bool {
+    /// A "Box N" heading with a separator after the number: the opening of a sidebar box.
+    static func isSidebarHeading(_ text: String) -> Bool {
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalized.lowercased().hasPrefix("box ") else { return false }
         var remainder = normalized.dropFirst(4)
@@ -967,11 +967,9 @@ actor CanonicalContentCleanupService {
         self.runsPaidCleanup = runsPaidCleanup
     }
 
-    /// Clean what the paper's PDF says today, not what an older build stored.
-    /// Until `fbfb8c0ad` (2026-08-06) PDF extraction stopped at 50,000
-    /// characters, and nothing re-read the PDFs afterwards: on 2026-09-23 about
-    /// 245 papers in one library still held a prefix cut mid-word, and every
-    /// cleanup since had re-cleaned that prefix. So a paper cleanup extracts
+    /// Clean what the paper's PDF says today, not what an earlier extraction
+    /// stored. A stored text can be a prefix cut mid-word, and a
+    /// cleanup of the stored text would re-clean that prefix. So a paper cleanup extracts
     /// its PDF again, exactly as a new import does, and cleans the complete
     /// text. A paper whose PDF is not on this Mac keeps its stored text.
     static func withCompletePDFExtraction(
@@ -1017,15 +1015,9 @@ actor CanonicalContentCleanupService {
     }
 
     /// Clean what the article's archived page says when the stored text stops
-    /// short of it. Until 06271e382 (2026-08-05) article extraction kept only
-    /// its first 50,000 characters, and nothing derived the text again: the
-    /// chrome-filter backfill rewrote each archived page from the live site and
-    /// left the text alone on purpose, and every cleanup since — cleaner v19's
-    /// included — cleaned the stored prefix again. On 2026-10-06 nineteen
-    /// articles in one library still ended mid-word at exactly 50,000
-    /// characters while their archived pages held the rest; The Illustrated
-    /// AlphaFold stopped at "the accuracy of predicted difference" with its
-    /// last 15,000 characters, the whole discussion among them, on disk. So an
+    /// short of it. A stored text can end mid-word at exactly 50,000
+    /// characters while the archived page holds the rest, and a cleanup of the
+    /// stored text would clean that prefix again. So an
     /// article cleanup reads its archived page and, when the stored text stops
     /// where the page keeps going, cleans the page's complete text instead.
     /// Stored text that is already whole is cleaned as it is: a fresh
@@ -1076,7 +1068,7 @@ actor CanonicalContentCleanupService {
     /// How much more of the page must follow that ending before the stored
     /// text counts as stopping short: two or three sentences. A page that adds
     /// only a sign-off or a share line after the same last words holds the
-    /// same text; the retired cap cut articles with hundreds of words to go.
+    /// same text; a text cut short by a cap is missing hundreds of words.
     static let archivedPageMinimumMissingWords = 40
 
     /// Share of the stored text's words the page must say before that point.
@@ -1094,8 +1086,8 @@ actor CanonicalContentCleanupService {
     /// "predicted differences"), at least `archivedPageMinimumMissingWords`
     /// more words of the page follow, and the page up to there says
     /// `archivedPageMinimumSharedWordFraction` of the stored text's words.
-    /// Words are compared as letters and digits only, case-folded, so text an
-    /// older build extracted — list items without dashes, superscripts without
+    /// Words are compared as letters and digits only, case-folded, so text
+    /// extracted earlier — list items without dashes, superscripts without
     /// carets, headings without hashes — still lines up with what the page's
     /// extraction says today.
     static func storedArticleText(_ stored: String, stopsShortOf page: String) -> Bool {

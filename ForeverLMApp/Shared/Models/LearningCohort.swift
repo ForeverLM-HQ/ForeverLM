@@ -257,8 +257,8 @@ enum CohortSelector {
     static let guaranteedPassDays = 1
 
     /// How many guaranteed passes one review will carry. The guarantee assumes
-    /// a heavy day of reading — thirty-odd sources — not a bulk import: on
-    /// 2026-09-08 a library that had just taken in a Notebook's worth of papers
+    /// a heavy day of reading — thirty-odd sources — not a bulk import: a
+    /// library that had just taken in a Notebook's worth of papers
     /// produced a review over 166 sources, a briefing the model had to read in
     /// one go, and a CloudKit record too large to sync. The ceiling is what the
     /// longest budget Settings offers can cover, two hours at the planning rate,
@@ -487,7 +487,7 @@ enum CohortSelector {
         case .spine:
             // "Reviewed", not "discussed": a chat about the source is a
             // different fact, said by the engagement note beside this, and the
-            // two words together read as a contradiction (2026-09-22).
+            // two words together read as a contradiction.
             let taken = consumedDaysAgo == 0
                 ? "Taken in within the last day, not reviewed yet."
                 : "Taken in \(consumedDaysAgo)d ago, not reviewed yet."

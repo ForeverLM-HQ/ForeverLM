@@ -277,10 +277,6 @@ export function passageFromLink(link) {
   return link.dataset.sourcePassage || sourceLinkFromHref(link.getAttribute("href"))?.passage || null;
 }
 
-export function sourceTokenFromHref(href) {
-  return sourceLinkFromHref(href)?.token ?? null;
-}
-
 const hasValue = (value) => value !== null && value !== undefined;
 
 /// How a cited page reads on a marker or a chip: `p. 26`, the page counted

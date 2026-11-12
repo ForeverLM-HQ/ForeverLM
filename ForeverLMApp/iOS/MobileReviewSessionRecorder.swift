@@ -1,5 +1,4 @@
 import CloudKit
-import CryptoKit
 import Foundation
 
 // Persists a completed iOS review or chat (typed or spoken) so it syncs back to
@@ -147,46 +146,9 @@ actor MobileReviewSessionRecorder {
         }
     }
 
-    /// The written form of `recordActiveMemoryAttempt` (§3.5.13, §3.5.22, §3.5.23): in one replica
-    /// transaction, the chat and its exchanges, the card when this turn keeps it, and the attempt as an
-    /// answer in the device's Sitting for the chat. A card kept first elsewhere with other wording wins;
-    /// the same answer again is a replay, another under its id refused.
-    static func recordActiveMemoryAttempt(
-        _ attempt: MemoryAttempt,
-        in result: MobileReviewResult,
-        creating item: MemoryItem?,
-        asserted: MemoryItem,
-        fingerprint: String,
-        writer: MobileRecordWriter
-    ) async throws -> (attemptRecordName: String, itemRecordName: String?, canonicalItem: MemoryItem?) {
-        // The chat is still running: written active, with no end.
-        let full = result.chatRecord
-        let chat = MobileChatRecord(id: full.id, kind: full.kind, notebookID: full.notebookID, title: full.title, startedAt: full.startedAt,
-                                    endedAt: nil, summary: full.summary, overallScore: full.overallScore, sourceIDs: full.sourceIDs,
-                                    modelProvider: full.modelProvider, modelID: full.modelID, exchanges: full.exchanges)
-        try await writer.transaction { write in
-            try write.recordChat(chat)
-            if let item {
-                if case .keptElsewhere(let held) = try write.keepCard(item) {
-                    throw MobileReviewSessionRecorderError.canonicalMemoryItemWon(held)
-                }
-            } else {
-                guard let held = try write.keptItem(asserted.id) else { throw MobileReviewSessionRecorderError.memoryItemConflict }
-                guard MemoryTutorIdentity.hasSameImmutableCurriculum(held, asserted) else {
-                    throw MobileReviewSessionRecorderError.canonicalMemoryItemWon(held)
-                }
-            }
-            guard try write.recordAnswer(attempt, curriculumFingerprint: fingerprint) != .conflict else {
-                throw MobileMemoryAttemptRecorderError.immutableConflict
-            }
-        }
-        return (MobileMemoryAttemptRecorder.recordName(for: attempt.id), memoryItemRecordName(for: asserted.id), asserted)
-    }
-
     /// The name a card's records go by, the Mac's (`CloudKitRecordMapper.recordName(for: .memoryItem, …)`).
     static func memoryItemRecordName(for itemID: String) -> String {
-        let digest = SHA256.hash(data: Data("memoryItem:\(itemID)".utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        "memoryItem:\(itemID)".sha256Hex
     }
 
     /// The same id the Mac derives for an exchange it saves without one.
@@ -200,8 +162,6 @@ enum MobileReviewSessionRecorderError: LocalizedError {
     case incompleteAtomicSave
     case invalidMemoryLink
     case memoryTranscriptMismatch
-    case memoryItemConflict
-    case canonicalMemoryItemWon(MemoryItem)
     case invalidReviewedSources
     case invalidSchedulePlacement
     case missingNotebook
@@ -223,10 +183,6 @@ enum MobileReviewSessionRecorderError: LocalizedError {
             return "The memory attempt does not point to an exchange in this voice transcript."
         case .memoryTranscriptMismatch:
             return "The memory attempt does not exactly match its voice transcript exchange."
-        case .memoryItemConflict:
-            return "A different durable memory item already uses this intake identity."
-        case .canonicalMemoryItemWon:
-            return "Another device already created the canonical memory idea for this source."
         case .invalidReviewedSources:
             return "The completed memory review referenced a source outside its durable session."
         case .invalidSchedulePlacement:

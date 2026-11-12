@@ -3,7 +3,7 @@ import Combine
 import Foundation
 import UIKit
 
-// CarPlay front door: connect and talk. Since 2026-11-07 the car starts the
+// CarPlay front door: connect and talk. The car starts the
 // personal voice assistant on OpenAI Realtime (`MobileRealtimeVoice.startAssistant`,
 // `MobileRealtimeAssistant`), which knows the learner's recent work, goals and
 // plans and can open any source to talk about or quiz on (product owner,

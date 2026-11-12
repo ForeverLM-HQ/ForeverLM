@@ -4,8 +4,8 @@ import Foundation
 /// it: the country the company is based in and the countries of its data
 /// centres, each an ISO 3166-1 alpha-2 code. It describes the company, not one
 /// endpoint, and the provider declares it itself, so nothing routes on it —
-/// keeping work in a region is `OpenRouterRegionalEndpoints`' job. Checked
-/// 2026-09-28: 74 of 111 providers give a headquarters and 27 their data
+/// keeping work in a region is `OpenRouterRegionalEndpoints`' job. In the
+/// directory read, 74 of 111 providers give a headquarters and 27 their data
 /// centres (Alibaba: based in Singapore, running in Singapore and China).
 struct OpenRouterProviderLocation: Sendable, Equatable {
     /// "US", "CN"; nil when OpenRouter does not say.

@@ -224,8 +224,8 @@ enum BetaFeatures {
 /// build in memory, and Sparkle there compares the feed against that running
 /// version: it offers the build already on disk, then fails to install it,
 /// because the bundle belongs to the account that updated it and the
-/// authorization prompt for replacing it does not come up (2026-09-22,
-/// "Failed to gain authorization required to update target", error -60008).
+/// authorization prompt for replacing it does not come up ("Failed to gain
+/// authorization required to update target", error -60008).
 /// Nothing needs installing in that case, only a relaunch, so the app reads
 /// the Info.plist on disk and says so instead of asking Sparkle.
 enum InstalledAppCopy {
@@ -622,10 +622,10 @@ final class AppUpdateController: NSObject, ObservableObject {
     ///
     /// Sparkle's scheduled interval is a poll, and a poll is the backstop here,
     /// not the mechanism: a release published while this app was already running
-    /// stays invisible until the hour happens to turn over, which is exactly how
-    /// build 36 could ship and the rail keep showing nothing until someone hit
-    /// Check for Updates by hand. Activation and wake are the moments the answer
-    /// can actually have changed, so they are what asks.
+    /// stays invisible until the hour happens to turn over, and the rail would
+    /// keep showing nothing until someone hit Check for Updates by hand.
+    /// Activation and wake are the moments the answer can actually have
+    /// changed, so they are what asks.
     ///
     /// Both are silent: `checkForUpdatesInBackground` shows nothing unless it
     /// finds something, and the cooldown keeps app-switching from turning into a

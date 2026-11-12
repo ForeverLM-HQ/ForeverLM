@@ -21,7 +21,7 @@ import OSLog
 ///
 /// The RPC ids and positions are the ones the page's own script sends, as
 /// the MIT-licensed community client `jacob-bd/gemini-notebook-mcp-cli`
-/// documents them (read 2026-09-30). Google can change them without notice,
+/// documents them. Google can change them without notice,
 /// so an answer that no longer carries the call ForeverLM made is reported as
 /// `changed`, naming the call, and nothing is filed from a notebook that was
 /// only half read.
@@ -98,16 +98,10 @@ enum GeminiNotebookService {
     /// Gemini Notebook's source type codes.
     enum SourceKind {
         static let googleDocs = 1
-        static let googleSlidesOrSheets = 2
         static let pdf = 3
         static let pastedText = 4
         static let webPage = 5
-        static let generatedText = 8
         static let youtube = 9
-        static let audio = 10
-        static let uploadedFile = 11
-        static let image = 13
-        static let wordDocument = 14
     }
 
     struct NotebookChat: Sendable {

@@ -503,7 +503,7 @@ enum SlideFrameExtraction {
     /// frame's file path replaced by the tool call that shows the slide.
     ///
     /// The paths are this device's, and a Markdown image written from one draws
-    /// nothing in a chat — which is what a model did when handed them (2026-09-10).
+    /// nothing in a chat — which is what a model does when handed them.
     /// The model needs the slide numbers and their on-screen windows to choose a
     /// slide, and `show_source_image` to display it; the file names it never needs.
     static func assistantFacingContent(_ content: String) -> String {
@@ -592,8 +592,7 @@ enum SlideFrameExtraction {
 /// are JPEGs in the content root, which is local to each Mac, and no record
 /// carries them. So a deck captured on one Mac arrived on the other as a list
 /// of missing files, and the transcript margin drew an empty frame for every
-/// slide: Finbow's "Mitochondrial Cristae" talk (86 slides) and nine other
-/// videos on the MacBook, 2026-09-30. Each frame is the video at the second its
+/// slide, for every deck captured on the other Mac. Each frame is the video at the second its
 /// file name records, so it is taken again from the same video and written
 /// under the same path, where every reader of the block already looks.
 actor SlideFrameRestorer {

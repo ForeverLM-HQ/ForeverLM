@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// One durable cache for the short voice-picker samples used by both native apps.
@@ -6,7 +5,7 @@ import Foundation
 /// Opening Text-to-Speech settings starts a bounded warm-up: every voice of the
 /// selected model, and across the rest of the catalog the voices ForeverLM
 /// curates (a model it does not curate gets its first voice). The catalog is
-/// OpenRouter's whole speech directory — some 400 voices on 2026-09-27, against
+/// OpenRouter's whole speech directory — some 400 voices, against
 /// the 150 or so curated — and every sample is a billed request, so warming all
 /// of them unasked would spend more on samples than most listeners spend on
 /// narration. Any other voice's sample is made when it is tapped. Missing
@@ -118,9 +117,7 @@ actor ArticleSpeechVoicePreviewRepository {
 
     nonisolated static func cacheKey(modelID: String, voiceID: String) -> String {
         let raw = "v2|\(modelID)|\(voiceID)|\(sampleText)"
-        return SHA256.hash(data: Data(raw.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
+        return raw.sha256Hex
     }
 
     /// The device's cache.

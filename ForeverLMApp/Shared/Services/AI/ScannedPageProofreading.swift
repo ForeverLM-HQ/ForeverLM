@@ -3,7 +3,7 @@ import Foundation
 /// The pass a scanned book's OCR goes through before it becomes the book's
 /// text: a model reads each page's picture beside the lines OCR read off it
 /// and corrects the lines to what the page prints. Measured on a 400-page
-/// physiology scan (2026-10-12), on-device OCR reads prose almost perfectly
+/// physiology scan, on-device OCR reads prose almost perfectly
 /// but writes K⁺ as "K*", β as "B", 10⁻⁷ as "10-7" and glues reference
 /// numbers to words; only the picture can say what was printed.
 ///

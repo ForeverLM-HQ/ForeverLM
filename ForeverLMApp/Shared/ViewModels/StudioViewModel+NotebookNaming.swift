@@ -50,8 +50,8 @@ extension StudioViewModel {
     }
 
     /// The learner typed a name or description for the notebook: ForeverLM
-    /// never renames it from now on. Every learner edit of either calls this
-    /// (`renameNotebook`, `setNotebookSummary`, MCP update_notebook).
+    /// never renames it from now on. `renameNotebook` calls this; the MCP
+    /// update_notebook tool clears the same mark itself.
     func notebookNamedByLearner(_ notebookID: String) {
         setNotebookNamingMark(nil, notebookID: notebookID)
         notebookNamingErrors[notebookID] = nil

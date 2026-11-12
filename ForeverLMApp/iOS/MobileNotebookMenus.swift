@@ -62,9 +62,9 @@ final class MobileNotebookMenuState: ObservableObject {
 }
 
 /// A notebook's menu: Play Audio Overview (while it has one), then
-/// Edit, Add to Collection ▸, Pin or Unpin, Archive and Delete. Play was
-/// Home's round button on every row until 2026-10-06 (the product owner: "cleaner
-/// and fewer buttons and bells and whistles"); a gallery card keeps its ▶.
+/// Edit, Add to Collection ▸, Pin or Unpin, Archive and Delete. Play is not
+/// a round button on every row (the product owner: "cleaner and fewer buttons
+/// and bells and whistles"); a gallery card keeps its ▶.
 struct MobileNotebookMenuItems: View {
     let notebook: MobileCloudNotebook
     @ObservedObject var menus: MobileNotebookMenuState

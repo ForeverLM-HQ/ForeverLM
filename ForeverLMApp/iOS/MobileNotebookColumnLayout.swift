@@ -64,18 +64,6 @@ enum MobileNotebookColumnLayout {
         folded ? stripWidth : sideWidth(totalWidth: totalWidth)
     }
 
-    /// What the chat keeps in a notebook `totalWidth` wide, beside the two
-    /// side columns as they are and their hairlines.
-    static func chatWidth(totalWidth: CGFloat, sourcesFolded: Bool, studioFolded: Bool) -> CGFloat {
-        max(
-            0,
-            totalWidth
-                - width(folded: sourcesFolded, totalWidth: totalWidth)
-                - width(folded: studioFolded, totalWidth: totalWidth)
-                - separatorWidth * 2
-        )
-    }
-
     /// Where this device remembers a side folded: one value for every
     /// notebook, on this device only. A fold is how this screen is laid out,
     /// not something about the notebook, so it is never a synced row.

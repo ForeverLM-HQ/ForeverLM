@@ -5,10 +5,9 @@ import Foundation
 /// Where a source stands in the library, for the rows that show it by id:
 /// a Goal's source list, and any row that names a source it does not own.
 ///
-/// Three answers, because the library has three. On 2026-09-19 the product owner
-/// archived three journal-club prep papers and the block editor told him they
-/// were "no longer in the library": the rows only asked the active list, in
-/// which an archived source and a deleted one look the same. An archived
+/// Three answers, because the library has three. A row that only asks the
+/// active list would call an archived paper "no longer in the library": in
+/// that list an archived source and a deleted one look the same. An archived
 /// source keeps its `sources` row and its title; only its text is let go, and
 /// unarchiving brings it back. Gone means no row at all.
 enum LibrarySourcePresence: Equatable {

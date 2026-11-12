@@ -9,9 +9,9 @@ extension MCPDataStore {
 
     /// Off the store gate (`MCPToolRegistry.storeGateExemptToolNames`): every
     /// read and write here and in the writer goes through the storage actor,
-    /// so the minutes of model calls hold up no other tool. On 2026-09-27 they
-    /// held the gate alone, and an assistant could not read a transcript or
-    /// save a quiz until they finished.
+    /// so the minutes of model calls hold up no other tool. Holding the gate
+    /// alone would keep an assistant from reading a transcript or saving a
+    /// quiz until they finished.
     func generateCourseQuizzes(arguments: [String: Any]) async throws -> String {
         let storage = notebookFileStorage
         let courseID = try await resolveExistingCourseID(input: arguments["course_id"] as? String ?? "", storage: storage)
@@ -527,9 +527,9 @@ extension MCPDataStore {
         // An assistant's question names no lines, so its quote is the only
         // Memory anchor it has (`CourseQuizPlanning.memoryExcerpts`): one the
         // source's text does not contain, or none, is a question whose miss
-        // can never come back in review. That used to surface only when the
-        // learner missed it, from the quiz's tutor; the writer hears it now,
-        // with the source open. A source with no text yet has nothing to
+        // can never come back in review. The writer hears it while the
+        // source is open, rather than from the quiz's tutor when the learner
+        // misses the question. A source with no text yet has nothing to
         // quote.
         //
         // The same quote times the question: Rewatch opens where the lecture

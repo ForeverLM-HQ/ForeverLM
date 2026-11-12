@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Mac's half of how a card looks (docs/memory-design.md, "How a card
-/// looks", 2026-10-11). The card itself — its paper, the deck's edges, the
+/// looks"). The card itself — its paper, the deck's edges, the
 /// fold, the tag and why lines, the round's strip and the toss — is shared
 /// with the phone (`Shared/Views/MemoryCardDeck.swift`). Here are the
 /// review's buttons, the Space's: a dark pill for the one that moves on, a

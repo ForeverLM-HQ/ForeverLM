@@ -25,7 +25,7 @@ extension Notification.Name {
 /// it replaced is marked the same way when it arrives. A walk that shows it
 /// keeps naming the id it named, so its record does not change; the store's
 /// `generatedImagesChanged` notice has the sync engine re-send it, and the
-/// Source record carries the redraw (`WalkthroughPicturePackage`).
+/// Source record carries the redraw (`StoredPicturePackage`).
 enum GeneratedImageRedraw {
     static let replacedKey = "replaced"
     static let imageIDKey = "imageID"

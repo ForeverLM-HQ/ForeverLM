@@ -21,7 +21,7 @@ extension Notification.Name {
     static let managedAISessionDidChange = Notification.Name("managedAISessionDidChange")
 }
 
-/// "ForeverLM AI" — the managed rail. Since 2026-09-25 AI features run on the
+/// "ForeverLM AI" — the managed rail. AI features run on the
 /// learner's own OpenRouter key, which runs for every signed-in account, paid
 /// or not (only MCP is paid for; see `ManagedAI.AppAccess`); an account's
 /// leftover prepaid balance, and operator grants and comps, still pay through
@@ -138,9 +138,9 @@ enum ManagedAI {
         // did. Reading the developer's Keychain session here made every test
         // that reached `KeychainService.resolveConfig` send real, billed AI
         // requests while the Dev app was signed in, and pass or fail on the
-        // model's answer: on 2026-09-24 `RenderedReaderPageAdoptionTests
-        // .paperFullTextBecomesContent` failed on every signed-in run because
-        // a real Paper Metadata call found no author. Only the opt-in live
+        // model's answer: `RenderedReaderPageAdoptionTests
+        // .paperFullTextBecomesContent` fails on every signed-in run if
+        // a real Paper Metadata call finds no author. Only the opt-in live
         // suites read the real session.
         if hostsUnitTests, !liveSuiteReadsKeychainSession { return false }
         #endif
@@ -268,8 +268,8 @@ enum ManagedAI {
         var suffix: String { String(key.suffix(4)) }
     }
 
-    /// Header builds before 2026-09-25 carried the key to the proxy in. This
-    /// build never sets it: the key goes to its router and nowhere else.
+    /// The proxy's own-key header. It is never set: the
+    /// key goes to its router and nowhere else.
     static let ownKeyHeader = "X-ForeverLM-Own-Key"
 
     /// Provider credential headers a caller may have set. Cleared on both
@@ -330,8 +330,7 @@ enum ManagedAI {
         return AIError.serviceUnreachable(message)
         #else
         // `AIError` lives in AIService.swift, which the phone does not compile;
-        // the phone gets the same words as its own error (the iOS build had
-        // failed on this line since 2026-09-17).
+        // the phone gets the same words as its own error.
         return ManagedAIUnreachableError(message: message)
         #endif
     }
@@ -695,7 +694,7 @@ enum ManagedAI {
         // Path the proxy expects, provider-native below /v1/proxy/{provider}.
         // OpenRouter is the proxy's only upstream: text never travels a lab's
         // own API (see `AIService.openAICompatibleChatEndpoint`), and the
-        // first-party media routes answer 410 since 2026-10-02.
+        // first-party media routes answer 410.
         let path: String
         let queryItems: [URLQueryItem]
         switch host {
@@ -813,9 +812,9 @@ enum ManagedAI {
     /// Stamps device attribution on any request the proxy may meter.
     ///
     /// This belongs on the control plane as well as the proxied provider path.
-    /// Realtime voice (removed 2026-10-01) billed through the control plane,
-    /// never through `rewrite`, and applying this only in `rewrite` left every
-    /// voice session's ledger row with no platform (found 2026-08-07).
+    /// Realtime voice bills through the control plane,
+    /// never through `rewrite`, so applying this only in `rewrite` would leave every
+    /// voice session's ledger row with no platform.
     private static func applyDeviceAttribution(_ request: inout URLRequest) {
         request.setValue(clientPlatform, forHTTPHeaderField: "X-ForeverLM-Platform")
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String

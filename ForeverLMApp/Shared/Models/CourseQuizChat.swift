@@ -719,9 +719,9 @@ struct CourseQuizChatState {
     /// lecture or reading on the line after it, which the chat draws as the
     /// picture's caption when the picture comes from that same source; the
     /// link alone when the answer was missed and no picture shows. Nil when
-    /// there is neither. The tutor used to write the link and ForeverLM the
-    /// picture, one after the other: a card for the video, then a slide with
-    /// nothing to say it came from that video.
+    /// there is neither. The link and the picture come as one block: a link
+    /// and a picture written separately would show a card for the video, then
+    /// a slide with nothing to say it came from that video.
     func answerBlock(forQuestionAt index: Int, isCorrection: Bool = false) -> String? {
         let question = questions[index]
         let picture = answerPictureLine(forQuestionAt: index, isCorrection: isCorrection)

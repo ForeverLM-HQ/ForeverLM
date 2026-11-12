@@ -371,28 +371,6 @@ struct ArticleQueueManagementTests {
         #expect(vm.activePapersWithoutPDF.isEmpty)
     }
 
-    @Test("Reading List does not re-add a ScienceDirect paper stored under Elsevier's PDF filename")
-    func readingListSkipsScienceDirectPIIDuplicateOfLocalPDF() {
-        let existing = makeArticle(
-            url: "Papers/1-s2.0-S0167488924001496-main.pdf",
-            title: "Artificial mitochondrial transplantation (AMT) reverses aging of mesenchymal stromal cells",
-            sourceType: .paper
-        )
-        let discovered = makeArticle(
-            url: "https://www.sciencedirect.com/science/article/pii/S0167488924001496",
-            title: "Artificial mitochondrial transplantation (AMT) reverses aging of mesenchymal stromal cells - ScienceDirect",
-            sourceType: .paper
-        )
-
-        let result = StudioViewModel.computeMergeResultOffMain(
-            discovered: StudioViewModel.makeMergeDiscoveredSnapshot(from: [discovered]),
-            dismissedURLs: [],
-            existing: StudioViewModel.makeMergeExistingSnapshot(from: [existing])
-        )
-
-        #expect(result.newArticleIndexes.isEmpty)
-    }
-
     @Test("paper duplicate review identifies exact extracted-content hashes")
     func paperDuplicateReviewUsesContentHashes() {
         var first = makeArticle(

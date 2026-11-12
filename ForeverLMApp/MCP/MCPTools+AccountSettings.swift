@@ -12,8 +12,8 @@ import AppKit
 //
 // What stays in the window: unlocking MCP (Stripe Checkout),
 // and managing team members (Apple's sharing sheet). Those are refused here
-// with a pointer to `open_settings`. Balance is no longer sold (retired
-// 2026-09-25), so there is nothing to add or top up.
+// with a pointer to `open_settings`. Balance is not sold, so there is
+// nothing to add or top up.
 //
 // Gathered by `settingsParityToolDefs` / `executeSettingsParityTool` in
 // MCPTools+AppSettings.swift.
@@ -164,7 +164,7 @@ extension MCPDataStore {
 
     // MARK: - Teams
 
-    private func requireTeamRecord(_ rawTeamID: String?) async throws -> TeamRecord {
+    func requireTeamRecord(_ rawTeamID: String?) async throws -> TeamRecord {
         let teamID = (rawTeamID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !teamID.isEmpty else {
             throw MCPError.invalidInput("team_id is required. Use list_teams to find it.")
@@ -541,10 +541,10 @@ extension MCPDataStore {
             payload["own_key"] = NSNull()
         }
         payload["ai_billing"] = "Bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs for every signed-in account: ForeverLM is free, MCP included."
-        // MCP is free since 2026-11-08 ("get rid of any kind of payment for
-        // now"): the account server lists nothing on sale, so `plans` is empty.
-        // Under the paid model (2026-10-16 to 2026-11-08) it listed the Early
-        // user deal (`AppAccess.plansOnSale`), at the account server's price.
+        // MCP is free ("get rid of any kind of payment for now", product owner,
+        // 2026-11-08): the account server lists nothing on sale, so `plans` is
+        // empty. When a plan is on sale it is listed from `AppAccess.plansOnSale`,
+        // at the account server's price.
         let prices = account.planPrices
         let onSale = account.appAccess.map { $0.state == .free ? [] : $0.plansOnSale } ?? []
         payload["plans"] = onSale.map { plan -> [String: Any] in

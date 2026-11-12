@@ -33,8 +33,8 @@ private final class TranscriptScrollMetrics {
 /// position as a stored property of the reader re-ran the reader's body on
 /// every tick, and that body is a *non-lazy* `ForEach` over every speaker turn
 /// — 900 of them for an hour-long meeting, each one re-slicing its paragraphs
-/// and rebuilding its attributed text. Measured on the shipped build
-/// 2026-08-31, `UIResponsivenessMonitor` recorded 1.0s, 1.5s and 3.1s
+/// and rebuilding its attributed text. Measured on a shipped build,
+/// `UIResponsivenessMonitor` recorded 1.0s, 1.5s and 3.1s
 /// main-thread stalls while a meeting recording played, which is what "I can't
 /// hit the X while a video is playing" actually was: the click sat in the queue
 /// behind a rebuild rather than being lost by the button.
@@ -221,9 +221,9 @@ enum TranscriptSlideAnchoring {
     /// `group` above decides *which* segment a slide belongs to; this decides *where inside
     /// it*. The slide's time is interpolated across the segment's spoken span and dropped at
     /// the nearest sentence break, so a slide whose moment lands halfway through a paragraph
-    /// no longer jumps up to the paragraph's first word — the single largest source of the
+    /// does not jump up to the paragraph's first word — the single largest source of the
     /// slide-to-speech drift, since a segment runs 15–30s. Slides with no usable time (or a
-    /// segment with no timing) stack ahead of the text, which is the old behaviour.
+    /// segment with no timing) stack ahead of the text.
     static func interleaveSlides(
         into text: String,
         slides: [YouTubeSlideFrameContext],

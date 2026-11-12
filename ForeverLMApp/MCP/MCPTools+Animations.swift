@@ -360,9 +360,9 @@ extension MCPDataStore {
     /// file or one bigger than an animation can be is refused by name.
     /// `validate` is the client-path check every file-taking tool applies
     /// (`validateClientProvidedPath`: library, Desktop, Documents and Downloads
-    /// only; never a credential store). Until 2026-09-19 a local_path was read
-    /// with no check beyond "exists and is not a folder", so a connector could
-    /// have saved ~/.ssh/id_ed25519 as a site file.
+    /// only; never a credential store). Without it a local_path would be read
+    /// with no check beyond "exists and is not a folder", and a connector could
+    /// save ~/.ssh/id_ed25519 as a site file.
     static func localSiteFile(
         _ entry: [String: Any],
         validate: (String) throws -> URL = { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
@@ -404,8 +404,8 @@ extension MCPDataStore {
     /// lede, and a player that loops. A fixed template, so nothing here is a
     /// judgement about the content; the caller's words are escaped as text.
     static func animationPlayerHTML(title: String, description: String, videoPath: String) -> String {
-        let escapedTitle = htmlEscaped(title)
-        let lede = description.isEmpty ? "" : "\n    <p class=\"lede\">\(htmlEscaped(description))</p>"
+        let escapedTitle = title.htmlEscaped
+        let lede = description.isEmpty ? "" : "\n    <p class=\"lede\">\(description.htmlEscaped)</p>"
         let type = Self.videoMIMEType(forPath: videoPath).map { " type=\"\($0)\"" } ?? ""
         return """
         <!doctype html>
@@ -427,7 +427,7 @@ extension MCPDataStore {
           <main>
             <h1>\(escapedTitle)</h1>\(lede)
             <video controls autoplay loop muted playsinline preload="metadata">
-              <source src="\(htmlEscaped(videoPath))"\(type)>
+              <source src="\(videoPath.htmlEscaped)"\(type)>
             </video>
           </main>
         </body>
@@ -455,12 +455,5 @@ extension MCPDataStore {
         let titles = sourceTitles.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         if !titles.isEmpty { parts.append("About: " + titles.joined(separator: "; ")) }
         return parts.joined(separator: "\n\n")
-    }
-
-    private static func htmlEscaped(_ text: String) -> String {
-        text.replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
     }
 }

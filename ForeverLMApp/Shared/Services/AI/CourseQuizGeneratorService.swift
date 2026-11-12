@@ -289,9 +289,9 @@ struct CourseQuizGeneratorService: Sendable {
     /// PDF, each labelled figure on the page that shows it — which is not
     /// always its caption's page (`PDFTextExtractor.indexedFigures`) — cropped
     /// to its block of ink (`PaperFigureRectRefiner`, read off the page for
-    /// free); for an EPUB chapter, its pictures with their captions. Until
-    /// 2026-09-28 a PDF's figures were cropped on their captions' pages, so a
-    /// legend set a page away from its figure put a page of prose on the
+    /// free); for an EPUB chapter, its pictures with their captions. A PDF's figures are
+    /// cropped from the page the figure is on, not its caption's, so a legend set
+    /// a page away from its figure does not put a page of prose on the
     /// question. Empty when the file is not on this Mac or shows no figure.
     /// File and PDF work: never on the main actor.
     static func readingFigures(sourceID: String, filePath: String?, pages: ClosedRange<Int>?) -> [CourseQuizFigure] {
@@ -915,7 +915,7 @@ struct CourseQuizGeneratorService: Sendable {
     /// halfway keeps what it drew. The picture is kept in the image store
     /// with its prompt as a compact JPEG
     /// (`compactDrawing`), and reaches the learner's other Macs and a team in
-    /// the course's record (`courseQuizPicturesAsset`), sent once when the
+    /// the course's record (as `CourseQuizPicturePackage`), sent once when the
     /// run ends rather than again with every picture pinned
     /// (`CourseQuizPicturePackage.holdUploads`). Each is one image request,
     /// so this runs only when the learner asked: writing quizzes with drawing

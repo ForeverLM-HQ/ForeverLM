@@ -1055,8 +1055,7 @@ extension MCPDataStore {
         case "confirm_this_mac_holds_my_library", "upload_library_to_icloud_again", "replace_icloud_library":
             result["done"] = try await Self.runICloudMoveAction(action)
         case "prepare_memory_review_now":
-            // Since the card review (2026-10-01): today's cards selected
-            // again, no model called, no chat made.
+            // Today's cards selected again: no model called, no chat made.
             if let attempt = await Self.prepareMemoryReviewNow() {
                 result["succeeded"] = attempt.succeeded
                 result["message"] = attempt.message ?? NSNull()
@@ -1121,9 +1120,9 @@ extension MCPDataStore {
 
     // MARK: - Showing a pane
 
-    /// What `open_settings` shows for an id: a Settings pane, or — since the
-    /// plugins left Settings for a place of their own (2026-10-13) — the
-    /// Plugins place, at a plugin's page or, for nil, at its list.
+    /// What `open_settings` shows for an id: a Settings pane, or, for a
+    /// plugin, the Plugins place (its own place, outside Settings), at the
+    /// plugin's page or, for nil, at its list.
     enum SettingsPaneTarget: Equatable {
         case pane(SettingsPane)
         case plugins(PluginPage?)
@@ -1133,8 +1132,8 @@ extension MCPDataStore {
     /// panes. The plugins' ids are the ones they had as Settings panes, so the
     /// tool's contract is unchanged; they open the Plugins place.
     static let settingsPaneIDs: [(id: String, target: SettingsPaneTarget)] = [
-        // "general" stays in the published enum; the pane went on 2026-11-08
-        // and Settings opens on Chat in its place.
+        // "general" stays in the published enum; there is no General pane, and
+        // Settings opens on Chat in its place.
         ("general", .pane(.aiChatModels)), ("chat", .pane(.aiChatModels)), ("voice", .pane(.aiTextToSpeech)),
         ("images", .pane(.aiImages)), ("videos", .pane(.aiVideos)), ("background", .pane(.aiBackgroundModels)),
         ("billing", .pane(.aiBilling)), ("ai_usage", .pane(.aiUsage)), ("data_privacy", .pane(.dataPrivacy)),

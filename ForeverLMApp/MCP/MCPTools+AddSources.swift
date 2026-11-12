@@ -11,7 +11,7 @@ extension MCPDataStore {
     ///   are dated by it — the Meetings tab, the Schedule, and a source search's
     ///   `occurred:` all read `dateAdded`, which for a meeting means the meeting
     ///   date, not the push date. Without it a plugin's whole history lands
-    ///   on the day it first ran (126 Read AI meetings dated 2026-09-02).
+    ///   on the day it first ran (a hundred-odd meetings dated one day).
     /// - Parameter videoChannel: a YouTube video's uploader, looked up before
     ///   the store gate was taken (`addSourceNamingVideoChannel`).
     func addSource(url: String, title: String, sourceType: String, content: String?, parentGroup: String?, author: String?, occurredAt: String? = nil, connectorLabel: String? = nil, videoChannel: String? = nil) throws -> String {
@@ -41,10 +41,10 @@ extension MCPDataStore {
         if let refusal = StudioViewModel.sourceRefusal(forSourceURL: url) {
             throw MCPError.invalidInput("add_source does not import this url. \(refusal)")
         }
-        // A playlist is a course, never a source (2026-09-26). Asked to ingest
-        // one, an assistant had only this tool and built the course by hand:
-        // the playlist page became a course source, the course took its title
-        // as its ID, and lessons went in as `course` material instead of
+        // A playlist is a course, never a source. Asked to ingest one, an
+        // assistant with only this tool builds the course by hand: the
+        // playlist page becomes a course source, the course takes its title
+        // as its ID, and lessons go in as `course` material instead of
         // videos. The app's own importer does it right, and
         // import_youtube_playlist runs it, so the caller is sent there.
         if YouTubePlaylistService.isPlaylistURL(url) {
@@ -192,10 +192,9 @@ extension MCPDataStore {
 
     /// The type a new source is filed under: the caller's, except that a link
     /// on a podcast host is an episode whatever the caller called it, as the
-    /// app files a pasted one (`addArticle`). On 2026-10-02, with no `podcast`
-    /// in the tool's list, an assistant filed a podcasts.apple.com episode as
-    /// a video: it sat in the YouTube tab with no picture, the episode page's
-    /// text standing in for a transcript.
+    /// app files a pasted one (`addArticle`). Otherwise an assistant filing a
+    /// podcasts.apple.com episode as a video leaves it in the YouTube tab with
+    /// no picture, the episode page's text standing in for a transcript.
     static func filedSourceType(claimed: String, url: String) -> StudioSourceType {
         if StudioViewModel.isPodcastHostURL(url) { return .podcast }
         return StudioSourceType(rawValue: claimed) ?? .manual
@@ -204,9 +203,9 @@ extension MCPDataStore {
     /// `add_source` as the tool runs it. A YouTube video's uploader is looked
     /// up first, holding nothing, and the save then holds the store gate alone
     /// (`MCPToolRegistry.selfGatedToolNames`), so no other call waits on
-    /// YouTube. Until 2026-09-28 the row took the URL's host for its channel
-    /// and waited for the app's backfill to name it: two Peter Attia episodes
-    /// were listed under "www.youtube.com", out of reach of a `show` search.
+    /// YouTube. Naming the channel up front keeps the row from taking the URL's
+    /// host ("www.youtube.com") for its channel until the app's backfill names
+    /// it, which leaves it out of reach of a `show` search.
     ///
     /// `notebookID` is add_source's notebook_id: checked before anything is
     /// added, and the source the save produced or matched then joins that

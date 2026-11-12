@@ -3,20 +3,15 @@ import AppKit
 
 // MARK: - AI Sub-pages
 
-/// Settings › Chat and Settings › Background: the models themselves. Chat
-/// was one pane with a Chat | Background switch over the card grid until
-/// the product owner (2026-09-27) asked for "the background tasks" to be "a separate tab
-/// from chat voice and images etc", so each is now its own sidebar entry
-/// sharing this view. Chat draws its own list (`ChatModelsPane`) since
-/// 2026-09-28, and Background the same list the same day
+/// Settings › Chat and Settings › Background: the models themselves, each
+/// its own sidebar entry sharing this view (product owner, 2026-09-27: "the
+/// background tasks" as "a separate tab from chat voice and images etc").
+/// Chat draws its own list (`ChatModelsPane`), and Background the same list
 /// (`BackgroundModelsPane`), once for Text-only and once for Multimodal:
 /// every background task runs on one of the two unless it has a model of
-/// its own. Until 2026-09-28 a Specific tasks menu gave a task one, until
-/// the product owner: "I don't think anybody will actually want to set the model for
-/// all these specific tasks. It's kind of extra." On 2026-10-07 he asked for
-/// it back ("people should be allowed to set it for each task still
-/// somehow"): the Tasks tab lists every task with the model it runs on, and
-/// a task opens onto the same model list. Whether meetings may go free is
+/// its own (product owner, 2026-10-07: "people should be allowed to set it
+/// for each task still somehow"): the Tasks tab lists every task with the
+/// model it runs on, and a task opens onto the same model list. Whether meetings may go free is
 /// asked in Setup, not here; their rows say when one waits for a paid model
 /// (`MeetingModels`). A chosen card's host is opt-in, behind its ⋯.
 struct ChatModelsSettingsDetailView: View {
@@ -288,9 +283,9 @@ struct BackgroundFreeModelNote: View {
 /// the text-to-speech model, voice and speed. Nothing else: the cost prompt is
 /// set from chat (`set_app_setting`), and the providers that cannot be picked
 /// any more (Apple, a local Qwen3 server) have no controls. The recordings
-/// model left the window on 2026-09-24 and came back on 2026-10-10, when the
-/// product owner, at AI Usage › Activity's Meeting Transcription line, asked
-/// that whatever ForeverLM is charged for can have its model changed.
+/// model is here because whatever ForeverLM is charged for can have its model
+/// changed (product owner, 2026-10-10, at AI Usage › Activity's Meeting
+/// Transcription line).
 ///
 /// Both model lists are OpenRouter's own directories (product owner, 2026-09-27:
 /// "show all models at https://openrouter.ai/models?output_modalities=speech
@@ -603,8 +598,8 @@ enum TranscriptionModelRequest {
 }
 
 /// A transcription model: dictation's, every recording of which is
-/// transcribed after you stop, through OpenRouter (the live realtime rail went
-/// on 2026-10-01), or the one meeting recordings, podcast episodes and course
+/// transcribed after you stop, through OpenRouter (there is no live realtime
+/// rail), or the one meeting recordings, podcast episodes and course
 /// videos are transcribed with (`ManagedTranscriptionClient.Purpose`). The
 /// transcription models are drawn as Settings › Chat draws its own (product
 /// owner, 2026-09-28): Suggested, one per maker
@@ -1197,7 +1192,7 @@ private final class MacArticleSpeechVoiceRatingStore: ObservableObject {
 }
 
 struct SettingsSection<Content: View>: View {
-    /// A small capital line above the title. Since 2026-10-06 only a team's
+    /// A small capital line above the title. Only a team's
     /// panes use it, where it says "Team · Read only"; a pane's own name
     /// above its first section repeated the sidebar.
     let eyebrow: String?
@@ -1268,7 +1263,7 @@ struct SettingsCard<Content: View>: View {
 
 /// Which of a model's OpenRouter hosts serves one slot of Settings › Chat or
 /// Settings › Background (product owner, 2026-09-26: "let me choose the inference
-/// provider … per task"; since 2026-09-28 the slots are the chat and the two
+/// provider … per task"; the slots are the chat and the two
 /// Background models). Automatic is today's route: the fastest host that
 /// caches the prompt. Cheapest ranks the hosts by price; a pinned host names
 /// one, optionally letting another take over when it refuses. The choice is

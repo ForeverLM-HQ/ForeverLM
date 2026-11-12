@@ -18,9 +18,9 @@ extension StudioViewModel {
     ///
     /// A Dev or First Run build keeps a library of its own, which does not know
     /// what the learner hid in the installed app, yet it bills the same account.
-    /// On 2026-09-25 a First Run import formatted TBPN, All-In and three other
-    /// shows hidden in the real library. Those shows are treated as hidden here,
-    /// for the billed pass only, so the Dev library still lists them as it would.
+    /// Without a rule, such a build's import would format shows hidden in the
+    /// real library. Those shows are treated as hidden here, for the billed
+    /// pass only, so the Dev library still lists them as it would.
     func allowsTranscriptFormatting(
         for article: StudioArticle,
         userInitiated: Bool,
@@ -276,12 +276,12 @@ extension StudioViewModel {
     /// Zoom writes the transcript after the recording, usually within the
     /// hour, so the "assets are ready" notice — and the fetch it triggers —
     /// comes first, and the answer is simply to ask again later. Waiting is
-    /// the entire strategy: there is no longer a fallback that downloads the
-    /// recording and transcribes it here. The product owner (2026-09-12): "zoom
+    /// the entire strategy: nothing here downloads the recording and
+    /// transcribes it. (Product owner, 2026-09-12: "zoom
     /// automatically transcribes our meetings already; can you just let me
-    /// ingest those transcripts … no need to also have the recordings", and
-    /// again (2026-09-15): "we never really need to upload the recording,
-    /// just the transcript is ok".
+    /// ingest those transcripts … no need to also have the recordings"; product
+    /// owner, 2026-09-15: "we never really need to upload the recording,
+    /// just the transcript is ok".)
     enum ZoomTranscriptWait {
         /// After this the session is marked as having no transcript.
         static let giveUpAfter: TimeInterval = 48 * 60 * 60
@@ -499,7 +499,7 @@ extension StudioViewModel {
     func checkWaitingZoomTranscripts(now: Date = Date()) async {
         // The state test is a few comparisons and the URL test parses the address, so the state
         // goes first: this runs on the main actor over the whole library, and parsing every
-        // source's URL there once wedged the app for seconds (a stall sample, 2026-10-24).
+        // source's URL there wedges the app for seconds.
         let waiting = articles.filter { article in
             article.status == .active
                 && ZoomTranscriptWait.isWaiting(
@@ -1006,13 +1006,11 @@ extension StudioViewModel {
     /// at the last sentence break before the limit — else the last comma, else
     /// the last space — so a lecture formats in a handful of calls.
     ///
-    /// Until 2026-09-21 the sentence and comma searches asked Foundation for
-    /// the *last* match with `.backwards` on a regular-expression search, an
-    /// option that search ignores: it returned the first break in the window
-    /// instead, so every chunk was one caption sentence. A 50k-character
-    /// lecture became some 370 model calls of ~250 tokens each, and a course
-    /// import spent 25 minutes a lecture in formatting (product owner, "why does it
-    /// take so long?"). The searches now find the last break themselves.
+    /// The sentence and comma searches find the last break themselves
+    /// (`lastMatchEnd`): `.backwards` on a regular-expression search is
+    /// ignored by Foundation and returns the first break in the window, which
+    /// would make every chunk one caption sentence and a 50k-character lecture
+    /// some 370 model calls.
     func chunkTranscriptForReadableFormatting(_ text: String) -> [String] {
         let maxCharacters = 12_000
         guard text.count > maxCharacters else { return [text] }
@@ -1272,32 +1270,15 @@ extension StudioViewModel {
         transcript: String,
         excerptLimit: Int
     ) -> String {
-        let metadata = [
-            episodeTitle.map { "Episode title: \($0)" },
-            podcastName.map { "Podcast/show: \($0)" },
-            sourceURL.map { "Source URL: \($0)" },
-            podcastWebPageURL.map { "Podcast episode web page: \($0)" }
-        ].compactMap { $0 }.joined(separator: "\n")
-
-        let transcriptExcerpt = transcript.count > excerptLimit
-            ? String(transcript.prefix(excerptLimit))
-            : transcript
-        let speakerEvidence = PodcastSpeakerNameInference.evidenceSummary(
-            from: transcript,
-            speakerIDs: speakerIDs
+        Self.podcastSpeakerInferenceUserMessageOffMain(
+            speakerIDs: speakerIDs,
+            episodeTitle: episodeTitle,
+            podcastName: podcastName,
+            sourceURL: sourceURL,
+            podcastWebPageURL: podcastWebPageURL,
+            transcript: transcript,
+            excerptLimit: excerptLimit
         )
-
-        return """
-        Speaker IDs: \(speakerIDs.sorted().joined(separator: ", "))
-
-        \(metadata)
-
-        Speaker evidence:
-        \(speakerEvidence)
-
-        Transcript:
-        \(transcriptExcerpt)
-        """
     }
 
     func genericSpeakerIDs(in text: String) -> Set<String> {
@@ -1337,11 +1318,7 @@ extension StudioViewModel {
     }
 
     func applySpeakerNameMapping(_ mapping: [String: String], to text: String) -> String {
-        mapping.reduce(text) { partial, entry in
-            partial
-                .replacingOccurrences(of: "[\(entry.key)]", with: "[\(entry.value)]")
-                .replacingOccurrences(of: "**\(entry.key.replacingOccurrences(of: "_", with: " ").capitalized):**", with: "**\(entry.value):**")
-        }
+        Self.applyPodcastSpeakerNameMappingOffMain(mapping, to: text)
     }
 
     /// Parse the LLM's JSON break-point annotations and apply them to the original text.

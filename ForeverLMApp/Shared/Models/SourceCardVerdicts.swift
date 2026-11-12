@@ -12,8 +12,7 @@ import Foundation
 // list's Remove (`StudioViewModel.removeArticle`, with its Undo banner); its
 // **No Cards** pill lists what still waits for one. One list, the Library's
 // (product owner, 2026-10-16: "probably would be better if this was
-// integrated into the library tab instead?"; it was the Memory pane's
-// fourth section in build 238). The verdict stores nothing of its own: the
+// integrated into the library tab instead?"). The verdict stores nothing of its own: the
 // cards are the "keep", the removal is the "not worth it".
 
 /// Where one source stands on cards.

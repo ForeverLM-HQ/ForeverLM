@@ -90,8 +90,8 @@ extension KnowledgeMapCanvasView.Coordinator {
         case "reviewAnchor":
             guard let ref = body["ref"] as? String else { return }
             if let rect = body["rect"] as? [String: Any],
-               let x = Self.memoryNumber(rect["x"]), let y = Self.memoryNumber(rect["y"]),
-               let w = Self.memoryNumber(rect["w"]), let h = Self.memoryNumber(rect["h"]), w > 0, h > 0 {
+               let x = Self.number(rect["x"]), let y = Self.number(rect["y"]),
+               let w = Self.number(rect["w"]), let h = Self.number(rect["h"]), w > 0, h > 0 {
                 review.setAnchor(ref: ref, rect: CGRect(x: x, y: y, width: w, height: h))
             } else {
                 review.setAnchor(ref: ref, rect: nil)
@@ -106,14 +106,5 @@ extension KnowledgeMapCanvasView.Coordinator {
     private static func memoryJSONObject<T: Encodable>(_ value: T) -> Any? {
         guard let data = try? JSONEncoder().encode(value) else { return nil }
         return try? JSONSerialization.jsonObject(with: data)
-    }
-
-    private static func memoryNumber(_ value: Any?) -> Double? {
-        switch value {
-        case let number as NSNumber: return number.doubleValue
-        case let double as Double: return double
-        case let int as Int: return Double(int)
-        default: return nil
-        }
     }
 }

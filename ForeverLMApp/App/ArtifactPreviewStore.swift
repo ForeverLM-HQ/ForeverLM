@@ -13,7 +13,7 @@ import WebKit
 /// thirty animations photographs each page the first time it is scrolled past
 /// and reads the JPEG from then on. Pages are photographed a few at a time in
 /// web views no pane shows — one at a time made a home of 28 animations wait
-/// ~90 s, each page ~3 s in line (measured 2026-09-22) — and a card scrolled
+/// ~90 s, each page ~3 s in line (measured) — and a card scrolled
 /// away before its turn leaves the line, so the cards on screen go first. A
 /// page that fails or takes too long is left with its kind's glyph for the
 /// rest of the session rather than retried on every scroll.
@@ -330,7 +330,7 @@ final class ArtifactPagePhotographer {
 /// A transparent, mouse-transparent window at the main screen's corner that
 /// holds the web view being photographed. It has to be on a screen: WebKit
 /// treats a window entirely off-screen as occluded and stops drawing the page
-/// (measured 2026-09-10 for the chat's browser tools), and a page that never
+/// (measured for the chat's browser tools), and a page that never
 /// draws photographs blank. Ordered out again once nothing is being made.
 @MainActor
 final class ArtifactPreviewHostWindow {

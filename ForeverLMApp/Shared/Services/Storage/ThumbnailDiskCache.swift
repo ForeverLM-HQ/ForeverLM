@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 #if os(macOS)
 import AppKit
@@ -42,8 +41,7 @@ final class ThumbnailDiskCache: @unchecked Sendable {
     }
 
     func cacheFileURL(for key: String) -> URL {
-        let hash = SHA256.hash(data: Data(key.utf8))
-            .compactMap { String(format: "%02x", $0) }.joined()
+        let hash = key.sha256Hex
         return cacheDirectory.appendingPathComponent(hash + ".jpg")
     }
 

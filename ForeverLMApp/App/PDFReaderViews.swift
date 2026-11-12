@@ -83,8 +83,8 @@ struct RemotePDFReaderView: View {
         // A paper just added is already having its PDF fetched by the
         // pipeline. A second request for the same file from here does not
         // arrive sooner, and at a publisher that counts requests — medRxiv,
-        // bioRxiv — it is the one that tips the count into 429 (2026-09-21:
-        // the reader showed "medrxiv.org returned HTTP 429" while the pipeline's
+        // bioRxiv — it is the one that tips the count into 429 (the
+        // reader would show "medrxiv.org returned HTTP 429" while the pipeline's
         // copy of the same file landed in Papers). Wait for that fetch; when it
         // attaches the file, the routing above swaps this view for the local
         // PDF, and only when it ends without one does the reader ask itself.
@@ -149,7 +149,7 @@ struct RemotePDFReaderView: View {
         // Keeping the file attaches it as a paper — its text becomes the whole
         // PDF's. Only a paper may be filed that way on the reader's say-so; a
         // document or an excerpt handed in with a PDF URL keeps its type and
-        // its text (2026-09-23: one abstract became the whole abstracts page).
+        // its text, so one abstract cannot become the whole abstracts page.
         guard vm.articles.first(where: { $0.id == articleId })?.sourceType == .paper else { return }
         isPersistingPDF = true
         defer { isPersistingPDF = false }
@@ -184,7 +184,7 @@ enum RemotePDFLoadFailure: Error, Equatable {
     /// has had too many in a short time. medRxiv and bioRxiv sit behind
     /// Cloudflare rate limits that a paper being added trips easily — the
     /// page for its metadata, the PDF for the pipeline and the PDF again for
-    /// the reader all leave within seconds (2026-09-21). Not a refusal of the
+    /// the reader all leave within seconds. Not a refusal of the
     /// file: the same request succeeds a little later.
     case rateLimited(host: String?)
     /// The host could not be reached at all.
@@ -553,7 +553,7 @@ struct PDFPageJump: Equatable {
 /// A PDF book is one file and each chapter a run of its pages, so the reader
 /// shows that file (`BookPDFAssembly`): the whole book scrolls and searches as
 /// one and the Contents menu is a list of places to jump to, rather than a
-/// list of documents to swap in. A book an older build split into chapter
+/// list of documents to swap in. A book stored as chapter
 /// files, until it is merged, has its chapters copied end to end instead.
 /// Chapters stay the unit everything is stored in — the resume page, the depth
 /// reached, every highlight — so each page the view reports is translated back

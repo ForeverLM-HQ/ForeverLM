@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// The phone's writes to the library: each change goes to the replica through `MobileRecordWriter`,
@@ -20,9 +19,8 @@ actor MobileCloudMutationService {
 
     /// A notebook has no deadline: since the Mac's schema 120 that is what
     /// tells it from a Goal, so `endAt` is the open-ended sentinel the Mac and
-    /// the web store. Until 2026-10-02 this wrote today + 30 days, and every
-    /// notebook made on the phone read as a Goal due in a month everywhere
-    /// else.
+    /// the web store. A deadline here would make the notebook read as a Goal
+    /// everywhere else.
     func createNotebook(title: String, instructions: String?, summary: String? = nil) async throws -> String {
         let writer = try await requiredWriter()
         do {
@@ -281,8 +279,7 @@ actor MobileCloudMutationService {
     }
 
     private static func sourceID(forNormalizedURL value: String) -> String {
-        let digest = SHA256.hash(data: Data("source:v1:\(value)".utf8))
-        return "src_" + digest.map { String(format: "%02x", $0) }.joined()
+        "src_" + "source:v1:\(value)".sha256Hex
     }
 
     static func cleanTitle(_ value: String) -> String {

@@ -1,7 +1,7 @@
 #if os(macOS)
 import Foundation
 
-// MARK: - A canvas's versions over MCP (2026-10-09)
+// MARK: - A canvas's versions over MCP
 //
 // `list_canvas_versions`, `save_canvas_version` and `restore_canvas_version`:
 // the canvas menu's Versions… and Save Version… (docs/knowledge-map-design.md,

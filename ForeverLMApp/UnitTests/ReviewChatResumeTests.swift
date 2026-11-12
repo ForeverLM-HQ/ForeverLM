@@ -2283,25 +2283,6 @@ struct ReviewSessionLoadedSourcesTests {
         return root
     }
 
-    private static func userVersion(at root: URL) -> Int32 {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(
-            root.appendingPathComponent("knowledge.db").path,
-            &db,
-            SQLITE_OPEN_READONLY,
-            nil
-        ) == SQLITE_OK else { return -1 }
-        defer { sqlite3_close(db) }
-        var statement: OpaquePointer?
-        var version: Int32 = -1
-        if sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &statement, nil) == SQLITE_OK,
-           sqlite3_step(statement) == SQLITE_ROW {
-            version = sqlite3_column_int(statement, 0)
-        }
-        sqlite3_finalize(statement)
-        return version
-    }
-
     /// The junction table keys sources by id, so a session's sources must be
     /// rows before the session is created.
     private static func saveSources(_ ids: [String], in store: KnowledgeStore) throws {

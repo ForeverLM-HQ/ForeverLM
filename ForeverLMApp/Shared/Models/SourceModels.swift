@@ -1,7 +1,6 @@
 // Source status, type and metadata-field models, moved out of Models.swift.
 
 import Foundation
-import CryptoKit
 
 /// Typed status flags stored as sentinel strings in
 /// `StudioArticle.errorMessage`. The raw values match the stored strings, so
@@ -199,8 +198,7 @@ enum SourceStatus: String, Codable {
 enum SourceIdentity {
     static func stableID(for url: String) -> String {
         let key = "source:v1:\(URLNormalizer.normalize(url))"
-        let digest = SHA256.hash(data: Data(key.utf8))
-        return "src_" + digest.map { String(format: "%02x", $0) }.joined()
+        return "src_" + key.sha256Hex
     }
 
     /// A file captured on the iPhone or the web, from the lowercase hex sha256 of its bytes

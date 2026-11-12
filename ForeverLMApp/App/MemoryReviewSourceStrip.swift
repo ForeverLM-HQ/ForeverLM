@@ -62,7 +62,7 @@ struct MemoryReviewSourceStrip: View {
     /// scroll view: a `ScrollViewReader` jump to the current chip is suspected
     /// of also scrolling the chat column it sits in, which left the pane's
     /// title, controls and this summary under the titlebar on entering a
-    /// review (2026-09-25).
+    /// review.
     @State private var centeredSourceID: String? = nil
 
     var body: some View {
@@ -265,8 +265,8 @@ private struct MemoryReviewSourceChip: View {
                 // Built only under the pointer, the hidden glyph holding its
                 // place: a button at opacity 0 is still a live control, and
                 // while an assistive app reads the screen SwiftUI walks every
-                // control in the window for each one an update builds
-                // (2026-10-03). The right-click and the named action below
+                // control in the window for each one an update builds.
+                // The right-click and the named action below
                 // remove it too.
                 Group {
                     if isHovering {

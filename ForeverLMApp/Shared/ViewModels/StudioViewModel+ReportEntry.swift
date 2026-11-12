@@ -57,12 +57,6 @@ extension StudioViewModel {
         )
     }
 
-    /// Whether a report can be made in the notebook: a live Notebook of this
-    /// library whose team, if it has one, this account may write to.
-    func canMakeReport(in notebookID: String) -> Bool {
-        reportRefusal(notebookID: notebookID) == nil
-    }
-
     /// Why no report can be made in a notebook, as the end of a sentence
     /// ("it is archived"); nil when one can. A report is a Doc filed in the
     /// notebook, so the notebook's rule for what it takes applies

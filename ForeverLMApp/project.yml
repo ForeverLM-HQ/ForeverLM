@@ -650,6 +650,8 @@ targets:
       - Shared/Utilities/String+UTF8Mojibake.swift
       # The passage chip's TeX-to-readable-text fold; both composers show it.
       - Shared/Utilities/String+ReadableMath.swift
+      - Shared/Utilities/String+HTMLEscaped.swift
+      - Shared/Utilities/Digest+Hex.swift
       - Shared/Portable/ForeverLMCore.swift
       - Shared/Portable/TutorContract.swift
       # The question marker old realtime voice exchanges carry, which every

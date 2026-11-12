@@ -12,9 +12,8 @@ import Speech
 // (or on a second tap). The final text is handed back exactly once.
 //
 // Recognition stays on device: Apple's speech recognition, free, private, and
-// usable offline. It is not a model the learner picks. The realtime rail that
-// could stream the microphone to OpenAI's transcription session went on
-// 2026-10-01, when every model moved to OpenRouter.
+// usable offline. It is not a model the learner picks, and no model call
+// carries the microphone.
 //
 // This type never touches AVAudioSession. It leases the mic from
 // MobileAudioSessionArbiter, which is what keeps the Voice tab and the reading

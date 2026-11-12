@@ -24,7 +24,7 @@ enum PaperWalkthroughSubject: String, Equatable, Sendable {
     case paper
     case chapter
     case article
-    /// A YouTube video (2026-09-29): its steps point at moments of the talk
+    /// A YouTube video: its steps point at moments of the talk
     /// (`PaperWalkthroughAnchor.seconds`), and the Reader seeks the player
     /// there while the card is read. An assistant writes it with
     /// `save_walkthrough`; ForeverLM's own writer does not walk videos yet.
@@ -103,7 +103,7 @@ enum PaperWalkthroughGenerationError: LocalizedError, Equatable {
 /// Where a run is, for the toolbar's spinner and the panel's status line.
 enum PaperWalkthroughGenerationStage: Equatable, Sendable {
     case reading
-    /// The first writing pass: the source's argument as claims (2026-09-23).
+    /// The first writing pass: the source's argument as claims.
     case mapping
     case writing
     case drawingPicture(index: Int, count: Int)
@@ -120,10 +120,10 @@ enum PaperWalkthroughGenerationStage: Equatable, Sendable {
     }
 }
 
-/// The first writing pass (2026-09-23, from the merged lesson): the source's
+/// The first writing pass: the source's
 /// argument, before any card is written. Short, cheap and easy to check, and
 /// the reason the walk teaches claims rather than touring the figures one by
-/// one. Since 2026-09-29 the claims meet the figures in their printed order
+/// one. The claims meet the figures in their printed order
 /// unless the argument cannot be taught that way (`Prompts.walkthroughArgumentMapper`).
 /// Decoded leniently: a list where a string was asked for is read as one
 /// text, a missing field as empty.
@@ -443,7 +443,7 @@ enum PaperWalkthroughWriting {
     /// holds (`PaperContentPreparationService.sha256` on the Mac, the same
     /// digest).
     static func sha256(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        text.sha256Hex
     }
 
     /// The text the writer sees: whole when it fits, else the opening budget

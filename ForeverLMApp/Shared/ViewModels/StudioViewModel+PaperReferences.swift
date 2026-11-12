@@ -64,7 +64,7 @@ extension StudioViewModel {
         // (DOI, address or catalog record), no model. A candidate for every linked entry is
         // made from it, so adding it is a click on a link that was found. The model is
         // asked only about what no link was found for, and only when the learner has
-        // configured it (it spends their account, and was the whole read before this).
+        // configured it (it spends their account).
         let config = KeychainService.resolveConfig(for: .paperReferenceExtraction)
 
         report(.running, "Reading the references…", toast: "Reading the references in \(article.title)…")

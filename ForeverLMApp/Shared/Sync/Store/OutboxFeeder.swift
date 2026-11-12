@@ -332,7 +332,7 @@ final class OutboxFeeder {
         // path no pending row feeds has no edit left (its rows went with an acknowledgement, or only another
         // column of the record is dirty), so it cannot be compared with the record's `latest`, which moves
         // whenever any row of the record does: a pin held to that waits for an acknowledgement that never
-        // comes, and the record's rows with it (2026-10-25: three Catalog sources, since 10-12).
+        // comes, and the record's rows with it.
         let pinsAreCurrent = pins.allSatisfy { key, pin in
             guard let time = eventTime(Self.path(ofKey: key), projection: projection, units: recordUnits) else { return true }
             return pin.dirtyAt > time - 0.0005

@@ -420,9 +420,8 @@ extension ReviewSessionManager {
         var remaining = compactedRetrySourceContextCharacterLimit
 
         // Every section is a loaded source block and they share the budget
-        // evenly. Section 0 used to be the source inventory and was given a
-        // larger slice for that reason; the inventory now rides in the
-        // catalog instead, so the first source has no claim to extra room.
+        // evenly. The source inventory rides in the catalog, so the first
+        // source has no claim to extra room.
         for (index, section) in sections.enumerated() {
             guard remaining > 0 else { break }
             let sectionLimit = min(

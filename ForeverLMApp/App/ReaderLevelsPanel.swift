@@ -974,9 +974,8 @@ struct ReaderLevelsPanel: View {
 // MARK: - The ⋯ menu's item
 
 /// Show Levels / Hide Levels, in the Reader's ⋯ menu: shows or hides the
-/// Levels panel. The Reader's ⋯ is its only way to the panel since
-/// 2026-10-06 (Quiet chrome, docs/ui-design.md), when the bar's Levels
-/// button went.
+/// Levels panel. The Reader's ⋯ is its only way to the panel (Quiet
+/// chrome, docs/ui-design.md): the bar has no Levels button.
 struct ReaderLevelsMenuItem: View {
     let article: StudioArticle
 

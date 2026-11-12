@@ -14,9 +14,9 @@ import Foundation
 //
 // The verdict is a word and a line, so the call asks for no thinking
 // (`disablesReasoning`, as the card wording check does, 8507888). With thinking
-// on, a card about a toxic-sounding subject (CCCP, a mitochondrial uncoupler,
-// 2026-11-01) was stopped by the provider with `content_filter` ("Your answer
-// could not be checked"), as the wording check's cards were on 2026-10-30.
+// on, a card about a toxic-sounding subject (CCCP, a mitochondrial uncoupler)
+// was stopped by the provider with `content_filter` ("Your answer could not be
+// checked"), as the wording check's cards were.
 
 extension AIService {
     func checkCardAnswer(

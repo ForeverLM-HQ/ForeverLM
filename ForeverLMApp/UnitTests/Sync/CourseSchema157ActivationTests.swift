@@ -10,18 +10,6 @@ import Testing
 struct CourseSchema157ActivationTests {
     typealias F = NotebookSyncFixture
 
-    static func setPreference(_ store: KnowledgeStore, _ key: String, _ value: Any?) throws {
-        guard let value else {
-            try store.execute("DELETE FROM user_preferences WHERE key = ?", [.text(key)])
-            return
-        }
-        let data = try PropertyListSerialization.data(fromPropertyList: ["v": value], format: .xml, options: 0)
-        try store.execute("""
-            INSERT INTO user_preferences (key, value, updated_at) VALUES (?, ?, 1)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        """, [.text(key), .text(String(decoding: data, as: UTF8.self))])
-    }
-
     static func runDerivations(_ store: KnowledgeStore) throws {
         for derivation in KnowledgeStore.courseActivationDerivations { try derivation.run(store) }
     }
@@ -95,8 +83,8 @@ struct CourseSchema157ActivationTests {
         // Generation-1 writes after the first run: a lecture between the two, a focus changed, one removed.
         try store.execute("UPDATE course_lectures SET lecture_number = 3 WHERE id = 'lec-b'")
         try store.execute("INSERT INTO course_lectures (id, course_id, lecture_number, title, created_at) VALUES ('lec-m', 'crs-1', 2, 'Middle', 80)")
-        try Self.setPreference(store, "course.focus.crs-1", "Integral feedback")
-        try Self.setPreference(store, "course.focus.crs-elsewhere", nil)
+        try setPreference(store, "course.focus.crs-1", "Integral feedback")
+        try setPreference(store, "course.focus.crs-elsewhere", nil)
         try Self.runDerivations(store)
         lessons = []
         try store.query("SELECT id FROM course_lectures ORDER BY order_key", []) { lessons.append($0.text(0) ?? "") }

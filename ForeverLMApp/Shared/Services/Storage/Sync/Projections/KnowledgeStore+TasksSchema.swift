@@ -46,7 +46,7 @@ extension KnowledgeStore {
     /// The derivations for tasks and automations, in order: every notebook's task board keys and a
     /// team's tasks and share requests in `ck_identity`, exactly what the generation-2 upkeep keeps
     /// afterwards; then every automation's runs their ring slots. Each is idempotent, bounded by the
-    /// library's tasks and automations (0 of each in production on 2026-10-04), in its own transaction,
+    /// library's tasks and automations, in its own transaction,
     /// and reads generation-1 truth only. No Job is derived: generation 1 has none. An automation's
     /// runner is not derived either: the first Mac to run it under generation 2 takes it
     /// (`scheduledTaskRunsHere`).

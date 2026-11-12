@@ -152,7 +152,7 @@ enum MobileScannedPagesPDF {
         request.usesLanguageCorrection = true
         // The page's own script, not the reader's locale: Japanese and
         // Chinese come back empty from a Latin-only model
-        // (`PDFTextExtractor.recognizedText(in:)`, measured 2026-08-19).
+        // (`PDFTextExtractor.recognizedText(in:)`, measured).
         request.automaticallyDetectsLanguage = true
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
         do {

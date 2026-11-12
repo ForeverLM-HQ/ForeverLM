@@ -22,7 +22,7 @@ enum ArticleSpeechContent {
         }
         // A paper is listenable once its text is final — metadata and the
         // clean-up committed. The Listen derivative is prepared when the
-        // learner presses Listen (2026-09-24), so it cannot gate the button.
+        // learner presses Listen, so it cannot gate the button.
         if article.sourceType == .paper, !article.isPaperReadyForListenPreparation {
             return false
         }

@@ -310,13 +310,7 @@ struct ArtifactProjection: RecordProjection {
 
         case .artifact(let columns, let hasSite, let markdown):
             func text(_ column: String) -> String? { columns[column]?.textValue }
-            func seconds(_ column: String) -> Double? {
-                switch columns[column] {
-                case .real(let value)?: return value
-                case .integer(let value)?: return Double(value)
-                default: return nil
-                }
-            }
+            func seconds(_ column: String) -> Double? { columns[column]?.realValue }
             let linkedURL = text("linked_url").flatMap { $0.isEmpty ? nil : $0 }
             var fields: [String: SyncJSON] = [
                 "kind": .string(ArtifactWireKind.wire(localKind: text("kind"), linkedURL: linkedURL, hasSite: hasSite)),

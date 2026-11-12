@@ -1,7 +1,7 @@
 #if os(macOS)
 import SwiftUI
 
-// MARK: - What is running in the background, and what it costs (2026-10-08)
+// MARK: - What is running in the background, and what it costs
 //
 // The product owner, clicking Listen and then looking away: "when i click away; what is
 // happening? … whenever things are going on in the background that cost money,

@@ -84,8 +84,8 @@ struct ForeverLMMobileApp: App {
                 }.value
             }
             .task {
-                // One-time retirement cleanup for reminders registered by
-                // older builds. The helper no-ops after its first run, and it
+                // One-time cleanup of reminders registered under the retired
+                // notification scheme. The helper no-ops after its first run, and it
                 // owes nothing to iCloud, so it stays outside the gate below.
                 NotificationRetirement.cancelAll()
             }
@@ -405,11 +405,10 @@ private struct MobileVoiceSurfaceDebugPreview: View {
     /// The palette test measures pixels, and every other thing on the voice
     /// screen is a source of colour it must not count: the source cards carry
     /// per-type tint glyphs at full saturation, and the End button is pure red.
-    /// Cropping to the orb's accessibility frame was the first attempt and it
-    /// quietly captured the card below it, so the test failed on a purple
-    /// thumbnail while the mark was fine. Giving it a screen with nothing else
-    /// on it removes the crop, the coordinate maths, and the whole class of
-    /// mistake.
+    /// Cropping to the orb's accessibility frame would quietly capture the card
+    /// below it and fail the test on a purple thumbnail while the mark was
+    /// fine. Giving it a screen with nothing else on it needs no crop and no
+    /// coordinate maths.
     private var orbOnly: some View {
         GeometryReader { proxy in
             // As large as the screen allows. The measurement counts stained

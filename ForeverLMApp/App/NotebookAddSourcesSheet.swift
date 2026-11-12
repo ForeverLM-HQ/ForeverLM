@@ -226,8 +226,8 @@ struct NotebookSourcePicking: Equatable {
 /// the library. Rows tick for **Add N**, or **Add all N** takes the whole
 /// list, asking first above ten. **Upload PDF…** imports PDFs as papers and
 /// files them in the notebook (`importPaperPDF(at:intoNotebook:)`). The web
-/// and PubMed are searched from the Sources column's own field since
-/// 2026-10-02, where Gemini Notebook searches them too
+/// and PubMed are searched from the Sources column's own field,
+/// where Gemini Notebook searches them too
 /// (`NotebookSourcesSearchField`).
 struct NotebookAddSourcesSheet: View {
     @Environment(StudioViewModel.self) private var vm

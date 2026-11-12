@@ -167,13 +167,7 @@ struct SourceRows: Equatable, Sendable {
         return value
     }
 
-    func real(_ column: String) -> Double? {
-        switch subtype[column] {
-        case .real(let value)?: return value
-        case .integer(let value)?: return Double(value)
-        default: return nil
-        }
-    }
+    func real(_ column: String) -> Double? { subtype[column]?.realValue }
 
     func integer(_ column: String) -> Int64? {
         switch subtype[column] {
@@ -536,9 +530,9 @@ struct SourceProjection: RecordProjection {
     }
 
     /// The paper's paywall is its own wire state until the paper holds its PDF: a paper is `ready`
-    /// only with a PDF (§3.5.4), and `ingest` is the only place the wire has for the flag. Generation 1
-    /// left papers `ready` on their abstract and paywalled; sent as `ready`, the device applying the
-    /// record cleared the flag and the paper came back as PDF needed (2026-10-11).
+    /// only with a PDF (§3.5.4), and `ingest` is the only place the wire has for the flag. A paper
+    /// left `ready` on its abstract and paywalled, sent as `ready`, would have the device applying the
+    /// record clear the flag, and the paper would come back as PDF needed.
     static func wireIngestState(_ rows: SourceRows) -> String {
         if rows.isPaywalled, rows.state != "ready" || !rows.holdsPDF { return "paywalled" }
         switch rows.state {
@@ -560,7 +554,7 @@ struct SourceProjection: RecordProjection {
         var generation = held?.first?.int64Value ?? 0
         if let heldRank = held?.dropFirst().first?.int64Value {
             // `error` and `paywalled` share rank 3, and an equal `ord` keeps the server's value, so marking
-            // a failed paper paywalled (or clearing the mark) never left this Mac (2026-11-09). A different
+            // a failed paper paywalled (or clearing the mark) would never leave this Mac. A different
             // state at the same rank is a new generation too.
             let heldState = heldIngest?["state"]?.stringValue
             if Int64(rank) < heldRank || (Int64(rank) == heldRank && heldState != nil && heldState != state) { generation += 1 }

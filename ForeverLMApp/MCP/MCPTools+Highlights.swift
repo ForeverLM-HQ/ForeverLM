@@ -520,8 +520,7 @@ extension MCPDataStore {
         guard let sessionID, !sessionID.isEmpty else { return nil }
         let rows = try? withDB { db in
             // A chat's title is its `topic` column (review_sessions has no
-            // `title`); until 2026-09-26 this read `title` and every mark's
-            // chat_title came back nil.
+            // `title`), so reading `title` would give every mark a nil chat_title.
             try query(db, "SELECT topic FROM review_sessions WHERE id = ? LIMIT 1", params: [sessionID])
         }
         return rows?.first?["topic"] as? String

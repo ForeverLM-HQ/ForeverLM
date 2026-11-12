@@ -34,7 +34,6 @@ __pycache__/
 !**/*.xcodeproj/xcshareddata/xcschemes/
 !**/*.xcodeproj/xcshareddata/xcschemes/*.xcscheme
 *.xcworkspace
-ForeverLMApp/ForeverLM/
 
 # Track the SPM resolved-versions pin so dependency versions are reproducible.
 # Each parent level must be un-ignored for git to descend to the file.
@@ -44,7 +43,6 @@ ForeverLMApp/ForeverLM/
 !**/*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # Xcode build artifacts
-ForeverLMApp/.derived-codex*/
 ForeverLMApp/build/
 ForeverLMApp/.build/
 docs-site/website/dist/

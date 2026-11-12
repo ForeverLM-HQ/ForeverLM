@@ -266,7 +266,9 @@ struct NotebookNamingFlowTests {
             await vm.renameNotebook(renamed.id, to: "My own name")
             #expect(vm.notebookNamingMarks[renamed.id] == nil)
             let described = try #require(await vm.createNotebook())
-            await vm.setNotebookSummary("My own line", notebookID: described.id)
+            try await vm.storage.setLearningGoalSummary(goalID: described.id, summary: "My own line")
+            vm.notebookNamedByLearner(described.id)
+            await vm.loadLearningGoals()
             #expect(vm.notebookNamingMarks[described.id] == nil)
 
             await vm.addSourcesToNotebookContext(sources.map(\.id), notebookID: renamed.id, announce: false)

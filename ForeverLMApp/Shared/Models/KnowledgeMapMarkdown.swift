@@ -111,14 +111,14 @@ struct KnowledgeMapOutline: Equatable, Sendable {
         if !loose.isEmpty { parts.append(Self.htmlList(loose)) }
         for section in sections {
             let level = min(max(section.level, 2), 6)
-            var block = "<h\(level)>\(KnowledgeMapMarkdown.escapedHTML(section.name))</h\(level)>"
+            var block = "<h\(level)>\(section.name.htmlEscaped)</h\(level)>"
             if !section.entries.isEmpty { block += "\n" + Self.htmlList(section.entries) }
             parts.append(block)
         }
         if !connections.isEmpty {
             let items = connections.map { connection -> String in
-                let ends = "\(KnowledgeMapMarkdown.escapedHTML(connection.from)) → \(KnowledgeMapMarkdown.escapedHTML(connection.to))"
-                let label = connection.label.isEmpty ? "" : ": \(KnowledgeMapMarkdown.escapedHTML(connection.label))"
+                let ends = "\(connection.from.htmlEscaped) → \(connection.to.htmlEscaped)"
+                let label = connection.label.isEmpty ? "" : ": \(connection.label.htmlEscaped)"
                 let stance = connection.stance.map { " <span class=\"detail\">(\($0.rawValue))</span>" } ?? ""
                 return "<li>\(ends)\(label)\(stance)</li>"
             }
@@ -187,7 +187,7 @@ extension KnowledgeMapOutline.Entry {
 
     /// The entry as the inside of a list item on a page.
     var htmlFragment: String {
-        let escape = KnowledgeMapMarkdown.escapedHTML
+        let escape: (String) -> String = { $0.htmlEscaped }
         var text: String
         if kind == "picture" {
             text = "<em>\(escape(title))</em>"
@@ -491,14 +491,6 @@ enum KnowledgeMapMarkdown {
             }
         }
         return out
-    }
-
-    static func escapedHTML(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
     // MARK: Reading order

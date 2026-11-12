@@ -30,15 +30,14 @@ struct PaperWalkthroughFigureReference: Equatable, Sendable {
 /// whose anchor fails keeps its words and loses only the scroll target, and
 /// the warnings say which, so a caller can see what the writer invented.
 enum PaperWalkthroughValidation {
-    /// Steps that are not questions. Raised from 24 on 2026-09-21, when a
-    /// figure step became one panel: a paper with five four-panel figures
-    /// needs the room.
+    /// Steps that are not questions. A figure step is one panel, so a paper
+    /// with five four-panel figures needs the room.
     static let maximumSteps = 40
     /// Questions, counted apart from `maximumSteps`: the writer is asked for
     /// ten to thirty steps "not counting the questions", and one question
     /// every two or three steps and at each chapter's end. Counting them
     /// together refused a 44-step walk the prompt had asked for (the
-    /// MitoSpace paper, 2026-09-23).
+    /// MitoSpace paper).
     static let maximumQuestions = 20
     static let maximumPassageWords = 40
     /// An animation document larger than this is refused rather than cut: a
@@ -284,7 +283,7 @@ enum PaperWalkthroughValidation {
             }
 
             // Question. Each kind is asked only with what it is checked
-            // against (the lesson's rule, merged 2026-09-23): a Find it
+            // against (the lesson's rule): a Find it
             // needs a figure with the target among its panels, a Predict a
             // figure to hide — one without is asked as Think first — and
             // every kind a reference answer.
@@ -383,10 +382,9 @@ enum PaperWalkthroughValidation {
         guard !steps.isEmpty else { throw Failure.noSteps }
 
         // A figure the walk outlines has every known panel addressed, its
-        // panels come in order, and the figures come in printed order. (From
-        // 2026-09-23 to 2026-09-29 a panel left out went unwarned, since the
-        // walk teaches claims; the claims stay, and a figure the walk shows
-        // is addressed whole again, the product owner's 2026-09-19 rule.)
+        // panels come in order, and the figures come in printed order. The
+        // walk teaches claims, and a figure the walk shows is still addressed
+        // whole (the product owner's 2026-09-19 rule).
         for gap in panelCoverageGaps(steps: steps, figures: figures) {
             warnings.append(
                 "The steps about \(gap.figureLabel) leave panel\(gap.missingPanels.count == 1 ? "" : "s") "
@@ -636,7 +634,7 @@ enum PaperWalkthroughValidation {
 
     /// The rule the product owner set on 2026-09-19 ("there can be a walkthrough of
     /// figure 3; but then all the subfigures have to be addressed"), warned
-    /// about again since 2026-09-29: for every figure whose panels are known
+    /// about: for every figure whose panels are known
     /// and that at least one step is anchored to, the steps anchored to it
     /// must together mention every panel — by anchoring to it, by a beat
     /// pointing at it, or by naming it in the title, body or a beat ("panel
@@ -729,9 +727,8 @@ enum PaperWalkthroughValidation {
     }
 
     /// The walk meets the figures in printed order unless the argument needs
-    /// otherwise (2026-09-29: the walk of "Engineered human resilience and
-    /// durability" outlined Figure 3 at its third step, before Figures 1 and
-    /// 2). Names each step that first outlines a figure while a lower-numbered
+    /// otherwise (one walk outlined Figure 3 at its third step, before
+    /// Figures 1 and 2). Names each step that first outlines a figure while a lower-numbered
     /// figure of the same series is first outlined later; an extended-data or
     /// supplementary figure is a series of its own, placed beside the main
     /// figure it supports, and a figure the walk never outlines is not
@@ -859,10 +856,10 @@ enum PaperWalkthroughValidation {
     /// "(a)", "1a", "Figure 2B", "panels c and d" → "A", "A", "A", "A", "B",
     /// "D". Nil for a named panel — a label that ends in a word rather than
     /// a letter: "DESIGN", "ALL OF BIOLOGY", "ii" — and for a label that
-    /// does not end in a letter. Until 2026-09-29 a name counted as its last
-    /// letter, so the four columns of a funnel figure labelled ALL OF
-    /// BIOLOGY, FUNCTION RETRIEVAL, DESIGN and VALIDATION were Y, L, N and
-    /// N, and VALIDATION's rectangle took DESIGN's place.
+    /// does not end in a letter. A name does not count as its last letter:
+    /// the four columns of a funnel figure labelled ALL OF BIOLOGY, FUNCTION
+    /// RETRIEVAL, DESIGN and VALIDATION would be Y, L, N and N, and
+    /// VALIDATION's rectangle would take DESIGN's place.
     static func panelLetter(_ label: String) -> String? {
         let trimmed = trimmedPanelLabel(label)
         guard let last = trimmed.last, last.isLetter,

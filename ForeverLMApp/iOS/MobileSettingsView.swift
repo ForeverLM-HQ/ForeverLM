@@ -75,10 +75,9 @@ struct MobileSettingsView: View {
                 Text("Text to Speech")
             } footer: {
                 // A section's footer is one clause, kept for a cost, a
-                // privacy fact or an action (2026-10-06, the Mac's rule:
-                // AGENTS.md "Settings holds only what a learner changes").
-                // The Speech to Text section, a paragraph with no control,
-                // went the same day.
+                // privacy fact or an action (the Mac's rule: AGENTS.md "Settings
+                // holds only what a learner changes"). There is no Speech to
+                // Text section: it would be a paragraph with no control.
                 Text("Continuing books makes missing chapters, billed to your OpenRouter key.")
             }
 
@@ -247,7 +246,7 @@ struct MobileSettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
         // What deleting takes and keeps is said here, where it is decided;
-        // it stood under the button as a footer until 2026-10-06.
+        // it is not a footer under the button.
         .confirmationDialog(
             "Permanently delete your account?",
             isPresented: $showsDeleteConfirmation,
@@ -888,7 +887,7 @@ private struct MobileCreditsView: View {
         await refresh(silently: true)
     }
 
-    /// Balance is not sold (since 2026-09-25), so the section shows
+    /// Balance is not sold, so the section shows
     /// only while some is left, or for a comped or disabled account.
     private var showsBalanceSection: Bool {
         guard let balance else { return false }
@@ -996,7 +995,7 @@ struct MobileCreditsRequiredSheet: View {
 /// library is in the learner's own iCloud, the proxy's ledger holds no prompt
 /// text, an MCP tool call is not logged, and the
 /// first-party providers do not train on API traffic. These are privacy
-/// consequences, so 2026-10-06's one-clause rule for footers keeps them whole
+/// consequences, so the one-clause rule for footers keeps them whole
 /// (AGENTS.md, "Settings holds only what a learner changes"), and every client
 /// says them (settings-data-privacy.test.ts).
 enum MobileDataPrivacyCopy {

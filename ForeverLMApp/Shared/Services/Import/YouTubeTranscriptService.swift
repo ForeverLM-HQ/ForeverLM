@@ -679,9 +679,8 @@ actor YouTubeTranscriptService {
     /// oEmbed answers first: one small JSON request. It cannot answer alone,
     /// because it refuses with the same 401 a private video and a public one
     /// whose uploader turned embedding off — every Stanford Online lecture
-    /// among them. That is how eighteen CS336 lectures stayed filed under
-    /// "www.youtube.com" from 2026-07-28 on, each remembered as private at
-    /// every launch. So when oEmbed does not name the uploader, the InnerTube
+    /// among them. That is how lectures stay filed under
+    /// "www.youtube.com", each remembered as private at every launch. So when oEmbed does not name the uploader, the InnerTube
     /// player (the ANDROID client the transcript fetch reads, which embedding
     /// does not gate) is asked, and only its word makes a video unavailable.
     func lookUpVideoMetadata(videoId: String) async -> MetadataLookup {
@@ -789,36 +788,6 @@ actor YouTubeTranscriptService {
             logger.warning("oEmbed metadata fetch failed: \(error.localizedDescription)")
             return nil
         }
-    }
-
-    // MARK: - Title Extraction
-
-    /// Extract the video title from the YouTube page HTML.
-    static func extractTitle(from html: String) -> String? {
-        // Try og:title meta tag first (most reliable), then `name="title"`,
-        // each tag read on its own in either attribute order (`HTMLTagAttributes`).
-        let metas = HTMLTagAttributes.tags(named: "meta", in: html)
-        let metaTitles = metas.filter { $0["property"]?.lowercased() == "og:title" }.compactMap { $0["content"] }
-            + metas.filter { $0["name"]?.lowercased() == "title" }.compactMap { $0["content"] }
-        for candidate in metaTitles where !candidate.isEmpty {
-            guard let title = sanitizedVideoTitle(candidate) else {
-                continue
-            }
-            if title.count < 300 {
-                return title
-            }
-        }
-
-        // Fallback: <title> tag (often has " - YouTube" suffix)
-        if let regex = try? NSRegularExpression(pattern: #"<title[^>]*>([^<]+)</title>"#, options: .caseInsensitive),
-           let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
-           let range = Range(match.range(at: 1), in: html) {
-            if let title = sanitizedVideoTitle(String(html[range])) {
-                return title
-            }
-        }
-
-        return nil
     }
 
     // MARK: - Helpers
@@ -1352,8 +1321,8 @@ actor YouTubePlaylistService {
 /// Transcript Formatting rewrites a video's captions into sentences,
 /// paragraphs and headings (`Prompts.readableYouTubeTranscriptFormatting`),
 /// and is asked to keep each `[m:ss]` at the start of its paragraph. It does
-/// not do so reliably. Measured on 2026-09-28 against YouTube's own captions
-/// for the fourteen lectures in the product owner's course quizzes, 76 of 900 stored
+/// not do so reliably. Measured against YouTube's own captions
+/// for fourteen lectures, 76 of 900 stored
 /// markers timed words said elsewhere, most often where the model began a
 /// section: "Mitochondrial Cell Biology 3" lost 11:52 before "Mitochondria
 /// and the ER" and put each later marker on the text before its own, and

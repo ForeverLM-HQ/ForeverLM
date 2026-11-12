@@ -456,9 +456,7 @@ extension KnowledgeStore {
     /// for it, the record of the text it was indexed from, and its vectors of every model. An
     /// archive, a delete and a cleared text all call it, so none of them leaves a part behind:
     /// keyword search reads no status, so a full-text row left there is found, and the vector index
-    /// loads every stored chunk at launch, so vectors left there come back (2026-10-06: 391
-    /// archived or deleted sources on the production library held some of it, among them 263
-    /// full-text rows and 36,705 vectors). The vectors already in memory are the caller's (`StorageService.removeFromSearchIndexes`).
+    /// loads every stored chunk at launch, so vectors left there come back. The vectors already in memory are the caller's (`StorageService.removeFromSearchIndexes`).
     /// Joins a caller's transaction.
     func dropSourceSearchRows(sourceID: String) throws {
         try inWriteTransaction(savepoint: "drop_source_search_rows") {
@@ -479,7 +477,7 @@ extension KnowledgeStore {
     /// with no row at all) yet holding a full-text row, a stamp, a record of being indexed, or,
     /// for an archived source, vectors. Archives and deletes that arrive by sync take nothing
     /// with them, an index written while its source was being archived lands after the archive,
-    /// and builds before 2026-10-06 left them (`dropSourceSearchRows`). Reads the small side
+    /// and a source archived without `dropSourceSearchRows` left them. Reads the small side
     /// tables and one probe of the vectors' key per archived source, never a vector or a row's
     /// text. A full-text row is found by its recorded rowid, so one written before schema 168
     /// is found once the indexer has recorded it (`recordSourceFTSRows`).

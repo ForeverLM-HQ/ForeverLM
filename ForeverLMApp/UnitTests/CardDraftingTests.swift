@@ -877,28 +877,6 @@ struct MakeCardsViewModelTests {
         return (StudioViewModel(storageService: StorageService(storeRoot: root), observeCloudKitChanges: false), root)
     }
 
-    private static let templateKeys = [
-        "studio.centerTabGroups.v1",
-        "studio.navigationRailVisible",
-    ]
-
-    /// The unit host's defaults are the real ones: a pane change writes the
-    /// layout template.
-    private func capturingSharedDefaults() -> () -> Void {
-        let template = Self.templateKeys.map { UserDefaults.standard.object(forKey: $0) }
-        let activeNotebookID = ActiveNotebookPreference.notebookID
-        return {
-            for (key, value) in zip(Self.templateKeys, template) {
-                if let value {
-                    UserDefaults.standard.set(value, forKey: key)
-                } else {
-                    UserDefaults.standard.removeObject(forKey: key)
-                }
-            }
-            ActiveNotebookPreference.notebookID = activeNotebookID
-        }
-    }
-
     @Test("The Reader's toolbar counts its source's cards to check from the counts' one read")
     func readerCount() async throws {
         let (vm, root) = makeViewModel()

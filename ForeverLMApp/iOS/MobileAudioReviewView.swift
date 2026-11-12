@@ -140,7 +140,7 @@ struct MobileAudioReviewView: View {
             }
         }
         // No navigation bar: Home draws ChatGPT's own, a round menu button that opens the drawer
-        // holding Settings and every other place (`MobileHomeDashboard`, 2026-11-09).
+        // holding Settings and every other place (`MobileHomeDashboard`).
         .navigationTitle("")
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -513,10 +513,9 @@ private struct MobileShellPageDestination: View {
 /// menu offers it only while that chat holds an answer of the learner's
 /// (`MobileCardReviewSession.dayChatIsUnderway`), and it never prepares one —
 /// a chat gone meanwhile says so. Every entry that opened this chat opens
-/// the card review since the phone's card review (docs/memory-design.md,
-/// "The card review on the iPhone"), and Review by Voice reviews the cards
-/// on OpenAI Realtime since 2026-11-08. This screen owns the conversation
-/// while it is on the stack.
+/// the card review (docs/memory-design.md, "The card review on the
+/// iPhone"), and Review by Voice reviews the cards on OpenAI Realtime. This
+/// screen owns the conversation while it is on the stack.
 struct MobileMemoryReviewChatScreen: View {
     @StateObject private var review = MobileMemoryReviewViewModel(preparesIfMissing: false)
 
@@ -601,9 +600,8 @@ struct MobileVoiceSessionCover: View {
     }
 }
 
-/// The voice conversation's typing field, in every voice conversation since
-/// 2026-11-09 (gym mode's question field first, 2026-11-08): a question or an
-/// answer typed where talking does not suit, as at the gym. It is said to
+/// The voice conversation's typing field, in every voice conversation: a
+/// question or an answer typed where talking does not suit, as at the gym. It is said to
 /// ForeverLM once the part it is saying ends, so nothing is cut off.
 private struct MobileVoiceTypeField: View {
     @ObservedObject var controller: RealtimeVoiceController

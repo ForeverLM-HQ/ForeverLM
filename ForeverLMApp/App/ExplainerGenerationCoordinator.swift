@@ -78,9 +78,9 @@ final class ExplainerGenerationCoordinator: ObservableObject {
         await vm.refreshAfterCloudKitRemoteChange(affectedEntities: [.source], requiresFullRefresh: false)
         // The partial refresh can return before the new explainer is in the
         // list, and the Reader then opened an id it could not resolve: "No
-        // Content", which no later refresh replaced (seen on build 143,
-        // 2026-09-24). The saved record is in hand, so the list takes it
-        // directly; a rewrite replaces the explainer it already had.
+        // Content", which no later refresh replaced. The saved record is in
+        // hand, so the list takes it directly; a rewrite replaces the
+        // explainer it already had.
         if let index = vm.articles.firstIndex(where: { $0.id == result.explainer.id }) {
             vm.articles[index] = result.explainer
         } else {

@@ -201,21 +201,6 @@ final class MobileNotebookCollectionsStore: ObservableObject {
         }
     }
 
-    /// A deleted notebook's row goes with it, as the Mac's delete drops it.
-    /// No row is the common case; a failed removal leaves a row no notebook
-    /// answers to, which every device reads past.
-    func forgetNotebook(notebookID: String) async {
-        do {
-            try await serialized {
-                self.heldNotebookIDs.remove(notebookID)
-                self.state = self.state.settingMembership([], for: notebookID)
-                try await self.writeMembership(NotebookCollections.membershipKey(notebookID: notebookID), [])
-            }
-        } catch {
-            Self.logger.error("Removing a deleted notebook's collection row failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
     /// One notebook's row read again, changed in that one id, written when
     /// it changed, and published as written.
     private func commitMembership(notebookID: String, collectionID: String, isMember: Bool) async throws {

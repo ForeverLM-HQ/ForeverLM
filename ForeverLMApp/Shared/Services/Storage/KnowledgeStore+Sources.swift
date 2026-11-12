@@ -22,6 +22,15 @@ extension KnowledgeStore {
         return YouTubeURLMetadata.sanitizedVideoTitle(article.title) ?? "Untitled Video"
     }
 
+    /// Writes a source's full text, replacing the row it already had. `source_content` is not a
+    /// registered sync table, so this is a plain replace, not an outbox write.
+    func writeSourceContent(sourceID: String, content: String) throws {
+        try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?, ?)") { stmt in
+            bind(stmt, 1, sourceID)
+            bind(stmt, 2, content)
+        }
+    }
+
     func saveSource(_ article: StudioArticle) throws {
         // Upserts the sources row, source_content, the per-type subtype row, group
         // membership, and hidden-source state, then records sync bookkeeping — all in
@@ -849,10 +858,7 @@ extension KnowledgeStore {
                         "Synced podcast transcript cleanup failed its integrity check."
                     )
                 }
-                try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                    bind(stmt, 1, article.id)
-                    bind(stmt, 2, clean)
-                }
+                try writeSourceContent(sourceID: article.id, content: clean)
                 try upsertPodcastTranscriptPreparation(
                     sourceID: article.id,
                     input: input,
@@ -866,10 +872,7 @@ extension KnowledgeStore {
             }
             if let content = article.content,
                try !(article.sourceType == .podcast && isPodcastTranscriptCleanupInput(content, sourceID: article.id)) {
-                try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                    bind(stmt, 1, article.id)
-                    bind(stmt, 2, content)
-                }
+                try writeSourceContent(sourceID: article.id, content: content)
             }
             // Outside the content branch on purpose: a remote update that only
             // restores or unhides an episode carries no transcript, and that
@@ -895,10 +898,7 @@ extension KnowledgeStore {
             if let raw = article.rawArticleContentForPersistence,
                let clean = article.content,
                let metadata = article.articleContentPreparationForPersistence {
-                try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                    bind(stmt, 1, article.id)
-                    bind(stmt, 2, clean)
-                }
+                try writeSourceContent(sourceID: article.id, content: clean)
                 try upsertArticleContentPreparation(sourceID: article.id, raw: raw, metadata: metadata)
                 if metadata.cleanerVersion >= PaperContentPreparationMetadata.currentVersion {
                     try execBind("DELETE FROM canonical_content_cleanup_queue WHERE source_id = ?") { stmt in
@@ -932,10 +932,7 @@ extension KnowledgeStore {
             }
 
             if let content = article.content {
-                try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                    bind(stmt, 1, article.id)
-                    bind(stmt, 2, content)
-                }
+                try writeSourceContent(sourceID: article.id, content: content)
                 if article.state == .ready {
                     if TextToSpeechPreparationPolicy.isSpokenScript(url: article.url) {
                         // A spoken script (an explainer, an audio overview's
@@ -959,10 +956,7 @@ extension KnowledgeStore {
         if let raw = article.rawPaperContentForPersistence,
            let clean = article.content,
            let metadata = article.paperContentPreparationForPersistence {
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, clean)
-            }
+            try writeSourceContent(sourceID: article.id, content: clean)
             try upsertPaperContentPreparation(sourceID: article.id, raw: raw, metadata: metadata)
             if metadata.cleanerVersion >= PaperContentPreparationMetadata.currentVersion {
                 try execBind("DELETE FROM canonical_content_cleanup_queue WHERE source_id = ?") { stmt in
@@ -1011,10 +1005,7 @@ extension KnowledgeStore {
         }
 
         if let content = article.content {
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?,?)") { stmt in
-                bind(stmt, 1, article.id)
-                bind(stmt, 2, content)
-            }
+            try writeSourceContent(sourceID: article.id, content: content)
             if article.state == .ready {
                 try enqueueCanonicalContentCleanupIfNeeded(
                     sourceID: article.id,

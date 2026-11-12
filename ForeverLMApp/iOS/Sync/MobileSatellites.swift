@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import OSLog
 
@@ -66,7 +65,7 @@ struct MobileSatelliteDisk: Sendable {
 
     /// A holder's folder name: the hash of its key (a source id is a URL or free text).
     static func folderName(holder: String) -> String {
-        String(SHA256.hash(data: Data(holder.utf8)).map { String(format: "%02x", $0) }.joined().prefix(32))
+        String(holder.sha256Hex.prefix(32))
     }
 
     func cacheURL(_ file: FileRef) -> URL {

@@ -239,12 +239,4 @@ enum NotebookTaskBoard {
               let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
         return nextDay.addingTimeInterval(-60)
     }
-
-    /// The task count a row summarizes: everything still open, and how many
-    /// of those are the signed-in member's.
-    static func openSummary(_ tasks: [NotebookTaskRecord], currentUserRecordName: String?) -> (open: Int, mine: Int) {
-        let open = tasks.filter { $0.status != .done }
-        let mine = currentUserRecordName.map { me in open.filter { $0.assigneeRecordName == me }.count } ?? 0
-        return (open.count, mine)
-    }
 }

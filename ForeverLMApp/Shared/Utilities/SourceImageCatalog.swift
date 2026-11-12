@@ -543,8 +543,8 @@ enum SourceImageCatalog {
             }
             // A talk captures eighty slides and the listing names twelve: say
             // the rest exist, or a caller reads the twelve as the whole deck
-            // (2026-09-29: a refusal naming slides 1–12 of 86 read as a
-            // capture that stopped at 12).
+            // (a refusal naming slides 1–12 of 86 reads as a capture that
+            // stopped at 12).
             if entries.count > maxEntries {
                 available.append(moreEntriesNote(entries.dropFirst(maxEntries)))
             }
@@ -563,7 +563,7 @@ enum SourceImageCatalog {
     /// the entries holding most of them, most first. The words spoken over a
     /// slide are rarely in the order a question names them — "Helmholtz
     /// resonator drum eigen frequencies" found nothing though slide 22 was on
-    /// screen for all but one of those words (2026-09-29) — and a caption
+    /// screen for all but one of those words — and a caption
     /// rarely repeats a query's phrase whole. Two words must both be there;
     /// longer queries need three in five, so one misheard word does not hide
     /// the slide and one common word does not claim every slide.

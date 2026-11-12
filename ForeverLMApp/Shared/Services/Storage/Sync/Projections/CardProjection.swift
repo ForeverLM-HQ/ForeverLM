@@ -468,7 +468,7 @@ extension KnowledgeStore {
     }
 }
 
-// MARK: - A card's pictures for the iPhone (`Card.pictures`, 2026-10-19)
+// MARK: - A card's pictures for the iPhone (`Card.pictures`)
 
 /// The pictures on the learner's cards that a light client cannot draw from what it holds
 /// (`CardPictureKey.isPublished`: a slide, a video frame, an article's or book's image, a stored drawing),

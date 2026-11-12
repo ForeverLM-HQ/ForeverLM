@@ -46,7 +46,7 @@ struct CohortSourceBrief: Equatable, Sendable {
     /// (`SourceConsumption.confidence`: a discussion is consumption whatever
     /// the reader recorded), and that is deliberate — what was talked about
     /// yesterday is yesterday's material. But a chat is rarely about the whole
-    /// paper. On 2026-09-21 a paper the learner had spent under a minute with,
+    /// paper. A paper the learner had spent under a minute with,
     /// and had raised one question about, entered the review as spine with
     /// eight ideas from end to end, and the contour graded them on all eight.
     ///
@@ -475,10 +475,10 @@ enum MemoryReviewTutoring {
     }
 
     /// The ids of the sources a briefing carries, in the order it lists them:
-    /// the `### [id]` headers `render(brief:)` writes, once each. A record from
-    /// before build 94 kept only its article ids, so a chat reviewed as material
-    /// was lost from the record while the briefing still told the tutor to ask
-    /// about it; a resume reads those ids back off the briefing it kept.
+    /// the `### [id]` headers `render(brief:)` writes, once each. A record keeps
+    /// only its article ids, so a chat reviewed as material would be lost from
+    /// the record while the briefing still told the tutor to ask about it; a
+    /// resume reads those ids back off the briefing it kept.
     static func sourceIDs(inBriefing briefing: String) -> [String] {
         var ids: [String] = []
         var seen = Set<String>()
@@ -506,8 +506,8 @@ enum MemoryReviewTutoring {
 
     /// How far into the source the learner actually got, when a position was
     /// measured. Said plainly, because the tutor otherwise treats every
-    /// reviewable source as one that was finished — the 2026-09-21 review
-    /// graded a paper read to 79% against ideas from its last sections.
+    /// reviewable source as one that was finished — a review once graded a
+    /// paper read to 79% against ideas from its last sections.
     /// Nothing is said when nothing was measured; 0 is unmeasured, not a
     /// claim that they read none of it.
     static func depthLine(engagement: CohortEngagement) -> String? {
@@ -590,8 +590,8 @@ enum MemoryReviewTutoring {
     /// plan's moves name them, then the ones no move names, in their given
     /// order. What the chat's source strip shows, so its next chip is the
     /// review's next source rather than the selector's ranking
-    /// (2026-09-22, when the strip led with two book chapters while the
-    /// review opened on a chat).
+    /// (otherwise the strip led with two book chapters while the review
+    /// opened on a chat).
     static func planOrdered(_ sourceIDs: [String], inBriefing briefing: String?) -> [String] {
         let given = Set(sourceIDs)
         var ordered: [String] = []
@@ -946,7 +946,7 @@ enum MemoryReviewTutoring {
 /// The line the tutor writes when the review turns to a source.
 ///
 /// The review's transitions are real state — this source is done, that one is
-/// starting — but they used to live only in the tutor's prose, which changed
+/// starting — and in the tutor's prose alone they would change
 /// subject mid-paragraph while the source strip ticked a checkmark far above.
 /// So the tutor marks each turn with one tag line, `<flm_source_turn id="…"/>`,
 /// immediately before the source's first question. The Mac splits the reply

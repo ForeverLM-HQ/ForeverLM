@@ -371,10 +371,6 @@ extension StudioViewModel {
         return nil
     }
 
-    static func playlistLectureNumber(from title: String, fallback: Int) -> Int {
-        materialOrdinal(in: title)?.major ?? fallback
-    }
-
     /// The range of a title's own leading lecture ordinal, if it has one: the
     /// normalized "3A) " prefix `Prompts.courseLectureTitleCleanup` puts on
     /// every title it can number, or an un-normalized "Lecture 3 - " on a title

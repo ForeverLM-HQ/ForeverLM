@@ -476,12 +476,12 @@ final class ModelTableSpeeds {
 /// model provider etc; and be able to sort by price"). One line per model, a
 /// check that offers it in the chat's picker or picks it for the work, and
 /// columns that sort on a click of their header, cheapest first until one is
-/// clicked. Each header but the check's has its own filter behind a funnel
-/// (2026-10-13), and the Refresh beside the title reads OpenRouter's
+/// clicked. Each header but the check's has its own filter behind a funnel,
+/// and the Refresh beside the title reads OpenRouter's
 /// directory again, saying what it found. Rows select, several at once with
 /// ⌘ or ⇧, for the context menu to act on together, and a double-click does
-/// what the check does. Collapsed until opened, as the list it replaced was
-/// (2026-10-06: "just a table that we can expand; pre-sorted by costs").
+/// what the check does. Collapsed until opened (product owner, 2026-10-06:
+/// "just a table that we can expand; pre-sorted by costs").
 struct OpenRouterModelTable<Accessory: View>: View {
     /// Maker by maker, newest first: the order ties keep.
     let rows: [ModelTableRow]
@@ -805,7 +805,7 @@ struct OpenRouterModelTable<Accessory: View>: View {
 /// never measures a line. SwiftUI's `Table` sized every line it scrolled to
 /// and re-measured the lines around one whose height it had guessed, which
 /// held the main thread for seconds over the directory's 360-odd models
-/// (2026-10-13 stall sample: `NSTableRowData
+/// (a stall sample: `NSTableRowData
 /// _automaticRowHeightsUpdateVisibleRowViews` under each scroll step). It
 /// also draws the funnel in each header that `Table` has no room for.
 struct ModelDirectoryTableView: NSViewRepresentable {

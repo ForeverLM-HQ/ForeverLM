@@ -1384,12 +1384,7 @@ final class GoogleOAuthCallbackServer: @unchecked Sendable {
     }
 
     private func htmlEscaped(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&#39;")
+        value.htmlEscaped.replacingOccurrences(of: "'", with: "&#39;")
     }
 
     private func sendResponse(

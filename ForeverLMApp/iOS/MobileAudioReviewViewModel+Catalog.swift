@@ -233,8 +233,8 @@ extension MobileAudioReviewViewModel {
 
     /// The Docs a notebook holds — homed on it or linked to it — that the
     /// Mac's Studio lists (`NotebookOutputs.isListed`, `kind(of:)`): an audio
-    /// overview is never one of them, even one an older build saved back
-    /// without its kind, which its script's carrier source still names.
+    /// overview is never one of them, even one saved back without its
+    /// kind, which its script's carrier source still names.
     func docs(in notebook: MobileCloudNotebook) -> [MobileCloudArtifact] {
         let overviewIDs = Set(audioOverviewRecords.map(\.id))
         return notebookArtifacts.filter { artifact in
@@ -626,7 +626,7 @@ extension MobileAudioReviewViewModel {
 
         // Publish the durable checkpoint first — before the audio manifests and
         // before asking CloudKit for deltas. It is local SQLite and costs
-        // nothing, so rebuilds open on the previously synced library.
+        // nothing, so rebuilds open on the library as last synced.
         //
         // Order matters here, and it is not cosmetic. The manifest pass below
         // walks the shared iCloud audio tree, thousands of files: it asks

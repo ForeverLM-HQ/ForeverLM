@@ -14,7 +14,6 @@ struct MobileCostFormatTests {
     func subCentCostShowsRealFigure() {
         // $0.004 is four tenths of a cent.
         #expect(MobileCostFormat.cents(0.004) == "0.40¢")
-        #expect(MobileCostFormat.spokenCents(0.004) == "0.40 cents")
     }
 
     @Test("Precision widens as the amount shrinks")
@@ -34,20 +33,6 @@ struct MobileCostFormatTests {
     @Test("Only genuine zero renders as zero")
     func zeroCostRendersAsZero() {
         #expect(MobileCostFormat.cents(0) == "0¢")
-        #expect(MobileCostFormat.spokenCents(0) == "zero cents")
-    }
-
-    @Test("Chat spend renders in USD without hiding sub-cent cost")
-    func chatSpendRendersInUSD() {
-        #expect(MobileCostFormat.chatUSD(0) == "$0.0000")
-        #expect(MobileCostFormat.chatUSD(0.004) == "$0.0040")
-        #expect(MobileCostFormat.chatUSD(0.42) == "$0.42")
-        #expect(MobileCostFormat.chatUSD(0.00000001) == "<$0.0001")
-    }
-
-    @Test("Spoken form spells the unit for VoiceOver")
-    func spokenFormSpellsCents() {
-        #expect(MobileCostFormat.spokenCents(0.42) == "42 cents")
     }
 
     /// The account balance stays in dollars — a standing amount in the tens of

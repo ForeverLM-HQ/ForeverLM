@@ -138,7 +138,7 @@ actor FocusJudge {
 
 #if canImport(FoundationModels)
 /// The verdict's shape, settled by asking the on-device model 16 cases
-/// against "Read the ESM3 paper" (2026-11-08). A plain on/off answer judged
+/// against "Read the ESM3 paper". A plain on/off answer judged
 /// the paper's own explainer on YouTube and its Wikipedia topic off track; a
 /// three-way category scored 7–10 of 16; this shape — name the topic, then
 /// two questions, off track only when it is a distraction and not the goal's

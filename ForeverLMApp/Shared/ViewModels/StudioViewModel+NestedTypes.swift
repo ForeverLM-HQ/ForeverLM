@@ -22,38 +22,6 @@ extension StudioViewModel {
         let artworkURL: String
     }
 
-    struct MergeExistingSnapshot: Sendable {
-        let urls: Set<String>
-        let relativeURLs: Set<String>
-        let localPaths: Set<String>
-        let podcastWebURLs: Set<String>
-        /// Each paper title held, with the DOIs of the papers holding it
-        /// (nil for a paper without one).
-        let paperTitleDOIs: [String: [String?]]
-        let localPaperFilenames: Set<String>
-        let paperPublisherKeys: Set<String>
-    }
-
-    struct MergeDiscoveredSnapshot: Sendable {
-        let index: Int
-        let url: String
-        let normalizedURL: String
-        let relativeURL: String
-        let sourceType: String
-        let title: String
-        let normalizedPaperTitle: String
-        let paperDOI: String?
-        let localFilePath: String?
-        let podcastWebPageURL: String?
-        let normalizedPaperFilename: String?
-        let paperPublisherKey: String?
-    }
-
-    struct MergeComputationResult: Sendable {
-        let newArticleIndexes: [Int]
-        let discoveredByURLIndexes: [String: Int]
-    }
-
     struct ReadingListImportReport: Sendable {
         let scannedCount: Int
         let candidateCount: Int

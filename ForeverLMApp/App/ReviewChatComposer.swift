@@ -451,7 +451,7 @@ extension NSEvent {
 ///
 /// With the draft stored on `InternalReviewPanelContent`, every keystroke
 /// re-ran that pane's whole body — transcript, header, idle welcome — and relaid
-/// out its hosting view before the glyph could appear. Sampled on 2026-09-01 at
+/// out its hosting view before the glyph could appear. Sampled at
 /// about 5 ms per keystroke on a quiet machine and 15 ms under a sibling build,
 /// two thirds of it rebucketing the Schedule for the idle welcome. Now only the
 /// views that read `text` in their body re-render on a keystroke: the box that
@@ -1356,9 +1356,9 @@ struct ReviewSlashSuggestionsOverlay: View {
             }
         }
         // The popup's bottom edge sits 8 pt above the composer's top. An
-        // alignment guide places it in the same layout pass that sizes it; the
-        // offset this replaced read a measured height a frame late, so the list
-        // first drew over the composer and jumped up each time the
+        // alignment guide places it in the same layout pass that sizes it; an
+        // offset would read a measured height a frame late, so the list
+        // would first draw over the composer and jump up each time the
         // `/source` results changed its row count.
         .alignmentGuide(.top) { dimensions in dimensions[.bottom] + 8 }
         .animation(.easeOut(duration: 0.12), value: suggestions)

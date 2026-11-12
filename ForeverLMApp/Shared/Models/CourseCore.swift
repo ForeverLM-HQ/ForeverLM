@@ -171,16 +171,15 @@ struct CourseQuizQuestion: Codable, Equatable, Identifiable, Sendable {
     let quote: String?
     /// The level's name as stored, kept as text so a level a later build
     /// adds still decodes here (the quiz rides the synced Course record).
-    /// Nil on a quiz written before levels (2026-09-26).
+    /// Nil on a quiz written before levels.
     var levelName: String? = nil
     /// The picture the question is shown with, chosen when the quiz was
     /// written; nil leaves pictures to the tutor. Nil on a quiz written
-    /// before pictures (2026-09-27).
+    /// before pictures.
     var picture: CourseQuizPicture? = nil
     /// The page of its source the stretch starts on, for a reading's
     /// question, so the tutor can send the learner back to it. Nil for a
-    /// lecture's question, and on a quiz written before readings were quizzed
-    /// (2026-09-27).
+    /// lecture's question, and on a quiz written before readings were quizzed.
     var page: Int? = nil
 
     var level: Level? { levelName.flatMap(Level.init(rawValue:)) }
@@ -508,7 +507,7 @@ enum CourseQuizPlanning {
             bytes.append(0)
             bytes.append(contentsOf: field.utf8)
         }
-        return SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        return SHA256.hash(data: bytes).hexString
     }
 
     /// A course's quizzes in outline order, grouped by the lecture each
@@ -1121,212 +1120,5 @@ struct CourseGate {
         self.blockingQuizID = blockingQuizID
         self.nextEntryID = nextEntryID
         self.untrackedEntryIDs = untracked
-    }
-}
-
-// MARK: - Progress and the gate from the records (schema v2 §8d)
-
-/// A course's progress and its gate for one member, computed from the course's records and the
-/// member's own, and never stored (schema v2 §8d, P8): the path from the Lessons, their item Entries
-/// and the Quizzes; what is done from the member's ReadingStates and Sittings. The same on the Mac,
-/// the iPhone and the web, so every surface shows one gate.
-enum CourseProgressFold {
-    /// A lesson on the path, by its fractional key.
-    struct Lesson: Equatable, Sendable {
-        let id: String
-        let orderKey: String
-    }
-
-    /// A lesson's item: a source, or a part of one (`span`). `required` false leaves it out of the
-    /// count (the Entry's `required`, true when absent).
-    struct Item: Equatable, Sendable {
-        let id: String
-        let lessonID: String
-        let orderKey: String
-        let sourceID: String
-        var span: Span? = nil
-        var required: Bool = true
-    }
-
-    /// A span in the source's own units: 0-based PDF pages, or media seconds.
-    enum Span: Equatable, Sendable {
-        case pages(first: Int, last: Int)
-        case seconds(from: Double, to: Double)
-    }
-
-    struct Quiz: Equatable, Sendable {
-        let id: String
-        /// The lesson it follows (`Quiz.lessonID`); nil ends the course.
-        let lessonID: String?
-        let kind: CourseQuiz.Kind
-        let title: String
-        let revision: Int
-    }
-
-    /// The member's ReadingState of a source, as the fold reads it, and the source's extent.
-    struct Reading: Equatable, Sendable {
-        var completed = false
-        /// `furthest`: how far through the whole source, 0…1.
-        var furthest: Double?
-        var watchedSeconds: Double?
-        /// The source's page count or media duration, to place `furthest` and a span.
-        var pageCount: Int?
-        var durationSeconds: Double?
-    }
-
-    /// One of the member's sittings of a quiz (`Sitting`, kind `courseQuiz`).
-    struct Sitting: Equatable, Sendable {
-        let quizID: String
-        let quizRevision: Int?
-        let right: Int
-        let of: Int
-        /// When it ended; a sitting not ended is not completed.
-        let endedAt: Date?
-    }
-
-    /// The course's `policy`: whether quizzes gate, and the pass mark (`nil`: three in four).
-    struct Policy: Equatable, Sendable {
-        var gateQuizzes = true
-        var pass: (right: Int, of: Int)? = nil
-
-        static func == (lhs: Policy, rhs: Policy) -> Bool {
-            lhs.gateQuizzes == rhs.gateQuizzes && lhs.pass?.right == rhs.pass?.right && lhs.pass?.of == rhs.pass?.of
-        }
-
-        /// What a sitting of `total` questions needs right to pass.
-        func rightNeeded(total: Int) -> Int {
-            guard let pass, pass.of > 0 else { return LectureQuizScore.rightNeededToPass(total: total) }
-            return (pass.right * total + pass.of - 1) / pass.of
-        }
-    }
-
-    /// One row of the path, as the gate walks it.
-    struct Step: CourseGateStep, Equatable, Sendable {
-        enum Kind: Equatable, Sendable {
-            case item(Item)
-            case quiz(Quiz)
-        }
-
-        let kind: Kind
-        let gates: Bool
-
-        var id: String {
-            switch kind {
-            case .item(let item): return item.id
-            case .quiz(let quiz): return quiz.id
-            }
-        }
-
-        var gatingQuizID: String? {
-            guard gates, case .quiz(let quiz) = kind else { return nil }
-            return quiz.id
-        }
-    }
-
-    /// A quiz's standing for the member: its latest completed sitting, and whether any passed.
-    struct QuizStanding: Equatable, Sendable {
-        let right: Int
-        let of: Int
-        let passed: Bool
-        /// Taken on earlier questions than the quiz holds now (`quizRevision < revision`).
-        let previousVersion: Bool
-    }
-
-    struct Progress {
-        let path: [Step]
-        let gate: CourseGate
-        let finished: Set<String>
-        let quizzes: [String: QuizStanding]
-        /// Tracked rows done, of those counted.
-        let done: Int
-        let total: Int
-    }
-
-    /// The path: lessons by key; in each its items by key, then the quizzes that follow it by kind
-    /// and title (`CourseQuizPlanning.placements`); a quiz whose lesson is not on the path ends it.
-    static func path(lessons: [Lesson], items: [Item], quizzes: [Quiz], policy: Policy = Policy()) -> [Step] {
-        let ordered = lessons.sorted { ($0.orderKey, $0.id) < ($1.orderKey, $1.id) }
-        let onPath = Set(ordered.map(\.id))
-        func sorted(_ list: [Quiz]) -> [Quiz] {
-            list.sorted { ($0.kind.placementOrder, $0.title, $0.id) < ($1.kind.placementOrder, $1.title, $1.id) }
-        }
-        var steps: [Step] = []
-        for lesson in ordered {
-            for item in items.filter({ $0.lessonID == lesson.id }).sorted(by: { ($0.orderKey, $0.id) < ($1.orderKey, $1.id) }) {
-                steps.append(Step(kind: .item(item), gates: false))
-            }
-            for quiz in sorted(quizzes.filter { $0.lessonID == lesson.id }) {
-                steps.append(Step(kind: .quiz(quiz), gates: policy.gateQuizzes))
-            }
-        }
-        for quiz in sorted(quizzes.filter { $0.lessonID.map { !onPath.contains($0) } ?? true }) {
-            steps.append(Step(kind: .quiz(quiz), gates: policy.gateQuizzes))
-        }
-        return steps
-    }
-
-    /// Whether the member has done an item: marked complete, read 90% into its span (or the whole
-    /// source), or watched 90% of its span (or the whole video).
-    static func isDone(_ item: Item, reading: Reading?) -> Bool {
-        guard let reading else { return false }
-        if reading.completed { return true }
-        switch item.span {
-        case .pages(let first, let last)?:
-            guard let furthest = reading.furthest, let pages = reading.pageCount, pages > 0, last >= first else { return false }
-            return furthest * Double(pages) >= Double(first) + 0.9 * Double(last - first + 1)
-        case .seconds(let from, let to)?:
-            guard let watched = reading.watchedSeconds, to > from else { return false }
-            return watched >= from + 0.9 * (to - from)
-        case nil:
-            if let furthest = reading.furthest, furthest >= 0.9 { return true }
-            if let watched = reading.watchedSeconds, let duration = reading.durationSeconds, duration > 0 {
-                return watched >= 0.9 * duration
-            }
-            return false
-        }
-    }
-
-    /// A quiz's standing from the member's sittings of it: completed sittings only; passed by the
-    /// earliest that reached the pass mark, kept through worse retakes (`LectureQuizScore.recorded`).
-    static func standing(of quiz: Quiz, sittings: [Sitting], policy: Policy) -> QuizStanding? {
-        let completed = sittings.filter { $0.quizID == quiz.id && $0.endedAt != nil && $0.of > 0 }
-            .sorted { ($0.endedAt ?? .distantPast) < ($1.endedAt ?? .distantPast) }
-        guard let latest = completed.last else { return nil }
-        return QuizStanding(
-            right: latest.right, of: latest.of,
-            passed: completed.contains { $0.right >= policy.rightNeeded(total: $0.of) },
-            previousVersion: (latest.quizRevision ?? quiz.revision) < quiz.revision
-        )
-    }
-
-    /// The course's progress for the member.
-    static func progress(
-        lessons: [Lesson], items: [Item], quizzes: [Quiz], policy: Policy = Policy(),
-        readings: [String: Reading], sittings: [Sitting]
-    ) -> Progress {
-        let steps = path(lessons: lessons, items: items, quizzes: quizzes, policy: policy)
-        var standings: [String: QuizStanding] = [:]
-        var finished: Set<String> = []
-        for step in steps {
-            switch step.kind {
-            case .item(let item):
-                if isDone(item, reading: readings[item.sourceID]) { finished.insert(item.id) }
-            case .quiz(let quiz):
-                // A quiz is done once a sitting of it is completed, whatever it scored.
-                if let standing = standing(of: quiz, sittings: sittings, policy: policy) {
-                    standings[quiz.id] = standing
-                    finished.insert(quiz.id)
-                }
-            }
-        }
-        let gate = CourseGate(entries: steps, isFinished: { finished.contains($0.id) }) { step in
-            if case .item(let item) = step.kind { return item.required }
-            return true
-        }
-        let counted = steps.filter { gate.tracksCompletion(of: $0) }
-        return Progress(
-            path: steps, gate: gate, finished: finished, quizzes: standings,
-            done: counted.filter { finished.contains($0.id) }.count, total: counted.count
-        )
     }
 }

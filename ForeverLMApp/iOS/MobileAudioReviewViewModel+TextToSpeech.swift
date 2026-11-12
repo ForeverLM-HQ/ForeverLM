@@ -152,7 +152,7 @@ extension MobileAudioReviewViewModel {
         onDetail: @escaping @MainActor @Sendable (String) -> Void
     ) async throws -> MobilePreparedTextToSpeechNarration {
         // The phone uses what the Mac prepared and synced when there is one.
-        // Since 2026-09-24 the Mac prepares Listen only when someone listens
+        // The Mac prepares Listen only when someone listens
         // there, or at once for the kinds automatic audio covers, so a paper or
         // article nobody has played yet has no synced narration: the phone then
         // runs the same preparation itself, on the same prompt, route and

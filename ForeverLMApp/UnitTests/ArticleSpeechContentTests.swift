@@ -78,8 +78,6 @@ struct ArticleSpeechContentTests {
         #expect(type.switchTitle == "Explainers")
         #expect(SourceAudioAutomation.noun(forSourceType: SourceAudioAutomation.explainerKind, count: 1) == "explainer")
         #expect(SourceAudioAutomation.noun(forSourceType: SourceAudioAutomation.explainerKind, count: 2) == "explainers")
-        #expect(SourceAudioAutomation.enableConfirmationTitle(sourceType: SourceAudioAutomation.explainerKind)
-            == "Automatically generate audio for explainers?")
         #expect(SourceAudioAutomation.constraintPreferenceKey(for: SourceAudioAutomation.explainerKind)
             == "readAloud.autoGenerate.constraint.explainer")
         #expect(SyncedPreferenceKeys.isSynced(SourceAudioAutomation.explainersPreferenceKey))
@@ -250,8 +248,6 @@ struct ArticleSpeechContentTests {
         #expect(SourceAudioAutomation.noun(forSourceType: "book", count: 1) == "book chapter")
         #expect(SourceAudioAutomation.noun(forSourceType: "book", count: 3) == "book chapters")
         #expect(SourceAudioAutomation.switchTitle(forSourceType: "book") == "Books")
-        #expect(SourceAudioAutomation.enableConfirmationTitle(sourceType: "course")
-            == "Automatically generate audio for course documents?")
 
         // An unknown type never resolves to a real switch or a wrong noun.
         #expect(SourceAudioAutomation.noun(forSourceType: "podcast", count: 1) == "source")
@@ -381,18 +377,6 @@ struct ArticleSpeechContentTests {
         ).contains("Nothing is waiting right now"))
     }
 
-    @Test("stopping a run says the switches are still on")
-    func stoppingARunSaysTheSwitchesAreStillOn() {
-        // Stop halts the batch in flight only. Saying so is the whole point:
-        // the learner has to know the next arrival starts it again.
-        let message = SourceAudioAutomation.stoppedRunMessage(completedCount: 38)
-        #expect(message.contains("38 sources were generated and are billed"))
-        #expect(message.contains("stay switched on"))
-        #expect(message.contains("Switch them off to stop for good"))
-        #expect(SourceAudioAutomation.stoppedRunMessage(completedCount: 1)
-            .contains("1 source was generated and is billed"))
-    }
-
     @Test("automatic audio runs free, runs paid only on consent, never runs unpriced")
     func automaticAudioRunsPaidOnlyOnConsent() {
         // Prices are OpenRouter's catalog's, which unit tests pin rather than read.
@@ -450,72 +434,6 @@ struct ArticleSpeechContentTests {
                 model: "missing-model"
             ))
 
-            let paid = SourceAudioAutomation.enableConfirmationMessage(
-                sourceType: "article",
-                backlog: SourceAudioAutomation.Backlog(sourceCount: 12, characterCount: 18_000),
-                ratePerMillionCharacters: 40
-            )
-            #expect(paid.contains("allow paid voices first"))
-            #expect(!paid.contains("12 articles"))
-
-            // Consented, the same switch prices the backlog instead of refusing it.
-            let consented = SourceAudioAutomation.enableConfirmationMessage(
-                sourceType: "article",
-                backlog: SourceAudioAutomation.Backlog(sourceCount: 12, characterCount: 18_000),
-                ratePerMillionCharacters: 40,
-                allowsPaidVoices: true
-            )
-            #expect(consented.contains("$40 / 1M characters"))
-            #expect(consented.contains("12 articles already in your library"))
-            #expect(consented.contains("already been narrated is billed"))
-
-            // Unpriced refuses whatever the consent says.
-            let unpriced = SourceAudioAutomation.enableConfirmationMessage(
-                sourceType: "article",
-                backlog: SourceAudioAutomation.Backlog(sourceCount: 12, characterCount: 18_000),
-                ratePerMillionCharacters: nil,
-                allowsPaidVoices: true
-            )
-            #expect(unpriced.contains("no published price"))
-
-            // One waiting source reads as one, not as "1 articles ... have".
-            let single = SourceAudioAutomation.enableConfirmationMessage(
-                sourceType: "paper",
-                backlog: SourceAudioAutomation.Backlog(sourceCount: 1, characterCount: 12_500),
-                ratePerMillionCharacters: 0
-            )
-            #expect(single.contains("1 paper already in your library has no audio yet"))
-            #expect(single.contains("generating it now"))
-
-            // No backlog still says the switch spends on what arrives next.
-            let empty = SourceAudioAutomation.enableConfirmationMessage(
-                sourceType: "article",
-                backlog: SourceAudioAutomation.Backlog(),
-                ratePerMillionCharacters: 0
-            )
-            #expect(empty.contains("nothing is generated until the next one arrives"))
-
-            // Without paid consent, an unpriced model is blocked rather than guessed
-            // to be free. Distinct from the consented case above, which refuses for
-            // want of a published price.
-            let unpricedWithoutConsent = SourceAudioAutomation.enableConfirmationMessage(
-                sourceType: "article",
-                backlog: SourceAudioAutomation.Backlog(sourceCount: 3),
-                ratePerMillionCharacters: nil
-            )
-            #expect(unpricedWithoutConsent.contains("no published price"))
-            #expect(!unpricedWithoutConsent.contains("3 articles"))
-
-            let free = SourceAudioAutomation.enableConfirmationMessage(
-                sourceType: "article",
-                backlog: SourceAudioAutomation.Backlog(sourceCount: 2, characterCount: 3_000),
-                ratePerMillionCharacters: 0
-            )
-            #expect(free.contains("selected free voice"))
-            #expect(free.contains("2 articles"))
-
-            #expect(SourceAudioAutomation.enableConfirmationTitle(sourceType: "paper")
-                == "Automatically generate audio for papers?")
             #expect(SourceAudioAutomation.switchTitle(forSourceType: "paper") == "Papers")
         }
     }

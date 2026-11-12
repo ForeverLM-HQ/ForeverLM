@@ -146,9 +146,9 @@ extension StudioViewModel {
         //
         // A session filed while the call could not run (no model to run it on,
         // a failed request) keeps the date its key spells, and would keep it
-        // for good if only new sessions were ever asked about: every Nexus
-        // session from 2026-10-11 on stayed "2026/10/11" while meeting tasks
-        // waited for a paid model. Such a session is asked about again on each
+        // for good if only new sessions were ever asked about (a session
+        // titled by its date stays "2026/10/11" while meeting tasks wait for a
+        // paid model). Such a session is asked about again on each
         // refresh until a call has read its current file names once.
         var descriptors: [String: (title: String, presenter: String?)] = [:]
         let existingArticlesByURL = Dictionary(

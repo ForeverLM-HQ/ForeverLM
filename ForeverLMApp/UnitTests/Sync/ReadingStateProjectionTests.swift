@@ -146,7 +146,7 @@ struct ReadingStateProjectionTests {
         try F.addSource(store, "src-2")
         let row = ArticleSpeechPlaybackPosition(globalTime: 30, appleCharacterOffset: nil, contentSignature: "sig", updatedAt: Date(timeIntervalSinceReferenceDate: 700_000_000))
         let file = ArticleSpeechPlaybackPosition(globalTime: 95, appleCharacterOffset: nil, contentSignature: "sig", updatedAt: Date(timeIntervalSinceReferenceDate: 700_000_100))
-        try NotebookSchema156ActivationTests.setPreference(store, "listen.position.src-1", ListeningPositionSync.encode(row))
+        try setPreference(store, "listen.position.src-1", ListeningPositionSync.encode(row))
         try KnowledgeStore.$listenFileProbeOverride.withValue({ _ in ["src-1": .present(file), "src-2": .evicted] }) {
             try store.deriveReadingStates()
         }

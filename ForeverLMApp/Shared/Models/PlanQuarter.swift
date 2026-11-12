@@ -215,8 +215,8 @@ struct PlanDeliverable: Equatable, Sendable, Identifiable {
 
 /// The week's deliverables, kept in the quarter's Page rather than in a Page
 /// of the week's own (product owner, 2026-11-08, asked where a week's
-/// deliverables live: "In the quarter Page"; on 2026-11-07 week Pages were
-/// retired: "weekly planning is just putting stuff on the calendar"). The
+/// deliverables live: "In the quarter Page"; 2026-11-07: "weekly planning is
+/// just putting stuff on the calendar"). The
 /// calendar holds the week's hours; this holds what the hours are for:
 ///
 ///     ## Weeks

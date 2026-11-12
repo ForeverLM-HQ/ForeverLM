@@ -5,9 +5,9 @@ import Foundation
 ///
 /// Every page-head reader in the app asks the same question — the `content`
 /// of the `<meta>` whose `name` is `author`, the `href` of a `<link>` — and
-/// each used to answer it with a regular expression of its own. A pattern
+/// each answered it with a regular expression of its own. A pattern
 /// laid over the page rather than over one tag can capture across tags:
-/// before 2026-08-23 `PaperService` matched
+/// `PaperService` once matched
 /// `<meta … content="(.*?)" … name="author">` lazily from the first
 /// `content="` in the head, and on pages that write `content` before `name`
 /// (React Helmet and Next.js heads do) two articles in the production library

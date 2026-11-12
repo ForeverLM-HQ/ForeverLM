@@ -224,11 +224,6 @@ struct VideoCitedPaper: Identifiable, Codable, Sendable, Equatable {
 
     /// "H₂O₂" and "H2O2" are one title here, as they are to the catalog lookups.
     static func normalizeTitle(_ value: String) -> String {
-        value
-            .precomposedStringWithCompatibilityMapping
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        PaperWalkthroughCitation.foldedTitle(value)
     }
 }

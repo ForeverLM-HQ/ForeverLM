@@ -127,7 +127,7 @@ enum SharedWebKit {
     /// `desktopSafariUserAgent`: it spins on *Verifying…* for good, because
     /// the page can tell a WKWebView claiming to be Safari from Safari. The
     /// same web view under WebKit's own user agent clears it in seconds
-    /// (measured 2026-11-08 on a tandfonline.com paper: three runs each, a
+    /// (measured on a tandfonline.com paper: three runs each, a
     /// fresh data store, still on the check after 39 s with the Safari tokens,
     /// through it with WebKit's own).
     ///

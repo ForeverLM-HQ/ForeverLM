@@ -2,13 +2,12 @@ import Foundation
 
 // MARK: - The day (MCP tools)
 //
-// The learner's day is the Mac's Calendar (2026-09-30, when the Planner went;
-// the product owner: "the agent can plan our day by literally writing to the mac
-// calendar"). An assistant reads the day's events, adds the hours it plans as
-// events, and moves or removes the ones it added — through EventKit, so what
-// it writes is in the Calendar app, on the learner's phone through their
-// calendar account, and in the Now chip at once. What the calendar cannot hold
-// stays ForeverLM's: the day's log of what the learner actually did
+// The learner's day is the Mac's Calendar (the product owner, 2026-09-30:
+// "the agent can plan our day by literally writing to the mac calendar").
+// An assistant reads the day's events, adds the hours it plans as events,
+// and moves or removes the ones it added — through EventKit, so what it writes
+// is in the Calendar app, on the learner's phone through their calendar account,
+// and in the Now chip at once. What the calendar cannot hold stays ForeverLM's: the day's log of what the learner actually did
 // (`get_day_activity`) and learning bouts (MCPTools+LearningBouts.swift).
 //
 // Desktop-only in the public allowlist: EventKit and the grant are the Mac's.

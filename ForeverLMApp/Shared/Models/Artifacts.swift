@@ -12,9 +12,8 @@ enum ArtifactKind: String, CaseIterable, Sendable {
     /// a rendered video file — saved through `save_animation` and listed under
     /// Animations.
     case animation
-    // `lesson` was a kind for one unreleased day (schema 130, 2026-09-22); its
-    // records were folded into walkthroughs and archived at schema 131, and a
-    // record still carrying the word decodes as a kindless Doc.
+    // A record carrying the word `lesson` (a retired kind, folded into
+    // walkthroughs) decodes as a kindless Doc.
 
     /// A notebook's audio overview (AudioOverview.swift): one spoken script
     /// written over the notebook's sources, homed on the notebook, with the

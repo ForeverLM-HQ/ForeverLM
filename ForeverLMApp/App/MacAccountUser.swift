@@ -74,8 +74,7 @@ enum MacAccountUser {
 
     /// Shown in place of the learner's name while Screen record mode is on. A
     /// take films the account row and the New chat greeting, and the website
-    /// must not carry the admin's own name (2026-09-25: every clip of that
-    /// night showed it). A made-up person's name, so a greeting reads as a
+    /// must not carry the admin's own name. A made-up person's name, so a greeting reads as a
     /// person's and not a role's (product owner, 2026-10-12: "let's not do
     /// learner; let's maybe do Richard"). Display only: what is saved, synced
     /// and signed with (`fullName`, CloudKit, Doc sharing) is untouched.

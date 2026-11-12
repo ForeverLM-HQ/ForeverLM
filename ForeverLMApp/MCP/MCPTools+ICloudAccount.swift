@@ -84,7 +84,7 @@ actor CloudKitAccountIdentity {
     /// `task`'s value, or nil once `timeout` passes first. A task group cannot
     /// bound this wait: a group returns only once every child has, and
     /// CloudKit's call does not end when it is cancelled (the relay's ping
-    /// deadline hung that way on 2026-09-29). So the answer and the deadline
+    /// deadline hangs the same way). So the answer and the deadline
     /// race to resume one continuation, and the first one there wins.
     private static func value(of task: Task<String?, Never>, within timeout: Duration) async -> String? {
         let ending = FirstAnswer()
@@ -145,7 +145,7 @@ extension MCPDataStore {
 // The relay keeps one tunnel per Apple Account, so when the learner has two
 // Macs the one that answers is whichever connected last (MCPRelayClient's
 // "took over"). Both name the same iCloud account, so `icloud_account` cannot
-// tell them apart, and on 2026-10-11 a client read a recording Mac's take as
+// tell them apart, and a client could read a recording Mac's take as
 // the whole library. `answered_by` names the Mac that answered.
 //
 // The computer name is the one thing a learner recognizes, but it often holds

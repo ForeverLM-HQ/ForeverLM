@@ -26,9 +26,9 @@ struct WalkthroughResolvedAnchor: Equatable, Sendable {
 /// figure index where it can and the page's own ink and text where it has to
 /// — and remembers every answer.
 ///
-/// Before this, every Back and Next reopened the PDF, rasterised the page and
-/// searched the whole document's text for the caption: 1.3 s a step on a
-/// 60-page preprint (2026-09-19, "clicking back and next here is too slow").
+/// Without it, every Back and Next would reopen the PDF, rasterise the page and
+/// search the whole document's text for the caption: 1.3 s a step on a
+/// 60-page preprint (product owner: "clicking back and next here is too slow").
 /// One resolver lives as long as the panel does, keeps the document open,
 /// caches the ink mask a page, the crop and the panel rectangles a figure, the
 /// rendered panel a lens, and the resolved answer an anchor, and the panel

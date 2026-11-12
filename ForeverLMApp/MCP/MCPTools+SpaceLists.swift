@@ -1,7 +1,7 @@
 #if os(macOS)
 import Foundation
 
-// MARK: - Lists in the Space over MCP (2026-10-07)
+// MARK: - Lists in the Space over MCP
 //
 // The learner's lists of goals and of ideas, items in their Space beside the
 // pages, as ChatGPT's To-do list is (docs/docs-design.md, "Lists in the

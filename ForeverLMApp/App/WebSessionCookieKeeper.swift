@@ -10,7 +10,7 @@ import WebKit
 /// closes". A browser that reopens its tabs keeps them (Brave holds them for
 /// days), but WebKit drops every session cookie when the app quits, so each
 /// launch of ForeverLM found the reader signed out of Nature and its papers
-/// paywalled again (2026-10-17). Only the week-long `idp_marker` was left,
+/// paywalled again. Only the week-long `idp_marker` was left,
 /// which says a sign-in happened, not who.
 ///
 /// So the keeper copies the session cookies of `WKWebsiteDataStore.default()`

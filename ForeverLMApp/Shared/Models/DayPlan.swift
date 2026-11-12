@@ -334,9 +334,8 @@ struct TimeBlock: Identifiable, Codable, Equatable, Sendable {
     /// Inside its own length the block is running long and the minutes over
     /// are the point; past it — or once the day is shut, when nothing can be
     /// running — the block did not run long, it was left open, and the card
-    /// asks rather than blames. Until 2026-09-20 the card had one word for
-    /// both, "Running late", and said it of a block from the afternoon at
-    /// ten in the evening (the product owner: "why I running late"). Mirrored by
+    /// asks rather than blames: one word for both ("Running late") would say
+    /// it of a block from the afternoon at ten in the evening. Mirrored by
     /// `openTimeBlockNote` on the web.
     func openNote(nowMinute: Int, dayIsShut: Bool) -> OpenBlockNote? {
         guard isCurrent, status == .planned else { return nil }
@@ -966,8 +965,8 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
     /// span ended before it starts. A span shorter than `minimumMinutes`
     /// holds its column for that long, because the card it becomes is never
     /// drawn shorter than that: without it a three-minute span's 14-point
-    /// card spilled onto the next card in its column (2026-09-10, "Jared…"
-    /// under "Rutte…"). Pure, so it can be tested and mirrored.
+    /// card spilled onto the next card in its column. Pure, so it can be
+    /// tested and mirrored.
     static func activityColumns(_ activities: [DayActivity], minimumMinutes: Int = 0) -> [String: Int] {
         activityColumns(placing: activities.map { ($0.id, $0.startMinute, $0.endMinute) }, minimumMinutes: minimumMinutes)
     }

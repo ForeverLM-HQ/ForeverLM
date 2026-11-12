@@ -98,7 +98,7 @@ extension StudioViewModel {
         if didChange { articles = updatedArticles }
     }
 
-    /// Drop the soft hyphens older builds left in stored source text (schema
+    /// Drop the soft hyphens left in stored source text (schema
     /// 166), keeping what was derived from the old text with the repaired text's
     /// hash. Waits for the library to load: the launch runs it then, before sync
     /// starts, so this Mac repairs its own copy — and keeps its Listen text,
@@ -165,9 +165,9 @@ extension StudioViewModel {
     }
 
     /// Count the words of every source whose text is stored but whose count is
-    /// missing (`drainSourceWordCountRepairBatch`): 637 podcast transcripts
-    /// read as "no text yet" to the chat catalog and `filter_sources`
-    /// (2026-10-12). A no-op once nothing is missing, so launch and activation
+    /// missing (`drainSourceWordCountRepairBatch`): a source with text and no
+    /// count reads as "no text yet" to the chat catalog and `filter_sources`.
+    /// A no-op once nothing is missing, so launch and activation
     /// both run it; activation also counts text another device sent uncounted.
     func runDeferredSourceWordCountRepair() async {
         guard !sourceWordCountRepairInFlight else { return }
@@ -342,8 +342,8 @@ extension StudioViewModel {
                 """
             )
         }
-        // Older builds persisted transient cleanup failures as terminal source
-        // errors. Re-stage them before every event-driven drain so an update,
+        // A transient cleanup failure stored as a terminal source error is
+        // re-staged before every event-driven drain so an update,
         // relaunch, activation, or remote change repairs the row automatically.
         await resumeSourcesAfterTransientCleanupFailures()
         // The one-time chrome refilter rides the same trigger points but is
@@ -364,7 +364,7 @@ extension StudioViewModel {
         // 50,000-character cap must be restored before the ad pass runs, or
         // that pass spends a model on text that is about to be replaced.
         let detruncationResult = await runPodcastTranscriptAudit()
-        // Spend control (2026-09-24): a bulk re-queue waits for the learner,
+        // Spend control: a bulk re-queue waits for the learner,
         // and past the daily background cap only a source the learner added
         // is still cleaned; the rest waits for the next local day.
         await refreshPendingBackgroundAIBulkJobs()

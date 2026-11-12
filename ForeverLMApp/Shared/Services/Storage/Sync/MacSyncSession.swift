@@ -125,7 +125,7 @@ enum AppliedRemoteChangesAnnouncer {
 }
 
 /// `CloudKitSyncStatusCenter`, which Settings and the Studio read, fed from the coordinator's status under
-/// generation 2 (§14.1, R5-m2); under generation 1 the old engine feeds it as on build 177.
+/// generation 2 (§14.1, R5-m2).
 final class CloudKitSyncStatusAdapter: @unchecked Sendable {
     private let lock = NSLock()
     private var lastPending = 0

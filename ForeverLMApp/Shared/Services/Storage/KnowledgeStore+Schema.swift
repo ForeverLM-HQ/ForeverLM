@@ -15,31 +15,25 @@ extension KnowledgeStore {
     /// transactional startup migrations. A store already at this version takes the
     /// read-only fast path apart from the code-owned `source_projection` view drift
     /// check.
-    // Each version's change, from 1 to 174, is in the history of this file: the steps that brought a
-    // store up to 174 were deleted when 174 became the oldest store this build migrates (2026-11-09,
-    // `minimumMigratableSchemaVersion`).
+    // Migration steps run from `minimumMigratableSchemaVersion` (174) up to this version:
     //
-    // 175: generation-1 sync is gone (2026-11-09). Its seven tables
-    // (`sync_changes`, `sync_metadata`, `sync_conflicts`, `sync_asset_digests`,
-    // `sync_engine_states`, `source_sync_repair_queue`,
-    // `review_session_sync_repair_queue`) are dropped, and a fresh store never
-    // makes them. On a store at 174 the < 175 step first records in
-    // `ck_activation` what the last of them told the activation: a store with generation-1 sync history
-    // and no mode yet activates `deferred`, and an unactivated `full` journal
-    // continues as `deferred`. Nothing else is read from them; `card_meta` and
-    // `card_reviews` are not theirs and stay.
+    // 175: the seven generation-1 sync tables (`sync_changes`, `sync_metadata`, `sync_conflicts`,
+    // `sync_asset_digests`, `sync_engine_states`, `source_sync_repair_queue`,
+    // `review_session_sync_repair_queue`) are dropped, and a fresh store never makes them. The step first
+    // records in `ck_activation` what the last of them told the activation: a store with generation-1 sync
+    // history and no mode yet activates `deferred`, and an unactivated `full` journal continues as
+    // `deferred`. Nothing else is read from them; `card_meta` and `card_reviews` are not theirs and stay.
     //
-    // 176: tables and a column nothing reads or writes any more are gone (2026-11-10), and a fresh store
-    // never makes them: `artifact_collaboration` (an Artifact's sharing is a Doc space now),
-    // `journal_watch_excluded_notebooks`, `paper_figure_markdown_repair_queue`, `ck_legacy_snapshot` (the old
-    // catch-up's leftovers) and `videos.legacy_cap_verified_at`. `ck_legacy_bodies`, which is still
-    // written (a Doc body's acknowledged upload), is renamed `ck_body_sends`, rows and all.
+    // 176: `artifact_collaboration` (an Artifact's sharing is a Doc space), `journal_watch_excluded_notebooks`,
+    // `paper_figure_markdown_repair_queue`, `ck_legacy_snapshot` and `videos.legacy_cap_verified_at` are
+    // dropped, because nothing reads or writes them, and a fresh store never makes them.
+    // `ck_legacy_bodies`, which is still written (a Doc body's acknowledged upload), is renamed
+    // `ck_body_sends`, rows and all.
     static let schemaVersion: Int32 = 176
     static let generation1RemovalSchemaVersion: Int32 = 175
     static let deadObjectsRemovalSchemaVersion: Int32 = 176
-    /// The oldest store this build migrates: schema 174, which every build from 2026-11-04 to build 288
-    /// wrote. An older store is refused (product owner, 2026-11: old versions are no longer supported),
-    /// so the steps that brought a store up to 174 are gone.
+    /// The oldest store this build migrates: schema 174. An older store is
+    /// refused (product owner, 2026-11: old versions are no longer supported).
     static let minimumMigratableSchemaVersion: Int32 = 174
 
     /// Migrates the store to `schemaVersion` from `minimumMigratableSchemaVersion` or later, or creates
@@ -125,7 +119,7 @@ extension KnowledgeStore {
 
         if isMigration {
             if currentVersion < Self.generation1RemovalSchemaVersion {
-                // Generation 1 is gone (2026-11-09): what its tables still
+                // What the generation-1 tables still
                 // told the activation is recorded in its journal, then the
                 // seven tables go. Set-based; no application row is read.
                 try recordGeneration1HistoryInActivationJournal()
@@ -245,7 +239,7 @@ extension KnowledgeStore {
     /// brand-new databases, so a build that reshaped the view and then read a
     /// new column turned every source query into "no such column" against an
     /// existing store — the whole library rendered as empty while the data sat
-    /// intact (2026-07-23). The view owns no rows, so it is safe to re-derive at
+    /// intact. The view owns no rows, so it is safe to re-derive at
     /// launch. Replacement is transactional because the app can hold multiple
     /// connections to the same database; readers must continue seeing the old
     /// projection until the new one commits. The common path — stored definition
@@ -305,7 +299,7 @@ extension KnowledgeStore {
     /// it — several key rows by `id` into a dictionary, which traps the process
     /// on a duplicate. `group_members` is keyed `(source_id, group_id)`, so a
     /// source filed into two groups otherwise fans the join out into two rows
-    /// and crashed semantic source search mid-answer (2026-08-31). Pinning the
+    /// and crashed semantic source search mid-answer. Pinning the
     /// join to `MIN(group_id)` restores one row per source and preserves what
     /// first-row-wins callers already saw, because the `(source_id, group_id)`
     /// primary key made SQLite emit the lowest `group_id` first anyway.

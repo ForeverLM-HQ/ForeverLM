@@ -5,8 +5,7 @@ import Foundation
 /// its own. The cards due go straight into the instructions, so the model asks
 /// the first one without a tool call; it judges each spoken answer and records
 /// it with `grade_card`, which writes a Forgot or Remembered exactly as the
-/// card review does. Since 2026-11-08 this replaces the turn-by-turn review
-/// (Apple dictation, the review chat's model, Apple speech): voice is one
+/// card review does. Voice is one
 /// realtime model, no speech-to-text or text-to-speech around it (product
 /// owner, 2026-11-07: "Should all just call the real-time voice API, not do any
 /// sneaky text-to-speech or speech-to-text"). The personal assistant offers the

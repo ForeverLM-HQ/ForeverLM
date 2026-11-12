@@ -11,8 +11,8 @@ extension ArticleSpeechService {
     /// price and starts playing as soon as the opening parts land, while the
     /// rest are made ahead of the playhead and kept (product owner, 2026-10-08: a
     /// narration that took 30 minutes to make before a word played "has to be
-    /// sub one minute"; this reverses 2026-10-04's make-then-play, which a
-    /// model that takes a minute a part made unusable). Listen on one that
+    /// sub one minute"; making the whole narration before playing is unusable
+    /// with a model that takes a minute a part). Listen on one that
     /// has it plays it. A run already being made in the background (the
     /// source's Generate Audio, an assistant's queue) is waited for.
     ///

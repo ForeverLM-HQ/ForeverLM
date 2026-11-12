@@ -18,7 +18,7 @@ struct EarlyUserDealOffer: View {
     /// What Billing's section says once the free days are over and nothing is
     /// paid.
     static let lockedTitle = "MCP is locked"
-    /// What Billing says while nothing is sold (2026-11-08: MCP is free).
+    /// What Billing says while nothing is sold: MCP is free.
     static let freeTitle = "MCP is free"
     /// What the welcome screen says while nothing is sold.
     static let freeWelcomeLine = "ForeverLM is free, MCP included."
@@ -106,7 +106,7 @@ struct EarlyUserDealOffer: View {
 /// subscription or manage their subscription … separate from all the AI
 /// usage". The key, limits and activity are AI Usage.
 ///
-/// While MCP is free (2026-11-08) the section says so and offers nothing.
+/// While MCP is free the section says so and offers nothing.
 /// In MCP's free days, or locked, the card is the offer. A buyer sees "Paid
 /// once". A subscriber from before the lock (nothing sells a subscription
 /// now) sees the plan, Switch to Paid Once, and paying and cancelling, one

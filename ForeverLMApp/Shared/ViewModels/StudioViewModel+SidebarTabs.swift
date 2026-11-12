@@ -33,8 +33,8 @@ extension StudioViewModel {
 
     /// Order the Videos tab. Rows missing the selected date sink to the bottom
     /// rather than being interleaved at the epoch: Safari-discovered videos
-    /// never carry Liked-feed dates, and liked rows only gain them once the
-    /// feed has re-synced since these columns shipped.
+    /// never carry Liked-feed dates, and a liked row carries them only once the
+    /// feed has synced its dates.
     func compareVideoArticles(_ lhs: StudioArticle, _ rhs: StudioArticle) -> Bool {
         switch videoSortMode {
         case .liked:
@@ -352,8 +352,8 @@ extension StudioViewModel {
         case .podcasts:
             return article.sourceType == .podcast
         case .videos:
-            // Zoom recordings are meetings; the URL check keeps one synced from
-            // an older build out of YouTube. See `knowledgeTab`.
+            // Zoom recordings are meetings; the URL check keeps a synced Zoom
+            // recording row out of YouTube. See `knowledgeTab`.
             // An explainer film ForeverLM made lives under Videos in the rail,
             // not among the YouTube library.
             guard article.sourceType == .video,

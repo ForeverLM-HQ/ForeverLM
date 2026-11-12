@@ -1,7 +1,7 @@
 #if os(macOS)
 import Foundation
 
-// MARK: - The Map over MCP (2026-10-05)
+// MARK: - The Map over MCP
 //
 // The Map is a plane for what the learner thinks: their Ideas, the regions
 // they draw and the arrows between them, each Idea's sources hanging under it

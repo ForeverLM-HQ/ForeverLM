@@ -87,7 +87,7 @@ actor StorageService {
     // sits in the folder is read by path through `ubiquityContentRootPath`.
 
     func ensureICloudUbiquityAvailable() throws {
-        // No longer throws - we allow local fallback when iCloud is unavailable
+        // Never throws: a local fallback is allowed when iCloud is unavailable
     }
     
     init() {

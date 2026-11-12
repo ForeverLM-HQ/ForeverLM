@@ -4,7 +4,7 @@ import SwiftUI
 /// notebook's emoji or cover, its name, and the description stored on it,
 /// which is the notebook's own words rather than helper copy. What the guide
 /// offers stands under the composer (`NotebookChatGuide`), as ChatGPT's
-/// project page lists its chats under its composer (2026-10-06).
+/// project page lists its chats under its composer.
 struct NotebookChatGuideHeading: View {
     /// The notebook's emoji (`NotebookTitle.displayIcon`), which its cover
     /// replaces once the Mac holds one, and its name without it.

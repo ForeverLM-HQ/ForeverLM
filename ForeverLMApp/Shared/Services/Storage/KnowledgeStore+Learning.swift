@@ -266,13 +266,13 @@ extension KnowledgeStore {
     /// When `keepParent` is false and the parent is left with no sources, the
     /// parent is removed — but only after everything else it held (its chats,
     /// nested Goals, tasks, Docs, courses, open questions, Ideas' links,
-    /// Directions and the rest, `moveNotebookContentsInTransaction`) has moved
+    /// Directions and the rest, `NotebookChildren.moveAll`) has moved
     /// to the child that took the most sources (the first, on a tie), which
     /// the result names as `heirGoalID`, and its own words (synthesis notes,
     /// Instructions, research questions, summary, repository) are folded into
-    /// that child by a merge's rule (`foldNotebookWordsInTransaction`). Before
-    /// 2026-10-02 the parent went by a raw DELETE and all of that was left
-    /// pointing at an id that was gone, or went with the row.
+    /// that child by a merge's rule (`NotebookFold.folded`). A raw
+    /// DELETE of the parent would leave all of that
+    /// pointing at an id that was gone, or take it with the row.
     func splitCompanionGoal(
         sourceGoalID: String,
         splits: [CompanionGoalSplitSpec],
@@ -340,7 +340,7 @@ extension KnowledgeStore {
         }
 
         // Generation 2: the split job, which keeps an emptied parent as a stub leading to its heir
-        // (schema v2 §5.2). Generation 1 goes on as build 177 does.
+        // (schema v2 §5.2).
         return try splitNotebookUnderGeneration2(parentID: sourceGoalID, splits: normalizedSplits, keepParent: keepParent)
     }
 
@@ -390,7 +390,7 @@ extension KnowledgeStore {
             )
         }
         // Generation 2: the merge job, which keeps each merged notebook as a stub leading to the
-        // survivor (schema v2 §5.2). Generation 1 goes on as build 177 does.
+        // survivor (schema v2 §5.2).
         let renamed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         return try mergeNotebooksUnderGeneration2(
             survivorID: survivorID, mergeeIDs: mergees.map(\.id), title: renamed?.isEmpty == false ? renamed : nil, mergeNotes: mergeNotes
@@ -578,8 +578,8 @@ extension KnowledgeStore {
     /// Ends a Notebook's subscription to a course (`linkCourseToNotebook`), so
     /// later lectures no longer join it. The sources it already holds are the
     /// caller's to remove (`removeCompanionSources`). Syncs as the Notebook's
-    /// `linkedCourseIDs`, where a shorter present list is an explicit removal
-    /// (`mergeLearningGoalServerConflict`). False, and nothing written, when
+    /// `linkedCourseIDs`, where a shorter present list is an explicit removal.
+    /// False, and nothing written, when
     /// the Notebook did not follow the course. The course itself is untouched:
     /// it lives in no notebook, only follows a link.
     @discardableResult

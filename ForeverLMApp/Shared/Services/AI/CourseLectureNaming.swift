@@ -250,11 +250,8 @@ struct CourseLectureNamingService: Sendable {
     /// Names `lectureIDs` (every lecture when nil) of `courseID`. The model
     /// is asked only when at least one of them has something to read.
     func run(courseID: String, lectureIDs: Set<String>? = nil) async throws -> CourseLectureNamingResult {
-        let workflowID = "lecture-titles-\(UUID().uuidString.lowercased())"
-        return try await AIUsageAttribution.$sessionID.withValue(workflowID) {
-            try await AIUsageAttribution.$activityID.withValue(workflowID) {
-                try await runStages(courseID: courseID, lectureIDs: lectureIDs)
-            }
+        try await AIUsageAttribution.withWorkflow("lecture-titles-\(UUID().uuidString.lowercased())") {
+            try await runStages(courseID: courseID, lectureIDs: lectureIDs)
         }
     }
 

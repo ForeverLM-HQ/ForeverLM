@@ -1163,10 +1163,10 @@ extension CourseQuizPlanning {
 
     /// The questions with each one's moment where its lecture says its quote
     /// (`LectureQuizTimeline`), from the numbered lines of its source, keyed
-    /// by source ID. A quiz saved before 2026-09-28 was timed at the start of
-    /// its quote's block, or an assistant's reading of it, a median 23 s
-    /// early; retiming it when it is opened puts every stored quiz right on
-    /// every Mac without rewriting the synced record. A question keeps its
+    /// by source ID. A stored quiz may have been timed at the start of its
+    /// quote's block, or an assistant's reading of it, a median 23 s early;
+    /// retiming it when it is opened puts every stored quiz right on every
+    /// Mac without rewriting the synced record. A question keeps its
     /// stored time when it has no quote, its source is untimed, or the quote
     /// is not in the lines it rests on.
     static func timedByQuotes(

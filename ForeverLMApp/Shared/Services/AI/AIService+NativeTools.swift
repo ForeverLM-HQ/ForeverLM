@@ -277,9 +277,9 @@ enum AIWebSearchDepth: Sendable {
     /// Results OpenRouter's web plugin returns per search, as its
     /// `max_results`. The Exa engine, which every model without a native
     /// engine falls back to, returns five by default
-    /// (openrouter.ai/docs/features/web-search, read 2026-09-30), too few for
-    /// a list of ten. Nil leaves the plugin as it was, so an ordinary body is
-    /// byte for byte what it was before Discover.
+    /// (openrouter.ai/docs/features/web-search), too few for
+    /// a list of ten. Nil leaves the plugin untouched, so an ordinary body carries
+    /// no `max_results`.
     var pluginMaxResults: Int? {
         switch self {
         case .standard, .deepResearch: return nil
@@ -593,11 +593,12 @@ extension AIService {
         )
 
         // One endpoint for every OpenRouter-backed provider.
-        guard let endpoint = Self.openAICompatibleChatEndpoint(for: provider) else {
+        guard let endpoint = Self.openAICompatibleChatEndpoint(for: provider),
+              let url = URL(string: endpoint) else {
             throw AIError.apiError("\(provider.shortName) has no chat-completions endpoint configured.")
         }
         try Self.requireOpenRouterRegion(payload, provider: provider)
-        var request = URLRequest(url: URL(string: endpoint)!)
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

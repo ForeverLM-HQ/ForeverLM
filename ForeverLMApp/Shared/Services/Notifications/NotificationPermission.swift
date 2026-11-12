@@ -9,11 +9,10 @@ import UserNotifications
 /// `CohortReviewNotifications`, the feeds' match
 /// banner, the price watch, the update banner), and each one takes a refusal
 /// as silence by design: the request is dropped and nothing is said. That
-/// made a Mac where macOS refuses them look exactly like one where it allows
-/// them. On the product owner's, from at least 2026-09-20 to 2026-09-27, neither
-/// ForeverLM nor ForeverLM Dev posted a single notification while every
-/// switch read as on. So the answer is now said where the switches that need
-/// it are, in Settings › Background › Memory review (`NotificationSettingsNote`), and over MCP in
+/// would make a Mac where macOS refuses them look exactly like one where it
+/// allows them, with every switch reading as on. So the answer is said where
+/// the switches that need it are, in Settings › Background › Memory review
+/// (`NotificationSettingsNote`), and over MCP in
 /// `get_day_settings` (`notifications_status`). Undoing a
 /// refusal stays the learner's, in System Settings; the app only opens the
 /// right page.

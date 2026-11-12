@@ -980,8 +980,8 @@ enum MacArticleSpeechSettings {
     }
 
     static func setConfirmsCostBeforeListening(_ confirms: Bool, for model: String) {
-        // Moving the visible per-model switch back on also retires the old
-        // global-off state from builds where suppression was not model-scoped.
+        // Moving the visible per-model switch back on also clears the
+        // global-off state, which is not model-scoped.
         if confirms, !confirmCostBeforeListening {
             confirmCostBeforeListening = true
         }

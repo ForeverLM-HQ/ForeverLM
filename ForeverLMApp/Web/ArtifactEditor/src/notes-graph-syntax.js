@@ -181,13 +181,6 @@ export function dailyNoteID(dayKey) {
   return `${dailyNoteIDPrefix}${dayKey}`
 }
 
-export function dayKeyOfDailyNoteID(id) {
-  const value = String(id ?? '')
-  if (!value.startsWith(dailyNoteIDPrefix)) return null
-  const key = value.slice(dailyNoteIDPrefix.length)
-  return dateForDayKey(key) ? key : null
-}
-
 export function ordinalSuffix(day) {
   const hundred = day % 100
   if (hundred >= 11 && hundred <= 13) return 'th'

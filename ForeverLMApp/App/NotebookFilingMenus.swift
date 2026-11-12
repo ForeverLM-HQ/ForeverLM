@@ -109,7 +109,7 @@ extension View {
 /// A notebook's chats as menu items: New Chat, then every one of its chats
 /// in the rail's order, the one on screen ticked (`notebookChats`); a menu
 /// taller than the screen scrolls. The notebook window's icon rail and its
-/// chat's header both offer it, since the rail no longer lists a notebook's
+/// chat's header both offer it, since the rail does not list a notebook's
 /// chats under its folder there. A chat opens in this window, in its
 /// notebook (`requestResumeReviewSession`).
 struct NotebookChatsMenuItems: View {

@@ -4,9 +4,9 @@ import UserNotifications
 
 /// The one notification ForeverLM sends, and only when asked to.
 ///
-/// Notifications were retired wholesale once. This re-opens exactly one channel:
-/// a single daily reminder that a review is ready, off until the learner turns
-/// it on. `NotificationRetirement` keeps cancelling everything else.
+/// Every other notification is retired: this is exactly one open channel, a
+/// single daily reminder that a review is ready, off until the learner turns
+/// it on. `NotificationRetirement` cancels everything else.
 enum CohortReviewNotifications {
     static let requestIdentifier = "com.foreverlm.cohort-review.daily"
     private static let logger = Logger(subsystem: "ForeverLM", category: "CohortReviewNotifications")
@@ -25,18 +25,12 @@ enum CohortReviewNotifications {
     }
 
     static func requestAuthorization() async -> Bool {
-        do {
-            return try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .sound])
-        } catch {
-            return false
-        }
+        await NotificationPermission.request() == .allowed
     }
 
-    /// Re-asserts the schedule from current state. Since the card review
-    /// (2026-10-01) `hasReviewReady` is whether the morning the reminder next
-    /// fires on holds a card (`MemoryReviewPreparationRunner.refreshReminder`);
-    /// it was whether the day's cohort of sources was empty.
+    /// Re-asserts the schedule from current state. `hasReviewReady` is
+    /// whether the morning the reminder next fires on holds a card
+    /// (`MemoryReviewPreparationRunner.refreshReminder`).
     ///
     /// Safe to call on every activation, and deliberately called there: the
     /// one-time `NotificationRetirement` sweep removes all pending requests, so

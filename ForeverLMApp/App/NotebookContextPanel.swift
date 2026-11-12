@@ -495,8 +495,8 @@ struct NotebookSourcePoolView: View {
     /// (`notebookChatTally`), as the chat and the guide count it.
     ///
     /// While every source is ticked, which is how a notebook starts, the row
-    /// is drawn only while the pointer is over the column (2026-10-06,
-    /// the product owner: "cleaner and fewer buttons and bells and whistles"), its
+    /// is drawn only while the pointer is over the column (product owner,
+    /// 2026-10-06: "cleaner and fewer buttons and bells and whistles"), its
     /// place held so the list never jumps; "8 of 12 in chat" is state and
     /// always shows.
     @ViewBuilder
@@ -1290,7 +1290,7 @@ private struct NotebookLibraryBrowser: View {
             // The kind tabs draw in flow, as in the docked Library.
             .environment(\.studioTitlebarBandHeight, nil)
             // One line a source and the kinds as words, as NotebookLM's
-            // column reads (2026-10-12).
+            // column reads.
             .environment(\.sourcesListLayout, .compact)
             .environment(\.sourcesListHidesIdleSearch, true)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1789,7 +1789,7 @@ struct NotebookPoolSourceRow: View {
             // control: while an assistive app reads the screen, SwiftUI
             // walks every control in the window for each control an
             // update builds, so a hidden menu per row doubled what
-            // opening a notebook cost (2026-10-03). The right-click has
+            // opening a notebook cost. The right-click has
             // the same items.
             if isHovering {
                 moreMenu
@@ -2003,7 +2003,7 @@ struct NotebookPoolSourceRow: View {
 /// The × a pool row shows under the pointer, and, hidden, what holds its
 /// place while the button is not built: a button at opacity 0 is still a
 /// live control, and while an assistive app reads the screen SwiftUI walks
-/// every control in the window for each one an update builds (2026-10-03).
+/// every control in the window for each one an update builds.
 private struct RowRemoveGlyph: View {
     var body: some View {
         Image(systemName: "xmark")

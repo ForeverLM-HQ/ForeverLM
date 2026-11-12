@@ -77,9 +77,6 @@ struct SourcePDFPagesTests {
         #expect(document.pageCount == 2)
         #expect(document.page(at: 0)?.string?.contains("b one") == true)
         #expect(document.page(at: 1)?.string?.contains("b two") == true)
-        #expect(chapter.filePage(0) == 5)
-        #expect(chapter.filePage(1) == 6)
-        #expect(chapter.filePage(2) == nil)
         #expect(SourcePDFPages(path: url.path).document()?.pageCount == 8)
         // Pages the file does not hold are never shown as other pages of the book.
         #expect(SourcePDFPages(path: url.path, pages: 6..<10).document() == nil)

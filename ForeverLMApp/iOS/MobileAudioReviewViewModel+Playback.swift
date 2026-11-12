@@ -950,7 +950,8 @@ extension MobileAudioReviewViewModel {
         }
     }
 
-    private static func formatTime(_ seconds: TimeInterval) -> String {
+    /// A playback time as `m:ss`, or `h:mm:ss` from an hour up; `--:--` when it is unknown.
+    static func formatTime(_ seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "--:--" }
         let total = Int(seconds.rounded())
         let hours = total / 3600

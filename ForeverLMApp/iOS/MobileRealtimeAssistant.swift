@@ -45,7 +45,7 @@ enum MobileRealtimeAssistant {
         async let cards = dueCardsText()
         let sections = await [
             // First, so voice offers the review when cards wait (Home has no
-            // card button since 2026-11-09: cards are voice by default).
+            // card button: cards are voice by default).
             RealtimeVoiceAssistant.Section(title: "Today's cards", text: cards),
             RealtimeVoiceAssistant.Section(title: "Quarter plan", text: plan ?? ""),
             RealtimeVoiceAssistant.Section(title: "Calendar this week", text: calendar),

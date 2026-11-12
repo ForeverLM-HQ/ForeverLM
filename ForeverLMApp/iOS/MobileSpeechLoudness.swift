@@ -3,7 +3,7 @@ import Foundation
 /// Lifts synthesized speech to podcast loudness before it reaches the phone's
 /// speaker.
 ///
-/// Measured on 2026-09-12 over the text-to-speech chunks in the library: the
+/// Measured over the text-to-speech chunks in the library: the
 /// narration sits between −18.6 and −25.6 LUFS integrated, with true peaks
 /// from −1.3 to −7.5 dBFS. Podcasts are delivered around −16 LUFS, so at a volume-slider
 /// position chosen for a podcast the narration plays 3–10 dB quieter — and
@@ -22,7 +22,7 @@ import Foundation
 /// gain, so stereo stays balanced. The lookahead costs two milliseconds of
 /// latency.
 ///
-/// Measured on real narration (2026-09-12, three library chunks at −25.7,
+/// Measured on real narration (three library chunks at −25.7,
 /// −24.1 and −18.6 LUFS): each comes out within a decibel of −16 LUFS with a
 /// true peak under the ceiling.
 ///

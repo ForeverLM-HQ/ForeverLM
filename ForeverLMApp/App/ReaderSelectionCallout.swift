@@ -6,7 +6,7 @@ import WebKit
 /// The actions that follow the reader's selection: "Chat", spelled out as the
 /// bar's one primary action, then "Side chat" and "Highlight" as glyphs that
 /// name themselves on hover and to VoiceOver (Quiet chrome,
-/// docs/ui-design.md, 2026-10-06: ChatGPT's bar over a selection is one
+/// docs/ui-design.md: ChatGPT's bar over a selection is one
 /// labelled button). A
 /// selection is words, pictures, or both: a drag over a web page's figure with
 /// no words in it summons the same bar, Chat attaches the figure to the
@@ -19,9 +19,8 @@ import WebKit
 /// a chat"): a question about these words answered beside them, with no new
 /// chat started (`StudioViewModel.openReaderSideChat`).
 ///
-/// They used to live in the reader toolbar, far from the words the reader had
-/// just highlighted. They now appear as a small bar hugging the selection
-/// itself: above the highlighted passage when there is room, below it when the
+/// They appear as a small bar hugging the selection itself, not in the reader
+/// toolbar far from the words the reader just highlighted: above the highlighted passage when there is room, below it when the
 /// selection starts at the top of the viewport, always clear of the text it
 /// refers to.
 ///

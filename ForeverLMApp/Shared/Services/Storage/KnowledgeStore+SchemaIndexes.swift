@@ -29,9 +29,9 @@ extension KnowledgeStore {
         try exec("CREATE INDEX IF NOT EXISTS idx_x_posts_normalized_url ON x_posts(normalized_url)")
         try exec("CREATE INDEX IF NOT EXISTS idx_review_exchanges_session ON review_exchanges(session_id)")
         // Served the question calibration's read of every rated turn, newest
-        // first, until that pass was retired on 2026-09-27. Kept rather than
-        // dropped: removing it would be a schema change for nothing, and being
-        // partial, it costs an unrated library nothing.
+        // first; nothing reads it now. Kept rather than dropped: removing it
+        // would be a schema change for nothing, and being partial, it costs an
+        // unrated library nothing.
         try exec("""
             CREATE INDEX IF NOT EXISTS idx_review_exchanges_rated
             ON review_exchanges(rated_at DESC) WHERE rating IS NOT NULL

@@ -35,7 +35,7 @@ extension KnowledgeStore {
 
     /// `marks_reviewed` by today's `appendMarksReviewed` default (§10): a chat whose kind is unset or
     /// `review` marks the sources an append adds as reviewed; a `chat` or a memory review (its kind, or
-    /// a `memory-` id with none, as `loadReviewSessionKind` reads it) does not.
+    /// a `memory-` id with none) does not.
     @discardableResult
     func deriveChatMarksReviewed() throws -> Int {
         var rows: [(id: String, marks: Bool)] = []

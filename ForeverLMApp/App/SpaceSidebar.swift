@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// "also courses under spaces then"). The Courses list is a pane of its own
 /// (`.courses`) that draws this sidebar beside it, as a canvas does, so the
 /// Space is the one home. The notebooks have no row: the Space's All lists
-/// them, since the Notebooks home that had a row here went (2026-10-09). A hub
+/// them. A hub
 /// is never a `SpaceDestination`: the Space's lists do not browse it, and
 /// the window's `spaceDestinationKey` never holds one.
 enum SpaceHub: String, CaseIterable, Identifiable, Sendable {
@@ -40,15 +40,15 @@ enum SpaceHub: String, CaseIterable, Identifiable, Sendable {
 /// The product owner, 2026-10-06, showing ChatGPT's Space: "maybe just copy this spaces
 /// design entirely from chatgpt; it looks good". The sidebar is ChatGPT's —
 /// New page, then All, Pages, Sites, Images, Google Drive, the Recents, the
-/// Spaces and Trash at the foot. ForeverLM's Ideas had a row beside the
-/// pictures until 2026-10-10 (product owner: "goals can perhaps just be
+/// Spaces and Trash at the foot. There is no Ideas row beside the
+/// pictures (product owner, 2026-10-10: "goals can perhaps just be
 /// visible via chat; same with ideas perhaps"): the chat lists and jots them
 /// (`list_ideas`, `create_idea`), and a list of ideas the learner keeps is a
-/// Space item (`.list`). A window that remembered the old place opens on All.
+/// Space item (`.list`). A window that remembered a place that is gone opens on All.
 enum SpaceDestination: Hashable, Sendable {
     case all
     /// The learner's notebooks, and only those: the row that links them
-    /// from the sidebar now that the Notebooks home is gone (product owner,
+    /// from the sidebar (product owner,
     /// 2026-10-10: "notebooks have to be linked here").
     case notebooks
     /// The learner's own Board: To do, In progress and Done as columns of
@@ -60,18 +60,16 @@ enum SpaceDestination: Hashable, Sendable {
     /// and the day are the Calendar, which `/plan` fills (docs-site/plan.md).
     case plan
     /// Every chat, in a notebook or in none: Home's list (`HomePane`), which
-    /// the Space draws with this view. It is no place of the Space: it was one
-    /// from 2026-10-10 ("maybe we should still have a separate chats page?
-    /// chats don't always have to be in a notebook?") until 2026-10-16
-    /// ("so maybe chats shouldn't be under spaces"), when the Home place took
-    /// it, so no sidebar row, shortcut or stored window place names it.
+    /// the Space draws with this view. It is no place of the Space (product owner,
+    /// 2026-10-16: "so maybe chats shouldn't be under spaces"): the Home place
+    /// holds it, so no sidebar row, shortcut or stored window place names it.
     case chats
     case pages
     case sites
     /// Every animation (`ArtifactKind.animation`), the moving explanations a
     /// chat or an assistant drew from sources and saved with save_animation
-    /// (docs/animations-design.md). A place of its own since 2026-11-08
-    /// (product owner: "make sure they do have their own space"); each opens
+    /// (docs/animations-design.md). A place of its own (product owner,
+    /// 2026-11-08: "make sure they do have their own space"); each opens
     /// in the Animations pane.
     case animations
     /// The learner's canvases (`KnowledgeMapCanvas`): a beta place, listed
@@ -281,7 +279,7 @@ enum SpaceSidebarMetrics {
 
     /// ChatGPT's sidebar is a step off the page: #F9F9F9 beside white.
     static let background = Color.primary.opacity(0.028)
-    /// Codex's selected row, measured off its window (2026-10-12): #EDEDED
+    /// Codex's selected row, measured off its window: #EDEDED
     /// on #FAFAFA, a 5% step; a hover is under half of it, so it never reads
     /// as a second selection (`StudioDesign.selectionFill`).
     static let selectedFill = Color.primary.opacity(0.05)
@@ -289,8 +287,8 @@ enum SpaceSidebarMetrics {
 }
 
 /// The sidebar's top line, its first row: the Space's name and the search,
-/// as ChatGPT draws them; the Space's bell went into the strip's, the one
-/// inbox (2026-10-13). It sits under the window's chrome, not on
+/// as ChatGPT draws them; the Space has no bell; the strip's is the one
+/// inbox. It sits under the window's chrome, not on
 /// it, as Codex's sidebar title does, so the band over the sidebar holds only
 /// the traffic lights, ‹ › and the sidebar toggle in every state (product
 /// owner, 2026-10-12: "make sure the top left looks clean at all times"). It
@@ -500,8 +498,8 @@ struct SpaceSidebar: View {
     /// New leads the sidebar, ChatGPT's first row made a page's: New Page,
     /// with the ⋯ of every other thing the Space makes. A chat is not made
     /// here (product owner, 2026-10-16: "new chat should not live under
-    /// spaces"): Home's + and its sidebar's New chat start one, and the row
-    /// that was New chat from 2026-10-10 is gone. ⇧⌘N still makes a page.
+    /// spaces"): Home's + and its sidebar's New chat start one, and the Space has no New
+    /// chat row. ⇧⌘N still makes a page.
     private var newPageRow: some View {
         SpaceSidebarRow(
             title: "New page",
@@ -686,8 +684,8 @@ struct SpaceSidebar: View {
     /// put in Trash, and, in Screen record mode, lets on screen: a page as
     /// `artifacts` lists it (narrowed as it loads), a canvas or a list as the
     /// Space lists them (`listedCanvases`, `listedSpaceLists`), a picture by
-    /// the date it was drawn (`ScreenRecordScope.allowsImage`). On build 208
-    /// (2026-10-10) a take's Recents named three of the learner's canvases.
+    /// the date it was drawn (`ScreenRecordScope.allowsImage`). A take's
+    /// Recents name only what the learner's library holds, never other canvases.
     static func recentRows(
         _ items: [SpaceRecents.Item], vm: StudioViewModel, limit: Int = SpaceSidebarMetrics.recentsShown
     ) -> [RecentRow] {

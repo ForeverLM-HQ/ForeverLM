@@ -171,12 +171,6 @@ enum MobileNotebookChatSelection {
         return Selection(excluded: Set(rows.excluded), contextNotebookIDs: Set(rows.contextNotebookIDs))
     }
 
-    /// A row's value as it is written, or nil when the row is removed
-    /// instead: an empty array is no row at all.
-    static func rowValueXML(excluded: [String]) -> String? {
-        excluded.isEmpty ? nil : MobilePreferencePlist.encode(excluded)
-    }
-
     /// The exclusion after `arriving` joined the notebook: their ids leave it,
     /// so an untick left from when a source last left the notebook never
     /// outlives its return (the Mac's `StudioViewModel.notebookArrivals`).
@@ -577,9 +571,9 @@ enum MobileNotebookOrdering {
 
 // MARK: - The last notebook
 
-/// Where the last notebook is remembered, for Home's Recent. A cold launch no
-/// longer opens it: the phone starts on Home, where the library is the first
-/// row (2026-10-25).
+/// Where the last notebook is remembered, for Home's Recent. A cold launch
+/// does not open it: the phone starts on Home, where the library is the first
+/// row.
 enum MobileNotebookResume {
     static let defaultsKey = Prefs.Mobile.lastOpenedNotebookID.name
 }
@@ -1676,9 +1670,8 @@ enum MobileNotebookChatContinuation {
 /// recorder's open-conversation placeholder left out, and the tutor's lines
 /// read as the Mac shows them (`displayableMessageContent`): a walk's step
 /// line and a memory review's source-turn line are the Mac's row chrome,
-/// never prose. A reading chat older phone builds saved put the learner's
-/// question where the tutor's goes and left the answer empty; such an
-/// exchange of a phone chat reads as the learner asking.
+/// never prose. A phone chat's exchange with the learner's question where the
+/// tutor's goes and the answer empty reads as the learner asking.
 enum MobileChatTranscriptTurns {
     struct Exchange: Equatable, Sendable {
         let sequenceNumber: Int
@@ -2049,14 +2042,13 @@ enum MobileNotebookMembership {
 }
 
 /// Which memory items are a notebook's cards: the Mac's own
-/// `MemoryCardScope` (compiled into the phone since its card review), over
+/// `MemoryCardScope` (compiled into the phone), over
 /// the notebook's approved pool. A card is anchored on one of its sources
 /// (derived), or was made with the notebook, or one of its Goals, as its goal
 /// (filed). The pool is the notebook's own sources only, never those a
 /// related notebook lends its chat, as the Mac's `notebookCardCounts` asks
 /// it, by the ids the Mac's record names and the ids this phone holds them
-/// under (`MobileNotebookSourceIdentityResolver.remap`, which remaps the
-/// cards' anchors the same way). The phone holds no team notebook, so no team
+/// under. The phone holds no team notebook, so no team
 /// copy needs resolving to the learner's own source.
 enum MobileNotebookCards {
     static func scope(

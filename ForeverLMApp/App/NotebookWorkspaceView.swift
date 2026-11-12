@@ -352,8 +352,7 @@ struct NotebookWorkspaceView: View {
             .overlay(alignment: .topTrailing) { studioRestore }
             .coordinateSpace(.named("notebookWorkspace"))
         }
-        // Siri and Shortcuts know which notebook is on screen, as they did
-        // on the old Notebook page.
+        // Siri and Shortcuts know which notebook is on screen.
         .siriNotebookAnnotation(workspace.notebookID)
         // Presentations that need the notebook ride a view of their own, so
         // the record arriving after a relaunch adds them without rebuilding

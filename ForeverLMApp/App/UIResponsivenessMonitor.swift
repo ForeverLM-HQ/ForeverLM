@@ -22,8 +22,8 @@ import OSLog
 /// once the stall had already run a full second, and `/usr/bin/sample` needs ~45ms
 /// to attach and then records for a second. A 1–1.5s beachball — which is what
 /// this app actually produces — was over before the first sample was taken. Every
-/// one of the twenty reports retained on 2026-08-30 showed an idle main thread
-/// parked in `mach_msg`, which reads exactly like "no stall found". Capture now
+/// one of twenty such reports showed an idle main thread
+/// parked in `mach_msg`, which reads exactly like "no stall found". Capture
 /// starts speculatively at `suspicionThreshold`, so the sampler is attached and
 /// recording while the main thread is still wedged; if the stall never reaches
 /// `stallThreshold` the sample is killed and its file deleted, so the speculation

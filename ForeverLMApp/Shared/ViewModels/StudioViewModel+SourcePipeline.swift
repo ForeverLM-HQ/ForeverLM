@@ -19,9 +19,9 @@ extension StudioViewModel {
     /// A chapter title that runs on into the table of contents — "11)
     /// Small-Molecule Transport and Electrical Properties of Membranes Chapter
     /// 12 Intracellular Organization and Protein Sorting Chapter 13 …" — is cut
-    /// back to its own heading. Seen on Molecular Biology of the Cell
-    /// (2026-09-09): the splitter echoed a candidate whose text was a run of
-    /// contents lines, and every citation into the chapter read all of them.
+    /// back to its own heading: the splitter can echo a candidate whose text
+    /// is a run of contents lines, and every citation into the chapter would
+    /// then read all of them.
     ///
     /// A run is a title with two further heading labels after its own words, or
     /// one whose leading candidate number says the next label is the next
@@ -55,23 +55,6 @@ extension StudioViewModel {
     static func chapterTitle(_ filename: String) -> String {
         (filename as NSString).deletingPathExtension
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Extract the numeric sort key from a chapter filename for natural ordering.
-    /// "03 Coding Attention.pdf" → 3, "chapter_12.pdf" → 12, "Appendix A.pdf" → 1000
-    static func chapterSortKey(_ filename: String) -> Int {
-        let name = (filename as NSString).deletingPathExtension
-        // Try leading number: "03 Foo" → 3
-        if let match = name.range(of: #"^\d+"#, options: .regularExpression) {
-            return Int(name[match]) ?? Int.max
-        }
-        // Try "chapter_NN" pattern
-        if let match = name.range(of: #"(?i)chapter[_ ]*(\d+)"#, options: .regularExpression) {
-            let numPart = name[match].filter(\.isNumber)
-            return Int(numPart) ?? Int.max
-        }
-        // Non-numeric entries (Appendix, Index, etc.) sort after all numbered chapters
-        return Int.max
     }
 
     /// Attach a local PDF to a paper article (copies to ForeverLM/Papers/ and fetches content).

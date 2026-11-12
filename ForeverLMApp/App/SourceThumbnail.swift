@@ -277,13 +277,6 @@ enum SourceArtwork {
         return NSImage(cgImage: output, size: target)
     }
 
-    nonisolated static func pngDataURL(from image: NSImage) -> String? {
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let png = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:])
-        else { return nil }
-        return "data:image/png;base64,\(png.base64EncodedString())"
-    }
-
     nonisolated static func jpegDataURL(from image: NSImage, quality: CGFloat = 0.82) -> String? {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let jpeg = NSBitmapImageRep(cgImage: cgImage).representation(

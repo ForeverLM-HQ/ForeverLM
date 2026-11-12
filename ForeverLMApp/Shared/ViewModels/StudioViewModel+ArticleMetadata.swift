@@ -46,8 +46,8 @@ extension StudioViewModel {
         article.publishedYear = optionalValue(publishedYear)
 
         // An unchanged save still reconciles: a paper the learner filled in
-        // under an older build kept its stale extraction error, and reopening
-        // the editor and pressing Save is the obvious way to clear it.
+        // can still carry a stale extraction error, and reopening the editor
+        // and pressing Save is the obvious way to clear it.
         guard article != articles[idx] else {
             await completePaperIngestionAfterManualMetadata(id: id)
             return true

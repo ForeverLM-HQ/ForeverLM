@@ -1053,35 +1053,6 @@ struct BookChapterAISelectionValidationTests {
     }
 }
 
-// MARK: - Chapter Sort Key
-
-@Suite("StudioViewModel.chapterSortKey")
-@MainActor
-struct ChapterSortKeyTests {
-
-    @Test("Numeric prefix gives correct key")
-    func numericPrefix() {
-        #expect(StudioViewModel.chapterSortKey("03 Genetics.txt") == 3)
-        #expect(StudioViewModel.chapterSortKey("12 Advanced Topics.pdf") == 12)
-        #expect(StudioViewModel.chapterSortKey("01 Introduction.txt") == 1)
-    }
-
-    @Test("Chapters sort in correct order")
-    func sortOrder() {
-        let files = [
-            "03 Third.txt",
-            "01 First.txt",
-            "10 Tenth.txt",
-            "02 Second.txt",
-        ]
-        let sorted = files.sorted { StudioViewModel.chapterSortKey($0) < StudioViewModel.chapterSortKey($1) }
-        #expect(sorted[0] == "01 First.txt")
-        #expect(sorted[1] == "02 Second.txt")
-        #expect(sorted[2] == "03 Third.txt")
-        #expect(sorted[3] == "10 Tenth.txt")
-    }
-}
-
 // MARK: - Markup Chapters
 
 @Suite("EPUBParser.isMarkupChapter")

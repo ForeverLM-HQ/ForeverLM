@@ -5,7 +5,7 @@ import UIKit
 // walkthrough card's chat is the same, in a sheet over the deck. A notebook's
 // Chat tab draws its own composer around the same bubbles
 // (`MobileNotebookChatTab`). Its top bar is Done and the title alone
-// (2026-10-06, ChatGPT's): copying the conversation and reading every reply
+// (ChatGPT's): copying the conversation and reading every reply
 // aloud are in each finished reply's ⋯ (`MobileChatReplyFooter`).
 struct MobileChatView: View {
     enum Presentation: Equatable {
@@ -620,10 +620,9 @@ extension MobileChatReplyActions {
     }
 }
 
-/// Under a finished reply, ChatGPT's quiet row (2026-10-06, as the Mac's
-/// footer): Copy, then a ⋯ with Read Aloud and Share for the reply, and
-/// Copy Conversation and Read Replies Aloud for the whole chat, which were
-/// buttons in the top bar until then. Grey glyphs in 44-point targets, the
+/// Under a finished reply, ChatGPT's quiet row (as the Mac's footer): Copy,
+/// then a ⋯ with Read Aloud and Share for the reply, and Copy Conversation
+/// and Read Replies Aloud for the whole chat. Grey glyphs in 44-point targets, the
 /// first one's glyph on the reply's leading edge.
 struct MobileChatReplyFooter: View {
     let message: MobileChatMessage

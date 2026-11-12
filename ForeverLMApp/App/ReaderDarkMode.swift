@@ -190,8 +190,8 @@ enum ReaderDarkMode {
       // The root's background is stated pre-inversion: `#e6e6e6` is what the
       // filter turns into the reader's `#191919`. WebKit paints the root's
       // background — the canvas it propagates to included — inside the root's
-      // filter (measured on macOS 27, 2026-09-28), so the post-inverted
-      // `#191919` this rule used to state came back as a light grey ground.
+      // filter (measured on macOS 27), so a post-inverted
+      // `#191919` stated here would come back as a light grey ground.
       // Pages that draw the ground on their own wrapper hid that; a page that
       // paints its text straight onto `html`, as press.asimov.com does, read as
       // pale grey on pale grey. The min-height keeps the root's box over the
@@ -240,11 +240,11 @@ enum ReaderDarkMode {
       //
       // Measured with the reader's own sheet switched off. Once the filter is
       // on, the root's computed background is the one this script states, not
-      // the page's. On 2026-09-06 that was a dark value, and a page whose body
+      // the page's. A dark value would have a page whose body
       // is transparent — Substack's publication pages paint a white wrapper on
-      // a bare body — was read as dark on the very next measurement, latched as
-      // having a dark design of its own, and lost the filter for good. The
-      // value is light now, which would fail the other way: a site whose own
+      // a bare body — read as dark on the very next measurement, latched as
+      // having a dark design of its own, and lose the filter for good. The
+      // value is light, which fails the other way: a site whose own
       // dark theme lands on `html` would stay hidden under it and be inverted
       // back to white. The sheet is off only between two synchronous reads, so
       // nothing is painted without it.

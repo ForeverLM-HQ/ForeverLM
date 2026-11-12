@@ -29,8 +29,8 @@ extension StudioSidebar {
                 }
             } else if sidebar.sidebarTab == .xPosts, let attention = vm.xPluginAttention {
                 // The red dot on the tab says something went wrong; this row is
-                // where it says what. A failed sync used to announce itself with
-                // a toast that vanished before it was read; now it waits here,
+                // where it says what. A failed sync does not announce itself with
+                // a toast that vanishes before it is read; it waits here,
                 // with the fix beside it, until a sync goes through.
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {

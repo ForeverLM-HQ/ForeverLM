@@ -134,9 +134,8 @@ struct LinkedDocView: View {
             } else if let loadNotice, let kind {
                 // A page that is late, or one WebKit gave up on. Left to itself
                 // the pane is white for the whole of WebKit's 60-second timeout
-                // and then stays white: on 2026-09-13 a Google Doc's request
-                // sat on a dead pooled connection that long and the pane said
-                // nothing. Say so, with the header's Reload beside it.
+                // and then stays white: a Google Doc's request on a dead pooled
+                // connection sits that long and the pane says nothing. Say so, with the header's Reload beside it.
                 notice(loadNotice.text(kind: kind), systemImage: loadNotice.symbolName) {
                     reloadButton(kind: kind)
                 }
@@ -480,7 +479,7 @@ struct LinkedDocView: View {
             // `.button` + `.plain`, never `.borderlessButton`: that style
             // redraws a text label as a native 13pt title in the control text
             // color and drops the notice's 11pt font, so the menu would sit
-            // beside the link a size larger (measured offscreen 2026-09-08).
+            // beside the link a size larger (measured offscreen).
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
@@ -647,9 +646,8 @@ struct LinkedPageSelection: Equatable {
 
     /// The page the words are on, without credentials or query: a web page,
     /// or a page of a site kept in the library (`foreverlm-site://<id>/…`),
-    /// which `read_site_file` and `replace_site_text` resolve. Until
-    /// 2026-10-10 only a web address was kept, so Add to Chat and Copy on a
-    /// library site never said which of its pages the words were on.
+    /// which `read_site_file` and `replace_site_text` resolve, so Add to
+    /// Chat and Copy on a library site say which of its pages the words were on.
     private static func pageAddress(_ value: String?) -> URL? {
         guard let value, var components = URLComponents(string: value),
               let scheme = components.scheme?.lowercased(),
@@ -764,7 +762,7 @@ struct LinkedDocWebView: NSViewRepresentable {
     /// A Google Doc's plain-text export, fetched from inside the signed-in
     /// page once it has loaded. The app's own export request carries the
     /// Library cookies by hand and Google can still answer it with a sign-in
-    /// page (2026-09-26: a doc the pane showed signed in kept "No text copy
+    /// page (a doc the pane showed signed in kept "No text copy
     /// yet"); the page's own same-origin fetch is the session Google trusts.
     var onGoogleDocExport: (String) -> Void = { _ in }
     let onAddSelectionToChat: (LinkedPageSelection) -> Void
@@ -1229,7 +1227,7 @@ struct LinkedDocWebView: NSViewRepresentable {
     /// Doc's header and editor are inverted and hue-rotated back, and the
     /// Doc's pictures are inverted again so a photo is never a negative. The
     /// page draws its text on a `<canvas>` and its pictures as `<image>` in an
-    /// SVG layer of their own (WebKit, 2026-09-25); a CSS filter on an SVG
+    /// SVG layer of their own (WebKit); a CSS filter on an SVG
     /// child is ignored, so the whole picture layer is re-inverted. The
     /// `contrast` step lifts white paper to a dark grey instead of pure black.
     /// Gemini's panel, menus and dialogs sit outside both roots and stay
@@ -1255,12 +1253,12 @@ struct LinkedDocWebView: NSViewRepresentable {
     ///
     /// Markdown, not `innerText`: the copy is what chat and review read, and
     /// what becomes the body when the page is made ForeverLM's own
-    /// (`adopt_page`, Make a ForeverLM Page…). A Codex site's `innerText` was
+    /// (`adopt_page`, Make a ForeverLM Page…). A Codex site's `innerText` is
     /// a wall of lines with every heading, list and link flattened out —
-    /// three sites in the product owner's library held 10–13k characters and not one
-    /// heading (2026-09-08). The serializer walks the DOM: headings, paragraphs,
-    /// lists (nested by two spaces), tables, code blocks, quotes, rules, links
-    /// to other pages, bold, italic and code; hidden elements and controls are
+    /// sites of 10–13k characters came back without one heading. The serializer
+    /// walks the DOM: headings, paragraphs, lists (nested by two spaces),
+    /// tables, code blocks, quotes, rules, links to other pages, bold,
+    /// italic and code; hidden elements and controls are
     /// skipped, as `innerText` skipped them. Same-page anchors stay text. If
     /// the walk throws, the report falls back to `innerText`, so a copy is
     /// never lost to a page's odd DOM.

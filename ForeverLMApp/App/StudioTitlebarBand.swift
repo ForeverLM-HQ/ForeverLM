@@ -154,7 +154,7 @@ protocol TitlebarBandControlClickPassthrough: NSView {}
 /// The one mouse surface for a control that lives in the titlebar band.
 ///
 /// A press on a band control slides the whole window by default: measured on the
-/// shipped build 2026-08-31, pressing a pane close and moving the pointer 60pt
+/// shipped build, pressing a pane close and moving the pointer 60pt
 /// moved the window 54pt, and the click was lost whenever the pointer left the
 /// control before the release. `mouseDownCanMoveWindow` does not prevent it —
 /// AppKit delivers the mouse-down to the view either way and only *then*, if
@@ -204,16 +204,7 @@ final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        if let hoverTrackingArea {
-            removeTrackingArea(hoverTrackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
-            owner: self
-        )
-        addTrackingArea(area)
-        hoverTrackingArea = area
+        hoverTrackingArea = replacingHoverTrackingArea(hoverTrackingArea)
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -534,7 +525,7 @@ struct TitlebarBandButton<Label: View>: View {
             // SwiftUI still applied this control's label to it as an AppKit
             // override, and resolving that label asked the platform element
             // for its role, which asked the override for the label again:
-            // the release build (0.5.0 38) died on 2026-09-01 in a stack
+            // a release build died in a stack
             // overflow of `AccessibilityNode.accessibilityLabel()` when an
             // assistive client read `studio.reader.closePane`.
             .accessibilityHidden(true)
@@ -543,8 +534,8 @@ struct TitlebarBandButton<Label: View>: View {
             // on the container that also holds the native surface. When the
             // container carried it, SwiftUI backed the element with the
             // NSView — now the primary laid-out child — and the same label
-            // loop came back on 2026-09-02 the moment an accessibility walk
-            // read the control (Dev build, crash log 13:28:49). A SwiftUI node
+            // loop came back the moment an accessibility walk
+            // read the control. A SwiftUI node
             // has no AppKit override to recurse into.
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -607,5 +598,23 @@ extension EnvironmentValues {
     var hostedMenuConfirmation: ((HostedMenuConfirmation) -> Void)? {
         get { self[HostedMenuConfirmationKey.self] }
         set { self[HostedMenuConfirmationKey.self] = newValue }
+    }
+}
+
+extension NSView {
+    /// Swaps `old` for a fresh enter-and-exit tracking area over the whole view,
+    /// and returns the new one for the caller to keep. Called from
+    /// `updateTrackingAreas()`.
+    func replacingHoverTrackingArea(_ old: NSTrackingArea?) -> NSTrackingArea {
+        if let old {
+            removeTrackingArea(old)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
+            owner: self
+        )
+        addTrackingArea(area)
+        return area
     }
 }

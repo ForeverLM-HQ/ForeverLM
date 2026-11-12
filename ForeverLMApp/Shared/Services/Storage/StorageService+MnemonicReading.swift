@@ -62,8 +62,8 @@ extension StorageService {
     // MARK: The reading
 
     /// A reading and its questions, read from its body. Throws for a record
-    /// that is not a reading — by its kind, or by its body's marker when an
-    /// older build saved it back without the kind — and for a body still
+    /// that is not a reading — by its kind, or by its body's marker when it
+    /// was saved back without the kind — and for a body still
     /// downloading from iCloud.
     func mnemonicReading(_ readingID: String) throws -> (artifact: ArtifactRecord, reading: MnemonicReading) {
         let snapshot = try artifactMarkdown(readingID)

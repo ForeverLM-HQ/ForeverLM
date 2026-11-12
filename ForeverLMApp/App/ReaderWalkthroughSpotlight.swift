@@ -13,8 +13,7 @@ import PDFKit
 @MainActor
 final class ReaderWalkthroughSpotlight {
     static let annotationUserName = "foreverlm-walkthrough"
-    /// The shade and veil (a Predict card's, since the lesson merged into the
-    /// walk on 2026-09-23): marks of the spotlight's own, but not the
+    /// The shade and veil (a Predict card's): marks of the spotlight's own, but not the
     /// outline, so the pointer over them is not the outline's zoom cursor.
     static let shadeUserName = "foreverlm-walkthrough-shade"
     static let outlineWidth: CGFloat = 2.5

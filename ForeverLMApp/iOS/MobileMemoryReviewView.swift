@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Today's memory review chat on the phone, from before cards: the same chat
 /// the Mac's Memory row opened, read from and written to the same synced
-/// record — reached since the phone's card review only by the card review's
+/// record — reached only by the card review's
 /// Continue Today's Review Chat — dealt as a deck of
 /// cards — one exchange a card, swiped through like the walkthrough's deck —
 /// or, from the header's switch, as the conversation underneath. The cards,

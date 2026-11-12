@@ -982,8 +982,8 @@ struct GettingStartedGuide: View {
     }
 
     /// The product owner, 2026-09-23: ask whether the learner already pays for an AI
-    /// app. Each app ticked then gets a page that adds ForeverLM to it
-    /// (2026-09-24), which is why this closes Setup: by then the library holds
+    /// app. Each app ticked then gets a page that adds ForeverLM to it,
+    /// which is why this closes Setup: by then the library holds
     /// what the connector reaches. Any number may be ticked; "No" clears them.
     private var subscriptionsStep: some View {
         VStack(spacing: 24) {
@@ -1257,7 +1257,7 @@ struct GettingStartedGuide: View {
     /// models. AI features run on the learner's own OpenRouter key, billed by
     /// OpenRouter at cost; the app is free, so there is no plan row
     /// (product owner, 2026-10-16). The data policy and the single Chat model
-    /// left setup for Settings. Pressing Continue on the models page
+    /// are in Settings. Pressing Continue on the models page
     /// is also the consent to background work, which that page says.
     private var enhancementsStep: some View {
         Group {
@@ -1598,7 +1598,7 @@ struct GettingStartedGuide: View {
         go(to: next)
     }
 
-    /// A comp, or balance left from before top-ups were retired. Asked
+    /// A comp, or a leftover balance. Asked
     /// without the key, which `Balance.isEmpty` would otherwise count.
     private var hasUsableForeverLMCredits: Bool {
         guard let balance = account.balance, !balance.disabled else { return false }

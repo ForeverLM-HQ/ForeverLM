@@ -40,15 +40,6 @@ struct MemoryReviewGoalTests {
         #expect(MemoryReviewGoal.remainingLabel(seconds: 0) == "done")
     }
 
-    @Test("The countdown keeps one shape and never runs past zero")
-    func countdownLabel() {
-        #expect(MemoryReviewGoal.countdownLabel(seconds: 900) == "15:00")
-        #expect(MemoryReviewGoal.countdownLabel(seconds: 61) == "1:01")
-        #expect(MemoryReviewGoal.countdownLabel(seconds: 0.4) == "0:01")
-        #expect(MemoryReviewGoal.countdownLabel(seconds: 0) == "0:00")
-        #expect(MemoryReviewGoal.countdownLabel(seconds: -30) == "0:00")
-    }
-
     @Test("Minutes show only while a review is running; a day that already met its goal shows the streak")
     func badgeIsAClockNotADemand() {
         let goal = MemoryReviewGoal.goalSeconds(budgetMinutes: 15)
@@ -338,22 +329,6 @@ struct MemoryReviewGoalStorageTests {
             .appendingPathComponent("foreverlm-memory-goal-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return (try KnowledgeStore(storeDirectory: root), root)
-    }
-
-    private static func userVersion(at root: URL) -> Int32 {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(root.appendingPathComponent("knowledge.db").path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            return -1
-        }
-        defer { sqlite3_close(db) }
-        var statement: OpaquePointer?
-        var version: Int32 = -1
-        if sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &statement, nil) == SQLITE_OK,
-           sqlite3_step(statement) == SQLITE_ROW {
-            version = sqlite3_column_int(statement, 0)
-        }
-        sqlite3_finalize(statement)
-        return version
     }
 
     @Test("A day counts as answered once the learner wrote in its chat; a prepared chat alone does not")

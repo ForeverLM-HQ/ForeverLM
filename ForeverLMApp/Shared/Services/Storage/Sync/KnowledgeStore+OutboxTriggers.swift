@@ -464,11 +464,9 @@ extension KnowledgeStore {
 /// record types, and the local ids of the Artifacts among them.
 ///
 /// The view model, the day's model and the snapshot stores hold rows in memory and read them again only
-/// when told. Generation 1's engine told them after each fetch (`cloudKitSyncRemoteStoreDidChange`, with
-/// the entities it applied); under generation 2 nothing did until 2026-10-06, so a source's title and
-/// author fixed on another device stayed wrong in the Mac's lists and over MCP until a relaunch, and the
-/// next whole-source save of the stale copy (Refresh from Website, a read mark) would have written them
-/// back and sent them out again. `ProjectionApply` notes each record it writes or removes, the store
+/// when told, so a source's title and author fixed on another device would stay wrong in the Mac's lists
+/// and over MCP until a relaunch, and the next whole-source save of the stale copy (Refresh from Website,
+/// a read mark) would write them back and send them out again. `ProjectionApply` notes each record it writes or removes, the store
 /// hands the note on once the apply commits (`replicaApplyDidEnd`), and `AppliedRemoteChangesAnnouncer`
 /// tells the surfaces, whichever path applied the records.
 struct AppliedRemoteChanges: Equatable, Sendable {

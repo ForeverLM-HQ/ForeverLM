@@ -6,8 +6,8 @@ import OSLog
 ///
 /// The calibration distilled the learner's thumbs on tutor turns into the
 /// `review.questionCalibration.v1` preference, and every client appended it
-/// to its review and study prompts. The thumbs left the chat footer on
-/// 2026-09-27 and the pipeline went with them, so this build neither writes
+/// to its review and study prompts. The thumbs left the chat footer
+/// and the pipeline went with them, so this build neither writes
 /// nor reads the preference. It is cleared rather than left to sit because
 /// older clients still read it: an installed Mac that has not updated yet,
 /// and an iPhone build from before the change, keep appending whatever it

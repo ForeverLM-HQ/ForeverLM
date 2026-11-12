@@ -297,23 +297,11 @@ struct PaywallToPMCTests {
         }
     }
 
-    // -- Step 6: End-to-end findOpenAccessAlternative --
-
-    @Test("findOpenAccessAlternative finds PMC version for Nature URL", .enabled(if: liveNetworkTestsEnabled))
-    func findOAAlternative() async {
-        let result = await PaperService.findOpenAccessAlternative(url: Self.natureURL, title: "Deep generative modeling for single-cell transcriptomics")
-        #expect(result != nil, "findOpenAccessAlternative returned nil for \(Self.natureURL)")
-        if let result {
-            #expect(result.replacementURL.contains("pmc") || result.replacementURL.contains("ncbi") || result.replacementURL.contains("europepmc"),
-                    "Expected PMC/NCBI URL, got: \(result.replacementURL) from \(result.sourceName)")
-        }
-    }
-
     // -- Step 7: End-to-end — the replacement URL's PDF is downloadable --
 
-    @Test("Replacement URL from findOpenAccessAlternative leads to downloadable PDF", .enabled(if: liveNetworkTestsEnabled))
+    @Test("Replacement URL from findOpenAccessAlternatives leads to downloadable PDF", .enabled(if: liveNetworkTestsEnabled))
     func oaAlternativeDownloadsPDF() async throws {
-        guard let alternative = await PaperService.findOpenAccessAlternative(url: Self.natureURL, title: "Deep generative modeling") else {
+        guard let alternative = await PaperService.findOpenAccessAlternatives(url: Self.natureURL, title: "Deep generative modeling").first else {
             Issue.record("No OA alternative found — can't test download")
             return
         }

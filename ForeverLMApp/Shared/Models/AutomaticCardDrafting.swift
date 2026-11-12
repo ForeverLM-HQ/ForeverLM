@@ -311,8 +311,8 @@ struct AutomaticCardDraftingRun: Codable, Equatable, Sendable {
 /// place, one at a time. Go Through Them opens To Check; × is later, asked
 /// again the next day; Don't Ask Again turns `memory.draft_nudges` off.
 ///
-/// Since 2026-10-16 it also counts the library's sources that no card covers,
-/// read or not. Product owner, 2026-10-16: "my goal is to have at least 1
+/// It also counts the library's sources that no card covers, read or not.
+/// Product owner, 2026-10-16: "my goal is to have at least 1
 /// flashcard for each piece of content that's in the library; and it should
 /// really help me understand and piece together these ideas." Make Cards
 /// opens the sheet for them together, with its count and price, so the cards

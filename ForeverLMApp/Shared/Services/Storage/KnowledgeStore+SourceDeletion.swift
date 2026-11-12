@@ -413,8 +413,8 @@ extension KnowledgeStore {
     /// `(source_id, day_start)`: the row being copied is still in the table, so
     /// whenever the duplicate had a day the canonical did not, the copy hit the
     /// primary key instead of the upsert's target and the whole merge failed —
-    /// which is how Merge Same-Day Sessions refused two standup calls that had
-    /// both been read, and so both placed on the calendar (2026-09-19).
+    /// which would make Merge Same-Day Sessions refuse two standup calls that had
+    /// both been read, and so both placed on the calendar.
     private func moveSourceActivityDays(
         fromPlacement duplicatePlacementID: String,
         toPlacement canonicalPlacementID: String,

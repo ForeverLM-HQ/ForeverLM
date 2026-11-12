@@ -3,11 +3,11 @@ import Foundation
 /// Sources the learner brought into a chat between two of their messages.
 ///
 /// Dropping three articles onto a running chat and asking "explain the
-/// takeaways from these articles" is one gesture in two parts, and only the
-/// second half used to survive: the composer's "9 in context" chip moved on,
-/// and a reopened transcript showed a question about "these articles" with no
-/// trace of which articles had just arrived (product owner, 2026-09-12). The
-/// additions now ride beside the next message the learner sends, as a mark on
+/// takeaways from these articles" is one gesture in two parts, and without
+/// the first half the composer's "9 in context" chip moves on and a reopened
+/// transcript shows a question about "these articles" with no trace of which
+/// articles had just arrived (product owner, 2026-09-12). The
+/// additions ride beside the next message the learner sends, as a mark on
 /// the first line of the exchange's `context_content` — the model-only column
 /// that already carries a quoted passage, the plugin mark
 /// (`ChatPluginRequest`) and the side-question mark (`ChatSideQuestion`) — so

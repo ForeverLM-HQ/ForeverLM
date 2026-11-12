@@ -5,7 +5,7 @@ import Foundation
 struct XAccount: Codable, Equatable, Hashable, Identifiable, Sendable {
     let id: String
     /// Without the @. nil until a sign-in or sync has read it: an account
-    /// adopted from an older build knows only its user id.
+    /// known only by its user id has no username.
     var username: String?
 
     /// What a card, a chip or an error names the account by.

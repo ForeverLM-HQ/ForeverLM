@@ -39,12 +39,12 @@ extension View {
 /// comfortable-looking target without the label itself needing padding. Both the
 /// paint and the `contentShape` use this same grown region, so whatever grey the
 /// pointer lights up is exactly what a click lands on.
-private struct HoverWash<S: Shape>: View {
+private struct HoverWash<S: Shape, Content: View>: View {
     let shape: S
     let inset: CGFloat
     let opacity: Double
     let isPressed: Bool
-    let content: AnyView
+    let content: Content
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovering = false
@@ -92,12 +92,20 @@ struct HoverWashButtonStyle: ButtonStyle {
             inset: inset,
             opacity: opacity,
             isPressed: configuration.isPressed,
-            // Only override the foreground when a tint is asked for — `.plain`
-            // labels inherit their colour from context, and forcing one here
-            // would repaint every button that relies on that inheritance.
-            content: tint.map { AnyView(configuration.label.foregroundStyle($0)) }
-                ?? AnyView(configuration.label)
+            content: label(of: configuration)
         )
+    }
+
+    /// Only overrides the foreground when a tint is asked for: `.plain` labels
+    /// inherit their colour from context, and forcing one here would repaint
+    /// every button that relies on that inheritance.
+    @ViewBuilder
+    private func label(of configuration: Configuration) -> some View {
+        if let tint {
+            configuration.label.foregroundStyle(tint)
+        } else {
+            configuration.label
+        }
     }
 }
 

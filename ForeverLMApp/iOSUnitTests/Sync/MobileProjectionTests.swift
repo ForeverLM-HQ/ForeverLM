@@ -189,16 +189,11 @@ struct MobileProjectionTests {
         #expect(try await projection.exchanges(ofChat: "ch-a", zoneKey: Self.library, page: MobileProjection.Page.first(2).next).map(\.id) == ["x3"])
     }
 
-    @Test("Settings, the library's seed and one record read as the phone holds them")
+    @Test("Settings and one record read as the phone holds them")
     func recordsAndSettings() async throws {
-        let (replica, projection) = try await Self.fixture()
+        let (_, projection) = try await Self.fixture()
         #expect(try await projection.setting("review.minutes") == SyncJSON(20))
         #expect(try await projection.setting("missing") == nil)
-        #expect(try await projection.librarySeed() == nil, "no personal root held yet")
-        let root = try MobileSyncFixture.rootRecord(["kind": .string("personal"), "seed": .object(["state": .string("complete"), "metadataCompleteAt": SyncJSON(42)])],
-                                                    salt: MobileSyncFixture.librarySalt, in: PrivateSyncZones.library)
-        try await replica.perform { try $0.replica.upsertRecord(ReplicaRecord(root, zoneKey: Self.library, wireID: SyncSchema.rootRecordName, seenPass: nil)) }
-        #expect(try await projection.librarySeed() == MobileProjection.LibrarySeed(state: "complete", metadataCompleteAt: 42))
         #expect(try await projection.envelope(.notebook, id: "nb-a", zoneKey: Self.library)?.fields["title"] == .string("🧬 Alpha"))
         #expect(try await projection.envelope(.notebook, id: "nb-none", zoneKey: Self.library) == nil)
     }

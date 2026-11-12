@@ -1,6 +1,17 @@
 import Foundation
 import OSLog
 
+extension SQLiteValue {
+    /// The column read as a number: a real, or an integer widened; nil for null, text and blobs.
+    var realValue: Double? {
+        switch self {
+        case .real(let value): return value
+        case .integer(let value): return Double(value)
+        default: return nil
+        }
+    }
+}
+
 // MARK: - A chat's kind, context mode and evidence (docs/cloudkit-schema-design.md §3.5.13, D50, §10)
 
 /// What `ChatKindClassifier` reads about a chat, gathered from the store by one query: the activation
@@ -387,13 +398,7 @@ struct ChatProjection: RecordProjection {
 
     static func encodeRows(_ rows: ChatRows) -> [String: SyncJSON] {
         func text(_ column: String) -> String? { rows.columns[column]?.textValue }
-        func real(_ column: String) -> Double? {
-            switch rows.columns[column] {
-            case .real(let value)?: return value
-            case .integer(let value)?: return Double(value)
-            default: return nil
-            }
-        }
+        func real(_ column: String) -> Double? { rows.columns[column]?.realValue }
         func ms(_ seconds: Double) -> SyncJSON { SyncJSON(SyncTime.milliseconds(cocoaSeconds: seconds)) }
 
         var fields: [String: SyncJSON] = ["kind": .string(kind(rows).rawValue)]

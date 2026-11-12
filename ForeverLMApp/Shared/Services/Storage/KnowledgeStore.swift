@@ -192,12 +192,11 @@ final class KnowledgeStore: @unchecked Sendable {
     }
 
     /// Steps a prepared statement to its end, handing each row to `handler`.
-    /// Until 2026-09-19 the loop was `while step == SQLITE_ROW`, which read a
-    /// failing step — SQLITE_BUSY after the timeout, SQLITE_IOERR, SQLITE_CORRUPT,
-    /// SQLITE_FULL, SQLITE_INTERRUPT — as "no more rows" and returned normally
-    /// with whatever had arrived, so a library could "shrink", a dedupe lookup
-    /// could say "not found" and a sync backfill could see an empty table with
-    /// nothing surfaced. Only SQLITE_DONE ends a query quietly now.
+    /// A failing step — SQLITE_BUSY after the timeout, SQLITE_IOERR, SQLITE_CORRUPT,
+    /// SQLITE_FULL, SQLITE_INTERRUPT — is never read as "no more rows" (a loop of
+    /// `while step == SQLITE_ROW` would return normally with whatever had arrived, so a
+    /// library could "shrink", a dedupe lookup could say "not found" and a sync backfill
+    /// could see an empty table with nothing surfaced). Only SQLITE_DONE ends a query quietly.
     private func stepRows(_ stmt: OpaquePointer?, sql: String, _ handler: (OpaquePointer?) throws -> Void) throws {
         while true {
             let rc = sqlite3_step(stmt)
@@ -403,9 +402,8 @@ enum KnowledgeStoreError: Error, LocalizedError {
 /// Binding a string as a C string (`utf8String` with length -1) stores only
 /// what precedes its first U+0000, and reading one back with
 /// `String(cString:)` stops at the same place. PDFKit hands an unmapped glyph
-/// back as U+0000 — a minus sign, an "fi" ligature — so on 2026-09-23 three
-/// papers re-extracted by cleaner v19 kept 1,631, 16,241 and 91,591 of their
-/// 65k, 114k and 140k characters while `raw_sha256`, `clean_sha256` and
+/// back as U+0000 — a minus sign, an "fi" ligature — so a paper
+/// could keep 1,631 of its 65k characters while `raw_sha256`, `clean_sha256` and
 /// `word_count`, computed on the Swift string, described the whole paper. The
 /// row then contradicted itself, its CloudKit record carried a raw asset that
 /// failed the integrity check against its own metadata, and Listen read the

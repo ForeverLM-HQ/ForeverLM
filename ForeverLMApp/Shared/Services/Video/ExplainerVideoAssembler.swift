@@ -159,7 +159,7 @@ enum VideoOverviewImporter {
         while let chunk = try handle.read(upToCount: 4 * 1024 * 1024), !chunk.isEmpty {
             hasher.update(data: chunk)
         }
-        return hasher.finalize().prefix(16).map { String(format: "%02x", $0) }.joined()
+        return hasher.finalize().prefix(16).hexString
     }
 
     /// Copies the file into `Videos/<id>/video.mp4`, draws its poster, and

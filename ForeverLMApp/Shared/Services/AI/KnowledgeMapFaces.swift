@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// A source card's written faces on the Canvas (docs/sensemaking-design.md,
@@ -61,8 +60,7 @@ enum KnowledgeMapFaces {
         let body = text.ideas.isEmpty
             ? String(text.start.prefix(fingerprintCharacters))
             : text.ideas.joined(separator: "\n")
-        let digest = SHA256.hash(data: Data((title + "\u{1F}" + body).utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        return (title + "\u{1F}" + body).sha256Hex
     }
 
     /// The cheap signature a fingerprint is cached against: a source whose

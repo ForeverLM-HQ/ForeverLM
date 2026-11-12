@@ -35,10 +35,9 @@ final class MCPServerLauncher {
         case failed(String)
         /// Another ForeverLM signed in to this Apple ID took the tunnel, and
         /// this one stepped aside until it leaves. Assistants still reach the
-        /// library, through that instance. Until 2026-10-06 this was
-        /// `.settingUp(reason)`, which Settings showed as "Connecting..." with a
-        /// spinner for as long as the other Mac stayed up — hours, beside a
-        /// green light that the other Mac's answers kept green.
+        /// library, through that instance. It is its own state rather than
+        /// `.settingUp(reason)` because Settings would show that as "Connecting..."
+        /// with a spinner for as long as the other Mac stayed up.
         case servedElsewhere
     }
 
@@ -75,17 +74,13 @@ final class MCPServerLauncher {
     /// entry costs a second identical round trip on every failure and hides the
     /// fact that there is one fewer fallback than it looks like.
     ///
-    /// One address since 2026-10-10. Builds up to then also tried the Worker's
-    /// workers.dev host, the only endpoint outside the brand zone; it went
-    /// because it sat on a personal account subdomain, and a zone-level DNS
-    /// failure takes the site and the other services down with it anyway. The
-    /// Worker still answers there for those builds.
-    ///
-    /// `mcp.<brand>` used to sit in this list. It resolves to the MCP offline
-    /// page, which only ever forwarded /provision incidentally and now answers
-    /// Cloudflare 1042 (a Worker cannot subrequest another Worker on its own
-    /// zone). A fallback that cannot succeed is not a fallback; it just delays
-    /// the one that can.
+    /// One address, in the brand zone. The Worker's workers.dev host is not a
+    /// fallback: it sits on a personal account subdomain, and a zone-level DNS
+    /// failure takes the site and the other services down with it anyway.
+    /// `mcp.<brand>` is not one either: it resolves to the MCP offline page,
+    /// which answers Cloudflare 1042 (a Worker cannot subrequest another
+    /// Worker on its own zone). A fallback that cannot succeed is not a
+    /// fallback; it just delays the one that can.
     private static let provisionerURLs = [
         "https://provision.\(MCPBrandDomains.current)",
     ]
@@ -152,11 +147,11 @@ final class MCPServerLauncher {
             }
         }
 
-        // A live socket dropped and the relay is reconnecting on its own. Until
-        // 2026-09-29 nothing told the launcher, so it went on reporting
-        // .running, and startHostedTunnel returns early while .running: app
-        // activation and Connect did nothing, and only switching assistant
-        // integrations off and on brought the tunnel back.
+        // A live socket dropped and the relay is reconnecting on its own. The
+        // launcher has to hear it: startHostedTunnel returns early while
+        // .running, so a launcher that kept reporting .running would ignore app
+        // activation and Connect, and only switching assistant integrations
+        // off and on would bring the tunnel back.
         // The relay also calls this when the instance it stepped aside for has
         // left and it starts taking the tunnel back.
         await relay.setOnConnectionLost { [weak self] reason in
@@ -335,10 +330,10 @@ final class MCPServerLauncher {
     /// The Apple `sub`, and nothing else.
     ///
     /// This seed becomes `tunnels.user_id = SHA256(seed)`, which the relay matches against
-    /// `managed_ai_accounts.apple_sub_hash` to decide who to bill. There used to be a
-    /// fallback here that derived a `local-mcp-<clientID>` seed when the Apple ID was
-    /// missing — it provisioned a tunnel whose user_id could never match any account, so
-    /// every tool call failed as unbillable while the connection looked healthy.
+    /// `managed_ai_accounts.apple_sub_hash` to decide who to bill. There is no
+    /// fallback that derives a `local-mcp-<clientID>` seed when the Apple ID is
+    /// missing: it would provision a tunnel whose user_id can never match any account, so
+    /// every tool call would fail as unbillable while the connection looked healthy.
     ///
     /// A wrong identity is worse than no identity: refuse to provision instead. The app
     /// only starts MCP once the account wall has cleared (`hasAccountAccess`), so a
@@ -389,8 +384,8 @@ final class MCPServerLauncher {
     /// learner's own managed session, the one Sign in with Apple minted: the
     /// provisioner has the proxy verify it and accepts only the installed-app or
     /// development identity that session belongs to, so no request can reach
-    /// another learner's tunnel. Until 2026-09-29 the bearer was a secret baked
-    /// into every release binary, which anyone holding the app could extract.
+    /// another learner's tunnel. (A secret baked into the binary would be
+    /// extractable by anyone holding the app.)
     nonisolated static func provisioningRequest(baseURL: String, userIDHash: String, sessionToken: String) -> URLRequest? {
         guard let url = URL(string: "\(baseURL)/provision") else { return nil }
         var request = URLRequest(url: url)
@@ -464,11 +459,11 @@ final class MCPServerLauncher {
     /// The loopback answer to `GET /mcp-url`: `{"url": <tunnel URL>}` and
     /// nothing else, with no token and nothing from the library.
     ///
-    /// The personal URL follows the Apple identity. On 2026-10-10 the move to
-    /// team XXXXXXXXXX gave the same learner a new Sign in with Apple `sub` and
-    /// so a new tunnel, and the old address answers 503 "app not running"
-    /// forever. A plugin whose saved URL answers that asks here, and follows
-    /// the move without anyone copying the new URL out of Settings. The
+    /// The personal URL follows the Apple identity. A change of developer team
+    /// gives the same learner a new Sign in with Apple `sub` and so a new
+    /// tunnel, and the old address answers 503 "app not running" forever. A
+    /// plugin whose saved URL answers that asks here, and follows the move
+    /// without anyone copying the new URL out of Settings. The
     /// listener opens only once the relay has accepted this app's tunnel, so
     /// the URL it names is one the relay has served to this app.
     ///

@@ -94,8 +94,8 @@ struct SettingsView: View {
         .frame(minWidth: 760, idealWidth: 860)
     }
 
-    /// The selected pane. Nothing pushes onto it since the plugins' pages left
-    /// for the Plugins place; the stack keeps each pane's title its own.
+    /// The selected pane. Nothing pushes onto it, the plugins' pages being in
+    /// the Plugins place; the stack keeps each pane's title its own.
     private var detailColumn: some View {
         NavigationStack {
             paneView(for: selection)
@@ -519,8 +519,8 @@ private struct SettingsSidebar: View {
                 }
             }
             Spacer(minLength: 0)
-            // Beta releases sit with the version they change, since General
-            // went (2026-11-08); the team scope has no say in updates.
+            // Beta releases sit with the version they change; the team scope
+            // has no say in updates.
             if scope == .personal {
                 SettingsBetaReleasesToggle()
             }
@@ -1269,9 +1269,8 @@ private struct ReadOnlyPlainTextView: NSViewRepresentable {
 }
 
 /// Settings → Billing: paying for ForeverLM, and nothing else
-/// (`AppPlanSettingsSection`): the product owner asked for the subscription
-/// to stand apart from all the AI usage (2026-09-28), which is Settings › AI
-/// Usage.
+/// (`AppPlanSettingsSection`): the subscription stands apart from all the AI
+/// usage, which is Settings › AI Usage (product owner, 2026-09-28).
 private struct BillingSettingsDetailView: View {
     @Environment(ManagedAIAccountModel.self) private var account
 

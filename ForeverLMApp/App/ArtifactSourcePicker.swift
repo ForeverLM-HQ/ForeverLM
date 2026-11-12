@@ -434,8 +434,8 @@ struct ArtifactSourcePicker: View {
         return counts
     }
 
-    /// What a whole book is attached as. The same reference `notepadGroundingToken`
-    /// builds for a book row, spelled out here because the picker asks for it by
+    /// What a whole book is attached as. The same reference `notepadGroundingBookPrefix`
+    /// names for a book row, spelled out here because the picker asks for it by
     /// book id rather than by the chapter that happens to represent it.
     private static func bookToken(_ bookID: String) -> String {
         StudioViewModel.notepadGroundingBookPrefix + bookID

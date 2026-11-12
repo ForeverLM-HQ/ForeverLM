@@ -199,8 +199,8 @@ enum GeneratedImageStore {
 
     /// Rewrites one stored file's details with `change`, pixels untouched and
     /// the file's dates kept; nothing is written when the change leaves them
-    /// as they were. A picture stored before details were written (before
-    /// 2026-09-22) is a drawn one: screenshots always carried theirs. Throws
+    /// as they were. A picture stored before details were written is a drawn
+    /// one: screenshots always carried theirs. Throws
     /// for a file whose format cannot carry the details in place (WebP),
     /// rather than writing a PNG under its name.
     static func rewriteDetails(ofFileAt url: URL, id: String, _ change: (inout Details) -> Void) throws {
@@ -292,7 +292,7 @@ enum GeneratedImageStore {
     /// was. `prompt` replaces the one kept with it, when the learner changed it.
     /// Throws when the store holds no such version or it recorded no
     /// prompt; a version whose file cannot carry the mark (WebP, stored
-    /// before 2026-09-22) keeps showing where it is named, and the redraw is
+    /// before details were written) keeps showing where it is named, and the redraw is
     /// still the image's latest. Never called on the main actor.
     static func storeRedraw(
         _ image: GeneratedImage,
@@ -377,8 +377,8 @@ enum GeneratedImageStore {
         /// 1 for a first version, one more than the latest for a revision.
         var version: Int = 1
         /// The image model's OpenRouter slug, beside its display name, which
-        /// can change; nil for a picture stored before 2026-09-29 and for one
-        /// made elsewhere.
+        /// can change; nil for a picture stored before the slug was kept and
+        /// for one made elsewhere.
         var modelID: String? = nil
         /// For a redraw: the version it was drawn to replace, from the same
         /// prompt with another model.
@@ -391,7 +391,7 @@ enum GeneratedImageStore {
         /// in, written once when the image is made. Every later version
         /// carries the image's, so the image lives in one notebook. Nil for a
         /// picture made in no notebook and for every picture stored before
-        /// 2026-10-01. A picture inside a quiz or a walkthrough belongs to
+        /// notebooks were kept. A picture inside a quiz or a walkthrough belongs to
         /// that, not to a notebook of its own.
         var notebookID: String? = nil
     }
@@ -507,7 +507,7 @@ enum GeneratedImageStore {
     }
 
     /// The details a stored file carries; nil for a picture stored before
-    /// they were written (2026-09-22).
+    /// they were written.
     static func details(ofFileAt url: URL) -> Details? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         return details(in: source)
@@ -557,8 +557,8 @@ enum GeneratedImageStore {
         var version: Int { details?.version ?? 1 }
 
         /// A picture made from a prompt — drawn here or saved from elsewhere —
-        /// or one stored before details were written (before 2026-09-22),
-        /// which cannot be told from a screenshot and is kept.
+        /// or one stored before details were written, which cannot be told
+        /// from a screenshot and is kept.
         var isDrawn: Bool { details?.origin != .screenshot }
     }
 

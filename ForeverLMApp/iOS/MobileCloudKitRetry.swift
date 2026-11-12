@@ -6,9 +6,9 @@ import os
 ///
 /// The phone has no `CKSyncEngine` to do this for it: the catalog, the source
 /// text and file stores and the mutation service all call CloudKit directly.
-/// Until 2026-09-26 none of them retried, so one dropped connection reached the
-/// learner as "Highlights could not be loaded: The operation couldn't be
-/// completed. (CKErrorDomain error 4.)" or "Sources could not sync". Error 4 is
+/// Without a retry one dropped connection would reach the learner as
+/// "Highlights could not be loaded: The operation couldn't be completed.
+/// (CKErrorDomain error 4.)" or "Sources could not sync". Error 4 is
 /// `networkFailure`, and it is most common exactly when the app refreshes: the
 /// first request after a return from the background goes out on a connection
 /// iOS tore down while the app was suspended.
@@ -18,9 +18,8 @@ import os
 /// service answers the retry's `serverRecordChanged` by refetching and
 /// reapplying, and a repeated delete's `unknownItem` counts as done.
 ///
-/// `MobileModelRouteError.transientRetryDelay` stays separate on purpose: it
-/// guards a tap on Listen or a chat send, so it retries once and caps the wait
-/// at three seconds, where a sync can afford to wait out a throttle.
+/// A tap on Listen or a chat send does not use this: it does not retry, where a
+/// sync can afford to wait out a throttle.
 enum MobileCloudKitRetry {
     /// CloudKit's documented "try again later" codes. `networkUnavailable` is
     /// here too: iOS reports it for a moment while a connection changes hands

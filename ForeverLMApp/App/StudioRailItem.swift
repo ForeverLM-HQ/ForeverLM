@@ -8,35 +8,32 @@ import AppKit
 /// list"), not a row of its own over the notebooks. The Notebooks header,
 /// the chats and the footer are the rail's skeleton and stay.
 ///
-/// Rows that left, each falling out of the stored hidden set as a name this
-/// build does not know (`StudioRailHiddenItems.init(storage:)`):
+/// Names of rows this build no longer has fall out of the stored hidden set
+/// as names it does not know (`StudioRailHiddenItems.init(storage:)`):
 ///
 /// - Docs, Sites, Videos and Animations (`docs`, `sites`, `videos`,
-///   `animations`) went under one Artifacts row on 2026-09-17 (the product owner: "we
-///   should just have an 'artifacts' page in the left sidebar") and off the
-///   rail on 2026-09-20, as the Artifacts index's kind chips (since
-///   2026-10-06 only Docs and Sites are chips, on the Space's tab; the rest
-///   are listed in their notebook's Studio).
-/// - Planner (`planner`) left on 2026-09-28 and the app on 2026-09-30: the
-///   Now chip in the footer shows the day, which is the Mac's Calendar.
-/// - Goals and Ideas (`goals`, `ideas`) became Artifacts chips on 2026-09-29
-///   (the product owner: "maybe ideas and goals should live under artifacts").
-/// - Activity, Courses and Artifacts (`activity`, `courses`, `artifacts`)
-///   left (2026-10-01; docs/notebooks-design.md, "The
-///   rail"): the rail leads with the notebooks, where the learner works.
-///   Activity is reached from the menu bar's Today menu and the Now chip's
-///   popover; the courses (a course lives in no notebook; 2026-10-03) are
-///   the Space's Courses row, and the Goals (2026-10-06) the Space's tab.
-/// - Home (`notebooks`) left on 2026-10-09, when the Notebooks home went
-///   ("it doesn't add anything"): the Space is the rail's first row, and its
-///   All lists every notebook and course. A stored hidden set naming it drops
-///   the name like the rows above.
-/// - Canvas (`knowledgeMap`) left on 2026-10-07, when canvases became items
-///   in the Space (the product owner: "canvases should be within spaces; just like
-///   sites, pages, etc"): each opens from the Space's Canvases, its Recents
-///   or its Pinned, as a page does (docs/knowledge-map-design.md).
+///   `animations`) are the Artifacts index's kind chips, not rail rows
+///   (product owner, 2026-09-17: "we should just have an 'artifacts' page in
+///   the left sidebar"); only Docs and Sites are chips, on the Space's tab,
+///   and the rest are listed in their notebook's Studio.
+/// - Planner (`planner`): the Now chip in the footer shows the day, which is
+///   the Mac's Calendar.
+/// - Goals and Ideas (`goals`, `ideas`) are Artifacts chips (product owner,
+///   2026-09-29: "maybe ideas and goals should live under artifacts").
+/// - Activity, Courses and Artifacts (`activity`, `courses`, `artifacts`):
+///   the rail leads with the notebooks, where the learner works
+///   (docs/notebooks-design.md, "The rail"). Activity is reached from the
+///   menu bar's Today menu and the Now chip's popover; the courses (a course
+///   lives in no notebook) are the Space's Courses row, and the Goals the
+///   Space's tab.
+/// - Home (`notebooks`): the Space is the rail's first row, and its All lists
+///   every notebook and course ("it doesn't add anything").
+/// - Canvas (`knowledgeMap`): canvases are items in the Space (product owner,
+///   2026-10-07: "canvases should be within spaces; just like sites, pages,
+///   etc"): each opens from the Space's Canvases, its Recents or its Pinned,
+///   as a page does (docs/knowledge-map-design.md).
 enum StudioRailItem: String, CaseIterable, Identifiable {
-    /// Home (2026-10-16), Codex's first icon, and the strip's + before it
+    /// Home, Codex's first icon, and the strip's + before it
     /// (product owner, 2026-10-16: "the home button should just replace that
     /// + button; and it should show what's currently shown under that +
     /// button"): a blank chat with Home's sidebar beside it, New chat, the
@@ -45,18 +42,17 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
     case home
     case newChat
     case memory
-    /// The Space (2026-10-07): the Pages home, ChatGPT's Space with its own
-    /// sidebar. The row was Daily Notes (2026-10-06, docs/notes-graph-design.md)
-    /// until the rail became Codex's icon rail; today's note is one page in
-    /// the Space, and ⇧⌘D still opens it.
+    /// The Space: the Pages home, ChatGPT's Space with its own sidebar.
+    /// Today's note is one page in the Space (docs/notes-graph-design.md), and
+    /// ⇧⌘D opens it.
     case space
     /// The web itself, in tabs. Inside a notebook it opens in the document
     /// slot; Discover lives in Add sources.
     case browser
-    /// The full-window Library (2026-10-01, decisions v5, 2): the whole
+    /// The full-window Library (decisions v5, 2): the whole
     /// library, every kind, laid out for managing it.
     case library
-    /// Plugins (2026-10-13), Codex's grid: every plugin and its state, and
+    /// Plugins, Codex's grid: every plugin and its state, and
     /// each plugin's page (docs/codex-shell-plan.md, Track 2).
     case plugins
     var id: String { rawValue }

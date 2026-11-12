@@ -248,40 +248,6 @@ struct SourceContextManagementTests {
         #expect(!vm.contextSourceIds.contains(a.id))
     }
 
-    @Test("toggleSourceContext toggles in")
-    func toggleIn() {
-        let vm = makeViewModel()
-        let a = makeArticle()
-        vm.articles = [a]
-        vm.toggleSourceContext(a.id)
-        #expect(vm.contextSourceIds.contains(a.id))
-    }
-
-    @Test("toggleSourceContext toggles out")
-    func toggleOut() {
-        let vm = makeViewModel()
-        let a = makeArticle()
-        vm.articles = [a]
-        vm.contextSourceIds = [a.id]
-        vm.toggleSourceContext(a.id)
-        #expect(!vm.contextSourceIds.contains(a.id))
-    }
-
-    @Test("selectAllSources adds all visible article IDs")
-    func selectAllSources() {
-        let vm = makeViewModel()
-        let a1 = makeArticle(url: "https://1.com", title: "One", sourceType: .article)
-        let a2 = makeArticle(url: "https://2.com", title: "Two", sourceType: .article)
-        let paper = makeArticle(url: "https://p.com", title: "Paper", sourceType: .paper)
-        vm.articles = [a1, a2, paper]
-        vm.sidebarTab = .articles
-        vm.selectAllSources()
-        #expect(vm.contextSourceIds.contains(a1.id))
-        #expect(vm.contextSourceIds.contains(a2.id))
-        // Paper should not be included since it's not on the articles tab
-        #expect(!vm.contextSourceIds.contains(paper.id))
-    }
-
     @Test("clearSourceContext empties the array")
     func clearSourceContext() {
         let vm = makeViewModel()
@@ -734,38 +700,6 @@ struct DerivedStateTests {
 
         #expect(vm.resumeBookChapter(for: "My Book")?.id == ch2.id)
         #expect(vm.resumeBookChapter(for: "My Book")?.readingPositionPage == 7)
-    }
-
-    @Test("selectBookGroup opens its resume chapter in Reader")
-    func selectBookGroupOpensResumeChapterInReader() async {
-        let restoreLayout = capturedCenterTabLayout()
-        defer { restoreLayout() }
-        let vm = makeViewModel()
-        let ch1 = makeArticle(
-            url: "/books/ch1.pdf",
-            title: "Chapter 1",
-            sourceType: .book,
-            parentGroup: "My Book",
-            sortIndex: 1
-        )
-        let ch2 = makeArticle(
-            url: "/books/ch2.pdf",
-            title: "Chapter 2",
-            sourceType: .book,
-            parentGroup: "My Book",
-            sortIndex: 2
-        )
-        vm.articles = [ch1, ch2]
-        vm.updateReadingPosition(for: ch2.id, page: 7)
-        vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: StudioCenterTab.permanentTabs, activeTab: .chat),
-        ])
-
-        await vm.selectBookGroup("My Book")
-
-        #expect(vm.selectedArticleId == ch2.id)
-        #expect(vm.selectedArticleIds == [ch2.id])
-        #expect(vm.activeCenterTabs.contains(.reader))
     }
 }
 

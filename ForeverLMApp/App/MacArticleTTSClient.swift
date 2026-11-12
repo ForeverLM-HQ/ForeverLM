@@ -105,8 +105,7 @@ enum MacArticleTTSClient {
     /// one request shape to OpenRouter's speech endpoint under the model's
     /// slug (product owner, 2026-09-27: "it can just be done via openrouter").
     /// `rewrite` takes it straight to OpenRouter on the learner's own key, or
-    /// through the managed proxy. Grok and Gemini went to xAI's and Google's
-    /// own APIs until then.
+    /// through the managed proxy.
     static func openRouter(text: String, voice: String, model requested: String? = nil) async throws -> Data {
         guard ManagedAI.isSignedIn else {
             throw MacArticleTTSError.missingAPIKey("ForeverLM AI")
@@ -255,7 +254,7 @@ enum MacArticleTTSClient {
                 return cached
             }
             // Never let a malformed provider response become permanent merely
-            // because an older build cached it before duration validation.
+            // because it was cached without duration validation.
             ArticleSpeechAudioCache.removeData(for: cacheKey)
         }
 

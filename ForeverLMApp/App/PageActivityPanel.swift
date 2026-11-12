@@ -7,7 +7,7 @@ import SwiftUI
 /// with when it stopped being the page and what replaced it. Choosing a
 /// version shows it over the page (`PageVersionOverlay`), with **Restore This
 /// Version** and **Copy**; the page itself stays open and readable beside the
-/// panel, as Codex's history does, where the old sheet covered it. The clock
+/// panel, as Codex's history does. The clock
 /// on the page's top line and **Page Activity** in the page menu open it; ×
 /// closes it.
 struct PageActivityPanel: View {

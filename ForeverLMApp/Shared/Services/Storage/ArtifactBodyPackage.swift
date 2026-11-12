@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import UniformTypeIdentifiers
 
@@ -80,7 +79,7 @@ struct ArtifactBodyPackage: Sendable, Equatable {
                     mimeType: UTType(filenameExtension: url.pathExtension)?.preferredMIMEType
                         ?? "application/octet-stream",
                     byteCount: data.count,
-                    sha256: sha256(data)
+                    sha256: data.sha256Hex
                 ),
                 data
             ))
@@ -95,7 +94,7 @@ struct ArtifactBodyPackage: Sendable, Equatable {
             markdownByteCount: markdownData.count,
             attachments: attachments.map(\.manifest),
             siteFiles: sortedSiteFiles?.map {
-                ManifestSiteFile(path: $0.path, byteCount: $0.data.count, sha256: sha256($0.data))
+                ManifestSiteFile(path: $0.path, byteCount: $0.data.count, sha256: $0.data.sha256Hex)
             }
         )
         let encoder = JSONEncoder()
@@ -121,7 +120,7 @@ struct ArtifactBodyPackage: Sendable, Equatable {
         guard data.count <= maxPackageBytes else {
             throw ArtifactBodyPackageError.packageTooLarge(maxBytes: maxPackageBytes)
         }
-        return Encoded(data: data, revision: sha256(data), byteCount: data.count)
+        return Encoded(data: data, revision: data.sha256Hex, byteCount: data.count)
     }
 
     static func decode(_ data: Data, expectedRevision: String? = nil) throws -> Decoded {
@@ -129,7 +128,7 @@ struct ArtifactBodyPackage: Sendable, Equatable {
               data.prefix(magic.count) == magic else {
             throw ArtifactBodyPackageError.invalidPackage
         }
-        let revision = sha256(data)
+        let revision = data.sha256Hex
         if let expectedRevision,
            !expectedRevision.isEmpty,
            revision.caseInsensitiveCompare(expectedRevision) != .orderedSame {
@@ -169,7 +168,7 @@ struct ArtifactBodyPackage: Sendable, Equatable {
                 throw ArtifactBodyPackageError.invalidPackage
             }
             let bytes = Data(data[cursor..<(cursor + descriptor.byteCount)])
-            guard sha256(bytes).caseInsensitiveCompare(descriptor.sha256) == .orderedSame else {
+            guard bytes.sha256Hex.caseInsensitiveCompare(descriptor.sha256) == .orderedSame else {
                 throw ArtifactBodyPackageError.attachmentIntegrity(descriptor.token)
             }
             attachments.append(Attachment(
@@ -191,7 +190,7 @@ struct ArtifactBodyPackage: Sendable, Equatable {
                     throw ArtifactBodyPackageError.invalidSiteFile(descriptor.path)
                 }
                 let bytes = Data(data[cursor..<(cursor + descriptor.byteCount)])
-                guard sha256(bytes).caseInsensitiveCompare(descriptor.sha256) == .orderedSame else {
+                guard bytes.sha256Hex.caseInsensitiveCompare(descriptor.sha256) == .orderedSame else {
                     throw ArtifactBodyPackageError.attachmentIntegrity(descriptor.path)
                 }
                 files.append(SiteFile(path: descriptor.path, data: bytes))
@@ -221,10 +220,6 @@ struct ArtifactBodyPackage: Sendable, Equatable {
             if seen.insert(token).inserted { ordered.append(token) }
         }
         return ordered
-    }
-
-    static func sha256(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     private static func validAttachmentToken(_ token: String) -> Bool {

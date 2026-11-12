@@ -7,8 +7,8 @@ import Foundation
 // audio overviews homed on it or linked to it, and the courses it follows —
 // and the things derived from its sources, their walkthroughs, spoken
 // explainers and narrations, the Make Cards runs on its sources and the
-// standalone pictures homed in it. Newest first, by when each was made. Since
-// 2026-10-06 the one-off kinds — pictures, animations, audio overviews,
+// standalone pictures homed in it. Newest first, by when each was made. The
+// one-off kinds — pictures, animations, audio overviews,
 // films, walkthroughs, narrations — are listed here alone: the Notebooks
 // home's Docs tab keeps only Docs, Sites and Ideas. Pure, so membership and
 // order are tested without a view or a store; the view model feeds it what it

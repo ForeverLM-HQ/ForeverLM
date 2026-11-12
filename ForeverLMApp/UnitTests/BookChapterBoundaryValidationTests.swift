@@ -62,67 +62,6 @@ struct BookChapterBoundaryValidationTests {
         ])
     }
 
-    @Test("Validation preserves AI-selected chapter starts")
-    func validationPreservesAISelectedChapterStarts() throws {
-        let document = try makePDFDocument(pages: [
-            """
-            17
-            Demise of the Self-Correcting Machine
-
-            This chapter ends with the question: so can it be done?
-            """,
-            """
-            18
-            A Cure for Old Age?
-
-            Ageing and age-related diseases can be ascribed to mitochondrial free-radical leakage.
-            """,
-            """
-            A Cure for Old Age? 303
-
-            placed under too much strain. However, any stressful episodes are likely to undermine such cells.
-            """,
-            """
-            Epilogue
-
-            More than a decade ago I spent a lot of time in the lab.
-            """
-        ])
-
-        let validated = try StudioViewModel.validatePDFChapterStartPages(
-            [
-                (title: "17) Demise of the Self-Correcting Machine", pageIndex: 0),
-                (title: "18) A Cure for Old Age?", pageIndex: 2),
-                (title: "Epilogue", pageIndex: 3)
-            ],
-            doc: document
-        )
-
-        #expect(validated.map(\.pageIndex) == [0, 2, 3])
-    }
-
-    @Test("Validation fails when AI-selected chapter starts are out of order")
-    func validationFailsWhenChapterStartsAreOutOfOrder() throws {
-        let document = try makePDFDocument(pages: [
-            "1\nFoundations\n\nOpening text.",
-            "Body page with no next chapter heading.",
-            "More body text with no relevant title."
-        ])
-
-        do {
-            _ = try StudioViewModel.validatePDFChapterStartPages(
-                [
-                    (title: "1) Foundations", pageIndex: 0),
-                    (title: "2) Later Chapter", pageIndex: 0)
-                ],
-                doc: document
-            )
-            Issue.record("Expected chapter boundary validation to fail")
-        } catch SourceError.bookChapterBoundaryMismatch(let message) {
-            #expect(message.contains("out-of-order"))
-        }
-    }
-
     @Test("Validated chapter ranges may stop the final chapter before back matter")
     func validatedRangesStopBeforeBackMatter() throws {
         let ranges = try StudioViewModel.validatePDFChapterRanges(

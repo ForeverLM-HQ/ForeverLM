@@ -2,7 +2,7 @@
 import Foundation
 import ImageIO
 
-// MARK: - The Canvas's Heptabase parity build over MCP (2026-10-09)
+// MARK: - The Canvas's Heptabase parity build over MCP
 //
 // What an assistant can do to the learner's Canvas that Heptabase's own CLI
 // can: restyle cards (`update_canvas_card`), tidy and align a selection

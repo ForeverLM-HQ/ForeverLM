@@ -31,7 +31,7 @@ struct BoutStartRequest: Identifiable, Equatable {
 /// The learner's day on this Mac: today's calendar, the bout on the clock, and
 /// the day the Activity pane shows.
 ///
-/// The day is the Mac's Calendar (2026-09-30, when the Planner went): the Now
+/// The day is the Mac's Calendar: the Now
 /// chip in every window reads today's events from here, the assistant plans by
 /// writing events into the calendar, and nothing about the day's time is kept
 /// anywhere else. What stays ForeverLM's own is what the calendar cannot hold —

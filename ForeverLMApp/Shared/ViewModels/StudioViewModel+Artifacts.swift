@@ -385,13 +385,12 @@ extension StudioViewModel {
     /// Space, a page's menu or its row (docs/docs-design.md, "The Space"). The
     /// Space's Trash is the archive: the record is put away whole — its body,
     /// its page, its notebook links — and leaves every list but Trash, where
-    /// Restore brings it back and Delete Forever removes it. Until 2026-10-06
-    /// Move to Trash deleted the record outright and only its folder reached
-    /// the Finder's Trash, so nothing in the app could undo a slipped click.
+    /// Restore brings it back and Delete Forever removes it. Nothing is
+    /// deleted outright, so a slipped click can be undone.
     ///
     /// A page goes with the pages nested under it, as a Codex page's Delete
     /// takes its subpages ("This page and its subpages will move to Trash",
-    /// docs/codex-parity-audit.md, 1B); until 2026-10-13 they stayed behind at
+    /// docs/codex-parity-audit.md, 1B), so none is left behind at
     /// the top of the lists. Each is in Trash on its own and restored there.
     /// The toast says what went, and its Undo brings back exactly that; the
     /// page menu asks first when subpages would go too (`PageTrashWording`).

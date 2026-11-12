@@ -181,17 +181,6 @@ struct StudioAssistantSessionStoreTests {
         #expect(store.draft(for: .newChat(notebookID: "acme-nexus")).isEmpty)
     }
 
-    @Test("Unlinking a Notebook carries the draft to the unlinked composer")
-    func draftFollowsNotebookUnlink() {
-        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())
-        store.setDraft("typed before unlinking", for: .newChat(notebookID: "acme-nexus"))
-
-        store.moveDraft(from: .newChat(notebookID: "acme-nexus"), to: .newChat(notebookID: nil))
-
-        #expect(store.draft(for: .newChat(notebookID: "acme-nexus")).isEmpty)
-        #expect(store.draft(for: .newChat(notebookID: nil)) == "typed before unlinking")
-    }
-
     @Test("Deleting a chat drops the draft it was holding")
     func deletingChatDropsItsDraft() {
         let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())

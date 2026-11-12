@@ -98,7 +98,7 @@ struct LiveCardWordingBackend: CardWordingBackend {
     // effort: on Claude Opus 5.5 a one-card check spent 368 of its 400 output
     // tokens on thinking about the card's subject, and a card on a pathogenic
     // mtDNA mutation (3243A>G heteroplasmy) was then stopped by the provider's
-    // `content_filter` three times (2026-10-30), though the same model had
+    // `content_filter` three times, though the same model had
     // discussed the paper in the chat. With no thinking the reply is the
     // verdict JSON alone.
 

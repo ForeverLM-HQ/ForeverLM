@@ -478,8 +478,7 @@ struct ReviewChatWork: Equatable {
 /// it folds once the answer's first words land, and stays folded. What asks
 /// the learner to act — a plugin to connect — and the pages the steps wrote
 /// stay under the line, outside the fold. The line is set at the reply's own
-/// size with a thin rule under it once the work is done, as Codex draws it
-/// (2026-10-11).
+/// size with a thin rule under it once the work is done, as Codex draws it.
 struct ReviewChatWorkFold: View {
     let work: ReviewChatWork
     /// True while the turn these steps belong to is still running.

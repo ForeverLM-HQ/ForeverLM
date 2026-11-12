@@ -130,14 +130,6 @@ struct MobileSpaceOrganization: Equatable, Sendable {
         MobileSpaceOrganization(pageSpaces.settingName(name, for: spaceID), pins, parents)
     }
 
-    func settingSpace(_ spaceID: String?, for pageID: String) -> MobileSpaceOrganization {
-        MobileSpaceOrganization(pageSpaces.settingMembership(spaceID, for: pageID), pins, parents)
-    }
-
-    func settingPin(_ seconds: Int?, for pageID: String) -> MobileSpaceOrganization {
-        MobileSpaceOrganization(pageSpaces, pins.setting(seconds, for: pageID), parents)
-    }
-
     func settingParent(_ parentID: String?, for pageID: String) -> MobileSpaceOrganization {
         MobileSpaceOrganization(pageSpaces, pins, parents.settingParent(parentID, for: pageID))
     }
@@ -281,8 +273,7 @@ enum MobileSpacePlace: Hashable, Sendable {
 }
 
 /// The list's order (the Mac's `SpaceSort`): Last Activity by default, as Codex's Space lists (product owner,
-/// 2026-10-13: "at first it should be a copy of the codex"); Date Created was the default before
-/// (2026-09-29: "just do it by creation date and time").
+/// 2026-10-13: "at first it should be a copy of the codex").
 enum MobileSpaceSort: String, CaseIterable, Identifiable, Sendable {
     case created, activity, name
 

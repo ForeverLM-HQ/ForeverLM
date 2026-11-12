@@ -64,9 +64,8 @@ struct ContentView: View {
                 // the Terminal — lands in a window that is already open. Left
                 // to itself, SwiftUI answers a URL with a new window whenever
                 // none of the open ones is key, and a window that has never
-                // been key cannot present a sheet: in build 85 three docs
-                // opened that way could not be published or trashed from
-                // their ⋯ menu (2026-09-08). The reveal itself goes to the
+                // been key cannot present a sheet, so docs opened that way could
+                // not be published or trashed from their ⋯ menu. The reveal itself goes to the
                 // active window (`bringStudioForward`).
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 .onReceive(NotificationCenter.default.publisher(for: .requestOpenStudioEntityLink)) { note in
@@ -164,7 +163,7 @@ struct ContentView: View {
     /// looking: the app comes forward and the active Studio window becomes key,
     /// so the reveal lands there and the window can present the sheets that
     /// follow (Publish, Update Page, Move to Trash). A window that is main but
-    /// never key — what SwiftUI made for an external URL in build 85 — cannot.
+    /// never key — what SwiftUI makes for an external URL — cannot.
     private func bringStudioForward() {
         NSApp.activate(ignoringOtherApps: true)
         if let state = StudioWindowRegistry.shared.activeState,

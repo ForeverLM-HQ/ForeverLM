@@ -16,9 +16,8 @@ struct SeedSatellite: Sendable {
         case narration(sourceID: String)
         /// A source's body whose pointer keeps no path: what `SourceFilePublisher` points at (text, Listen text,
         /// TTML, review guide, walkthrough, figures, or the source's own file). Built again from the source's rows
-        /// (`SourceSatelliteRoles.localSatellites`) and used when it is the body the pointer names. Until
-        /// 2026-10-13 the seed had no body for these and skipped them, so a library uploaded again (a new salt)
-        /// carried their pointers without their bytes.
+        /// (`SourceSatelliteRoles.localSatellites`) and used when it is the body the pointer names, so a library uploaded again (a new salt)
+        /// carries their bytes with their pointers.
         case table(sourceID: String)
         /// Nothing on this Mac to read it from.
         case none
@@ -189,9 +188,9 @@ struct CutoverSatellites: Sendable {
     /// pointer's parts are looked up by name in batches (`BlobStore.filesMissingParts`), and only the missing are
     /// read and uploaded under the pointer as it stands. A source whose body of that role changed here since it was
     /// published is queued for the publisher, which points it at what this Mac holds now; a body this Mac does not
-    /// hold at all (another Mac's, or an archived source's) is left to the Mac that holds it. Repairs the library
-    /// uploaded again on 2026-10-11, whose seed skipped every pointer with no path (`Origin.table`), so a
-    /// client reading `Source.derived.figures` or a published `files.text` met `missingParts`. Returns nil when
+    /// hold at all (another Mac's, or an archived source's) is left to the Mac that holds it. Repairs a library
+    /// uploaded again whose seed skipped every pointer with no path (`Origin.table`), which a
+    /// client reading `Source.derived.figures` or a published `files.text` meets as `missingParts`. Returns nil when
     /// there is nothing to do; a refused upload leaves the pass to run again after a later round.
     @discardableResult
     func restoreMissing() async throws -> CutoverSatelliteTotals? {
@@ -236,7 +235,7 @@ struct CutoverSatellites: Sendable {
     /// A team converted to a space (`TeamToSpace`) carries its copies' pointers into the space, but nothing laid
     /// their bytes in the space's zone: the seed and the publisher send the personal library's only, and only a
     /// move or a share copies a record's satellites across (`SpaceMoveJob`). So every other device met
-    /// `missingParts` on a team source's text and PDF (2026-10-25: 52 sources). Once per space (its root's salt, so
+    /// `missingParts` on a team source's text and PDF. Once per space (its root's salt, so
     /// a space made again is done again), the pointers are looked up by name and only the missing are read and
     /// uploaded. Returns nil when the space is not held or this is already done.
     @discardableResult

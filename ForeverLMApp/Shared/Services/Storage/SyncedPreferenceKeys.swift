@@ -119,22 +119,6 @@ enum SyncedPreferenceKeys {
     /// (`Sitting`) and a connector's health (`Device.connectorHealth`).
     static let recordPrefixes: [String] = accountFamilies.filter { $0.traits.record != nil }.map(\.prefix)
 
-    /// The domain prefixes whose rows became fields of the member's `NotebookState` (schema v2 §10,
-    /// §3.5.20): under generation 2 they are no preference rows any more.
-    static let notebookStatePrefixes: [String] = prefixes(in: .notebookState)
-
-    /// The domain prefix whose rows became the member's `Enrollment` records (schema v2 §10, §3.5.12): a
-    /// course's focus. Under generation 2 it is no preference row any more.
-    static let enrollmentPrefixes: [String] = prefixes(in: .enrollment)
-
-    /// The domain prefixes whose rows became fields of the member's `ReadingState` (schema v2 §10,
-    /// §3.5.18): the narration's resume point is `ReadingState.listen` under generation 2.
-    static let readingStatePrefixes: [String] = prefixes(in: .readingState)
-
-    /// The domain prefix whose rows became this Mac's `Device.connectorHealth` (schema v2 §10, §3.5.2):
-    /// under generation 2 a connector's health stays in this Mac's `UserDefaults` and its Device record.
-    static let devicePrefixes: [String] = prefixes(in: .device)
-
     /// The prefixes that sync as preferences: the list without the prefixes that moved into records
     /// (§14.1). A deck's card state and the quiz scores have records and still travel as rows.
     static let liveSyncedPrefixes: [String] = accountFamilies.filter { family in

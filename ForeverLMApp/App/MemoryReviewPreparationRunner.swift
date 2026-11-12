@@ -15,16 +15,14 @@ extension Notification.Name {
 
 /// What shape a day's review was prepared in.
 enum MemoryReviewDayKind: String, Codable, Sendable {
-    /// Today's cards, selected without a model: the card review, since
-    /// 2026-10-01.
+    /// Today's cards, selected without a model: the card review.
     case cards
-    /// A review chat planned by topic and opened with its first question,
-    /// which builds before the card review prepared every morning.
+    /// A review chat planned by topic and opened with its first question.
     case topics
 
     /// Whether a day prepared in this shape is today's review. Only cards
-    /// are: a topic-shaped day — an attempt an older build recorded, or the
-    /// review chat it made — is never resumed, and the morning selects the
+    /// are: a topic-shaped day — a recorded attempt, or the review chat it
+    /// made — is never resumed, and the morning selects the
     /// day's cards anyway.
     var isResumable: Bool { self == .cards }
 }
@@ -37,12 +35,9 @@ enum MemoryReviewDayKind: String, Codable, Sendable {
 /// review's shape (`Attempt.kind`), and re-asserts the daily reminder, which
 /// says a review is ready only when a card is waiting. No model is called.
 ///
-/// Until 2026-10-01 this prepared the day's topic review: it ran the day
-/// close first, assembled the cohort, called the planner, and created the
-/// day's chat with its opening question, every morning, whether or not the
-/// review was opened. The card review retired that from every entry point
-/// (docs/memory-design.md, "The card review"), and this runner makes that chat
-/// no more.
+/// It does not prepare a topic review: no day close, no cohort, no planner
+/// call and no review chat with an opening question (docs/memory-design.md,
+/// "The card review").
 ///
 /// **Timing is event-driven**, the way `ScheduledTaskRunner` is: one timer for
 /// the next instant, re-armed on waking, activation, a clock change and a
@@ -62,11 +57,11 @@ final class MemoryReviewPreparationRunner {
         var succeeded: Bool
         /// The failure, in words.
         var message: String?
-        /// The review chat an older build prepared for the day; nil for a
-        /// day prepared as cards.
+        /// The review chat prepared for the day, when it was a topic review;
+        /// nil for a day prepared as cards.
         var sessionID: String?
-        /// What shape the day was prepared in. An attempt an older build
-        /// recorded has none, and was the topic review's.
+        /// What shape the day was prepared in. A recorded attempt with no
+        /// kind was the topic review's.
         var kind: MemoryReviewDayKind
         /// The day's cards when they were selected: due, and new.
         var dueCards: Int?
@@ -116,9 +111,8 @@ final class MemoryReviewPreparationRunner {
     }
 
     /// The day this Mac last prepared in the card review's shape, for the
-    /// one-selection-a-day rule. An attempt an older build recorded prepared
-    /// the topic review's chat, which is not today's review, so it does not
-    /// count.
+    /// one-selection-a-day rule. A topic-shaped attempt prepared a
+    /// review chat, which is not today's review, so it does not count.
     static func preparedDay(of attempt: Attempt?) -> String? {
         guard let attempt, attempt.kind.isResumable else { return nil }
         return attempt.day
@@ -206,8 +200,8 @@ final class MemoryReviewPreparationRunner {
 
     private func prepareIfDue(now: Date = Date()) async {
         guard !isPreparing else { return }
-        // A review chat for today — from an older build or the phone — is not
-        // today's review, so it no longer stands in for a selection.
+        // A review chat for today — a topic review or the phone's — is not
+        // today's review, so it does not stand in for a selection.
         let decision = DailyReviewPreparation.decide(
             now: now,
             isEnabled: DailyReviewPreparation.isEnabled,

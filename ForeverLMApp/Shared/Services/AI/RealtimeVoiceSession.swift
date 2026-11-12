@@ -7,7 +7,7 @@ import WebRTC
 
 /// One voice conversation's connection to OpenAI Realtime, over WebRTC, the way
 /// OpenAI's guide connects a phone or desktop client
-/// (developers.openai.com/api/docs/guides/voice-webrtc, read 2026-11-07):
+/// (developers.openai.com/api/docs/guides/voice-webrtc):
 ///
 /// 1. The proxy mints a client secret with the whole session configured on it
 ///    (`ManagedAI.mintRealtimeVoiceSecret`): instructions, voice, tools, turn

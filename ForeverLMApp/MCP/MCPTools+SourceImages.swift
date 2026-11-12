@@ -17,11 +17,11 @@ struct MCPToolImage: Equatable, Sendable {
 /// `inspect_paper_figure` and `show_source_image` over MCP: the in-app chat's
 /// two picture tools, answered from the Mac's own PDFs and slide frames.
 ///
-/// Before these, a model asked "can you show me Figure 3?" from Claude or
-/// Codex had two routes and both were bad: `get_source_content` ends in a
-/// caption list with no picture behind it, and the model then went looking
+/// Without these, a model asked "can you show me Figure 3?" from Claude or
+/// Codex has two routes and both are bad: `get_source_content` ends in a
+/// caption list with no picture behind it, and the model then goes looking
 /// for the PDF on disk by hand — minutes of `find` and `grep` over the library
-/// to end at a page it still could not see (2026-09-19). The Mac already held
+/// to end at a page it still cannot see. The Mac already holds
 /// the figure index, the vision analysis and the renderer; only the in-app
 /// chat could reach them.
 extension MCPDataStore {
@@ -44,15 +44,17 @@ extension MCPDataStore {
     /// caller narrows it with `query` or `page` to get the pictures.
     static let maxImagesPerMediaResult = 4
 
-    private enum LibrarySourceLookup {
+    enum LibrarySourceLookup {
         case found(StudioArticle)
         case notFound
         case excluded
     }
 
-    /// Through the storage actor, never the cached connection: inspect_paper_figure
-    /// is off the store gate (`storeGateExemptToolNames`) for its vision call.
-    private func librarySource(forRequestedID requestedID: String) async throws -> LibrarySourceLookup {
+    /// Through the storage actor, never the cached connection: the tools that
+    /// resolve a source this way (inspect_paper_figure, show_source_image,
+    /// generate_walkthrough) are off the store gate (`storeGateExemptToolNames`)
+    /// for their vision or writing calls.
+    func librarySource(forRequestedID requestedID: String) async throws -> LibrarySourceLookup {
         guard let resolvedID = try await notebookFileStorage.resolveSourceID(forLinkToken: requestedID) else {
             return .notFound
         }

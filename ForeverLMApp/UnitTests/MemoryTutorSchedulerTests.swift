@@ -739,9 +739,6 @@ struct MemoryTutorSchedulerTests {
         )
         #expect(MemoryTutorIdentity.scheduledSourcePlacementID(portableSourceKey: doiKey)
             == MemoryTutorIdentity.scheduledSourcePlacementID(portableSourceKey: publishedDOIKey))
-        let transient = MemoryTutorQueueIdentity.firstReview(sourceID: "source-a")
-        #expect(MemoryTutorQueueIdentity.firstReviewSourceID(from: transient) == "source-a")
-        #expect(MemoryTutorQueueIdentity.firstReviewSourceID(from: itemID) == nil)
     }
 
     private func losAngeles() throws -> Calendar {

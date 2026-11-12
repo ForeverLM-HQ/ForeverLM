@@ -24,7 +24,7 @@ private let logger = Logger(subsystem: "com.foreverlm", category: "AIKnowledge")
 /// per-source detected language. Apple groups these models by script, and the one
 /// `.english` selects (5C45D94E…) is a single multilingual model covering 20
 /// Latin-script languages — cs, da, de, en, es, fi, fr, hr, hu, id, it, nb, nl,
-/// pl, pt, ro, sk, sv, tr, vi. Measured 2026-08-19: embedding the same Dutch
+/// pl, pt, ro, sk, sv, tr, vi. Measured: embedding the same Dutch
 /// sentence with `language: .english` and with `.dutch` returns bit-identical
 /// vectors, so the argument is inert across this group, and Dutch text lands 0.89
 /// cosine from its English translation against 0.71 for unrelated English — the
@@ -1673,8 +1673,8 @@ extension AIService {
     /// each, with `?` for a field the document does not print.
     ///
     /// A reply that leaves a label out has not said the document lacks that
-    /// field, so it is refused rather than read as a blank. On 2026-10-12 a
-    /// small model wrote "AUTHORS:" for "AUTHOR:"; the line was skipped, and
+    /// field, so it is refused rather than read as a blank. A
+    /// small model once wrote "AUTHORS:" for "AUTHOR:"; the line was skipped, and
     /// the import reported that the paper printed no author over five names
     /// on its first page. Labels are read in any case, and "AUTHORS" is the
     /// plural of the one label that asks for a list.
@@ -1717,8 +1717,8 @@ extension AIService {
     ///
     /// Title and authors are copied off the page, so the model decides which
     /// words they are and the app checks that each one is there, as Source
-    /// Content Cleanup checks that every passage it deletes occurs. On
-    /// 2026-10-12 a 2.6B model read "ANCIENT MICROSPHERES: ABIOGENIC,
+    /// Content Cleanup checks that every passage it deletes occurs. A 2.6B
+    /// model once read "ANCIENT MICROSPHERES: ABIOGENIC,
     /// PROTOBIOGENIC, OR BIOGENIC?" and answered "Ancient Microscopes:
     /// Abiogenic, Protobionic, or Biogenic?"; that reply now goes to the backups.
     static func paperMetadata(fromReply response: String, given: String) throws -> PaperMetadataResult {
@@ -2389,7 +2389,7 @@ extension AIService {
                   deletion.exactText.count <= 160,
                   deletion.occurrence > 0,
                   let text = blockText[deletion.blockID],
-                  let range = Self.range(
+                  let range = PaperContentPreparationService.occurrenceRange(
                       of: deletion.exactText,
                       occurrence: deletion.occurrence,
                       in: text
@@ -2445,7 +2445,7 @@ extension AIService {
 
         let boxHeadingIDs = Set(
             blocks.compactMap { block in
-                Self.isCanonicalBoxHeading(block.text) ? block.id : nil
+                PaperContentPreparationService.isSidebarHeading(block.text) ? block.id : nil
             }
         )
         // Unknown IDs cannot name authoritative input, so retaining them would
@@ -2468,7 +2468,7 @@ extension AIService {
                   deletion.exactText.count <= 160,
                   deletion.occurrence > 0,
                   let text = blockText[deletion.blockID],
-                  let range = Self.range(
+                  let range = PaperContentPreparationService.occurrenceRange(
                     of: deletion.exactText,
                     occurrence: deletion.occurrence,
                     in: text
@@ -2524,7 +2524,7 @@ extension AIService {
                 guard proposed.blockIDs.count == 1,
                       let startID = proposed.blockIDs.first,
                       let startIndex = indexByID[startID],
-                      Self.isCanonicalBoxHeading(blocks[startIndex].text),
+                      PaperContentPreparationService.isSidebarHeading(blocks[startIndex].text),
                       let resumeIndex = indexByID[resumeAtBlockID],
                       resumeIndex > startIndex else { continue }
                 relocation = PaperSpeechRelocation(
@@ -2565,33 +2565,6 @@ extension AIService {
                 if leftStart != rightStart { return leftStart < rightStart }
                 return $0.blockIDs.count > $1.blockIDs.count
             }
-    }
-
-    private nonisolated static func isCanonicalBoxHeading(_ text: String) -> Bool {
-        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard normalized.lowercased().hasPrefix("box ") else { return false }
-        var remainder = normalized.dropFirst(4)
-        guard remainder.first?.isNumber == true else { return false }
-        while remainder.first?.isNumber == true { remainder.removeFirst() }
-        remainder = remainder.drop(while: { $0.isWhitespace })
-        guard let separator = remainder.first else { return false }
-        return "|:—–-".contains(separator)
-    }
-
-    private nonisolated static func range(
-        of needle: String,
-        occurrence: Int,
-        in text: String
-    ) -> Range<String.Index>? {
-        var searchStart = text.startIndex
-        for current in 1...occurrence {
-            guard let range = text.range(of: needle, range: searchStart..<text.endIndex) else {
-                return nil
-            }
-            if current == occurrence { return range }
-            searchStart = range.upperBound
-        }
-        return nil
     }
 
     /// Decide whether an attached PDF title candidate is strong evidence of the wrong selected paper.

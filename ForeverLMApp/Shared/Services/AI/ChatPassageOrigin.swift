@@ -7,12 +7,11 @@ import Foundation
 /// message as model-only context (`ReaderSelectionExplanationRequest
 /// .contextualContent`): a "Selected passage:" heading, the words as a
 /// blockquote, the source's title under "Context:". That block is stored in
-/// `review_exchanges.context_content` and synced, but until 2026-09-20 nothing
-/// ever drew it again — the chat showed the question and the answer, and the
-/// highlighted words the whole conversation was about were nowhere on screen
-/// (the product owner). The chat now reads the block back and draws the passage as a
-/// quote in the bubble of the message it was asked with, and a click on the
-/// quote opens the source in the Reader at those words.
+/// `review_exchanges.context_content` and synced. The highlighted words the
+/// whole conversation is about must stay on screen, so the chat reads the block
+/// back and draws the passage as a quote in the bubble of the message it was
+/// asked with, and a click on the quote opens the source in the Reader at those
+/// words.
 ///
 /// The block also carries the source's id from now on, on a `Source ID:` line
 /// beside the `Article ID:` line a doc passage already had, so the quote knows

@@ -121,13 +121,13 @@ extension KnowledgeStore {
         return count
     }
 
-    /// Until 2026-09-03 the cleanup request asked OpenRouter to turn reasoning
-    /// off entirely, and first-generation GPT-5 models refused with a 400
+    /// A cleanup request that asked OpenRouter to turn reasoning off entirely
+    /// was refused by first-generation GPT-5 models with a 400
     /// ("Reasoning is mandatory for this endpoint and cannot be disabled").
     /// That failure was counted as a real attempt, so an episode on such a
     /// model burned its whole budget without the cleaner ever reading a word.
-    /// The request now asks for the lowest effort the model accepts; give those
-    /// rows their attempts back so the next drain picks them up. Idempotent and
+    /// The request asks for the lowest effort the model accepts; give rows that
+    /// failed that way their attempts back so the next drain picks them up. Idempotent and
     /// bounded by the queue's size, so it can run ahead of every drain.
     private func reviveReasoningRejectedPodcastTranscriptCleanups() throws {
         try exec("""
@@ -261,10 +261,7 @@ extension KnowledgeStore {
                     "Podcast transcript changed while ad cleanup was running; it will be retried."
                 )
             }
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?, ?)") { stmt in
-                bind(stmt, 1, candidate.sourceID)
-                bind(stmt, 2, prepared.clean)
-            }
+            try writeSourceContent(sourceID: candidate.sourceID, content: prepared.clean)
             try upsertPodcastTranscriptPreparation(
                 sourceID: candidate.sourceID,
                 input: prepared.input,
@@ -317,10 +314,7 @@ extension KnowledgeStore {
                     try exec("COMMIT")
                     continue
                 }
-                try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?, ?)") { stmt in
-                    bind(stmt, 1, sourceID)
-                    bind(stmt, 2, preparation.input)
-                }
+                try writeSourceContent(sourceID: sourceID, content: preparation.input)
                 try execBind("UPDATE podcasts SET word_count = ? WHERE source_id = ?") { stmt in
                     sqlite3_bind_int64(
                         stmt,

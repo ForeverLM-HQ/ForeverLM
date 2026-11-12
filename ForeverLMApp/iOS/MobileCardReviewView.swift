@@ -595,8 +595,8 @@ struct MobileCardAttemptComposer: View {
                     focus.wrappedValue = false
                     check()
                 } label: {
-                    // The chat composers' disc, in the text's colour: this one was the
-                    // only blue send button left in the app.
+                    // The chat composers' disc, in the text's colour, not a blue
+                    // send button.
                     MobileComposerDiscLabel(systemImage: "arrow.up")
                 }
                 .buttonStyle(.plain)
@@ -657,7 +657,7 @@ final class MobileBackgroundSaveAssertion {
 /// review chat from before cards holds an answer, continues it. A card's source opens in the
 /// Reader, pushed over the review, which waits where it was.
 ///
-/// Since 2026-10-11 it is drawn as the Mac's deck (docs/memory-design.md, "How
+/// It is drawn as the Mac's deck (docs/memory-design.md, "How
 /// a card looks"; `Shared/Views/MemoryCardDeck.swift`): over the card, the
 /// source it is from and its place in the round, with a strip a segment a
 /// card; the card an index card with the question set in the middle until the

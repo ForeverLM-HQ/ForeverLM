@@ -370,7 +370,7 @@ enum MobileMemoryScreenCopy {
     }
 
     /// The sentence under the deck. A done day says what the Mac's Memory
-    /// pane says, one line since 2026-10-06. An open day says nothing: the
+    /// pane says, in one line. An open day says nothing: the
     /// Mac's promise there — the day's minutes, and that leaving early ends
     /// today's review — is its committed session, which the phone does not
     /// hold.

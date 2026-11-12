@@ -14,8 +14,8 @@ import Darwin
 /// ForeverLM keeps one PDF per paper, and most journals ship supplementary
 /// figures (and some ship Extended Data) as a separate file. A paper whose text
 /// names "Supplementary Fig. 3" could not show it: 403 of the library's 474
-/// papers that mention supplementary figures did not carry them (survey,
-/// 2026-11-08). Appending the file is what Nature already does with Extended
+/// papers that mention supplementary figures did not carry them (a survey
+/// of the library). Appending the file is what Nature already does with Extended
 /// Data, so everything that reads a paper's PDF — the figure index, the Reader,
 /// search, chat — reads the supplement with no change of its own (product
 /// owner, 2026-11-08: "it should be able to attach those at the end of the

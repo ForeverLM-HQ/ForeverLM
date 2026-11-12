@@ -356,9 +356,9 @@ extension StudioViewModel {
     /// `articles` and normalizing every source's URL for each citation it drew,
     /// inside its SwiftUI body. Normalizing a stored file path walks the
     /// content roots, and a lazy transcript rebuilds the row every time it
-    /// scrolls back into view, so on 2026-09-07 one reply with web sources over
-    /// a large library turned each scroll into a second of main-thread work
-    /// (the `ui-stall-2026-09-07T20-19-03` sample). The library changes rarely
+    /// scrolls back into view, so one reply with web sources over a large
+    /// library would turn each scroll into a second of main-thread work. The
+    /// library changes rarely
     /// next to how often a row is built, so the normalization runs per revision
     /// and the row pays a hash.
     func libraryContainsSource(normalizedURL key: String) -> Bool {
@@ -383,9 +383,9 @@ extension StudioViewModel {
     /// the page declared about itself once it was loaded
     /// (`notePageDeclaredIdentity`). The third is what identifies an index
     /// page — PubMed, PMC, Semantic Scholar — whose address carries only its
-    /// own record number: on 2026-09-20 a chat linked the MitoSpace paper by
-    /// its PubMed page, the library held it under its Cell address, and the
-    /// Reader offered Add to Sources for a paper already saved.
+    /// own record number: a chat that links a paper by its PubMed page, while
+    /// the library holds it under its journal address, must not make the
+    /// Reader offer Add to Sources for a paper already saved.
     func librarySourceID(forURL url: String) -> String? {
         let table = libraryIdentityKeys
         let pageKey = SourceDiscovery.normalizedURL(url)

@@ -270,8 +270,8 @@ final class MobileCloudMutationServiceTests: XCTestCase {
         paywalled.isPaywalled = true
         let paper = source(id: "pap-1", url: "https://doi.org/10.1/x", sourceType: "paper")
 
-        XCTAssertTrue(MobileSourceListing.isExplainer(explainer))
-        XCTAssertFalse(MobileSourceListing.isExplainer(article))
+        XCTAssertTrue(MobileSourceListing.isSpokenScript(explainer))
+        XCTAssertFalse(MobileSourceListing.isSpokenScript(article))
         XCTAssertEqual(
             MobileSourceListing.listed([article, explainer, paywalled, paper]).map(\.id),
             ["abc-123", "pap-1"]
@@ -312,7 +312,6 @@ final class MobileCloudMutationServiceTests: XCTestCase {
             url: "foreverlm://audio-overview/overview-1"
         )
         XCTAssertTrue(MobileSourceListing.isSpokenScript(carrier))
-        XCTAssertFalse(MobileSourceListing.isExplainer(carrier))
         XCTAssertFalse(MobileSourceListing.isSpokenScript(article))
         XCTAssertEqual(MobileSourceListing.listed([article, carrier]).map(\.id), ["art-1"])
         // Its narration is the Explainers switch's, never the Articles one's.

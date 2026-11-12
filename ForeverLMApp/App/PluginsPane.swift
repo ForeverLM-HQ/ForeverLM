@@ -12,10 +12,10 @@ import os
 /// learner's own — and a click on one shows that plugin's page here, with
 /// ‹ Plugins back to the list. A place like the Library: a pane with its ×,
 /// Open Beside, Open in Other Window and a drag; it leaves a notebook the way
-/// the Library does. Settings has no Plugins since.
+/// the Library does. Settings has no Plugins.
 ///
-/// Codex's place has two lists, Plugins and Skills, under one head
-/// (`skills.appsPage.browseTabs`); so does this one: the Skills tab lists the
+/// Codex's place has two lists, Plugins and Skills, under one head,
+/// as does this one: the Skills tab lists the
 /// learner's chat skills, each with a page to read, edit or delete it, and
 /// New Skill (`SkillsView.swift`). Where the window is in the place is
 /// `StudioWindowState.pluginsLocation`, so ‹ › step through it.
@@ -767,10 +767,9 @@ private struct PluginDirectoryView: View {
     /// Meeting providers that arrive through a registered ingest plugin, so
     /// they earn a branded card of their own.
     ///
-    /// Read AI used to get one by virtue of having its own sidebar tab. Folding
-    /// the meeting tabs together would have quietly cost it that card, so the
-    /// catalog reads providers directly instead of inferring them from the tab
-    /// list — which is what the tab list was never really for.
+    /// The catalog reads providers directly instead of inferring them from the
+    /// sidebar's meeting tabs, so a provider keeps its card whatever the tabs
+    /// are folded into.
     private var meetingPluginProviders: [MeetingProvider] {
         MeetingProvider.allCases.filter(\.isPlugin)
     }

@@ -761,7 +761,7 @@ struct SourceReaderPanel: View {
     }
 
     /// Everything the Reader can do that its bar does not carry (Quiet chrome,
-    /// docs/ui-design.md, 2026-10-06), at every width. Find and zoom stay
+    /// docs/ui-design.md), at every width. Find and zoom stay
     /// listed for discoverability, but their primary interface is the
     /// keyboard: Cmd+F and Cmd+= / Cmd+- / Cmd+0.
     ///
@@ -855,8 +855,8 @@ struct SourceReaderPanel: View {
         }
     }
 
-    /// The ⋯'s items, grouped (Quiet chrome, docs/ui-design.md, 2026-10-06:
-    /// some thirty commands had been one flat list). The most used stay at the
+    /// The ⋯'s items, grouped (Quiet chrome, docs/ui-design.md:
+    /// some thirty commands are not one flat list). The most used stay at the
     /// top level, then what this kind of source has of its own; Make ▸, View ▸
     /// and Open & Share ▸ hold the rest; filing, read state and the rare end
     /// it. Every command keeps its name, and the shortcuts are answered by
@@ -1826,7 +1826,7 @@ struct SourceReaderPanel: View {
             // loads it here. An explainer the Explain button had just written
             // opened, showed its text, and a second later a refresh replaced
             // its row with one carrying no content, leaving this view up for
-            // good (build 144, 2026-09-25).
+            // good.
             .task(id: article.id) { await vm.hydrateStoredContent(for: article.id) }
         }
     }

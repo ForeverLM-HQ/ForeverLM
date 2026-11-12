@@ -47,17 +47,6 @@ private enum SyntheticAxisPage {
         let document = try #require(PDFDocument(url: url))
         return (try #require(document.page(at: 0)), document, url)
     }
-
-    private static func draw(_ text: String, at point: CGPoint, font: String, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName(font as CFString, size, nil)]
-            )),
-            context
-        )
-    }
 }
 
 /// A synthetic two-panel figure page: a page-wide banner line across the top
@@ -105,17 +94,6 @@ enum SyntheticPanelPage {
 
         context.endPDFPage()
         context.closePDF()
-    }
-
-    private static func draw(_ text: String, at point: CGPoint, font: String, size: CGFloat, in context: CGContext) {
-        context.textPosition = point
-        CTLineDraw(
-            CTLineCreateWithAttributedString(NSAttributedString(
-                string: text,
-                attributes: [.font: CTFontCreateWithName(font as CFString, size, nil)]
-            )),
-            context
-        )
     }
 
     /// The page, the document that owns it, and the file. A `PDFPage` only

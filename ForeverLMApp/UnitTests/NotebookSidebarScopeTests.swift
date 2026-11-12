@@ -188,19 +188,6 @@ struct NotebookSidebarScopeTests {
         )
     }
 
-    /// The open library is a preference the unit host shares with the app:
-    /// a test that opens one puts the old one back.
-    private func capturingOpenLibrary() -> () -> Void {
-        let saved = UserDefaults.standard.object(forKey: StudioViewModel.activeTeamPreferenceKey)
-        return {
-            if let saved {
-                UserDefaults.standard.set(saved, forKey: StudioViewModel.activeTeamPreferenceKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: StudioViewModel.activeTeamPreferenceKey)
-            }
-        }
-    }
-
     @Test("A read-only team's notebook, or another library's, takes no sources from the marks or the menu")
     func readOnlyTeamNotebookIsNotImportable() {
         let restoreLibrary = capturingOpenLibrary()

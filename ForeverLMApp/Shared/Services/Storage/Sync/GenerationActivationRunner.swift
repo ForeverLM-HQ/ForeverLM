@@ -41,9 +41,9 @@ struct GenerationActivationRunner: Sendable {
         let existing = try await access.perform { try $0.activationJournal() }
         if let existing, existing.activatedAt != nil {
             // The triggers this build's registry generates (§6.6 step 1): nothing when they match, else
-            // replaced, and the rows of a table watched for the first time queued (the Ideas, 2026-10-13).
-            // Until then only the activation installed them, so a projection a later build registered
-            // never saw a write. A failure rolls back to the triggers the store had, which keep working for
+            // replaced, and the rows of a table watched for the first time queued (the Ideas).
+            // Only the activation installed them otherwise, so a projection a later build registered
+            // would never see a write. A failure rolls back to the triggers the store had, which keep working for
             // everything they watched, so it is logged and the launch goes on.
             let registry = environment.registry ?? KnowledgeStore.projectionRegistry
             do {

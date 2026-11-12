@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import UniformTypeIdentifiers
 
@@ -19,7 +18,7 @@ enum NotebookFileArtifact {
     static let incomingKey = "#incoming"
 
     static func localID(notebookID: String, relativePath: String) -> String {
-        SHA256.hash(data: Data("project-file:v1:\(notebookID):\(relativePath)".utf8)).map { String(format: "%02x", $0) }.joined()
+        "project-file:v1:\(notebookID):\(relativePath)".sha256Hex
     }
 
     /// The path inside the notebook's workspace: `Projects/<notebook>/` left off.

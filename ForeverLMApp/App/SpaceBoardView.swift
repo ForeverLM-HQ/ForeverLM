@@ -145,7 +145,7 @@ struct SpaceBoardDropDelegate: DropDelegate {
 
     /// Whether the learner is still holding the mouse down. AppKit can send a
     /// last update after the drop, which would bring the line back and leave it
-    /// there (seen in the running app, 2026-10-17); with the button up there is
+    /// there; with the button up there is
     /// no drag left to show.
     private var isDragLive: Bool { NSEvent.pressedMouseButtons & 1 != 0 }
 

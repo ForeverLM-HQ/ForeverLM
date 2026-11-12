@@ -91,9 +91,8 @@ enum DayActivityClock {
 
     /// The x offset and width of one sitting among those sharing a host
     /// `hostWidth` wide, one column for every column the layout asked for.
-    /// Until 2026-09-23 the width was split at most three ways and a fourth
-    /// column was drawn over the third, so a burst of short sittings printed
-    /// titles on top of each other. Pure.
+    /// Every column the layout asked for gets its own slice, so a burst of
+    /// short sittings does not print titles on top of each other. Pure.
     static func sittingColumnFrame(placed: (column: Int, columnCount: Int)?, hostWidth: CGFloat) -> (x: CGFloat, width: CGFloat) {
         let placed = placed ?? (column: 0, columnCount: 1)
         let columnCount = max(1, placed.columnCount)

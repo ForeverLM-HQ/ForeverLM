@@ -93,8 +93,8 @@ enum SourceIdeaDrafting {
         #endif
     }
 
-    /// How much of a source extraction read until 2026-09-30, while it stamped
-    /// the hash of the whole text. Ideas on a longer source made before then
+    /// How much of a source extraction once read, while it stamped
+    /// the hash of the whole text. Ideas on a longer source made earlier
     /// match its hash yet may leave its tail out, so a reader that needs the
     /// whole source (an audio overview) does not take them for it. A record of
     /// what old builds did, not a limit on reading.
@@ -102,9 +102,8 @@ enum SourceIdeaDrafting {
 
     /// The extraction request's user message: title, type, the learner's own
     /// highlights, then the text — all of the text it is given. Nothing here
-    /// cuts it (product owner, 2026-09-23: source text is never truncated). Until
-    /// 2026-09-30 only the first 240,000 characters were sent while the ideas
-    /// were stamped with the hash of the whole text. A source longer than the
+    /// cuts it (product owner, 2026-09-23: source text is never truncated). A
+    /// source longer than the
     /// model's window takes in one request is read in consecutive parts
     /// (`sourceTextParts`), and `part` says which one this request carries.
     static func userMessage(

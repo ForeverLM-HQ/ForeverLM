@@ -148,11 +148,10 @@ struct BrowserPane: View {
     /// The full row when it fits; when the pane is narrow, the labelled
     /// buttons drop to icons so the address keeps its room.
     ///
-    /// Quiet chrome (docs/ui-design.md, 2026-10-06): ‹ ›, the address (what
+    /// Quiet chrome (docs/ui-design.md): ‹ ›, the address (what
     /// the pane shows, with Reload or Stop at its trailing end, where Safari
     /// keeps it), Add to Sources on a page the library does not hold, the ⋯
-    /// and the pane's ×. New Tab and the profiles, which stood on the line
-    /// until then, are the ⋯'s.
+    /// and the pane's ×. New Tab and the profiles are the ⋯'s.
     private func toolbar(workspace: BrowserWorkspace, tab: BrowserTab?) -> some View {
         ViewThatFits(in: .horizontal) {
             toolbarRow(workspace: workspace, tab: tab, compact: false)
@@ -599,7 +598,7 @@ private struct BrowserTabChip: View {
             // glyph holding its place: a button at opacity 0 is still a live
             // control, and while an assistive app reads the screen SwiftUI
             // walks every control in the window for each one an update
-            // builds (2026-10-03).
+            // builds.
             if showsClose {
                 Button(action: close) {
                     closeGlyph

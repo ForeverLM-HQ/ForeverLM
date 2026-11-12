@@ -155,8 +155,7 @@ extension AIModelDefaults {
     static let latestMuseSpark = "muse-spark-1.2"
     /// Meta's discounted tier, priced for training consent: its one host
     /// trains on prompts. Offered and labelled, and hidden while the Data &
-    /// Privacy switch is on — see `trainsOnInputs`. Retired 2026-09-10 while
-    /// the router's account refused it; back since 2026-09-14.
+    /// Privacy switch is on — see `trainsOnInputs`.
     static let museSparkContributor = "muse-spark-1.2-contributor"
     static let latestOpenRouterMuseSpark = "meta/\(latestMuseSpark)"
     static let retiredOpenRouterMuseSpark = "meta/muse-spark-1.1"
@@ -187,7 +186,7 @@ extension AIModelDefaults {
     /// shows them: one model per maker, "the top model that's still somewhat
     /// affordable" (product owner, 2026-09-28). Picked by hand, then shown as the
     /// newest release of each pick's family OpenRouter lists
-    /// (`AIModelCatalog.newestReleases`, 2026-09-30), so Gemini 3.9 Flash
+    /// (`AIModelCatalog.newestReleases`), so Gemini 3.9 Flash
     /// would take Gemini 3.8 Flash's place the day OpenRouter lists it. A
     /// new family (Gemini 4 Argon beside Gemini Flash) still takes an edit
     /// here: whether it is affordable is the judgment this list exists to
@@ -221,9 +220,9 @@ extension AIModelDefaults {
     /// Contributor tier, which trains on what it is sent), Nemotron 3 Super
     /// $0.08/$0.45, Inkling Small $0.45/$1.20. Shown as each family's newest
     /// release, as Chat's are, but only one still cheaper than the maker's
-    /// Chat suggestion (`ChatModelLists.isTierBelow`): on 2026-09-30 that
-    /// made Gemini 3.1 Flash Lite show as 3.5 Flash Lite ($0.30/$2.50) and
-    /// kept Grok 4.3, whose successors cost what Grok 4.7 does.
+    /// Chat suggestion (`ChatModelLists.isTierBelow`): Gemini 3.1 Flash Lite
+    /// shows as 3.5 Flash Lite ($0.30/$2.50), and Grok 4.3 stays, whose
+    /// successors cost what Grok 4.7 does.
     static let suggestedBackgroundModels = [
         "anthropic/claude-haiku-4.5",
         "openai/gpt-6-luna",
@@ -441,8 +440,6 @@ enum AIModelCatalog {
     /// group). Within every group the newest model leads — see
     /// `orderedNewestFirst` — so a lab's latest release is the first card the
     /// learner sees, and the order moves on its own as releases land.
-    /// Settings' expanded grid folds the directory's other models of the
-    /// maker into that same order (`orderedGroupCards`).
     /// Computed so additions/removals show up on the next render; the
     /// custom list is a few UserDefaults-backed rows, so rebuilding is cheap.
     static var makerGroups: [MakerGroup] {
@@ -808,113 +805,6 @@ enum AIModelCatalog {
         case (.none, .some): return false
         case (.none, .none): return nil
         }
-    }
-
-    /// One card of a maker's group in Settings: a catalog entry, or a model
-    /// OpenRouter's directory lists under that maker that the catalog does
-    /// not carry.
-    enum GroupCard: Identifiable {
-        case catalog(AIModelCatalogEntry)
-        case directory(OpenRouterDirectoryModel)
-
-        var id: String {
-            switch self {
-            case .catalog(let entry): return entry.id
-            case .directory(let model): return "directory|\(model.id)"
-            }
-        }
-
-        /// The id a request names: the entry's model id, or the directory slug.
-        var modelID: String {
-            switch self {
-            case .catalog(let entry): return entry.modelID
-            case .directory(let model): return model.id
-            }
-        }
-    }
-
-    /// A maker's whole group, as Settings shows it: the catalog's entries and
-    /// the directory's other models of that maker in one newest-first order,
-    /// whose head is what the collapsed group shows (`collapsedGroupCards`).
-    /// The product owner (2026-09-27), of the expanded xAI group: "why are these not
-    /// sorted right?" It showed the two lists one after the other, each
-    /// sorted on its own, so the directory's Grok 4.6 and 4.5 came after the
-    /// catalog's older Grok 4.3.
-    ///
-    /// The rule is `orderedNewestFirst`'s, over both lists. Each card is
-    /// dated and priced where its own list is: an entry from the catalog's
-    /// release-date and pricing tables (the defaults), a directory model from
-    /// its row. So the entries keep among themselves the order the catalog
-    /// gives them. What the rule leaves tied puts a catalog entry first, in
-    /// catalog order, then the directory models by name.
-    static func orderedGroupCards(
-        entries: [AIModelCatalogEntry],
-        directoryModels: [OpenRouterDirectoryModel],
-        entryReleaseDate: (AIModelCatalogEntry) -> Date? = { AIModelCatalog.releaseDate(for: $0) },
-        entryRates: (AIModelCatalogEntry) -> (input: Double, output: Double)? = { AIModelListPrice.rates(for: $0) }
-    ) -> [GroupCard] {
-        // Keyed once per card: the table lookups stay out of the comparisons.
-        struct Keyed {
-            let card: GroupCard
-            /// The entry's place in the catalog's order; nil for a directory model.
-            let catalogIndex: Int?
-            let name: String
-            let released: Date?
-            let rates: (input: Double, output: Double)?
-        }
-        let catalog = entries.enumerated().map { index, entry in
-            Keyed(
-                card: .catalog(entry),
-                catalogIndex: index,
-                name: entry.displayName,
-                released: entryReleaseDate(entry),
-                rates: entryRates(entry)
-            )
-        }
-        let listed = directoryModels.map { model in
-            Keyed(
-                card: .directory(model),
-                catalogIndex: nil,
-                name: model.name,
-                released: model.createdAt,
-                rates: model.inputUSDPerMTokens.map { (input: $0, output: model.outputUSDPerMTokens ?? 0) }
-            )
-        }
-        return orderedNewestFirst(
-            catalog + listed,
-            releaseDate: \.released,
-            rates: \.rates,
-            tieBreak: { lhs, rhs in
-                switch (lhs.catalogIndex, rhs.catalogIndex) {
-                case let (left?, right?): return left < right
-                case (.some, .none): return true
-                case (.none, .some): return false
-                case (.none, .none):
-                    let byName = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
-                    return byName == .orderedSame ? lhs.card.modelID < rhs.card.modelID : byName == .orderedAscending
-                }
-            }
-        )
-        .map(\.card)
-    }
-
-    /// The cards a collapsed group shows before its "more…" toggle: `limit`
-    /// of them, every selected card first (a selection is never hidden),
-    /// topped up from the front of `cards` — the group's `orderedGroupCards`
-    /// order, which they keep. The product owner (2026-09-28), of the collapsed xAI
-    /// group reading Grok 4.7, Grok 4.3: "this sorting is really strange".
-    /// Only the catalog's two pinned cards were eligible, so the directory's
-    /// newer Grok 4.6 and 4.5 waited behind "5 more…".
-    static func collapsedGroupCards(
-        _ cards: [GroupCard],
-        limit: Int,
-        isSelected: (GroupCard) -> Bool
-    ) -> [GroupCard] {
-        var keptIDs = Set(cards.filter(isSelected).map(\.id))
-        for card in cards where keptIDs.count < limit {
-            keptIDs.insert(card.id)
-        }
-        return cards.filter { keptIDs.contains($0.id) }
     }
 
     /// When the directory first listed the model a catalog entry names. The

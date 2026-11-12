@@ -246,9 +246,9 @@ struct CollectionProjection: RecordProjection {
 /// A book's cover as `Collection.files.cover`. The Mac that holds a book's `cover.jpg` uploads it as the
 /// book's `cover` satellite and points the record at it (`BookCoverPublisher`); a Mac that holds no cover
 /// file for the book fetches it (`SatelliteReader`) into `Books/.synced-covers/` and records it as
-/// `books.cover_path`, which every cover the Mac draws reads (`StudioViewModel.bookCoverPaths`). Until
-/// 2026-10-19 neither half was built under generation 2: the record carried a book's title and author
-/// only, so a book added on one Mac showed no cover on the other, though the iPhone reads `files.cover`.
+/// `books.cover_path`, which every cover the Mac draws reads (`StudioViewModel.bookCoverPaths`). Both
+/// halves are needed: a record that carried a book's title and author only would show no cover for a
+/// book added on another Mac, though the iPhone reads `files.cover`.
 enum BookCovers {
     static let queueKind = "bookCover"
     static let role = "cover"

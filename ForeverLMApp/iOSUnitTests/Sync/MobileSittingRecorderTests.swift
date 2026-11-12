@@ -179,36 +179,6 @@ struct MobileSittingRecorderTests {
         #expect(try await Fixture.held(replica, .card, "card1", in: Fixture.library)?.fields["kept"] == card.fields["kept"], "the first Keep stands")
     }
 
-    @Test("An active memory turn writes the running chat, the card it keeps and its answer in one transaction; a card kept elsewhere with other wording wins")
-    func activeMemoryTurn() async throws {
-        let replica = try await Fixture.replica(space: nil)
-        let writer = Fixture.writer(replica, at: Self.now)
-        let session = "memory-2027-01-15"
-        let result = MobileReviewResult(sessionID: session, topic: "Memory review", sourceID: "src1", goalID: nil, startedAt: Self.now,
-                                        endedAt: Self.now, overallScore: nil, summary: "", exchanges: [MobileReviewRecordedExchange(
-                                            question: "What binds GDF15?", userAnswer: "GFRAL", evaluation: "Right: GFRAL.", score: 1, answeredAt: Self.now)],
-                                        gaps: [], knowledgeNote: "N", modelProvider: "OpenRouter", modelID: "model-a")
-        let item = Self.item()
-        let attempt = Self.attempt("turn1")
-        let fingerprint = MemoryTutorIdentity.immutableCurriculumFingerprint(item)
-        let recorded = try await MobileReviewSessionRecorder.recordActiveMemoryAttempt(attempt, in: result, creating: item, asserted: item,
-                                                                                         fingerprint: fingerprint, writer: writer)
-        #expect(recorded.canonicalItem == item)
-        let chat = try #require(try await Fixture.held(replica, .chat, session, in: Fixture.library))
-        #expect(chat.fields["kind"] == .string("memory"))
-        #expect(chat.fields["status"] == .string("active"), "a running review stays active")
-        #expect(try await Fixture.held(replica, .card, "card1", in: Fixture.library)?.fields["status"] == .string("kept"))
-        #expect(try await Fixture.held(replica, .sitting, Self.sittingID(session), in: Fixture.library)?.fields["answers"]?["turn1"]?["curriculumFingerprint"]
-                == .string(fingerprint))
-
-        let rival = Self.item(target: "Another wording")
-        await #expect(throws: MobileReviewSessionRecorderError.self) {
-            _ = try await MobileReviewSessionRecorder.recordActiveMemoryAttempt(Self.attempt("turn2"), in: result, creating: rival, asserted: rival,
-                                                                               fingerprint: "other", writer: writer)
-        }
-        #expect(try await writer.read { try $0.heldAnswer("turn2", sessionID: session, at: Self.now) } == nil, "nothing of a refused turn is written")
-    }
-
     // MARK: - The device's ActivityLog
 
     @Test("The Memory goal's minutes are this device's ActivityLog review clock, read back by the Memory grid as this device's row; never lowered")

@@ -316,7 +316,7 @@ struct FileRef: Equatable, Sendable {
     }
 
     static func partHash32(_ storedPart: Data) -> String {
-        String(SHA256.hash(data: storedPart).map { String(format: "%02x", $0) }.joined().prefix(32))
+        String(SHA256.hash(data: storedPart).hexString.prefix(32))
     }
 
     /// `stored` cut into parts of `partSize` bytes, the last smaller (§3.5.30 rule 7).

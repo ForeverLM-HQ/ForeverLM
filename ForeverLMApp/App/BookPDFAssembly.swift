@@ -16,7 +16,7 @@ struct BookPDFChapterRange: Equatable {
 /// Page arithmetic for a book shown as one document.
 ///
 /// A PDF-imported book is one file and each chapter a run of its pages
-/// (`StudioArticle.bookPages`); a book an older build split is one file per
+/// (`StudioArticle.bookPages`); a book split into chapter files is one file per
 /// chapter until it is merged. Everything the app remembers about reading it —
 /// the resume page, the depth reached, every highlight — is keyed by chapter
 /// and numbered in the chapter's own pages. The reader shows the book as one
@@ -246,7 +246,7 @@ struct BookChapterSection: Equatable, Sendable {
 ///
 /// A book kept as one file has the book's own bookmarks: a chapter's sections
 /// are the ones inside its pages, one level below the chapter (`sectionEntries`).
-/// A chapter file an older build split off carries an outline of its own only
+/// A split-off chapter file carries an outline of its own only
 /// sometimes; where it does, it is used as written. Otherwise the sections are
 /// read off the pages:
 /// a section of a book like Cell Biology by the Numbers opens with a heading

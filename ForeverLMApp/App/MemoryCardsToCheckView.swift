@@ -6,7 +6,7 @@ import SwiftUI
 /// one: a notebook's Studio Cards row opens it narrowed to the notebook, in
 /// a pane of the notebook's window).
 ///
-/// A card at a time, as Review deals them (since 2026-10-12; product owner,
+/// A card at a time, as Review deals them (product owner, 2026-10-12,
 /// at the list of every card with its buttons: "more intuitive if the review
 /// process just shows cards that i go through … and then i can say keep /
 /// edit etc"): over the card, the source it is from, which opens it, its

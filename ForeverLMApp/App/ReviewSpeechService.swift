@@ -137,7 +137,7 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
             // voice mode switched on with a dead microphone — the tutor's voice
             // failing silently took dictation down with it. The failure is not
             // masked: `errorMessage` still raises the composer's error banner.
-            // It just no longer costs the user their turn.
+            // It does not cost the user their turn.
             finishSpeaking()
         }
     }

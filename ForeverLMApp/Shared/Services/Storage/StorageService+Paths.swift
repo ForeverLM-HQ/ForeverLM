@@ -57,11 +57,11 @@ extension StorageService {
     ///
     /// Resolved once per process, like every root below it. `ProcessInfo
     /// .environment` copies the whole environment on each read and the search
-    /// path lookup goes through `FileManager`, and both were being paid per
-    /// call from a SwiftUI row body: on 2026-09-07 a chat transcript's web
-    /// sources footer resolved every library source's URL for each citation
-    /// on every rebuild of the row while the learner scrolled, and the 1.05 s
-    /// stall sample spent its time here. Neither input changes while the
+    /// path lookup goes through `FileManager`, and both would be paid per
+    /// call from a SwiftUI row body: a chat transcript's web
+    /// sources footer resolves every library source's URL for each citation
+    /// on every rebuild of the row while the learner scrolls (a 1.05 s
+    /// stall sample spent its time here). Neither input changes while the
     /// process runs.
     private static let contentHomeDirectory: String = {
         if let simHost = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"], !simHost.isEmpty {

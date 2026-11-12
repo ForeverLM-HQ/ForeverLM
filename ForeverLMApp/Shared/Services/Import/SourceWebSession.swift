@@ -61,8 +61,8 @@ enum InAppWebSession {
     /// whose `transit` hop sets fresh `idp_session` cookies and sends the
     /// request back — and a request that neither stores nor sends those is
     /// bounced again, until `URLSession` gives up with "too many HTTP
-    /// redirects". That is what every Nature paper's PDF fetch did on
-    /// 2026-09-06, subscriber or not. With the cookies in the jar and handling
+    /// redirects". That is what every Nature paper's PDF fetch does
+    /// without them, subscriber or not. With the cookies in the jar and handling
     /// left on, each hop carries what the previous one set, exactly as the
     /// reader's own web view does.
     nonisolated static func apply(_ cookies: [HTTPCookie], to request: inout URLRequest) {
@@ -88,11 +88,11 @@ enum InAppWebSession {
 /// `URLSession` request for `/articles/<id>.pdf` with a 3 KB "Client
 /// Challenge" page — JavaScript a browser runs and a plain HTTP client
 /// cannot — and it does so even when the request carries the cookies the
-/// reader holds (build 71): the check reads the client, not the jar. The
+/// reader holds: the check reads the client, not the jar. The
 /// reader's `WKWebView` passes it, which is why a Nature Neuroscience paper
 /// showed its full text on screen under a Nature+ subscription while the
-/// pipeline reported "Failed to fetch source content" for its PDF
-/// (2026-09-07). A `WKDownload` started from a hidden web view on the same
+/// pipeline reported "Failed to fetch source content" for its PDF.
+/// A `WKDownload` started from a hidden web view on the same
 /// `WKWebsiteDataStore` is the reader's own Download PDF, so it is answered
 /// the way the reader is.
 ///
@@ -152,8 +152,8 @@ enum WebSessionPDFDownload {
         // gate for a plain client is the "Preparing to download ..." proof of
         // work, which `downloadPDF` answers, and it has no subscriptions for
         // the reader's cookies to carry. What refuses the app after that — an
-        // embargo's 403 — refuses the reader too. The hidden web view never got
-        // a PMC file on 2026-09-23 and spent 15–35 s a paper finding that out.
+        // embargo's 403 — refuses the reader too. The hidden web view never gets
+        // a PMC file and spends 15–35 s a paper finding that out.
         if PaperService.isNCBIPMCURL(pdfURL) { return .skipped(.checkAnsweredByApp(host: host)) }
         guard !InAppWebSession.applicable(cookies, to: url).isEmpty else {
             return .skipped(.noReaderSession(host: host))
@@ -266,7 +266,7 @@ enum PublisherPDFDownloadControl {
 ///    for a publisher whose only objection was the client.
 /// 2. The paper's own page, loaded as the reader loads it, and a click on the
 ///    page's Download PDF control — the reader's Download PDF, without the
-///    reader. This is the route nature.com needs: measured on 2026-09-07, a
+///    reader. This is the route nature.com needs: measured, a
 ///    bare request for `/articles/<id>.pdf` is answered with a 303 to the
 ///    article page whatever client, cookies or Referer it carries, while the
 ///    page's own control (`/articles/<id>_reference.pdf`, a `download` link)

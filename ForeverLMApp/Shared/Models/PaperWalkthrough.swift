@@ -9,7 +9,7 @@ import Foundation
 /// (walkthrough-design.md): the source stays the thing on screen and the
 /// explanation moves over it, instead of being redrawn on a page of its own.
 ///
-/// Written for papers and keeping the name; since 2026-09-19 a book chapter
+/// Written for papers and keeping the name; a book chapter
 /// and an article are walked through too (`PaperWalkthroughSubject`). A source
 /// shown as a PDF — a paper, a chapter split from a PDF — anchors steps to
 /// figures and passages; one shown as text or a web page — an article, an
@@ -175,7 +175,7 @@ struct PaperWalkthrough: Codable, Equatable, Sendable {
     }
 
     var version: Int
-    /// The walk's chapters (2026-09-23, from the merged lesson): each one
+    /// The walk's chapters: each one
     /// claim of the source the learner should be able to say by its end,
     /// and the steps that teach it. Nil on a record written before, which
     /// plays as one unnamed chapter; the last step of a chapter with a
@@ -281,8 +281,8 @@ struct PaperWalkthrough: Codable, Equatable, Sendable {
     }
 
     /// Whether a figure step still lacks the authors' sentence about its
-    /// panel: true for a record written before 2026-09-21, when
-    /// `PaperWalkthroughStep.sourceMention` began to be kept, and for one
+    /// panel: true for a record written before
+    /// `PaperWalkthroughStep.sourceMention` was kept, and for one
     /// whose figure the text never cites (a look that finds nothing is not
     /// stored, so such a record is read again; the read is a sentence split
     /// of the text, once per open).
@@ -353,11 +353,10 @@ struct PaperWalkthrough: Codable, Equatable, Sendable {
     /// The cards the deck deals for a step, in the walk: the step's own
     /// (`PaperWalkthroughStep.playableBeats`), its animation on a card of
     /// its own, then, on the last step of a chapter with a claim, the recap
-    /// card — "You can now say" and the claim (the lesson's chapter recap,
-    /// merged 2026-09-23).
+    /// card — "You can now say" and the claim (the lesson's chapter recap).
     ///
-    /// The animation used to ride under the step's last point, beneath the
-    /// figure, and was cut off by the card's height cap (product owner,
+    /// The animation does not ride under the step's last point, beneath the
+    /// figure, where the card's height cap cut it off (product owner,
     /// 2026-09-24: "maybe animations should also always be shown separately
     /// from an image"). Its card comes after the points it illustrates and
     /// before the question that tests them; on a question step, after the
@@ -472,8 +471,8 @@ struct PaperWalkthrough: Codable, Equatable, Sendable {
 
 }
 
-/// One claim of the source and the steps that teach it (2026-09-23, from
-/// the merged lesson): the title over its cards' segment, the claim the
+/// One claim of the source and the steps that teach it: the title over its
+/// cards' segment, the claim the
 /// learner should be able to say by its end — which its recap card says
 /// back — and the ids of its steps, in order. Steps stay one flat list on
 /// the record, so every reader of `steps` is unchanged.
@@ -507,7 +506,7 @@ struct PaperWalkthroughChapter: Codable, Equatable, Sendable, Identifiable {
 }
 
 /// A "Say more": a chip under a card's point, and what it says when pressed
-/// (2026-09-23, from the merged lesson). Context offered, never pushed: a
+/// Context offered, never pushed: a
 /// term, a method, a why that a newcomer may want and an expert would skip.
 struct PaperWalkthroughMore: Codable, Equatable, Sendable {
     var label: String
@@ -737,9 +736,9 @@ struct PaperWalkthroughCitation: Codable, Equatable, Hashable, Sendable {
     }
 
     /// A DOI as `10.x/y`: resolver prefixes and a `doi:` label stripped,
-    /// lower-cased; nil when what is left is not a DOI. The rule
-    /// `DirectionEvidence.normalizedDOI` applies, here because this file is
-    /// compiled for the phone too.
+    /// lower-cased; nil when what is left is not a DOI. `DirectionEvidence`
+    /// applies the same rule; it lives here because the phone compiles this
+    /// file.
     static func normalizedDOI(_ raw: String?) -> String? {
         guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
         for prefix in ["https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/", "doi:"] {
@@ -754,7 +753,7 @@ struct PaperWalkthroughCitation: Codable, Equatable, Hashable, Sendable {
     }
 
     /// A title folded to its lower-cased letters and digits, one space
-    /// between words — `VideoCitedPaper.normalizeTitle`'s rule, so a
+    /// between words. `VideoCitedPaper.normalizeTitle` is this rule, so a
     /// citation and a source's recorded cited papers compare alike.
     static func foldedTitle(_ value: String) -> String {
         value
@@ -835,16 +834,16 @@ struct PaperWalkthroughStep: Codable, Equatable, Sendable, Identifiable {
     var beats: [PaperWalkthroughBeat]?
     /// Say more chips on the step's cards: context the learner may ask for
     /// (`PaperWalkthroughMore`). Empty on most steps and on every record
-    /// written before 2026-09-23.
+    /// written before the chips existed.
     var more: [PaperWalkthroughMore] = []
     /// The picture the step's cards show when the step outlines no figure
     /// (`PaperWalkthroughPicture`). Nil on a figure step, on a step that
     /// shows the picture before it, and on every record written before
-    /// 2026-09-24.
+    /// pictures existed.
     var picture: PaperWalkthroughPicture?
     /// The works the step's point rests on, shown under its point cards
     /// (`PaperWalkthroughCitation`). Empty on most steps and on every record
-    /// written before 2026-09-30.
+    /// written before citations existed.
     var cites: [PaperWalkthroughCitation] = []
 
     init(
@@ -884,7 +883,7 @@ struct PaperWalkthroughStep: Codable, Equatable, Sendable, Identifiable {
 
     /// The step's points, one a card: the written beats, or, on a step that
     /// has none, its body a sentence at a time. The authors' sentence about
-    /// the panel (`sourceMention`) is not among them since 2026-09-23
+    /// the panel (`sourceMention`) is not among them
     /// (the product owner: "I don't like that they have these quotes on there"): it
     /// stays in the record and in the step's turn, where the tutor reads it,
     /// and on the Mac the sentence is on the page beside the card.
@@ -1179,7 +1178,7 @@ struct PaperWalkthroughAnchor: Codable, Hashable, Sendable {
     var panelLabel: String?
     var passage: String?
     var pageNumber: Int?
-    /// A moment of a video, in whole seconds from its start (2026-09-29): the
+    /// A moment of a video, in whole seconds from its start: the
     /// Reader seeks the player there, paused, while the step's cards are read.
     /// Only a video's walk carries one (`PaperWalkthroughSubject.allowsMomentAnchors`).
     var seconds: Int?
@@ -1338,8 +1337,7 @@ enum WalkthroughCardPicture: Equatable, Sendable {
 /// explanation) as the reference answer, so an old walk is not thrown away
 /// and never shows radio buttons again.
 struct PaperWalkthroughQuiz: Codable, Equatable, Sendable {
-    /// How the question is asked (2026-09-23, the lesson's four kinds
-    /// merged in). Every kind is open and answered in the learner's words —
+    /// How the question is asked (the lesson's four kinds). Every kind is open and answered in the learner's words —
     /// or graded by the learner after Show answer — except Find it, which is
     /// answered by picking a panel.
     enum Kind: String, Codable, Sendable, CaseIterable {
@@ -1389,7 +1387,7 @@ struct PaperWalkthroughQuiz: Codable, Equatable, Sendable {
         case keyPoints = "key_points"
         case kind
         case targetPanel = "target_panel"
-        // The multiple-choice shape saved before 2026-09-19; read, never written.
+        // The multiple-choice shape saved earlier; read, never written.
         case options
         case correctIndex = "correct_index"
         case explanation
@@ -1539,7 +1537,7 @@ struct PaperWalkthroughDraft: Codable, Equatable, Sendable {
         /// A brief is a teaching plan in order, and a writer sometimes hands
         /// it back structured — an object of parts, or a list — rather than
         /// as text. One such step made the whole draft undecodable
-        /// (2026-09-22: step 28 of the cardiac-sodium walk, `{"": "…"}`, and
+        /// (step 28 of the cardiac-sodium walk, `{"": "…"}`, and
         /// the walk failed as "Invalid AI response"). Any shape is read as
         /// its text, in order; anything else is no brief.
         private static func flexibleText(in container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> String? {
@@ -1555,7 +1553,7 @@ struct PaperWalkthroughDraft: Codable, Equatable, Sendable {
     }
 
     /// A chapter the writer grouped steps under: one claim of the source
-    /// and the steps that teach it (2026-09-23).
+    /// and the steps that teach it.
     struct Chapter: Codable, Equatable, Sendable {
         var title: String
         var claim: String

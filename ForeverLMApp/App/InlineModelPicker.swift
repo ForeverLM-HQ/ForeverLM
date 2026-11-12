@@ -16,7 +16,7 @@ import AppKit
 /// popup button (`SwiftUIPopupButton`) which takes the label's image and text
 /// and lays them out itself as `NSButtonImageView` and `NSButtonTextField`,
 /// discarding the label view — padding, frame, fill and border with it.
-/// Measured on an offscreen window on 2026-09-01: an `HStack { Image; Text }`
+/// Measured on an offscreen window: an `HStack { Image; Text }`
 /// label came out as a bare 121×17 native title, whether or not the label
 /// carried a chip or the Menu had `.fixedSize()`, and so did the composer's
 /// `ViewThatFits` label and the chat-mode picker's `Label`. Under `.button`
@@ -95,7 +95,6 @@ extension View {
 /// on one chip ("GPT-5.6 Sol High ▾"; the product owner, 2026-10-06: "make the app more
 /// slick; kind of like the chatgpt app"): the label reads "<model> · <effort>"
 /// for a model that takes an effort, and the menu's Effort submenu sets it.
-/// The separate Effort pill and its Faster ↔ Smarter slider went that day.
 struct InlineModelPicker: View {
     // Safe placeholders only. Keychain and catalog work is loaded off-main by
     // `syncSelectionFromStorage`; a SwiftUI state initializer runs on the main
@@ -306,7 +305,7 @@ struct InlineModelPicker: View {
     /// every character, not with `Text.strikethrough()`: in a macOS menu
     /// SwiftUI hands the second `Text` to `NSMenuItem.subtitle`, a plain
     /// string, and every attribute is dropped on the way — verified
-    /// 2026-09-21 with a harness menu where the attributed and concatenated
+    /// with a harness menu where the attributed and concatenated
     /// variants both drew as plain digits while the overlay drew as a strike.
     /// A list pair that rounds to the same label as the effective one is not
     /// struck: "$̶0̶.̶0̶1̶/̶$̶1̶ $0.01/$1" says nothing.
@@ -599,7 +598,7 @@ struct InlineModelPicker: View {
     /// The model chip. On macOS 14.4 and later its menu opens *above* the
     /// chip: the composer sits at the foot of the chat, and a SwiftUI `Menu`
     /// always drops down, so its list ran off the bottom of the window unless
-    /// the screen edge happened to push it up (2026-09-25). A SwiftUI `Menu`
+    /// the screen edge happened to push it up. A SwiftUI `Menu`
     /// takes no direction, so the items go into an `NSHostingMenu` that an
     /// AppKit anchor pops above the chip (`UpwardMenuAnchor`).
     @ViewBuilder

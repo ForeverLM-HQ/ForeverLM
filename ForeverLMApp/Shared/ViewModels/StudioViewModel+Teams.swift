@@ -292,7 +292,7 @@ extension StudioViewModel {
             await loadTeams()
             // The roster the share came back with is already in the store;
             // without this the new card reads "0 members" until the pane is
-            // reopened (seen 2026-09-07 in the Dev build).
+            // reopened.
             teamMembersByTeamID[team.id] = (await loggedRead("team members") { try await storage.loadTeamMembers(teamID: team.id) }) ?? []
             showToast("Created team \(team.name)")
             return team

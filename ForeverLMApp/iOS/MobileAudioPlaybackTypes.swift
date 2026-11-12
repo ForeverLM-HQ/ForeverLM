@@ -39,13 +39,13 @@ struct MobileSourceSyncDiagnostic: Equatable {
 
 enum MobileAudioPlaybackSpeed {
     /// Speeds the Listen tab offers. Playback goes through `AVPlayer`, whose
-    /// default time-pitch algorithm since iOS 15 (`.timeDomain`) keeps speech
+    /// default time-pitch algorithm (`.timeDomain`) keeps speech
     /// intelligible from 1/32× to 32×, so nothing below caps the table at 2×.
     static let options: [Float] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0]
     static let minimum: Float = 0.5
     static let maximum: Float = 3.0
-    /// The span a voice agent may pick from: the first and last presets.
-    static let agentRange: ClosedRange<Double> = Double(options.first!)...Double(options.last!)
+    /// The span a voice agent may pick from: the slowest and fastest of `options`.
+    static let agentRange: ClosedRange<Double> = 0.75...3.0
 
     static func clamped(_ speed: Float) -> Float {
         min(max(speed, minimum), maximum)

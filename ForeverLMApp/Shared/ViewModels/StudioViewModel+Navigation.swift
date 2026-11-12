@@ -102,9 +102,9 @@ extension StudioViewModel {
             if requiresExplicitPaperDownload(article) {
                 // No network for a remote paper — that is the explicit-download
                 // rule — but text already in the database is text the reader can
-                // show, and until this it did not load: a paper whose full text
-                // was stored still opened on a PDF loader, and a publisher that
-                // refuses the file left a lock screen over a finished source.
+                // show: without it a paper whose full text was stored would
+                // open on a PDF loader, and a publisher that refuses the file
+                // would leave a lock screen over a finished source.
                 await hydrateStoredContent(for: articleId)
             } else {
                 await fetchContent(for: articleId)
@@ -1375,8 +1375,8 @@ extension StudioViewModel {
 
     /// Reads every course's stored quizzes and their latest sittings into the
     /// outline. The launch load and the synced-course refresh call it beside
-    /// their lecture loads: without it a relaunch showed a course with every
-    /// quiz still in knowledge.db but none in its ladder, until a quiz was
+    /// their lecture loads: without it a relaunch shows a course with every
+    /// quiz still in knowledge.db but none in its ladder, until a quiz is
     /// written again.
     func refreshCourseQuizzes() async {
         do {
@@ -1719,10 +1719,10 @@ extension StudioViewModel {
 
     /// Names the authors of X posts that carry only a handle.
     ///
-    /// Posts saved before the display name was kept — and any post saved from a
-    /// pasted link — know their author only as `@MartinBJensen`, which is what a
-    /// search has to guess. One `users/by` lookup per handle (not per post) turns
-    /// that into "Martin Borch Jensen" on every post that handle wrote.
+    /// Posts saved without a display name — and any post saved from a pasted
+    /// link — know their author only as `@zaraholt`, which is what a search
+    /// has to guess. One `users/by` lookup per handle (not per post) turns that
+    /// into "Zara Holt" on every post that handle wrote.
     /// Returns how many sources were named.
     @discardableResult
     func backfillXPostAuthorNames() async -> Int {
@@ -1898,8 +1898,8 @@ extension StudioViewModel {
         return pictured
     }
 
-    /// The handle in an X post URL: `https://x.com/MartinBJensen/status/123` →
-    /// `MartinBJensen`. Nil for anything that is not a post URL, including the
+    /// The handle in an X post URL: `https://x.com/zaraholt/status/123` →
+    /// `zaraholt`. Nil for anything that is not a post URL, including the
     /// `x.com/i/status/...` form, which names no author.
     static func xPostUsername(inURL url: String) -> String? {
         guard let components = URLComponents(string: url),

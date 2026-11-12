@@ -370,18 +370,18 @@ final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchec
     // MARK: - The store
 
     func perform<T>(_ body: @escaping (PrivateSyncLocalState) throws -> T) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            queue.async {
-                continuation.resume(with: Result { try body(self) })
-            }
-        }
+        try await onQueue { try body(self) }
     }
 
     /// Runs a read (or the writer's own transaction) where the connection belongs.
     func read<T>(_ body: @escaping (MobileReplica) throws -> T) async throws -> T {
+        try await onQueue { try body(self) }
+    }
+
+    private func onQueue<T>(_ work: @escaping () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
-                continuation.resume(with: Result { try body(self) })
+                continuation.resume(with: Result { try work() })
             }
         }
     }

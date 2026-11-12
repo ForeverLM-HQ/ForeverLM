@@ -135,7 +135,7 @@ extension StudioSidebar {
     /// The one thing the notice offers. Copying hands over the guide's recipe
     /// with the user's MCP address and the provider filled in — the same
     /// contract Plugins › Build Your Own copies, opening with a
-    /// request to find and reconnect the plugin that used to run before
+    /// request to find and reconnect the plugin already running before
     /// building another — and the toast says where it goes next, since a copy
     /// is invisible on its own.
     func performMeetingPluginAction(_ notice: MeetingPluginNotice) {

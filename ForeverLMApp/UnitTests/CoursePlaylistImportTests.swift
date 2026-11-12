@@ -13,14 +13,14 @@ struct CoursePlaylistImportTests {
 
     @Test("Lettered playlist ordinals collapse to the same lecture number")
     func letteredPlaylistOrdinalsUseMajorLectureNumber() {
-        #expect(StudioViewModel.playlistLectureNumber(from: "5A) Temporal order, Global Structure, and Memory", fallback: 6) == 5)
-        #expect(StudioViewModel.playlistLectureNumber(from: "5B) Temporal order, Global Structure, and Memory", fallback: 7) == 5)
-        #expect(StudioViewModel.playlistLectureNumber(from: "Lecture 8B - Robustness using bifunctional components", fallback: 9) == 8)
+        #expect(StudioViewModel.materialOrdinal(in: "5A) Temporal order, Global Structure, and Memory")?.major == 5)
+        #expect(StudioViewModel.materialOrdinal(in: "5B) Temporal order, Global Structure, and Memory")?.major == 5)
+        #expect(StudioViewModel.materialOrdinal(in: "Lecture 8B - Robustness using bifunctional components")?.major == 8)
     }
 
-    @Test("Playlist ordinals fall back to item order when no lecture number is present")
-    func playlistOrdinalsFallbackToItemOrder() {
-        #expect(StudioViewModel.playlistLectureNumber(from: "Feed Forward Loops", fallback: 3) == 3)
+    @Test("A title with no lecture number has no ordinal, so the item order stands")
+    func titlesWithoutALectureNumberHaveNoOrdinal() {
+        #expect(StudioViewModel.materialOrdinal(in: "Feed Forward Loops") == nil)
     }
 
     @Test("Playlist lecture cleanup preserves original title when AI is unavailable")
@@ -833,7 +833,7 @@ struct YouTubeMetadataTests {
             thumbnailURL: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
         )
 
-        StudioViewModel.applyYouTubeMetadata(metadata, to: &article)
+        StudioYouTubeMetadataApplicator.apply(metadata, to: &article)
 
         #expect(article.title == "Discrete Diffusion Models")
         #expect(article.domain == "MIT 6.S978")
@@ -854,7 +854,7 @@ struct YouTubeMetadataTests {
             thumbnailURL: nil
         )
 
-        StudioViewModel.applyYouTubeMetadata(metadata, to: &article)
+        StudioYouTubeMetadataApplicator.apply(metadata, to: &article)
 
         #expect(article.title == "Discrete Diffusion Models")
         #expect(article.artworkURL == "https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg")

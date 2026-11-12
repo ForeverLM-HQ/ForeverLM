@@ -8,8 +8,8 @@ import Combine
 
 /// One plugin's page in the Plugins place (`PluginsPane`): its name, what it
 /// reads, and its own controls — connecting, what it may read, what it
-/// imports, disconnecting. These pages were Settings' plugin panes until the
-/// Plugins place took them (product owner, 2026-10-13: "so you can take plugins
+/// imports, disconnecting. These pages are in the Plugins place, not Settings
+/// (product owner, 2026-10-13: "so you can take plugins
 /// out of settings actually and put it similarly to codex").
 struct PluginPageContent: View {
     let page: PluginPage
@@ -1575,7 +1575,7 @@ enum PluginStatus: Equatable {
     }
 
     /// Whether the directory lists a plugin under Installed (Codex's
-    /// `skills.appsPage.section.connected`): connected, or connected and
+    /// connected section): connected, or connected and
     /// needing a reconnect. A state not known yet is not installed.
     static func isInstalled(_ status: PluginStatus?) -> Bool {
         status == .connected || status == .needsAttention

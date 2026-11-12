@@ -544,8 +544,7 @@ class StudioViewModel {
 
     /// The notebook lists, built once per change to what they read. Rows read
     /// them by the hundred — every chat row in the rail, every item the Space
-    /// lists — and an uncached read filters every goal and rebuilds the order
-    /// (build 210's stalls, 2026-10-11: `notebooks` in 9 of them).
+    /// lists — and an uncached read filters every goal and rebuilds the order.
     private var notebookLists: NotebookLists {
         let key = currentNotebookListsKey
         if let cached = notebookListsCache, cached.key == key {
@@ -576,8 +575,8 @@ class StudioViewModel {
     // MARK: - Pinned notebooks
 
     /// The row of the retired exceptions list: every notebook was on the
-    /// rail unless the learner took it off. Read by nothing since the rail
-    /// went compact (2026-10-03, `NotebookPins`), and not synced
+    /// rail unless the learner took it off. Read by nothing (the rail shows
+    /// `NotebookPins`), and not synced
     /// (`SyncedPreferenceKeys.excluded`).
     static let unpinnedNotebooksPreferenceKey = Prefs.Studio.retiredUnpinnedNotebooks.name
 
@@ -1852,9 +1851,8 @@ class StudioViewModel {
     }
 
     /// The Mac's realtime voice workspace occupied the center while it was
-    /// presented. The Mac has had no voice conversation since 2026-10-01, so
-    /// nothing sets this any more; the window still clears it wherever it
-    /// clears transient presentation, until those resets go too.
+    /// presented. Nothing sets this: the window clears it wherever it clears
+    /// transient presentation.
     var isVoiceWorkspacePresented: Bool {
         get { activeWindowState.isVoiceWorkspacePresented }
         set { activeWindowState.isVoiceWorkspacePresented = newValue }
@@ -1931,8 +1929,7 @@ class StudioViewModel {
     @ObservationIgnored var deletionGracePeriod: Duration = .seconds(10)
 
     /// Non-nil while a YouTube playlist/course import is in flight, driving the
-    /// import's line in the Mac strip's work icon (a banner of its own until
-    /// 2026-10-06, `StudioWorkButton`). The import (playlist scrape → AI title
+    /// import's line in the Mac strip's work icon (`StudioWorkButton`). The import (playlist scrape → AI title
     /// cleanup → per-lecture insert) can run ~a minute before the course first
     /// appears in the sidebar, and would give the user no feedback at all without it.
     var playlistImportStatus: String?

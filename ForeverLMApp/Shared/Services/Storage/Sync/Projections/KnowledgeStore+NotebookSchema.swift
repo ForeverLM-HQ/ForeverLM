@@ -49,7 +49,7 @@ extension KnowledgeStore {
     /// The back-pointer index (§5.2): every row that files something into a notebook, by the
     /// notebook's local id. What a delete unfiles, a merge re-points and a move into a space
     /// copies is found here, so nothing belongs to a notebook by living inside it (D17). A course
-    /// is in no notebook (2026-10-03): a notebook only follows one, which its Entry row says (schema 157
+    /// is in no notebook: a notebook only follows one, which its Entry row says (schema 157
     /// dropped the retired `courses.home_notebook_id` line).
     static let notebookChildrenView = """
         CREATE VIEW IF NOT EXISTS ck_notebook_children (notebook_id, child_type, child_table, child_id) AS

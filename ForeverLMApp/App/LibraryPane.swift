@@ -19,8 +19,8 @@ enum SourcesListLayout: Equatable, Sendable {
     case sidebar
     case wide
     /// Inside a notebook's Sources column (`NotebookLibraryBrowser`): one
-    /// line a source and the kinds as words, as NotebookLM's column reads
-    /// (2026-10-12). Otherwise the narrow list.
+    /// line a source and the kinds as words, as NotebookLM's column reads.
+    /// Otherwise the narrow list.
     case compact
 }
 

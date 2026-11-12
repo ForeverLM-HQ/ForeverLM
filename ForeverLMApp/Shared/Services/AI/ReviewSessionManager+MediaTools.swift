@@ -177,17 +177,16 @@ extension ReviewSessionManager {
             // first: the printed captions say which figures the paper has and
             // where each sits, with no model call.
             // An index built under older rules is read again here too: one
-            // from before Extended Data counted listed only the main figures,
-            // and "Extended Data Figure 1" was refused on a paper that prints
-            // it (2026-11-08).
+            // that predates Extended Data counting lists only the main figures,
+            // and "Extended Data Figure 1" would be refused on a paper that
+            // prints it.
             var figures = try await paperFigureIndexer.figuresForReading(sourceID: sourceID)
             let requestedPanel = ((arguments["panel_label"] as? String) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             // Show the figure before explaining it. The vision reading takes
-            // seconds and can fail — on 2026-10-11 a rate-limited free model
-            // failed it, and the learner who asked to walk through a paper's
-            // figures saw nothing, though where Figure 1 sits was known all
-            // along. The paper opens beside the chat with the figure outlined
+            // seconds and can fail — a rate-limited free model fails it, and
+            // a learner walking through a paper's figures would see nothing,
+            // though where Figure 1 sits is known all along. The paper opens beside the chat with the figure outlined
             // now; a failed reading is still reported as a failure.
             var outlinedEarly: WalkthroughResolvedAnchor?
             if let indexed = PaperFigureIndexer.figure(labelled: requested, in: figures),
@@ -922,11 +921,10 @@ extension ReviewSessionManager {
     ///
     /// The picture tools read a source's file and nothing else, so nothing
     /// about them needs the source's text in this chat's context. Requiring
-    /// it meant a paper that a search had just found could not have its figure
+    /// it would mean a paper that a search had just found could not have its figure
     /// shown until the learner attached it by hand — and the model, told the
-    /// ID was "not attached", reached for a tool that moved a selection outside
-    /// the chat (since deleted), was refused again, and opened the publisher's page in the browser for a figure sitting in
-    /// the library's own PDF.
+    /// ID was "not attached", would open the publisher's page in the browser for
+    /// a figure sitting in the library's own PDF.
     func librarySourceArticle(forRequestedID requestedID: String) async -> StudioArticle? {
         if let attached = await attachedArticle(forRequestedID: requestedID) { return attached }
         return await loadLibrarySource(id: requestedID)

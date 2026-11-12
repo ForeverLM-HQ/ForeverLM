@@ -6,8 +6,8 @@ import Foundation
 /// PubMed through NCBI's E-utilities: `esearch` finds the records, `efetch`
 /// returns each one whole — title, authors, journal, year, abstract, DOI, its
 /// PubMed Central copy, and whether it is a review or a preprint. Both are
-/// free and keyless, and answered in about half a second when measured on
-/// 2026-09-28. Two services were tried before it that day and dropped:
+/// free and keyless, and answered in about half a second when measured.
+/// Two other services were tried and dropped:
 /// OpenAlex answered every anonymous search with 429 ("Anonymous search is
 /// temporarily rate-limited"), and Europe PMC took 12 to 40 seconds a query,
 /// so the first live direction search had all three of its calls run past a

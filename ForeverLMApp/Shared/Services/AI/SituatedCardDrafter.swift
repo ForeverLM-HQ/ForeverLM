@@ -342,8 +342,7 @@ enum SituatedCardDrafting {
     /// card origin; concepts and terms as a guide's.
     static func seedKey(for anchor: SituatedAnchor, card: Int) -> String {
         let words = CardDraftingSeedKey.words(anchor.text)
-        let digest = SHA256.hash(data: Data("\(anchor.kind.rawValue)|\(words)".utf8))
-            .prefix(6).map { String(format: "%02x", $0) }.joined()
+        let digest = SHA256.hash(data: Data("\(anchor.kind.rawValue)|\(words)".utf8)).prefix(6).hexString
         let prefix: String
         switch anchor.kind {
         case .idea: prefix = "idea:canvas"

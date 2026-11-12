@@ -776,8 +776,8 @@ struct YouTubeVideoReaderView: View {
     /// Above the transcript: its chapters, a menu that jumps the video, and
     /// what the slides are doing while a capture or a paper read runs. The
     /// rest of what the bar above the transcript held — the slides, their
-    /// papers and the transcript's layout — is the Reader's ⋯ › Video since
-    /// Quiet chrome (docs/ui-design.md, 2026-10-06), published by
+    /// papers and the transcript's layout — is the Reader's ⋯ › Video
+    /// (Quiet chrome, docs/ui-design.md), published by
     /// `publishVideoCommands`. With neither, there is no row at all.
     @ViewBuilder
     private func transcriptHeader(chapters: [YouTubeTranscriptChapter]) -> some View {
@@ -921,7 +921,7 @@ struct YouTubeVideoReaderView: View {
         // asked: Show Slides captures the deck's frames (no AI), and Extract
         // Papers reads those frames with a vision model. Extract Papers is on
         // offer from the start, not only once the slides are up: it captures
-        // them first when they are missing (every course lecture, 2026-09-25).
+        // them first when they are missing (every course lecture).
         // Once papers are found, Papers lists them instead; both retire when a
         // capture came back empty.
         let hasPapers = !citedPapers.isEmpty

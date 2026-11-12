@@ -12,14 +12,10 @@ enum LegacyIdentityAdoption {
     static let retiredProductFolderName = "FeynmanLM"
     static let retiredDefaultsSuite = "com.feynmanlm"
     static let retiredAppGroup = "group.com.feynmanlm.shared"
-    static let retiredUbiquityContainerDirName = "iCloud~com~feynmanlm"
-    static let retiredKeychainService = "com.feynmanlm"
-    static let retiredKeychainVaultAccount = "__feynmanlm_keychain_vault_v1"
 
     static let currentProductFolderName = "ForeverLM"
     static let currentDefaultsSuite = "com.foreverlm"
     static let currentAppGroup = "group.com.foreverlm"
-    static let currentUbiquityContainerDirName = "iCloud~com~foreverlm"
 
     private static let defaultsCopiedKey = "LegacyIdentityAdoption.copiedRetiredDefaults.v1"
     private static let logger = Logger(

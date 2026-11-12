@@ -145,7 +145,7 @@ enum ForeverLMRuntimeIdentity {
     /// content files still sit, fully downloaded, in `Documents/<productFolderName>`. The Mac reads
     /// them by plain path (`StorageService.ubiquityContentRootPath`), which a non-sandboxed app may do
     /// whatever team signs it. No build is entitled to that container any more (it stayed with the
-    /// personal team when ForeverLM moved to the company Apple team, 2026-10-09), so nothing resolves it
+    /// personal team when ForeverLM moved to the company Apple team), so nothing resolves it
     /// through `url(forUbiquityContainerIdentifier:)` and nothing constructs it as a `CKContainer`:
     /// `CKContainer(identifier:)` traps on a container the app is not entitled to.
     static let iCloudDocumentsFolderName = "iCloud~com~foreverlm"
@@ -219,8 +219,8 @@ extension ForeverLMRuntimeIdentity {
     /// Whether this process is an app hosting unit tests. Such a build is
     /// unsigned (`CODE_SIGNING_ALLOWED=NO`), so it holds no iCloud entitlement,
     /// and CloudKit traps the moment a container is made in it: a test that
-    /// kept a card on the iPhone took the whole test host down this way
-    /// (2026-10-11), and every crash put macOS's "quit unexpectedly" dialog on
+    /// kept a card on the iPhone took the whole test host down this way, and
+    /// every crash put macOS's "quit unexpectedly" dialog on
     /// the learner's screen. Sync never starts in it; a test that needs a sync
     /// session builds its own with a fake client.
     static let isHostingUnitTests: Bool = {
@@ -244,7 +244,7 @@ extension ForeverLMRuntimeIdentity {
 ///
 /// The Dev app's library is a copy of a library the installed app has already
 /// cleaned, and its queues refill with every schema bump that restages history,
-/// so a Dev launch used to re-buy that work on every build. A Dev build now
+/// so a Dev launch would re-buy that work on every build. A Dev build
 /// skips paid clean-up: a newly added source is published with its raw text so
 /// ingestion still finishes, and historical rows stay queued untouched. A
 /// developer working on the clean-up itself opts back in for one launch with

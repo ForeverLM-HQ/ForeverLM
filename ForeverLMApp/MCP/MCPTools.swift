@@ -495,9 +495,9 @@ final class MCPToolRegistry: @unchecked Sendable {
     /// it out.
     ///
     /// Models routinely fill every slot in a schema, and an unused filter comes
-    /// through as `""`: `search_sources_semantic` with `added_from ""` was refused
-    /// as "not a date" twice in one turn on 2026-09-02, costing two tool rounds
-    /// to learn what the schema already said — omit it. A blank or whitespace
+    /// through as `""`: `search_sources_semantic` with `added_from ""` would be refused
+    /// as "not a date", costing tool rounds to learn what the schema already
+    /// said — omit it. A blank or whitespace
     /// string can filter on nothing, so on a tool that only reads, dropping it is
     /// exactly what the caller meant. Mutating tools keep their arguments as
     /// sent: several document `""` as a deliberate value ("pass instructions ""
@@ -669,9 +669,9 @@ final class MCPToolRegistry: @unchecked Sendable {
         "search_notion", "get_notion_page", "list_notion_databases",
         "get_notion_database", "query_notion_database",
         // Long paid tools whose reads and writes all go through the storage
-        // actor. On 2026-09-27 an assistant could not read a transcript or
-        // save a quiz for minutes while generate_course_quizzes held the gate
-        // alone, writing a course's quizzes on the learner's key. A filmed
+        // actor. Were generate_course_quizzes to hold the gate alone while
+        // writing a course's quizzes on the learner's key, an assistant could
+        // not read a transcript or save a quiz for minutes. A filmed
         // explainer waits on the learner's price dialog before the
         // coordinator films it.
         "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video",
@@ -751,9 +751,9 @@ final class MCPToolRegistry: @unchecked Sendable {
         // A local PDF is matched and saved as a pending paper in stretches
         // held alone, around a copy and a text extraction that hold nothing;
         // its models read it after the call answers, holding the store only
-        // to save. On 2026-10-12 seven imports sent together held it alone
+        // to save. Held alone, seven imports sent together would run
         // one after another, a minute or more each, and a filter_sources
-        // waited behind them until its client timed out. import_local_file
+        // would wait behind them until its client timed out. import_local_file
         // routes a paper the same way, a book and a text file through the
         // Studio's storage actor.
         "import_local_pdf_as_paper", "import_local_file",
@@ -786,8 +786,8 @@ final class MCPToolRegistry: @unchecked Sendable {
     /// own, and changing a passage of a site writes through the same actor;
     /// what these tools do on the cached connection is look up the sources a
     /// page cites. Holding the gate alone for that would queue every
-    /// read behind an upload — on 2026-09-18 a `list_teams` waited half a minute
-    /// behind a `publish_site` — so they share it like the readers they are on
+    /// read behind an upload (a `list_teams` waiting half a minute behind a
+    /// `publish_site`), so they share it like the readers they are on
     /// this connection. A tool belongs here only after checking that every
     /// write it makes goes through `notebookFileStorage`, never `knowledgeStore()`.
     static let sharedGateWritingToolNames: Set<String> = [

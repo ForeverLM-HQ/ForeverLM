@@ -31,7 +31,7 @@ final class StudioArticlesStore {
     @ObservationIgnored private(set) var explainerIDsByExplainedSourceID: [String: String] = [:]
     /// The Artifact ids of the audio overviews whose script source this Mac
     /// holds, read off the `foreverlm://audio-overview/<artifactID>` URL
-    /// grammar: how a list recognises an overview an older build saved back
+    /// grammar: how a list recognises an overview saved
     /// without its kind, without reading its body
     /// (`StudioViewModel.isAudioOverview`).
     @ObservationIgnored private(set) var audioOverviewArtifactIDs: Set<String> = []

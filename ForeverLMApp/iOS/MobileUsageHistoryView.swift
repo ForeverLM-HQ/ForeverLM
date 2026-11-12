@@ -13,8 +13,8 @@ struct MobileUsageHistorySnapshot: Codable, Sendable {
 /// grouped by day, then by task and model. It shows tasks and request counts,
 /// never dollars: spend is OpenRouter's monitor, linked at the top (product
 /// owner, 2026-10-15: "we shouldn't maintain our own spend stuff"). Realtime
-/// voice (until 2026-10-01) ran per reply; a day of those rows reads as one
-/// line with a reply count rather than dozens of tiny rows.
+/// voice ran per reply; a day of those rows reads as one line with a reply
+/// count rather than dozens of tiny rows.
 struct MobileUsageHistoryView: View {
     private enum Phase {
         case loading

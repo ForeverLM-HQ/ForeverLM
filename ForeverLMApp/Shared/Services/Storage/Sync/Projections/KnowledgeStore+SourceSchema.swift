@@ -283,8 +283,8 @@ extension KnowledgeStore {
     }
 
     /// The source in the import's library (the learner's own when `teamID` is nil, else that team's)
-    /// that holds any of `keys`: an active one before an archived one, then the smaller id. Nil under
-    /// generation 1, which mints as build 177 does and never reads `source_work_keys` (D40).
+    /// that holds any of `keys`: an active one before an archived one, then the smaller id. Nil when no
+    /// source holds any of them.
     func sourceID(forWorkKeys keys: [String], teamID: String?) throws -> String? {
         guard !keys.isEmpty else { return nil }
         let marks = Array(repeating: "?", count: keys.count).joined(separator: ", ")
@@ -356,6 +356,6 @@ enum SourceFileHash {
         while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
             hasher.update(data: chunk)
         }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return hasher.finalize().hexString
     }
 }

@@ -935,8 +935,8 @@ struct ForeverLMApp: App {
                     Divider()
                 }
 
-                // Saved window arrangements. The product owner asked on 2026-09-25 for
-                // them here rather than behind a dedicated titlebar button.
+                // Saved window arrangements, here rather than behind a dedicated
+                // titlebar button (product owner, 2026-09-25).
                 Menu("Workspaces") {
                     Button("Save Current Workspace…") {
                         postToActiveStudioWindow(.saveStudioWorkspace)
@@ -1119,13 +1119,12 @@ struct ForeverLMApp: App {
                 }
             }
 
-            // The day's own menu, beside View (product owner, 2026-09-09). Since the
-            // Planner went on 2026-09-30 the day is the Mac's Calendar: the
-            // menu plans it in a chat that writes events there, opens the
-            // Calendar app, runs the bout timer, opens Activity and starts
-            // the review. Since 2026-10-06 the rail's Now chip shows only
-            // while something is happening, so this menu is where the day's
-            // ways on always are.
+            // The day's own menu, beside View (product owner, 2026-09-09). The day
+            // is the Mac's Calendar: the menu plans it in a chat that writes
+            // events there, opens the Calendar app, runs the bout timer,
+            // opens Activity and starts the review. The rail's Now chip shows
+            // only while something is happening, so this menu is where the
+            // day's ways on always are.
             CommandMenu("Today") {
                 Button(ShellAction.planTheDay.title) {
                     postToActiveStudioWindow(.requestPlanTheDayChat)
@@ -1683,7 +1682,7 @@ final class StudioWorkspaceWindowCoordinator {
     /// the previous launch's windows itself, and those scenes register after
     /// the first window's task has run, so a count taken then saw one window,
     /// opened the whole saved session on top of the restored one, and the next
-    /// quit saved the sum: measured on 2026-09-03, a 35-window store came back
+    /// quit saved the sum: a 35-window store came back
     /// as 269 windows and was saved as 269. So the decision waits for AppKit's
     /// restoration pass, then for registrations to stop arriving, and is taken
     /// against the windows that actually exist.

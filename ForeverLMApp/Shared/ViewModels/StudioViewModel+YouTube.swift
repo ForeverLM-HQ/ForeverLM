@@ -598,8 +598,7 @@ extension StudioViewModel {
     /// costs eighteen requests once, not eighteen per plugin event. A public
     /// video whose uploader turned embedding off is not one of them, though
     /// oEmbed refuses it the same way: the lookup asks the player for it
-    /// (`lookUpVideoMetadata`). Eighteen Stanford CS336 lectures were taken for
-    /// private on that refusal from 2026-09-02 until 2026-09-28.
+    /// (`lookUpVideoMetadata`), so it is not taken for private on that refusal.
     func backfillMissingVideoChannels() async {
         guard !videoChannelBackfillInFlight else { return }
         videoChannelBackfillInFlight = true

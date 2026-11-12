@@ -52,8 +52,7 @@ struct SpaceItem: Identifiable {
 
     var isShared: Bool { teamName != nil || !teamIDs.isEmpty }
     /// In Trash: a record archived, a canvas or a list trashed, or a notebook
-    /// archived (Trash is the notebooks' archive since the Notebooks home and
-    /// its Archived view went, 2026-10-09).
+    /// archived (Trash is the notebooks' archive).
     var isArchived: Bool {
         artifact?.isArchived == true || canvas?.isTrashed == true || spaceList?.isTrashed == true
             || notebook?.isArchived == true || pageSpace != nil
@@ -96,8 +95,8 @@ enum SpaceScope: String, CaseIterable, Identifiable {
 
 /// The Space list's order. Last activity is the default, as Codex's Space
 /// lists by it (product owner, 2026-10-13: "at first it should be a copy of
-/// the codex ... functionality"). It replaced Date Created (2026-09-29: "just
-/// do it by creation date and time"), which stays one choice away; opening a
+/// the codex ... functionality"). Date Created (product owner, 2026-09-29: "just
+/// do it by creation date and time") stays one choice away; opening a
 /// page is a read and never moves it (docs/ui-design.md, "Opening is a read").
 enum SpaceSort: String, CaseIterable, Identifiable {
     case created, activity, name
@@ -270,8 +269,7 @@ enum SpaceCatalog {
         // perhaps that can just be in spaces"), so All lists them beside the
         // pages. A notebook is dated by the last time the learner worked in
         // it, a course by its first lecture. An archived notebook is listed
-        // too, in Trash alone, dated by its last change: the Notebooks home's
-        // Archived view went with the home.
+        // too, in Trash alone, dated by its last change.
         for goal in vm.notebooks {
             items.append(notebookItem(goal, updatedAt: vm.notebookRecency.lastWorkedAt(goal.id, updatedAt: goal.updatedAt), vm: vm))
         }

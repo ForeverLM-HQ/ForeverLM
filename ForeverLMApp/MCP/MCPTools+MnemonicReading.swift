@@ -659,8 +659,8 @@ extension MCPDataStore {
     /// A reading's body is its questions, which its view, `get_mnemonic_reading`
     /// and an answer read by their markers and ids; the Docs write tools would
     /// break them, and a published page of them would be a list of answers.
-    /// Refused even when an older build saved the record back without its
-    /// kind, by the marker its body starts with.
+    /// Refused even when the record was saved back without its kind, by the
+    /// marker its body starts with.
     static func refuseMnemonicReadingChange(_ snapshot: ArtifactMarkdownSnapshot, doing tool: String) throws {
         guard snapshot.artifact.isMnemonicReading(markdown: snapshot.markdown) else { return }
         throw MCPError.invalidInput(

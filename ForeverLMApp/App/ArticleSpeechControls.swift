@@ -181,7 +181,7 @@ struct ArticleSpeechControls: View {
     /// but move the potentially long status string out of the constrained row.
     var showsPreparationStatus = true
     /// False on the Reader's bars, where Listen is state, not a command
-    /// (Quiet chrome, docs/ui-design.md, 2026-10-06): the control draws
+    /// (Quiet chrome, docs/ui-design.md): the control draws
     /// nothing until Listen is preparing, making a narration or playing, and
     /// the ⋯ menu's `ArticleSpeechListenMenuItem` starts it. A host that hides
     /// it plays a narration that lands while it is hidden itself
@@ -819,8 +819,8 @@ struct ArticleSpeechCacheDeleteMenuItem: View {
 }
 
 /// Listen, in the Reader's ⋯ menu while nothing is under way for the source:
-/// plays its narration, or makes one, as the bar's Listen did before Quiet
-/// chrome (2026-10-06) took it off the bar. Once it starts, the bar shows it
+/// plays its narration, or makes one; Quiet chrome keeps Listen off the bar
+/// until then. Once it starts, the bar shows it
 /// (`ArticleSpeechControls`, `showsListenWhenIdle: false`) and this item
 /// leaves the menu for the Stop Listening section.
 struct ArticleSpeechListenMenuItem: View {

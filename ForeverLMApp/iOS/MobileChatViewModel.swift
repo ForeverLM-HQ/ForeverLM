@@ -662,9 +662,9 @@ final class MobileChatViewModel: ObservableObject {
             // not a review): no tutor question, the learner's message as the
             // answer, the reply as the evaluation — in a walk, the answer to
             // the step turn before it, so a walk begun here reopens there as
-            // the same chat. Older builds put a reading chat's message where
-            // the tutor's question goes, which the Mac drew as the tutor
-            // speaking and never counted as the learner's turn. Ungraded:
+            // the same chat. A reading chat's message never goes where the
+            // tutor's question goes: the Mac would draw it as the tutor
+            // speaking and never count it as the learner's turn. Ungraded:
             // nothing here tested anyone.
             recordedExchanges.append(
                 MobileReviewRecordedExchange(

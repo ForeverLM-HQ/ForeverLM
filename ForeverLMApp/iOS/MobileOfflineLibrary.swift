@@ -1,5 +1,4 @@
 import Combine
-import CryptoKit
 import Foundation
 import OSLog
 
@@ -191,8 +190,7 @@ actor MobileOfflineSourceStore {
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         // Source ids are URLs and free text, not filesystem-safe. Hash them the
         // same way the Caches mirror does so the two stay comparable by eye.
-        let digest = SHA256.hash(data: Data(sourceID.utf8))
-        let name = digest.map { String(format: "%02x", $0) }.joined()
+        let name = sourceID.sha256Hex
         return directory.appendingPathComponent("\(name).\(kind.fileExtension)")
     }
 }

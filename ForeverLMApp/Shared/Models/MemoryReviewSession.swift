@@ -33,9 +33,8 @@ enum MemoryReviewSession {
     }
 
     /// The chat's title: the full date, and nothing else. The rows are reached
-    /// from Memory — the Memory pane's grid since 2026-10-01, the Review mode
-    /// sheet before it — so repeating "Memory" in each one said nothing their
-    /// place did not.
+    /// from Memory — the Memory pane's grid — so repeating "Memory" in each one
+    /// would say nothing their place does not.
     static func title(for date: Date, calendar: Calendar = .current) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar

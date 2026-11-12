@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 // MARK: - Memory as cards: keeping, retiring and starting over
@@ -20,13 +19,10 @@ import Foundation
 ///
 /// For a walkthrough question the passages are the authors' sentence the step
 /// is about, then the step's own anchor passage, then the same of each step it
-/// follows in its chapter, nearest first. Until 2026-09-30 only the question
-/// step's own passages counted, and a question step rarely has one: the
-/// writer leaves a question unanchored so the Reader does not mark its
-/// answer. None of the 20 questions of the "Metabolism as inference" walk and
-/// only 1 of the 10 of "Engineered human resilience and durability" could be
-/// grounded, so a Forgot on the others threw and the miss never came back in
-/// spaced review.
+/// follows in its chapter, nearest first. The question step's own passages
+/// alone would rarely ground it: the writer leaves a question unanchored so
+/// the Reader does not mark its answer, so a Forgot on an ungrounded question
+/// would throw and the miss would never come back in spaced review.
 struct SourceMemoryQuestion: Equatable, Sendable {
     let sourceID: String
     let stepID: String
@@ -416,7 +412,7 @@ extension KnowledgeStore {
     /// One sitting's "This asks something else" on one wording of one card.
     static func askedSomethingElseAttemptID(sessionKey: String, memoryItemID: String, prompt: String) -> String {
         let fields = [sessionKey, memoryItemID, prompt].joined(separator: "\u{1F}")
-        let digest = SHA256.hash(data: Data(fields.utf8)).map { String(format: "%02x", $0) }.joined()
+        let digest = fields.sha256Hex
         return "memory-asked-else-v1-" + digest
     }
 }

@@ -66,9 +66,8 @@ struct MobileNotebookHomeView: View {
 
 /// One chip in the Notebooks screen's filter row: its name in grey, and in
 /// the primary colour on a neutral capsule while it is the filter, as the
-/// Mac's chips are since 2026-10-06 ("Lists are monochrome",
-/// docs/ui-design.md); it was filled with the accent and carried its count
-/// of notebooks before.
+/// Mac's chips are ("Lists are monochrome", docs/ui-design.md); it is not
+/// filled with the accent and carries no count of notebooks.
 struct MobileNotebookCollectionChip: View {
     static let height: CGFloat = 34
     /// Taps above and below the capsule still land on it: a 44-point target.
@@ -101,7 +100,7 @@ struct MobileNotebookCollectionChip: View {
 
 /// A gallery card's ▶ (or ⏸) for the notebook's audio overview, a spinner
 /// while that audio is being made, as the Mac's card draws it. A card with no overview draws nothing here:
-/// the waveform that talked with the notebook went on 2026-10-06.
+/// there is no waveform that talks with the notebook.
 private struct MobileNotebookCardPlayButton: View {
     let overviewIsPlaying: Bool
     let isPreparingOverview: Bool
@@ -148,8 +147,8 @@ extension NotebookTint {
 /// drawn as NotebookLM draws its own: a card in the notebook's soft colour
 /// (`NotebookTint`), its emoji large in the corner, its name under it and
 /// "12 sources · 2 hr ago", and ▶ in its bottom-right corner while it has an
-/// audio overview. The same data as the phone's row (`MobileNotebookCard`)
-/// and the same menu; a tap opens the notebook. Since 2026-10-06, as the
+/// audio overview. The same data as the phone's row (`MobileNotebookListRow`)
+/// and the same menu; a tap opens the notebook. As the
 /// Mac's card, it draws no pin (Pinned on Home and the menu's Unpin say it)
 /// and no waveform. On a phone's Notebooks screen the
 /// card is drawn smaller (`isCompact`), two to a row.
@@ -166,7 +165,7 @@ struct MobileNotebookGalleryCard: View {
 
     /// "12 sources · 2 hr ago", "Sources syncing" while none of a notebook's
     /// sources has reached the phone, and "0 sources" for an empty one, as
-    /// the Mac's card counts it (its "No sources yet" went on 2026-10-06).
+    /// the Mac's card counts it (it has no "No sources yet").
     static func line(notebook: MobileCloudNotebook, sourceCount: Int, lastActivity: Date) -> String {
         let count: String
         if sourceCount == 0, !notebook.sourceIDs.isEmpty {

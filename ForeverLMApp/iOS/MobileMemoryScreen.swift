@@ -170,8 +170,8 @@ struct MobileMemoryScreen: View {
 
     /// Review | To Check | All Cards. To Check shows only while cards wait
     /// to be checked, or while it is the section on screen, so deciding the
-    /// last card never pulls it away (2026-10-06: a section with nothing in
-    /// it is not drawn; a notebook's Cards row still opens its own).
+    /// last card never pulls it away (a section with nothing in it is not
+    /// drawn; a notebook's Cards row still opens its own).
     private var shownSections: [MobileMemorySection] {
         MobileMemorySection.allCases.filter { $0 != .toCheck || vm.cardsToCheckTotal > 0 || section == .toCheck }
     }
@@ -200,7 +200,7 @@ struct MobileMemoryScreen: View {
     /// Start Review's narrowest, the Mac pane's.
     private static let primaryMinWidth: CGFloat = 200
 
-    /// Since 2026-10-11 the Mac's Memory pane's Review: today's cards drawn
+    /// The Mac's Memory pane's Review: today's cards drawn
     /// as the deck the review deals — one card with how many there are, the
     /// edges of the rest under it — the done day's sentence where the card
     /// does not already say it, one dark Start Review with Practice a quiet
@@ -489,8 +489,8 @@ struct MobileMemoryHistoryGrid: View {
             weeks: weeks
         )
         VStack(alignment: .leading, spacing: MobileDesign.Spacing.small) {
-            // No "Your reviews" caption over it since 2026-10-06: the grid
-            // under Start Review says what it is.
+            // No "Your reviews" caption over it: the grid under Start Review
+            // says what it is.
             if width > 0, grid.reviewedDays > 0 {
                 VStack(alignment: .leading, spacing: MobileDesign.Spacing.xSmall) {
                     monthRow(grid, cell: cell)

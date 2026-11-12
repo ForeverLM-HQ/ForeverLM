@@ -7,9 +7,9 @@ import Foundation
 // least one card for each source in the library and every source worth its
 // weight, so the Library's rows carry their kept cards and two verdicts under
 // the pointer — Make Cards, or Not Worth Keeping — and its **No Cards** pill
-// lists what still waits for one. One list: build 238's Memory › Sources
-// section was the same rows a second time, in a bare title list (product
-// owner, 2026-10-16: "probably would be better if this was integrated into
+// lists what still waits for one. One list: Memory has no Sources
+// section of its own, which would be the same rows a second time in a bare
+// title list (product owner, 2026-10-16: "probably would be better if this was integrated into
 // the library tab instead?", "it needs to look nice though"). Memory keeps
 // Review, To Check and All Cards; the corner card's Choose Sources opens the
 // Library with the pill on.

@@ -275,8 +275,8 @@ actor MeetingTranscriptionService {
 /// A speech model handed silence does not answer with nothing. GPT-4o mini
 /// Transcribe, the default batch model, answered the Zoom standup recordings
 /// in which nobody spoke with an empty text, with "Thank you for watching."
-/// (a 3-minute recording, 2026-09-25), and with fluent paragraphs in Russian,
-/// Spanish and German (1-minute recordings, 2026-09-16 and 2026-09-20; two
+/// (a 3-minute recording), and with fluent paragraphs in Russian,
+/// Spanish and German (1-minute recordings; two
 /// calls on the same file gave two different ones), which were filed as those
 /// English standups' transcripts. OpenRouter's response carries only `text`
 /// and `usage`: no language, no segments and no no-speech probability for
@@ -286,7 +286,7 @@ actor MeetingTranscriptionService {
 /// for a meeting that barely happened.
 ///
 /// The samples can. Zoom's noise suppression records a call in which nobody
-/// speaks as near-digital silence. Measured on 2026-09-28 over every
+/// speaks as near-digital silence. Measured over every
 /// recording in `~/Documents/Zoom`: the five in which nobody spoke (2 s to
 /// 17 min) had no 100 ms window louder than −52.5 dBFS RMS and at most 0.2 s
 /// louder than −55, while each of the ten standups that happened spent about

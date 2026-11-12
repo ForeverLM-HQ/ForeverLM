@@ -8,14 +8,14 @@ import AppKit
 /// (`AIModelDefaults.suggestedChatModels`), a Free list (OpenRouter's Free
 /// Models Router and the best single free models), the backups, and under
 /// them OpenRouter's whole directory as a table (`OpenRouterModelTable`), narrowed to free or
-/// discounted models or to what a search finds. The list of the other
-/// models the learner offered went the same day ("why is that even there?"):
-/// the table shows each of them. Every row turns
+/// discounted models or to what a search finds. There is no list of the other
+/// models the learner offered ("why is that even there?"): the table shows
+/// each of them. Every row turns
 /// the model on or off in the chat's model picker; its context menu sets the
 /// Default Model and the backups a scheduled task's run moves to, and its
-/// provider button chooses who runs it. It replaced the maker-by-maker card
-/// grid; Settings › Background draws the same list (`BackgroundModelsPane`).
-/// Since 2026-11-07 Suggested and Free are one list the learner keeps, Your
+/// provider button chooses who runs it. Settings › Background draws the same
+/// list (`BackgroundModelsPane`).
+/// Suggested and Free are one list the learner keeps, Your
 /// Models (`ChatModelShortlist`): they start as its rows, and a model is
 /// taken off it, added to it from the table, or moved up and down it.
 struct ChatModelsPane: View {
@@ -521,7 +521,7 @@ struct ChatModelsPane: View {
     }
 
     private func setAsDefault(_ entry: AIModelCatalogEntry) {
-        // The new Default Model is no longer its own backup.
+        // The new Default Model is not its own backup.
         let identity = AIBackupModels.identity(entry.provider, entry.modelID)
         if snapshot.backups.contains(where: { AIBackupModels.identity($0.provider, $0.model) == identity }) {
             saveBackups(snapshot.backups.filter { AIBackupModels.identity($0.provider, $0.model) != identity })
@@ -603,7 +603,7 @@ struct ChatModelsPane: View {
 
     /// The Default Model's backups, each removable. They serve only a
     /// scheduled task's run: a chat the learner types in stays on its model.
-    /// Drawn only while there is one (2026-10-06, Quiet chrome); a model's
+    /// Drawn only while there is one (Quiet chrome); a model's
     /// menu has Use as Backup.
     private var backupsSummary: some View {
         let chosen = snapshot.entries.first { $0.id == snapshot.defaultID }?.displayName ?? "the Default Model"
@@ -1577,7 +1577,7 @@ struct ChatModelRow: View {
     /// "Default · Recommended · 50% off · Backup 1". All of it is grey
     /// (lists are monochrome, docs/ui-design.md; the product owner, 2026-10-06: "fewer
     /// buttons and bells and whistles"). Whether a host trains on prompts is
-    /// not said here: that is OpenRouter's to say (2026-10-07).
+    /// not said here: that is OpenRouter's to say.
     @ViewBuilder
     private var badges: some View {
         if let marks = Self.marks(

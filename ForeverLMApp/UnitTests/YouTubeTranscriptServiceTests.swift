@@ -207,87 +207,11 @@ struct YouTubeURLDetectionTests {
 @Suite("YouTube Title Extraction")
 struct YouTubeTitleExtractionTests {
 
-    @Test("Extracts from og:title meta tag")
-    func ogTitle() {
-        let html = """
-        <html><head>
-        <meta property="og:title" content="My Video Title">
-        </head></html>
-        """
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == "My Video Title")
-    }
-
-    @Test("Does not interpret provider-like text inside metadata titles")
-    func preservesMetadataTitleText() {
-        let html = """
-        <html><head>
-        <meta property="og:title" content="My Video Title | YouTube">
-        </head></html>
-        """
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == "My Video Title | YouTube")
-    }
-
     @Test("Preserves YouTube text in video titles")
     func preservesYouTubeText() {
         #expect(YouTubeTranscriptService.sanitizedVideoTitle("YouTube - My Video") == "YouTube - My Video")
         #expect(YouTubeTranscriptService.sanitizedVideoTitle("My YouTube Video") == "My YouTube Video")
         #expect(YouTubeTranscriptService.sanitizedVideoTitle("YouTube") == "YouTube")
-    }
-
-    @Test("Extracts from og:title with reversed attribute order")
-    func ogTitleReversed() {
-        let html = """
-        <html><head>
-        <meta content="Reversed Order Title" property="og:title">
-        </head></html>
-        """
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == "Reversed Order Title")
-    }
-
-    @Test("Extracts the title tag without interpreting its suffix")
-    func titleTag() {
-        let html = "<html><head><title>My Great Video - YouTube</title></head></html>"
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == "My Great Video - YouTube")
-    }
-
-    @Test("Decodes HTML entities in title")
-    func htmlEntities() {
-        let html = """
-        <html><head>
-        <meta property="og:title" content="Test &amp; More &lt;stuff&gt;">
-        </head></html>
-        """
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == "Test & More <stuff>")
-    }
-
-    @Test("Returns nil for empty HTML")
-    func emptyHTML() {
-        #expect(YouTubeTranscriptService.extractTitle(from: "") == nil)
-    }
-
-    @Test("Returns nil for HTML with no title elements")
-    func noTitle() {
-        let html = "<html><head></head><body>no title here</body></html>"
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == nil)
-    }
-
-    @Test("Prefers og:title over title tag")
-    func prefersOgTitle() {
-        let html = """
-        <html><head>
-        <meta property="og:title" content="OG Title">
-        <title>Regular Title - YouTube</title>
-        </head></html>
-        """
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == "OG Title")
-    }
-
-    @Test("Rejects extremely long titles")
-    func longTitle() {
-        let longTitle = String(repeating: "a", count: 400)
-        let html = "<meta property=\"og:title\" content=\"\(longTitle)\">"
-        // Should skip the overly long og:title. No <title> fallback → nil.
-        #expect(YouTubeTranscriptService.extractTitle(from: html) == nil)
     }
 }
 

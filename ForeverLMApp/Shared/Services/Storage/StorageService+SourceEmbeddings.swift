@@ -35,7 +35,7 @@ extension StorageService {
                    model: sourceEmbeddingModel
                ), !embeddings.isEmpty {
                 // Only the chunks of sources search covers. An archive or a delete takes its
-                // vectors from the store, but one that arrived by sync, or an older build, can
+                // vectors from the store, but one that arrived by sync can
                 // leave them there, and a vector once loaded is searched until the index is
                 // rebuilt.
                 let inSearch = try? ks.sourceIDsInSearch()

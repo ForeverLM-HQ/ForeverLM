@@ -61,24 +61,18 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
     }
 }
 
-final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
-    var title = ""
-    var isActive = false
-    var payload = ""
+/// What the pane-tab and source-tab handles in the titlebar band share: the
+/// press bookkeeping, the band router registration, and the drag threshold for
+/// a view that has no window to track in. A subclass says what a drag carries
+/// and what the end of one cleans up.
+class StudioBandTabHandleView: NSView, NSDraggingSource {
     var onActivate: () -> Void = {}
     var onDragBegan: () -> Void = {}
     var onDragEnded: () -> Void = {}
-    var splitLeftEnabled = false
-    var splitRightEnabled = false
-    var onSplitLeft: () -> Void = {}
-    var onSplitRight: () -> Void = {}
-    var onClose: () -> Void = {}
-    var onRename: (() -> Void)?
 
-    private var pendingMouseDown: NSEvent?
+    fileprivate var pendingMouseDown: NSEvent?
 
     override var mouseDownCanMoveWindow: Bool { false }
-    override var acceptsFirstResponder: Bool { true }
 
     /// Tabs live in the titlebar band, so behave like toolbar buttons: respond
     /// to the click that also brings the window forward.
@@ -94,6 +88,45 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
             TitlebarBandHitSurfaceView.registerWithBandRouter(self)
         }
     }
+
+    /// Reached only when the view has no window to track in, as in tests.
+    override func mouseDragged(with event: NSEvent) {
+        guard let mouseDown = pendingMouseDown else { return }
+        let start = mouseDown.locationInWindow
+        let now = event.locationInWindow
+        guard hypot(now.x - start.x, now.y - start.y) > 4 else { return }
+        pendingMouseDown = nil
+        beginTabDrag(with: event)
+    }
+
+    func beginTabDrag(with event: NSEvent) {}
+
+    override func mouseUp(with event: NSEvent) {
+        if pendingMouseDown != nil {
+            onActivate()
+        }
+        pendingMouseDown = nil
+    }
+
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        context == .withinApplication ? .move : []
+    }
+
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {}
+}
+
+final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
+    var title = ""
+    var isActive = false
+    var payload = ""
+    var splitLeftEnabled = false
+    var splitRightEnabled = false
+    var onSplitLeft: () -> Void = {}
+    var onSplitRight: () -> Void = {}
+    var onClose: () -> Void = {}
+    var onRename: (() -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         // A tab leaving its window mid-press (a closed pane) must not leave
@@ -135,17 +168,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         }
     }
 
-    /// Reached only when the view has no window to track in, as in tests.
-    override func mouseDragged(with event: NSEvent) {
-        guard let mouseDown = pendingMouseDown else { return }
-        let start = mouseDown.locationInWindow
-        let now = event.locationInWindow
-        guard hypot(now.x - start.x, now.y - start.y) > 4 else { return }
-        pendingMouseDown = nil
-        beginTabDrag(with: event)
-    }
-
-    private func beginTabDrag(with event: NSEvent) {
+    override func beginTabDrag(with event: NSEvent) {
         onDragBegan()
         guard let tab = StudioCenterTabDragPayload.tab(from: payload) else {
             tabPressLogger.notice("center tab drag: payload did not decode")
@@ -160,13 +183,6 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         // window-move tracking instead of transitioning into a drag session.
         beginDraggingSession(with: [item], event: event, source: self)
         tabPressLogger.notice("center tab drag session begun; \(tabPressOrigin(self.window), privacy: .public)")
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        if pendingMouseDown != nil {
-            onActivate()
-        }
-        pendingMouseDown = nil
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -206,11 +222,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         return true
     }
 
-    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        context == .withinApplication ? .move : []
-    }
-
-    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+    override func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         tabPressLogger.notice("center tab drag ended, operation \(operation.rawValue); \(tabPressOrigin(self.window), privacy: .public)")
         WindowMoveLock.unlock(window)
         // Fires whether or not a drop target accepted, so a drag released over
@@ -248,26 +260,40 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     }
 }
 
-/// The pill a pane drag shows under the pointer: the destination's title.
-func studioDragGhostImage(title: String) -> NSImage {
+/// The pill a drag shows under the pointer: a title, with an optional icon in
+/// front of it. The title truncates at `maxTextWidth`.
+func studioDragGhostImage(title: String, glyph: NSImage? = nil, maxTextWidth: CGFloat = 150) -> NSImage {
     let text = title as NSString
     let attributes: [NSAttributedString.Key: Any] = [
         .font: NSFont.systemFont(ofSize: 12, weight: .medium),
         .foregroundColor: NSColor.labelColor,
     ]
     let textSize = text.size(withAttributes: attributes)
-    let size = NSSize(width: min(textSize.width, 150) + 20, height: 24)
+    let glyphSide: CGFloat = glyph == nil ? 0 : 15
+    let glyphGap: CGFloat = glyph == nil ? 0 : 5
+    let textWidth = min(textSize.width, maxTextWidth)
+    let size = NSSize(width: textWidth + glyphSide + glyphGap + 20, height: 24)
     return NSImage(size: size, flipped: false) { rect in
         let pill = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
         NSColor.windowBackgroundColor.withAlphaComponent(0.9).setFill()
         pill.fill()
         NSColor.separatorColor.setStroke()
         pill.stroke()
+        var textX: CGFloat = 10
+        if let glyph {
+            glyph.draw(in: NSRect(
+                x: textX,
+                y: (rect.height - glyphSide) / 2,
+                width: glyphSide,
+                height: glyphSide
+            ))
+            textX += glyphSide + glyphGap
+        }
         text.draw(
             with: NSRect(
-                x: 10,
+                x: textX,
                 y: (rect.height - textSize.height) / 2,
-                width: rect.width - 20,
+                width: textWidth,
                 height: textSize.height
             ),
             options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
@@ -323,30 +349,8 @@ struct StudioSourceTabDragHandle: NSViewRepresentable {
     }
 }
 
-final class StudioSourceTabDragHandleView: NSView, NSDraggingSource, TitlebarBandControlClickPassthrough {
+final class StudioSourceTabDragHandleView: StudioBandTabHandleView, TitlebarBandControlClickPassthrough {
     var tab: StudioSidebarTab?
-    var onActivate: () -> Void = {}
-    var onDragBegan: () -> Void = {}
-    var onDragEnded: () -> Void = {}
-
-    private var pendingMouseDown: NSEvent?
-
-    override var mouseDownCanMoveWindow: Bool { false }
-
-    /// Tabs live in the titlebar band, so behave like toolbar buttons: respond
-    /// to the click that also brings the window forward.
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    /// Registered with the band's mouse router for the reason the pane tabs are
-    /// (`StudioCenterTabDragHandleView`): a press here is otherwise a window move.
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window == nil {
-            TitlebarBandHitSurfaceView.unregisterFromBandRouter(self)
-        } else {
-            TitlebarBandHitSurfaceView.registerWithBandRouter(self)
-        }
-    }
 
     /// Own the left mouse only. A right-click — or a control-click, its
     /// equivalent — has to reach the SwiftUI button underneath, where the tab's
@@ -379,17 +383,7 @@ final class StudioSourceTabDragHandleView: NSView, NSDraggingSource, TitlebarBan
         }
     }
 
-    /// Reached only when the view has no window to track in, as in tests.
-    override func mouseDragged(with event: NSEvent) {
-        guard let mouseDown = pendingMouseDown else { return }
-        let start = mouseDown.locationInWindow
-        let now = event.locationInWindow
-        guard hypot(now.x - start.x, now.y - start.y) > 4 else { return }
-        pendingMouseDown = nil
-        beginTabDrag(with: event)
-    }
-
-    private func beginTabDrag(with event: NSEvent) {
+    override func beginTabDrag(with event: NSEvent) {
         guard let tab else { return }
         onDragBegan()
         let item = NSDraggingItem(pasteboardWriter: pasteboardItem(for: tab))
@@ -401,21 +395,7 @@ final class StudioSourceTabDragHandleView: NSView, NSDraggingSource, TitlebarBan
         beginDraggingSession(with: [item], event: event, source: self)
     }
 
-    override func mouseUp(with event: NSEvent) {
-        if pendingMouseDown != nil {
-            onActivate()
-        }
-        pendingMouseDown = nil
-    }
-
-    func draggingSession(
-        _ session: NSDraggingSession,
-        sourceOperationMaskFor context: NSDraggingContext
-    ) -> NSDragOperation {
-        context == .withinApplication ? .move : []
-    }
-
-    func draggingSession(
+    override func draggingSession(
         _ session: NSDraggingSession,
         endedAt screenPoint: NSPoint,
         operation: NSDragOperation
@@ -439,44 +419,6 @@ final class StudioSourceTabDragHandleView: NSView, NSDraggingSource, TitlebarBan
     /// This view is transparent, so snapshotting it would drag an empty rect.
     /// Draw the tab's own icon and name in a pill instead.
     private func dragGhostImage(for tab: StudioSidebarTab) -> NSImage {
-        let text = tab.rawValue as NSString
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.labelColor,
-        ]
-        let textSize = text.size(withAttributes: attributes)
-        let glyph = tab.iconAsset.flatMap { NSImage(named: $0) }
-        let glyphSide: CGFloat = glyph == nil ? 0 : 15
-        let glyphGap: CGFloat = glyph == nil ? 0 : 5
-        let textWidth = min(textSize.width, 150)
-        let size = NSSize(width: textWidth + glyphSide + glyphGap + 20, height: 24)
-        return NSImage(size: size, flipped: false) { rect in
-            let pill = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
-            NSColor.windowBackgroundColor.withAlphaComponent(0.9).setFill()
-            pill.fill()
-            NSColor.separatorColor.setStroke()
-            pill.stroke()
-            var textX: CGFloat = 10
-            if let glyph {
-                glyph.draw(in: NSRect(
-                    x: textX,
-                    y: (rect.height - glyphSide) / 2,
-                    width: glyphSide,
-                    height: glyphSide
-                ))
-                textX += glyphSide + glyphGap
-            }
-            text.draw(
-                with: NSRect(
-                    x: textX,
-                    y: (rect.height - textSize.height) / 2,
-                    width: textWidth,
-                    height: textSize.height
-                ),
-                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
-                attributes: attributes
-            )
-            return true
-        }
+        studioDragGhostImage(title: tab.rawValue, glyph: tab.iconAsset.flatMap { NSImage(named: $0) })
     }
 }

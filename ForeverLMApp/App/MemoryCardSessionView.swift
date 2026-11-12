@@ -8,7 +8,7 @@ import SwiftUI
 /// Show Answer opens the back with nothing typed, as a paper flashcard, and
 /// the learner grades themselves (product owner, 2026-10-19).
 ///
-/// Since 2026-10-11 it is drawn as a deck (docs/memory-design.md, "How a card
+/// It is drawn as a deck (docs/memory-design.md, "How a card
 /// looks"; `MemoryCardChrome.swift`): over the card, the source it is from
 /// and its place in the round, with a strip a segment a card; the card an
 /// index card with the question set in the middle until the answer opens

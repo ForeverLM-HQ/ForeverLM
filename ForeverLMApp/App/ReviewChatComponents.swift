@@ -5,7 +5,7 @@ import SwiftUI
 ///
 /// Drawn as discrete rounded columns mirrored about a centre line — the shape
 /// a voice recorder draws. Bars read as "level meter" instantly at composer
-/// height, where the filled envelope this replaced smeared into a blob. New
+/// height, where a filled envelope would smear into a blob. New
 /// samples enter at the right and scroll left, with a dotted rule marking the
 /// stretch of the row the wave hasn't travelled into yet.
 struct ReviewDictationWaveform: View {
@@ -200,8 +200,8 @@ struct ReviewChatBubble: View, Equatable {
     /// model-only context rather than in the words, so without this the bubble
     /// showed "please explain this a bit more" and never what "this" was
     /// (product owner, 2026-09-23). The bubble is the one place it is drawn: a strip
-    /// under the chat's title showed the same words a second time until
-    /// 2026-09-26, and its click into the Reader now lives on this quote.
+    /// under the chat's title would show the same words a second time. Its
+    /// click into the Reader lives on this quote.
     private var readerPassage: ChatPassageOrigin.Passage? {
         guard message.role == .user else { return nil }
         return ChatPassageOrigin.parse(contextContent: message.contextualContent)

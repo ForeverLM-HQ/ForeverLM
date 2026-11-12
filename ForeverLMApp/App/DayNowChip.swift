@@ -8,18 +8,16 @@ import SwiftUI
 /// event the clock is in on the Mac's Calendar and how long is left, one
 /// starting within the quarter hour (`DayNow.upcomingMinutes`), or the bout
 /// on the clock. A quiet hour draws nothing (product owner, 2026-10-06: "cleaner
-/// and fewer buttons and bells and whistles"); until then the chip said
-/// *Free until 14:00* or *Nothing more today* all day. The menu bar's Today
+/// and fewer buttons and bells and whistles"). The menu bar's Today
 /// menu is the way on whatever the hour: Plan the Day in Chat, Open
 /// Calendar, Start Pomodoro Timer… and Activity.
 ///
-/// Since 2026-09-30 the day is the Mac's Calendar (the product owner: "the mac calendar
+/// The day is the Mac's Calendar (product owner, 2026-09-30: "the mac calendar
 /// is what gets shown in the bottom left"). There is no Planner behind the
 /// chip: its popover lists today's events, opens any of them in the Calendar
 /// app, joins a call from its link, starts a bout, and opens the chat that
 /// plans the day by writing events into the calendar. It
-/// is also a way to Activity, the day's record, which left the rail's top
-/// rows (`DayNowMenuRow.activity`). A hairline along its foot shows how far
+/// is also a way to Activity, the day's record (`DayNowMenuRow.activity`). A hairline along its foot shows how far
 /// through the event the clock is. `StudioView` starts the day's model, so
 /// the chip has a clock to read before it first draws.
 struct DayNowChip: View {

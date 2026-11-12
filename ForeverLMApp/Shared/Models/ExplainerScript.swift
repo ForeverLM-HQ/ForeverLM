@@ -50,13 +50,20 @@ enum ExplainerScript {
         TextToSpeechPreparationPolicy.isSpokenScript(url: urlString.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    /// The id of the source an explainer URL explains, or nil for any other URL.
-    static func explainedSourceID(from urlString: String) -> String? {
+    /// The id a source URL carries after `prefix`: one path-free, non-empty
+    /// segment, or nil. The carrier URLs of explainers, audio overviews and
+    /// explainer videos all read their id this way.
+    static func idAfterPrefix(_ prefix: String, in urlString: String) -> String? {
         let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix(urlPrefix) else { return nil }
-        let id = String(trimmed.dropFirst(urlPrefix.count))
+        guard trimmed.hasPrefix(prefix) else { return nil }
+        let id = String(trimmed.dropFirst(prefix.count))
         guard !id.isEmpty, !id.contains("/") else { return nil }
         return id
+    }
+
+    /// The id of the source an explainer URL explains, or nil for any other URL.
+    static func explainedSourceID(from urlString: String) -> String? {
+        idAfterPrefix(urlPrefix, in: urlString)
     }
 
     static func title(for sourceTitle: String) -> String {

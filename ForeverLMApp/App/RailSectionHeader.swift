@@ -64,7 +64,7 @@ struct RailSectionHeader: View {
             }
             Spacer(minLength: 0)
             // Built only while the pointer is over the header, a hidden glyph
-            // holding its place so the header keeps its height (2026-10-06):
+            // holding its place so the header keeps its height:
             // a + at rest beside New chat read as a second New chat. The
             // header's menu offers it without a pointer.
             if let action {
@@ -97,7 +97,7 @@ struct RailSectionHeader: View {
 /// beneath it but still opens its browse-all view on click. Same type treatment
 /// as `RailSectionHeader`, with a hover wash hugging the text so it
 /// reads as clickable without turning back into a full row. Open Beside is
-/// on its menu (the hover glyph went on 2026-10-06), and it drags to the
+/// on its menu, and it drags to the
 /// center's edge.
 struct RailSectionHeaderButton: View {
     let title: String

@@ -449,9 +449,9 @@ struct ReviewSessionRow: View {
     /// Built only under the pointer (or while it shows Copied), a clear box
     /// holding its place: a menu at opacity 0 is still a live control, and
     /// while an assistive app reads the screen SwiftUI walks every control in
-    /// the window for each one an update builds (2026-10-03). The box is the
+    /// the window for each one an update builds. The box is the
     /// size the borderless popup button draws at whatever its label's frame,
-    /// 20×14 (measured 2026-10-03). The right-click has the same items.
+    /// 20×14 (measured). The right-click has the same items.
     @ViewBuilder
     private var sessionActionsMenu: some View {
         if isHovered || copied {

@@ -151,7 +151,7 @@ actor SourceEmbeddingIndexer {
 
     /// Take out of search what an archive or a delete left in it: one that arrived by sync took
     /// nothing with it, an index written while its source was being archived lands after the
-    /// archive, and older builds left full-text rows and vectors behind
+    /// archive, and a writer that did not drop them left full-text rows and vectors behind
     /// (`StorageService.dropSearchRowsOfSourcesOutOfSearch`). The check reads only small tables,
     /// so it runs on every pass and costs next to nothing once nothing is left.
     private func dropSearchRowsOfSourcesOutOfSearch() async {

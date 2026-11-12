@@ -113,11 +113,8 @@ extension ArtifactCanvas {
     /// side holds only what is happening now (Reload after a failure, Update
     /// Page while a published page has edits, Edit while the page shows, the
     /// comments while there are some) and Share. Formatting is the page's
-    /// selection bar; New page and the links are the Space sidebar's. Until
-    /// that day this line carried the section's name, the published address,
-    /// the teams, Format, AI, Page/Edit, Share, ⋯, New and Link at once.
-    /// The product owner (2026-10-07) then sent Codex's own line and asked for a clone:
-    /// after the menu a pill of four tools (`pageToolPill`), and before Share
+    /// selection bar; New page and the links are the Space sidebar's. The line
+    /// is a clone of Codex's own (product owner, 2026-10-07): after the menu a pill of four tools (`pageToolPill`), and before Share
     /// the version history, the comments and the person's initials.
     func toolbar(_ tier: ToolbarTier) -> some View {
         let showsPage = !(isSpaceCanvas && showsSpaceList)

@@ -122,7 +122,7 @@ enum PurgeHandler {
             }
             // The seed's cursors say which passes already uploaded the library, to the old zones. Left in
             // place, the new root's seed finds every pass done and uploads nothing: the library stays on
-            // the Mac and no other device ever sees it (2026-10-11).
+            // the Mac and no other device ever sees it.
             if try hasTable("ck_seed_cursor") { try connection.execute("DELETE FROM ck_seed_cursor") }
             for scope in [ReplicaStore.EngineScope.privateStop, ReplicaStore.EngineScope.privateEngine, ReplicaStore.EngineScope.zonesCreated] {
                 try state.replica.setEngineState(scope, nil)

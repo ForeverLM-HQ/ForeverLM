@@ -129,7 +129,7 @@ extension AIService {
             // one dated snapshot each, not the latest 4.x model. Claude Sonnet 4
             // is the one earlier model with the 1M window; Claude Opus 4 is
             // 200k (Anthropic's model pages and OpenRouter's directory agree,
-            // checked 2026-09-07; the table said 1M until then).
+            // checked 2026-09-07).
             "claude-sonnet-4": 1_000_000,
             "claude-sonnet-4-0": 1_000_000,
             "claude-opus-4": 200_000,

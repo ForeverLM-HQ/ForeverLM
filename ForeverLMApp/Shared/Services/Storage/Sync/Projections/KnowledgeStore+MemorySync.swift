@@ -197,7 +197,7 @@ extension KnowledgeStore {
         }
     }
 
-    /// A UUID-shaped id from 32 hex characters, as the web names its Sittings (`sittingIDFor`).
+    /// A UUID-shaped id from 32 hex characters, as the web names its Sittings.
     static func uuidShaped(_ hex: String) -> String {
         let digits = Array(hex.lowercased().prefix(32)).map(String.init)
         guard digits.count == 32 else { return UUID().uuidString.lowercased() }

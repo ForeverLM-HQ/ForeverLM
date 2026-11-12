@@ -171,7 +171,7 @@ enum ImageGenerationCatalog {
     /// Settings › Images' Suggested list: one model per maker, the best that
     /// is still affordable, as Settings › Chat suggests its own
     /// (`AIModelDefaults.suggestedChatModels`). Picked from OpenRouter's Image
-    /// API directory on 2026-09-28: OpenAI's speed tier of GPT Image 2.5,
+    /// API directory: OpenAI's speed tier of GPT Image 2.5,
     /// Nano Banana 2, Seedream 5.0 Lite at $0.035 a picture, FLUX.2 Pro at
     /// $0.03 a megapixel. A model OpenRouter stops serving drops off the list.
     static let suggestedModelIDs = [
@@ -190,17 +190,17 @@ enum ImageGenerationCatalog {
     static let directoryURL = OpenRouterAPI.imageModels
 
     /// OpenRouter's general directory filtered to image output: where a
-    /// model whose endpoint record lists no price (Krea's, Meta's Muse, on
-    /// 2026-09-27) still has its published image-output rate per token.
+    /// model whose endpoint record lists no price (Krea's, Meta's Muse) still
+    /// has its published image-output rate per token.
     static let pricedDirectoryURL = OpenRouterAPI.models(outputModality: "image")
 
     static func endpointsURL(forModel id: String) -> URL? {
         OpenRouterAPI.imageModelEndpoints(id: id)
     }
 
-    /// The ids stored before 2026-09-27, when a picture went to its maker's
-    /// own API, and the OpenRouter slug each became. A stored choice keeps
-    /// its model across the move.
+    /// The ids a picture was stored under when it went to its maker's own
+    /// API, and the OpenRouter slug each became. A stored choice keeps its
+    /// model across the move.
     static let makerNativeIDs: [String: String] = [
         "gpt-image-1-mini": "openai/gpt-image-1-mini",
         "gpt-image-2.5-flare": "openai/gpt-image-2.5-flare",

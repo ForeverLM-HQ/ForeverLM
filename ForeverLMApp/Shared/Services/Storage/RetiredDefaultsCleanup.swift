@@ -8,11 +8,11 @@ import OSLog
 /// and after every defaults write the next read re-merges it and diffs it for
 /// the KVO observers `@AppStorage` and AppKit register: the whole dictionary,
 /// after every write, on whichever thread reads first, usually the main one.
-/// Build 210's preferences file was 2.4 MB in 1,490 keys; on a copy of it, in
+/// A production preferences file was 2.4 MB in 1,490 keys; on a copy of it, in
 /// a throwaway suite with one KVO observer, the first read after a write took
 /// 46 ms (median of 40). Without the type-named frames below it took 0.34 ms,
 /// and 0.28 ms with the Canvas summaries (`KnowledgeMapSummaries.cacheKey`)
-/// moved to a file as well. In build 210's stalls that read was the beta
+/// moved to a file as well. In the production stall samples that read was the beta
 /// sign-up check's, 137 samples of 5 ms.
 ///
 /// **What goes.**
@@ -68,10 +68,9 @@ enum RetiredDefaultsCleanup {
     /// Exact keys nothing reads or writes any more.
     static let retiredKeys: Set<String> = [
         // Chapter titles cached by local PDF path; the code that read and
-        // wrote them went with the semantic heuristics on 2026-08-05.
+        // wrote them went with the semantic heuristics.
         "enrichedChapterTitles",
-        // Written by builds older than this repository (2026-07-24) and
-        // read by none since.
+        // Written by an earlier codebase and read by none since.
         "readai.importedMeetingIDs",
         "bookNameOverrides",
         "drive.lastDisconnectReason",

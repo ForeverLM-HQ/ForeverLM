@@ -1508,9 +1508,10 @@ struct ChatMarkdownView: NSViewRepresentable {
 /// A `foreverlm://source/<id>` link dragged out of a web view — a chat's
 /// Sources row, a source card in a reply — becomes the drag the Sources sidebar
 /// starts, so every destination in the app that takes a source takes it: the
-/// Doc page writes a card or attaches the source, a Notebook files it, a chat adds it to its context. Without this the drag carried only
-/// what WebKit gives a link — its address and its words — and a Doc pasted the
-/// private address as text (2026-09-12).
+/// Doc page writes a card or attaches the source, a Notebook files it, a
+/// chat adds it to its context. Without this the drag carries only what
+/// WebKit gives a link — its address and its words — and a Doc pastes the
+/// private address as text.
 enum SourceLinkDrag {
     static let sourceTransferType = NSPasteboard.PasteboardType(UTType.studioArticle.identifier)
     static let urlNameType = NSPasteboard.PasteboardType("public.url-name")
@@ -1564,9 +1565,9 @@ enum SourceLinkDrag {
     private typealias WillBeginIMP = @convention(c) (AnyObject, Selector, NSDraggingSession, NSPoint) -> Void
     private static let willBeginSelector = NSSelectorFromString("draggingSession:willBeginAtPoint:")
 
-    /// Whether `owner` implements the drag-session hook itself — WKWebView
+    /// Whether `owner` implements the drag-session hook itself. WKWebView
     /// does, in a category its header does not declare, which is why a
-    /// subclass cannot reach it with `super`.
+    /// subclass cannot reach it with `super`. A test holds WebKit to this.
     static func implementsWillBegin(_ owner: AnyClass) -> Bool {
         class_getInstanceMethod(owner, willBeginSelector) != nil
     }

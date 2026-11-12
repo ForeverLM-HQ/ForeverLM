@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-// Settings has no General pane since 2026-11-08 (product owner: "these
+// Settings has no General pane (product owner, 2026-11-08: "these
 // 'general' settings don't make much sense to me", "please distribute that
 // among other settings", "the main page that should open is an ai models
 // page"). Its sections live where they belong instead:

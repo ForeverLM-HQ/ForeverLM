@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// The Reader toolbar's Explain control, shown only while the source's
-/// explainer is being written (Quiet chrome, docs/ui-design.md, 2026-10-06):
+/// explainer is being written (Quiet chrome, docs/ui-design.md):
 /// the spinner and, beside it, the same small cancel Listen shows while its
 /// audio is generating. Writing and opening the explainer are the ⋯ menu's
 /// (`ExplainerMenuItems`).

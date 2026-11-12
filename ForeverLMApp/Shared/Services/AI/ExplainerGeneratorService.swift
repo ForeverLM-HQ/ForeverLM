@@ -55,11 +55,8 @@ struct ExplainerGeneratorService: Sendable {
     }
 
     func run(request: ExplainerRequest) async throws -> ExplainerGenerationResult {
-        let workflowID = UUID().uuidString
-        return try await AIUsageAttribution.$sessionID.withValue(workflowID) {
-            try await AIUsageAttribution.$activityID.withValue(workflowID) {
-                try await runStages(request: request)
-            }
+        try await AIUsageAttribution.withWorkflow {
+            try await runStages(request: request)
         }
     }
 

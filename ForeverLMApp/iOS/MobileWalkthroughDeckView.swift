@@ -640,7 +640,7 @@ private struct MobileWalkthroughDrawnPicture: View {
     }
 }
 
-/// Say more chips under a point (the lesson's, merged 2026-09-23): context
+/// Say more chips under a point (the lesson's): context
 /// offered, never pushed. A chip pressed opens its words under the point,
 /// labelled general knowledge when they are not the source's own.
 private struct MobileWalkthroughMoreChips: View {
@@ -754,7 +754,7 @@ private struct MobileWalkthroughCitedWorks: View {
     }
 }
 
-/// A chapter's recap card (the lesson's, merged 2026-09-23): the claim the
+/// A chapter's recap card (the lesson's): the claim the
 /// learner can now say, and how the chapter's questions went.
 private struct MobileWalkthroughRecapCard: View {
     let chapterTitle: String

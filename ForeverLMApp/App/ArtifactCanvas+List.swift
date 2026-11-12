@@ -393,7 +393,7 @@ extension ArtifactCanvas {
     /// The Space's head (`SpacePlaceHeader`): the name, the search and the one
     /// prominent way in, then the filters as the Space's scope pills.
     /// Teammates' requests for sources this library holds are answered in the
-    /// strip's bell, the one inbox (2026-10-13), not here.
+    /// strip's bell, the one inbox, not here.
     private var homeControls: some View {
         VStack(alignment: .leading, spacing: 14) {
             SpacePlaceHeader(searchText: $searchText, searchIdentifier: "artifacts.home.search") {
@@ -765,7 +765,7 @@ extension ArtifactCanvas {
     /// row of its notebook's Studio) made this canvas and
     /// asked for the record in one motion, but the canvas's list was still
     /// loading when `task` looked, so the request was never answered and the
-    /// pane said "Select an animation" (seen filming, 2026-09-24). The list
+    /// pane said "Select an animation". The list
     /// arriving is heard here as well (`reconcileSelection`).
     func answerRevealRequestIfListed() {
         guard let request = vm.artifactRevealRequest,

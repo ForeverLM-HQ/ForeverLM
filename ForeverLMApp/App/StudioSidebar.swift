@@ -8,7 +8,7 @@ struct StudioSidebar: View, Equatable {
     /// SwiftUI still cannot tell two `StudioSidebar` values apart on its own
     /// and re-runs this body — and re-diffs the sources List, several thousand
     /// rows on a full library — every time `StudioView` re-evaluates, which it
-    /// does for every center-pane layout change. Measured 2026-09-02 on a Dev
+    /// does for every center-pane layout change. Measured on a Dev
     /// build with the Podcasts tab (~1,000 rows): closing the Reader pane cost
     /// ~425 ms of main-thread work, most of it in `OutlineListCoordinator`
     /// re-diffing rows whose data had not changed. Declaring the values equal

@@ -37,7 +37,7 @@ struct PaperReferenceCatalogs: Sendable {
 /// to) and one at a time through a pacer, since a library's backlog is thousands of entries.
 enum ReferenceCatalogClient {
     /// Crossref's published polite pool allows far more; OpenAlex's anonymous search rate-limited
-    /// every request when tried on 2026-09-28 (`LiteratureSearch`), so it is asked sparingly and
+    /// every request when tried (`LiteratureSearch`), so it is asked sparingly and
     /// a 429 from it is an unanswered question, never a "no match".
     private static let crossrefInterval: TimeInterval = 0.12
     private static let openAlexInterval: TimeInterval = 0.35
@@ -434,7 +434,7 @@ actor PaperReferenceLinkService {
         isDraining = true
         defer { isDraining = false }
 
-        // A paper the parser of an older version read is read again by this one.
+        // A paper read by an older parser version is read again by this one.
         do {
             try await storage.requeueOlderPaperReferenceReads()
         } catch {

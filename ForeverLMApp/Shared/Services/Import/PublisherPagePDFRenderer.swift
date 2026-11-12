@@ -14,8 +14,8 @@ import WebKit
 /// the phone expect. It only ever prints the reader's own web view: the
 /// learner sees the page it prints, signed in as they are there.
 ///
-/// The print path is used rather than `WKWebView.createPDF`: measured on
-/// 2026-09-06, `createPDF` renders a Nature article as three 14,400-point
+/// The print path is used rather than `WKWebView.createPDF`: measured,
+/// `createPDF` renders a Nature article as three 14,400-point
 /// pages that PDFKit cannot page through, while the print operation paginates
 /// to Letter and honours the publisher's print stylesheet (47 pages and the
 /// full 13,700 words of a Nature Metabolism article, title and authors first).

@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import UniformTypeIdentifiers
 #if canImport(PDFKit)
@@ -404,7 +403,7 @@ extension StorageService {
                 "Notebook file “\(record.notebookRelativePath)” is not valid UTF-8 text."
             )
         }
-        let revision = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let revision = data.sha256Hex
         return NotebookMarkdownFileSnapshot(record: record, markdown: markdown, revision: revision)
     }
 

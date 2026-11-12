@@ -10,9 +10,9 @@ import UserNotifications
 /// switch is the account's; the hour is this phone's. iOS grants background
 /// refresh opportunistically, so three things cooperate: a refresh task asked
 /// for at the hour, the first foreground after the hour as the path that
-/// always works, and the daily reminder as the backstop. Since the phone's
-/// card review (2026-10-02) the reminder opens today's cards, which prepare
-/// nothing, and since 2026-11-08 Review by Voice reviews the cards too. Whichever
+/// always works, and the daily reminder as the backstop. The reminder opens
+/// today's cards, which prepare nothing, and Review by Voice reviews the cards
+/// too. Whichever
 /// device prepares first wins: the day's session id is the claim, and a
 /// phone that finds the record already there simply opens it.
 @MainActor

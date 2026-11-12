@@ -263,16 +263,6 @@ struct SlideCitationServiceTests {
         #expect(paper.displaySubtitle == "Nature · 2012")
     }
 
-    /// Journal names are short, so the title measure — which divides by the shorter side —
-    /// scored two unrelated BMC journals as a match on one shared word.
-    @Test("Holds similarly named journals apart")
-    func distinguishesSimilarJournals() {
-        #expect(SlideCitationService.journalsMatch("BMC Medicine", "BMC Medicine"))
-        #expect(!SlideCitationService.journalsMatch("BMC Medicine", "BMC Systems Biology"))
-        #expect(!SlideCitationService.journalsMatch("BMC Medicine", "BMC Emergency Medicine"))
-        #expect(!SlideCitationService.journalsMatch("Nature", "Chemistry Letters"))
-    }
-
     // MARK: - Venue attribution
 
     /// The slide that prompted this: "Szeto et al., Br J Pharmacol, 2014" in the corner of

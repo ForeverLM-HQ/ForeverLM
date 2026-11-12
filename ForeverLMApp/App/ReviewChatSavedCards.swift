@@ -5,10 +5,10 @@ import SwiftUI
 // MARK: - The cards a chat saved
 
 /// The cards a chat saved (`save_card_drafts`), drawn in the reply as the cards
-/// themselves (docs/memory-design.md, "The cards in the chat"). Until
-/// 2026-10-06 the reply only said in prose what it had saved, under a bare
-/// `save_card_drafts` step, and the product owner had to ask where they were: "it should
-/// immediately point to those actual cards".
+/// themselves (docs/memory-design.md, "The cards in the chat"). The reply
+/// does not only say in prose what it saved, under a bare `save_card_drafts`
+/// step (product owner, 2026-10-06: "it should immediately point to those
+/// actual cards").
 ///
 /// A small deck: the card on top drawn as To Check draws it — the front in
 /// the card review's serif, a rule, the back — with where it

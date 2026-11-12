@@ -64,8 +64,7 @@ extension MCPDataStore {
             )
 
             // Goal tags per placement: the Goals and Notebooks it serves, since a
-            // placement can serve several. The plain goals older builds created
-            // stay in the database, but no tool names them any more.
+            // placement can serve several. Plain goals (not `companion`) are not named by any tool.
             var tagsByPlacement: [String: [[String: Any]]] = [:]
             for row in try query(db, """
                 SELECT ssg.scheduled_source_id AS placement_id, g.id AS goal_id, g.title AS goal_title
@@ -369,11 +368,11 @@ extension MCPDataStore {
 
         // With a goal named, every source that is not yet the goal's joins it
         // here — one with no placement at all, and one already on the Schedule
-        // but tagged only to other goals — pool and tag, then the day. Until
-        // 2026-09-19 only a source with no placement joined: one placed for
-        // another goal was moved to the day and never tagged, so the tool
-        // answered "Assigned 2 sources" while the goal's own Schedule read
-        // stayed at zero items.
+        // but tagged only to other goals — pool and tag, then the day. A
+        // source with no placement is not the only one that joins: one placed
+        // for another goal would be moved to the day and never tagged, so the
+        // tool would answer "Assigned 2 sources" while the goal's own Schedule
+        // read stayed at zero items.
         var joining: [String] = []
         if let scheduleGoal {
             // Join the goal's pool as well as the calendar. `addSourceToGoal`
@@ -404,7 +403,7 @@ extension MCPDataStore {
                     // A team's pool holds the team's copies of the learner's
                     // own sources, never their ids, as add_goal_sources files
                     // them (`fileSourcesInTeamPool`, which ticks what arrives).
-                    // Until 2026-09-30 this wrote the member's own ids into the
+                    // The member's own ids are never written into the
                     // team's pool. The placement and its tag below stay the
                     // learner's own day plan, on the ids they named, as the
                     // app's day plan keeps them (`addSourcesToNotebookSchedule`).
@@ -481,8 +480,8 @@ extension MCPDataStore {
     /// see `KnowledgeStore.forgetAutomaticSourceActivity`. Nothing else could:
     /// `unschedule_sources` keeps activity history by design and takes only a
     /// plan, and `set_source_read` covers only the source types that track a
-    /// read state, so a review wrongly recorded on seven sources on 2026-09-28
-    /// had no way off over MCP.
+    /// read state, so a review wrongly recorded on several sources
+    /// would have no way off over MCP.
     func forgetSourceActivity(sourceIDs: [String], dateString: String?) throws -> String {
         let uniqueSourceIDs = sanitizedSourceIDs(sourceIDs)
         guard !uniqueSourceIDs.isEmpty else {
@@ -1359,8 +1358,8 @@ extension MCPDataStore {
     ///
     /// `sourceIDs` narrows the sweep to named sources. "Which of these 25
     /// compounds do these two papers share?" asked in a chat on two papers is a
-    /// question about those two, and the whole-library sweep it got instead
-    /// (2026-09-23) answered it with fifty-odd unrelated sources.
+    /// question about those two, and a whole-library sweep would answer it with
+    /// fifty-odd unrelated sources.
     func searchSourcesKeyword(
         keywords: [String],
         matchAll: Bool = false,
@@ -1420,8 +1419,8 @@ extension MCPDataStore {
             let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
             // The id as get_source_content takes it: exact, or cut short from
-            // the end. A 68-character id a model copied short was read by that
-            // tool and refused by this one in the same turn (2026-11-10).
+            // the end. A 68-character id a model copied short would be read by that
+            // tool and refused by this one in the same turn.
             guard let resolved = try store.resolveSourceID(forLinkToken: trimmed) else {
                 throw MCPError.invalidInput("No source with id \(trimmed). Copy the id whole from the sources attached to this chat, list_sources or search_sources_semantic. Nothing was searched; the other arguments were fine.")
             }

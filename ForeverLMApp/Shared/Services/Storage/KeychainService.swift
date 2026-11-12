@@ -194,7 +194,6 @@ enum KeychainService {
         case ttsModelTailscale = "tts_model_tailscale"
         case ttsLocalServerURL = "tts_local_server_url"
         case aiProvider = "ai_provider"
-        case serverURL = "server_url"
         case appleUserID = "apple_user_id"
         case appleUserName = "apple_user_name"
         case appleUserEmail = "apple_user_email"
@@ -216,7 +215,7 @@ enum KeychainService {
         case youtubeAccounts = "youtube_accounts_v1"
         /// The retired Google Calendar plugin's grant, its issuing client,
         /// and the calendars the Planner drew from. Kept only so
-        /// `purgeRetiredGoogleCalendarGrants` can delete what an older build
+        /// `purgeRetiredGoogleCalendarGrants` can delete what the plugin
         /// stored; nothing reads them.
         case googleCalendarAccessToken = "google_calendar_access_token"
         case googleCalendarRefreshToken = "google_calendar_refresh_token"
@@ -242,8 +241,8 @@ enum KeychainService {
         /// Local to this Mac: the token is device-scoped and cheap to re-mint,
         /// so it deliberately does not ride iCloud Keychain.
         ///
-        /// No longer carries AI traffic — every provider request goes through
-        /// the Cloudflare AI Gateway. This is now purely an identity/billing
+        /// Carries no AI traffic — every provider request goes through
+        /// the Cloudflare AI Gateway. It is purely an identity/billing
         /// credential (launch gate, credits, Stripe portal).
         case managedAISessionToken = "managed_ai_session_token"
         case managedAISessionExpiry = "managed_ai_session_expiry"
@@ -359,10 +358,6 @@ enum KeychainService {
         case .sttModelMedia: return .device(Prefs.Models.sttModelMedia)
         default: return nil
         }
-    }
-
-    private static func isPreferenceBacked(_ key: Key) -> Bool {
-        preferenceSlot(for: key) != nil
     }
 
     static func save(_ value: String, for key: Key) {

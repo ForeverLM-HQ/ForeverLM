@@ -10,8 +10,8 @@ import Foundation
 /// Mac is an MCP *host*, so its chat sees the local catalog and never the
 /// gateway's additions, and "look in Slack" could only search threads someone
 /// had saved into the library earlier — a snapshot that went stale the moment
-/// the channel moved on. On 2026-09-02 a primer posted at 17:22 was invisible
-/// to a chat at 17:28 for exactly this reason.
+/// the channel moved on. A primer posted minutes ago is
+/// invisible to a chat for exactly this reason.
 ///
 /// Here the Mac asks the gateway for the same read over two REST routes,
 /// authenticated with the managed Sign in with Apple session, and the gateway

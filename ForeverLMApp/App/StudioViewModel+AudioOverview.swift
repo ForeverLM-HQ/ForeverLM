@@ -106,8 +106,8 @@ extension StudioViewModel {
 
     // MARK: Outputs
 
-    /// Whether a record is an audio overview: by its kind, or — for one an
-    /// older build saved back without the kind — by the script source its id
+    /// Whether a record is an audio overview: by its kind, or — for one saved
+    /// without the kind — by the script source its id
     /// names, which this Mac's library index answers without reading a body
     /// (`StudioArticlesStore.audioOverviewArtifactIDs`). Every list that
     /// leaves overviews out, or lists only them, asks this.

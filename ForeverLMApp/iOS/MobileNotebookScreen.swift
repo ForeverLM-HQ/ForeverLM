@@ -582,7 +582,7 @@ final class MobileNotebookChatSelectionStore: ObservableObject {
     }
 
     /// A source arrives ticked where it was added (the Mac's
-    /// `NotebookChatSelection.arrivalsToTick`): an untick left in the row from
+    /// `StudioViewModel.tickArrivingNotebookSources`): an untick left in the row from
     /// when it last left the notebook does not outlive its return. The view
     /// model's add has already taken the arrivals out of the row
     /// (`MobileAudioReviewViewModel.addSources`, every route on the phone);
@@ -830,7 +830,7 @@ final class MobileNotebookLibrarySearch: ObservableObject {
 /// notebooks: "From Aging · 12 sources", the group's box, the × that takes it
 /// out of context, and its sources with their boxes while open). Add sources
 /// is the navigation bar's +; Scan Pages and Add a Notebook to Context are
-/// in Add Sources and the notebook's ⋯ (2026-10-06, the product owner: "cleaner and
+/// in Add Sources and the notebook's ⋯ (the product owner: "cleaner and
 /// fewer buttons and bells and whistles"). A row opens the Reader inside the
 /// notebook; its swipe listens, talks, or removes it from the notebook (a
 /// group's rows are not the notebook's to remove). The search reaches past
@@ -998,7 +998,7 @@ struct MobileNotebookSourcesTab: View {
 
     /// "13 sources · 9 in chat", and Select all with its box while some
     /// source is unticked. While every source is ticked, which is how a
-    /// notebook starts, the line stands alone (2026-10-06; the Mac draws it
+    /// notebook starts, the line stands alone (the Mac draws it
     /// then only under the pointer); the chat's Sources sheet keeps Select
     /// all at all times, to clear every box.
     private func header(board: MobileNotebookChatBoard?, groups: [MobileNotebookContextGroup]) -> some View {

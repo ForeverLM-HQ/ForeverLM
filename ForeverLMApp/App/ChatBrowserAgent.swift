@@ -11,7 +11,7 @@ import WebKit
 /// window is a page WebKit treats as hidden — timers throttle, animation
 /// frames stop, scripts that wait for a frame never run — so while no pane
 /// holds the tab, `ChatBrowserHostWindow` does: an on-screen, fully
-/// transparent window that WebKit counts as visible (measured 2026-09-10:
+/// transparent window that WebKit counts as visible (measured:
 /// off-screen or occluded windows report `document.hidden`; a transparent
 /// window at the screen's corner does not, and clicks and keys land in it).
 /// When the learner opens the tab in the Browser pane the pane's host takes

@@ -30,8 +30,8 @@ extension MCPDataStore {
         // teams at all; a team's own copy is not shared onward.
         let store = try knowledgeStore()
         let hasTeams = !((try? store.loadTeams()) ?? []).isEmpty
-        // An audio overview by its kind, or by its script source when an
-        // older build saved the record back without the kind.
+        // An audio overview by its kind, or by its script source when the
+        // record was saved back without the kind.
         let overviewIDs = Set(try artifacts.filter { try store.isAudioOverview($0) }.map(\.id))
         // The learner's spaces of pages (list_spaces), one read of the rows.
         let spaces = PageSpaceRows.read()
@@ -50,7 +50,7 @@ extension MCPDataStore {
                     payload["published_slug"] = status.slug
                     payload["published_restricted"] = status.isProtected
                     if !status.readers.isEmpty { payload["published_readers"] = status.readers }
-                    // Legacy: a page still guarded by a password from before reader lists.
+                    // A page guarded by a password rather than a reader list.
                     if let password = status.password { payload["published_password"] = password }
                 } else {
                     payload["published"] = false
@@ -200,7 +200,7 @@ extension MCPDataStore {
             "guidance": "Pass revision unchanged as expected_revision when replacing this Doc.",
         ]
         // An audio overview's body is its recipe; the script is its carrier
-        // source's text. Read even when an older build saved the record back
+        // source's text. Read even when the record was saved back
         // without its kind, by the marker its body starts with.
         if isOverview, let settings = AudioOverviewScript.settings(fromMarkdown: snapshot.markdown) {
             payload["audio_overview"] = Self.audioOverviewSettingsPayload(settings)
@@ -271,7 +271,7 @@ extension MCPDataStore {
     /// An audio overview's body is its recipe, which its row, `read_doc` and
     /// a remake read; its script is a source of its own. Neither a new body
     /// nor a published page of the recipe means anything, so the Docs write
-    /// tools refuse one — read even when an older build dropped the kind, by
+    /// tools refuse one — read even when the kind was dropped, by
     /// the marker its body starts with.
     static func refuseAudioOverviewChange(_ snapshot: ArtifactMarkdownSnapshot, doing tool: String) throws {
         guard AudioOverviewScript.isOverview(snapshot.artifact, markdown: snapshot.markdown) else { return }
@@ -378,9 +378,9 @@ extension MCPDataStore {
     }
 
     /// `edit_doc`: change a Doc without re-emitting it. A 237,000-character
-    /// report cannot be carried through a tool call (2026-09-07: a chat asked to
-    /// fold new material into two long reports created a third Doc instead, then
-    /// refused to "risk truncating" them), so the edit names the passages to
+    /// report cannot be carried through a tool call (a chat asked to fold new
+    /// material into two long reports would create a third Doc instead, or
+    /// refuse to "risk truncating" them), so the edit names the passages to
     /// change and the body stays where it is.
     func editArtifact(
         artifactID: String,

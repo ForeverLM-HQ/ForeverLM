@@ -187,11 +187,7 @@ enum GeneratedExplainerVideo {
 
     /// The video's id, or nil for any other URL.
     static func videoID(from urlString: String) -> String? {
-        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix(urlPrefix) else { return nil }
-        let id = String(trimmed.dropFirst(urlPrefix.count))
-        guard !id.isEmpty, !id.contains("/") else { return nil }
-        return id
+        ExplainerScript.idAfterPrefix(urlPrefix, in: urlString)
     }
 
     /// The source row's id: derived from the URL by the same normalizer and

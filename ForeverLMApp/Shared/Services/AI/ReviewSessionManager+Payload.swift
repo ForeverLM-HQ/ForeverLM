@@ -6,9 +6,9 @@ extension ReviewSessionManager {
     /// A tutor reply as the model reads it back. A quiz tutor never sees a
     /// picture's address in the chat so far: the stored quiz places the
     /// quiz's pictures, and a picture line in the history is one a model
-    /// copies, or copies the shape of with an id it made up. On 2026-09-28
-    /// GLM 5.3 Flash did that three times in one sitting, the last reusing
-    /// an id it had made up hours earlier in the same chat.
+    /// copies, or copies the shape of with an id it made up (GLM 5.3 Flash did that
+    /// three times in one sitting, the last reusing an id it had made up hours
+    /// earlier in the same chat).
     private func tutorHistoryContent(_ content: String) -> String {
         guard courseQuiz != nil else { return content }
         return SourceImageReference.removingPictures(from: content) { _ in true }

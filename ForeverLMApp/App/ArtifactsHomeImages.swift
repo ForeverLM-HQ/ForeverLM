@@ -7,8 +7,7 @@ import SwiftUI
 /// also show up under artifacts, so we can always reuse those"). A picture
 /// iterated on is one image in versions, one row at its latest ("you
 /// shouldn't show like 10 versions of the same image"); the sheet holds the
-/// versions. Until 2026-10-06 the Artifacts home listed every picture; since
-/// then a picture is listed in its notebook's Studio alone, whose row opens
+/// versions. A picture is listed in its notebook's Studio alone, whose row opens
 /// it with its title, model and prompt, and renames, refiles, copies, drags
 /// out or trashes it. The store (`GeneratedImageStore`) is the whole state —
 /// a file per version, its title, prompt, image id and notebook in the

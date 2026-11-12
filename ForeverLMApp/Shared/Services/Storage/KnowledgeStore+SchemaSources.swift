@@ -10,7 +10,7 @@ extension KnowledgeStore {
         // paren commented out ("incomplete input", SQLite 3.51). The migration
         // fixtures drop columns exactly this way to rebuild released shapes;
         // `sources.team_id`, `global_artifacts.archived_at` and
-        // `review_sessions.loaded_source_ids` each hit it on 2026-09-13.
+        // `review_sessions.loaded_source_ids` each hit it.
         try exec("""
             CREATE TABLE IF NOT EXISTS sources (
                 id TEXT PRIMARY KEY,
@@ -607,7 +607,7 @@ extension KnowledgeStore {
         """)
 
         // Version 166 stages every source of the learner's own library for one
-        // check of its stored text for the soft hyphens older builds kept
+        // check of its stored text for the soft hyphens it may still hold
         // (U+00AD, and a literal `&shy;` the decoder did not know). Local-only:
         // each Mac repairs its own copy, and the repaired text travels as an
         // ordinary Source change. `drainStoredSoftHyphenRepairBatch` reads it

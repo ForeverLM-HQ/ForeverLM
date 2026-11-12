@@ -620,8 +620,8 @@ struct ScheduleChatNavigationTests {
         #expect(vm.railScopedNotebook == nil)
     }
 
-    @Test("clicking the open notebook's rail folder again closes it; the active Notebook follows the opening only")
-    func railNotebookSelectionTogglesOff() {
+    @Test("closing the open notebook leaves the active Notebook where the opening put it")
+    func closingANotebookKeepsTheActiveNotebook() {
         let restoreLayout = capturedCenterTabLayout()
         let priorActiveNotebookID = ActiveNotebookPreference.notebookID
         defer {
@@ -648,14 +648,14 @@ struct ScheduleChatNavigationTests {
         // The active Notebook, a preference on this Mac only, follows a
         // notebook of the open library as it opens.
         let expectedActive = vm.importableNotebook(notebook.id) != nil ? notebook.id : activeBefore
-        vm.toggleNotebookInReader(notebook.id)
+        vm.openNotebookInReader(notebook.id)
         #expect(vm.railScopedNotebook?.id == notebook.id)
         // The notebook's workspace shows it.
         #expect(vm.activeNotebookId == expectedActive)
         #expect(vm.workbenchNotebookID == notebook.id)
 
         // Closing it leaves the active Notebook where the opening put it.
-        vm.toggleNotebookInReader(notebook.id)
+        vm.closeNotebook()
         #expect(vm.railScopedNotebook == nil)
         #expect(vm.workbenchNotebookID == nil)
         #expect(vm.activeNotebookId == expectedActive)
@@ -912,7 +912,7 @@ struct ScheduleChatNavigationTests {
 
         // A focused review is left only by its own id. (Ended without
         // writing an end for the day: this is not the learner leaving.)
-        vm.enterMemoryReviewFocus(sessionID: "memory-2026-09-08")
+        window.memoryReviewFocusSessionID = "memory-2026-09-08"
         #expect(window.memoryReviewFocusSessionID == "memory-2026-09-08")
         vm.leaveMemoryReviewFocus(sessionID: "another-chat", endingSession: false)
         #expect(window.memoryReviewFocusSessionID == "memory-2026-09-08")

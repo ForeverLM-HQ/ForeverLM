@@ -172,7 +172,7 @@ actor PodcastFinderService {
     /// link carries the episode's store track id (`?i=`) and its show's
     /// collection id (`/id…`). A title search could only guess, and missed
     /// both ways: a pasted link's row is titled by its host until fetched, and
-    /// an assistant's shortened title is not Apple's (2026-10-02, "Roche will
+    /// an assistant's shortened title is not Apple's ("Roche will
     /// pay Manifold Bio $55M up front and up to $2B for next-generation brain
     /// shuttles" against Apple's longer one). The episode's title and show come
     /// from the show's recent episodes when the episode is among them, and

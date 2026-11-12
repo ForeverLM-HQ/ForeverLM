@@ -595,9 +595,9 @@ struct MobileFullScreenPlaybackView: View {
             .accessibilityLabel("Playback position")
 
             HStack {
-                Text(formattedTime(scrubbedTime ?? vm.currentTime))
+                Text(MobileAudioReviewViewModel.formatTime(scrubbedTime ?? vm.currentTime))
                 Spacer()
-                Text("-\(formattedTime(remainingTime))")
+                Text("-\(MobileAudioReviewViewModel.formatTime(remainingTime))")
             }
             .font(.caption.monospacedDigit())
             .foregroundStyle(.secondary)
@@ -741,18 +741,6 @@ struct MobileFullScreenPlaybackView: View {
 
     private var remainingTime: TimeInterval {
         max(vm.duration - (scrubbedTime ?? vm.currentTime), 0)
-    }
-
-    private func formattedTime(_ seconds: TimeInterval) -> String {
-        guard seconds.isFinite, seconds >= 0 else { return "--:--" }
-        let total = Int(seconds.rounded())
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let secs = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
@@ -1176,7 +1164,7 @@ private struct MobilePaperThumbnail: View {
     }
 }
 
-/// A book group row's cover: the Book record's synced `bookCoverAsset`,
+/// A book group row's cover: the Book record's synced cover,
 /// fetched once and cached; the tinted book icon until it arrives, or
 /// forever when the Mac never uploaded one.
 private struct MobileBookCoverThumbnail: View {
@@ -1725,7 +1713,7 @@ struct MobileBrowserSourceLink: View {
             // A destination, not a typed route: a source's list (a type's, a group's,
             // the paywalled shelf) is itself pushed as a destination, and a route pushed
             // from inside one lands under it, so the Reader slid in and was covered by
-            // the list again (2026-10-26). A destination always opens on top of the
+            // the list again. A destination always opens on top of the
             // screen it was tapped on.
             NavigationLink {
                 MobileShellSourceDestination(sourceID: source.id, notebookID: notebook?.id)

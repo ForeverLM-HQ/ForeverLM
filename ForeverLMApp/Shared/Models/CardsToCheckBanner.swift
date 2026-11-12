@@ -12,7 +12,7 @@ import Foundation
 // what it says, and when it is told or left unsaid. `CardsToCheckNotifications`
 // schedules it.
 //
-// Since 2026-10-15 it is also the day's suggestion to make cards for what was
+// It is also the day's suggestion to make cards for what was
 // added to the library, finished or not (product owner, 2026-10-15: "every
 // day, there should also be a suggestion to make cards for all the content i
 // added to the library that day; even at the highest level perhaps"): a

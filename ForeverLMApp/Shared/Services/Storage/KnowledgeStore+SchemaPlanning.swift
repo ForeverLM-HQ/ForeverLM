@@ -130,8 +130,8 @@ extension KnowledgeStore {
         // `DayPlan` CloudKit record. Rows are never destroyed: an edit lands on
         // the row, and `deleted_at` tombstones a block removed or replaced by a
         // redraw, so a merge can union by id. `revision` and
-        // `superseded_in_revision` are the numbered columns builds before
-        // 2026-09-30 drew; a row with the latter set is not part of the plan.
+        // `superseded_in_revision` are the numbered-revision columns of the
+        // earlier day-plan design; a row with the latter set is not part of the plan.
         // `notebook_id` carries no FK, like scheduled_tasks.
         try exec("""
             CREATE TABLE IF NOT EXISTS day_plans (

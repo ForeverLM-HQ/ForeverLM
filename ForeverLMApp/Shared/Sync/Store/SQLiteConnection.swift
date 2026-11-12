@@ -108,7 +108,7 @@ extension SQLiteConnection {
 }
 
 /// The statement runner both connections share: prepare, bind, step to the end, finalize. A step
-/// that fails is an error, never "no more rows" (the 2026-09-19 lesson in `KnowledgeStore.stepRows`).
+/// that fails is an error, never "no more rows" (as in `KnowledgeStore.stepRows`).
 enum SQLiteStatements {
     /// SQLITE_TRANSIENT: SQLite copies the bytes before the bind returns.
     private static var transient: sqlite3_destructor_type {

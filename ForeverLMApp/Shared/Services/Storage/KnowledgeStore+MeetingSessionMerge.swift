@@ -4,10 +4,10 @@ import Foundation
 ///
 /// A free Zoom account ends a call after forty minutes, the host starts a new
 /// meeting, and the recording and transcript of each call reach the library
-/// on their own: two sessions of the series for one standup. The product owner
-/// (2026-09-19): "there should just be 1 a day since there is only 1 standup a
+/// on their own: two sessions of the series for one standup (product owner,
+/// 2026-09-19: "there should just be 1 a day since there is only 1 standup a
 /// day. sometimes zoom kicks us out since it's the free version; so then i
-/// start a new one. you should merge those transcripts".
+/// start a new one. you should merge those transcripts").
 ///
 /// The rule this holds: two sessions of one series are the same sitting when
 /// they fall on the same local calendar day and the later one starts within

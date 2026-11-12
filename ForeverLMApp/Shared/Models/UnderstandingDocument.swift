@@ -41,7 +41,7 @@ struct UnderstandingDocument: Equatable, Sendable {
 
     static func digest(_ markdown: String) -> String {
         let data = Data(markdown.utf8)
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return SHA256.hash(data: data).hexString
     }
 
     var hasLearnerEdits: Bool {
@@ -149,7 +149,7 @@ enum UnderstandingDocumentTemplate {
 /// opens and edits and every review already reads, under a dated heading of
 /// its own:
 ///
-///     ## Before the summary (2026-10-06)
+///     ## Before the summary
 ///
 ///     *What do you expect this to say?*
 ///

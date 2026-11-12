@@ -450,7 +450,7 @@ struct SourceReaderWindow: View {
     private func readerWindowToolbar(for article: StudioArticle) -> some ToolbarContent {
         // The day, in this window too: a pop-out Reader has no rail, so its
         // toolbar carries the Now chip, and, as in the rail, only while
-        // something is happening (2026-10-06): an empty item would still
+        // something is happening: an empty item would still
         // draw its toolbar slot.
         if DayModel.shared.nowPresentation != nil {
             ToolbarItem(placement: .navigation) {
@@ -467,7 +467,7 @@ struct SourceReaderWindow: View {
                 )
             }
         }
-        // Quiet chrome (docs/ui-design.md, 2026-10-06): navigation, Add to
+        // Quiet chrome (docs/ui-design.md): navigation, Add to
         // Sources, Listen while it prepares or plays, and the ⋯, which holds
         // Listen and Contents the rest of the time.
         ToolbarItemGroup(placement: .primaryAction) {
@@ -608,8 +608,8 @@ struct SourceReaderWindow: View {
     private func readerOverflowMenu(for article: StudioArticle) -> some View {
         Menu {
             // The source's own actions first, in the docked Reader's order;
-            // Listen and Contents were toolbar buttons until Quiet chrome
-            // (docs/ui-design.md, 2026-10-06).
+            // Listen and Contents are menu items here, not toolbar buttons
+            // (Quiet chrome, docs/ui-design.md).
             ArticleSpeechListenMenuItem(speech: speech, article: article)
             RealtimeVoiceMenuItems(article: article, notebookID: nil)
             ExplainerMenuItems(article: article)
@@ -624,10 +624,9 @@ struct SourceReaderWindow: View {
             if bookNavigationBridge.canTurnPage {
                 ReaderRotatePageMenuItems(bridge: bookNavigationBridge)
             }
-            // A video's and a podcast's own commands, which sat on a bar
-            // above the transcript until Quiet chrome (docs/ui-design.md,
-            // 2026-10-06). The player may have moved on to another saved
-            // video, which is then the one on screen.
+            // A video's and a podcast's own commands, which are not on a bar
+            // above the transcript (Quiet chrome, docs/ui-design.md).
+            // The player may have moved on to another saved video, which is then the one on screen.
             if displayedArticle.isYouTubeURL {
                 if let commands = readerMenuCommands.video(for: displayedArticle.id) {
                     ReaderVideoMenu(chatAboutVideo: nil, commands: commands)
@@ -1190,7 +1189,7 @@ private struct RemotePDFWindowView: View {
         // Keeping the file attaches it as a paper — its text becomes the whole
         // PDF's. Only a paper may be filed that way on the reader's say-so; a
         // document or an excerpt handed in with a PDF URL keeps its type and
-        // its text (2026-09-23: one abstract became the whole abstracts page).
+        // its text, so one abstract cannot become the whole abstracts page.
         guard vm.articles.first(where: { $0.id == articleId })?.sourceType == .paper else { return }
         isPersistingPDF = true
         defer { isPersistingPDF = false }

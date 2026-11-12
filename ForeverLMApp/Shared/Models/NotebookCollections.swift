@@ -5,7 +5,7 @@ import Foundation
 // Gemini Notebook's Collections, in ForeverLM (product owner, 2026-10-02: "similar
 // to gemini notebook, we need to be able to add notebooks to collections"):
 // a named group of notebooks the learner makes from a notebook's Add to
-// Collection ▸ in the Space (on the Notebooks home until 2026-10-09), each
+// Collection ▸ in the Space, each
 // notebook in any number of them. docs/notebooks-design.md, "Collections".
 //
 // Not the schema-v2 `Collection` (a book, show, channel or meeting series a
@@ -114,15 +114,10 @@ struct NotebookCollections: Equatable, Sendable {
         idPrefix + UUID().uuidString.lowercased()
     }
 
-    /// A name as it is kept: whitespace and line breaks folded to single
-    /// spaces, trimmed, at most `nameCharacterLimit` characters; nil when
-    /// nothing is left.
+    /// A name as it is kept, as a space's is (`PageSpaces.cleanedName`); both
+    /// cut at the same `nameCharacterLimit`.
     static func cleanedName(_ raw: String) -> String? {
-        let folded = raw
-            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-            .joined(separator: " ")
-        guard !folded.isEmpty else { return nil }
-        return String(folded.prefix(nameCharacterLimit)).trimmingCharacters(in: .whitespaces)
+        PageSpaces.cleanedName(raw)
     }
 
     // MARK: Reading

@@ -359,7 +359,7 @@ struct SittingProjection: RecordProjection {
 // MARK: - Answers ↔ attempts
 
 /// A card answer and the `memory_attempts` row it is, both ways. The answer is the web's shape
-/// (`library-mutations-v2.js`, `saveMemoryAttempt`), plus what only the Mac records, under keys the
+/// (`library-mutations-v2.js`), plus what only the Mac records, under keys the
 /// web leaves alone: the exchange the attempt was made in, a discovery or import, the grading error
 /// and the model's metadata.
 enum MemoryAnswerCodec {
@@ -393,7 +393,7 @@ enum MemoryAnswerCodec {
 
     /// The attempt an answer about a card is, with the curriculum it was given against; nil for an answer
     /// about anything else, and for one that only practised (no grade state and not counted), which
-    /// generation 1 never recorded (`memoryAttemptFromAnswer` on the web).
+    /// generation 1 never recorded.
     static func attempt(answerID: String, answer: [String: SyncJSON], sessionID: String?) -> (attempt: MemoryAttempt, fingerprint: String?)? {
         guard let subject = answer["subject"]?.stringValue,
               let cardID = CardScheduleAnswer(answerID: answerID, subject: subject, at: 0).cardID,

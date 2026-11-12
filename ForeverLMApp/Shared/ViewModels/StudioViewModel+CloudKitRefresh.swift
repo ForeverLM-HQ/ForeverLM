@@ -149,7 +149,7 @@ extension StudioViewModel {
         return resumedCount
     }
 
-    /// Moves cleanup timeouts written by older builds back into durable pending
+    /// Moves cleanup timeouts stored as terminal errors back into durable pending
     /// work. The preserved raw extraction is authoritative; no refetch and no
     /// user action is needed. Saving `.queued` plus the staged preparation
     /// atomically creates the cleanup queue row.

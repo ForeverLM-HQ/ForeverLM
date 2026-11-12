@@ -214,7 +214,7 @@ extension EnvironmentValues {
 /// each time, defeating SwiftUI's automatic diffing), which re-evaluated the
 /// entire Settings subtree — NavigationStack, all panes — on every unrelated
 /// Studio invalidation. That repeated full-tree rebuild is what stalled the
-/// main thread (see ui-stall samples from 2026-07-15). The dismiss closure
+/// main thread (seen in ui-stall samples). The dismiss closure
 /// only forwards to StudioView state setters, so identity-by-pane is safe.
 struct SettingsOverlay: View, Equatable {
     @Environment(StudioViewModel.self) private var vm
@@ -256,10 +256,10 @@ struct SettingsOverlay: View, Equatable {
 ///
 /// A card rather than a sheet, and more than a notification (product owner,
 /// 2026-09-18: "notifications that show up in the corner of the screen and i
-/// get to dismiss them"; 2026-09-27: "a popup notification"). It stood in the
-/// window's top-right corner until the product owner (2026-09-28): "plan your day
+/// get to dismiss them"; 2026-09-27: "a popup notification"). It stands in the
+/// window's bottom-left corner (product owner, 2026-09-28: "plan your day
 /// notification should show up maybe in the bottom left? maybe better than
-/// popups". Down there it sits beside the chip that says how the day stands,
+/// popups"). There it sits beside the chip that says how the day stands,
 /// and covers nothing. It waits until it is answered instead of timing out
 /// like a banner, and takes neither the keyboard nor the window: no
 /// `.keyboardShortcut`, since a card nobody asked for must not claim Return
@@ -449,8 +449,8 @@ final class ActivationNotice {
 
 /// What the strip's bell lists beside the chats: the corner cards, which also
 /// stand in the corner, and the notices only the bell holds. One inbox, as
-/// Codex's Activity is (docs/codex-shell-plan.md, Track 4): the Space's own
-/// bell for teammates' requests went into it on 2026-10-13.
+/// Codex's Activity is (docs/codex-shell-plan.md, Track 4): teammates'
+/// requests are in it too.
 enum CornerNoticeKind: String, CaseIterable, Identifiable {
     /// Corner cards, in the order the corner shows them: one card at a time,
     /// the first that is showing.

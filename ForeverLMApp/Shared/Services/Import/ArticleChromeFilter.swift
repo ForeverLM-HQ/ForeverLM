@@ -11,11 +11,11 @@ private let logger = Logger(subsystem: "com.foreverlm", category: "ArticleChrome
 /// (`Articles/<id>/article.html`) and the extracted plain text. That function
 /// deliberately sanitizes markup without judging which visible text belongs to
 /// the article — class-name heuristics like `<div class="ad-…">` accumulate
-/// special cases and mis-nest, so they were removed rather than maintained.
+/// special cases and mis-nest, so none is kept.
 ///
-/// The judgment still has to happen somewhere. Until now only the plain text
-/// received it, from the Source Content Cleanup model, which runs downstream of
-/// archival; the reader document kept every navigation menu, share bar,
+/// The judgment still has to happen somewhere. The plain text receives it
+/// from the Source Content Cleanup model, which runs downstream of
+/// archival; without this stage the reader document keeps every navigation menu, share bar,
 /// newsletter appeal, comment form and login dialog the page shipped with. This
 /// stage asks the same question one step earlier, where a single answer serves
 /// both artifacts.

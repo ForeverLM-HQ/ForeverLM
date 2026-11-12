@@ -334,8 +334,8 @@ extension ReviewSessionManager {
     /// What a call with no query text is actually looking for.
     ///
     /// A relative-date request ("what was last week's session on?") reaches the
-    /// tools as filters and an empty query, so the row has nothing to quote. The
-    /// fallback used to be the list of argument *names*, which is worse than
+    /// tools as filters and an empty query, so the row has nothing to quote. A
+    /// fallback listing the argument *names* is worse than
     /// silence: "added_from, added_to, limit, query, source_type, threshold"
     /// describes the schema, not the lookup. Say what was filtered on, or say
     /// nothing and let the row's own title carry it.

@@ -5,15 +5,15 @@ import SwiftUI
 /// from the ChatGPT app a bit better", then "essentially, be the same"): a round
 /// menu button at the top left, three quiet suggestion rows above one composer
 /// pill (a field to type into, and a round button that talks), and everything
-/// else in a side drawer the Home slides over. It stays what it was before for
-/// a voice interface (2026-11-09: "mostly a voice interface … the other things
+/// else in a side drawer the Home slides over. It stays built for
+/// a voice interface (product owner, 2026-11-09: "mostly a voice interface … the other things
 /// … tucked away"): the round button starts a call while the field is empty,
 /// and so does the drawer's Voice pill. The middle is left empty, as ChatGPT's
 /// is: the ForeverLM mark is the voice screen's (`VoiceSessionSurface`), not
 /// Home's (product owner, 2026-11-09: "let's not have that logo so prominently,
 /// except when we go into voice mode").
 ///
-/// The drawer holds what Home's old menu held, laid out as ChatGPT's sidebar:
+/// The drawer holds what Home's menu holds, laid out as ChatGPT's sidebar:
 /// the title with a search circle, one row per place (notebooks, the library,
 /// To Read, Follow Up, the Space, Review Cards, Memory), a rule, the notebooks
 /// worked in last with "See all…", and at the foot a Voice pill and Settings.
@@ -34,8 +34,8 @@ struct MobileHomeDashboard<Top: View>: View {
     @GestureState private var dragOffset: CGFloat = 0
     @State private var draft = ""
     @FocusState private var composerIsFocused: Bool
-    /// Home's words follow the text size the learner set in iOS Settings; they
-    /// were fixed point sizes, so Larger Text changed every screen but this one.
+    /// Home's words follow the text size the learner set in iOS Settings, so
+    /// Larger Text reaches this screen like every other.
     @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 18
     @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 20
 

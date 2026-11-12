@@ -28,8 +28,8 @@ struct SiteRepositorySource: Equatable, Sendable {
 /// A site kept in the library: the author's files, scripts included, stored
 /// under the record's folder, synced through the learner's own iCloud inside
 /// the Artifact's body asset, and served in the app from `foreverlm-site://`
-/// under a CSP sandbox. Nothing is put on the web: the product owner retired
-/// publishing to sites.foreverlm.com on 2026-10-10 ("maybe we shouldn't quite
+/// under a CSP sandbox. Nothing is put on the web: publishing to sites.foreverlm.com is retired
+/// (product owner, 2026-10-10: "maybe we shouldn't quite
 /// have sites that can be published to the web"). Spec: docs/docs-design.md → Sites.
 enum LocalSite {
     static let maxFiles = 200

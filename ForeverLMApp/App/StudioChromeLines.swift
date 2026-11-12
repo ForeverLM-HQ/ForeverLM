@@ -230,8 +230,7 @@ extension View {
     /// Docked in a window the row hangs in the titlebar band and the in-flow
     /// copy collapses, handing the row's height back to content. Full screen
     /// has no band, so the row takes the shared in-flow header height. This is
-    /// the part every pane used to re-derive by hand, and the part they got
-    /// wrong: a row placed with `.padding(.top,` some number `)` sits below the
+    /// the part a pane must not derive by hand: a row placed with `.padding(.top,` some number `)` sits below the
     /// band instead of in it, and lands a few points off the toggle even in
     /// full screen.
     ///

@@ -670,7 +670,7 @@ enum TextbookReading {
             bytes.append(0)
             bytes.append(contentsOf: field.utf8)
         }
-        let hex = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        let hex = SHA256.hash(data: bytes).hexString
         return String(hex.prefix(32))
     }
 }

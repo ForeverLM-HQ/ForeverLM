@@ -5,9 +5,9 @@ import WebKit
 // Find inside a source on the phone. One bar, one state, two performers: the
 // text reader steps WebKit's text search through the rendered document, the PDF
 // reader steps PDFKit's `findString` matches, and both report where they landed
-// the way the Mac reader's find bar does. The system `UIFindInteraction` was
-// the first choice — it is what Safari shows — but `PDFView` never reports it
-// enabled on iOS 26 whatever the view's state (measured 2026-09-03 in the
+// the way the Mac reader's find bar does. The system `UIFindInteraction`, which
+// Safari shows, is not used: `PDFView` never reports it
+// enabled on iOS 26 whatever the view's state (measured in the
 // simulator: after init, in a window, with a document, after layout), so the
 // reader owns its find rather than offering a button that opens nothing.
 
@@ -218,7 +218,7 @@ final class MobilePDFFindPerformer: MobileReaderFindPerformer {
 /// Not `WKWebView.find(_:configuration:)`: after it finds a match, iOS stops
 /// showing the page's own selection changes, so the match stayed on screen
 /// with its handles after the bar closed, whatever script cleared it, until a
-/// tap on the page (iOS 26.5 Simulator, 2026-10-10). The text search leaves the
+/// tap on the page (seen on the iOS 26.5 Simulator). The text search leaves the
 /// selection the page's to change.
 ///
 /// UIKit marks both protocols Swift-private, so Swift spells the public

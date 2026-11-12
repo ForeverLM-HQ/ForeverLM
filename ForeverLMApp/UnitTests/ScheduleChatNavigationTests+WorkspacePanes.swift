@@ -1549,7 +1549,8 @@ extension ScheduleChatNavigationTests {
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
-        vm.openArtifactsBeside(notebookID: "notebook-1")
+        vm.activeWindowState.artifactCanvasNotebookID = "notebook-1"
+        vm.openCenterTabBeside(.notepad)
 
         #expect(vm.artifactCanvasNotebookID == "notebook-1")
         #expect(vm.activeWindowState.artifactCanvasNotebookID == "notebook-1", "the scope is the window's")
@@ -1581,7 +1582,8 @@ extension ScheduleChatNavigationTests {
             .init(tabs: [.notepad], activeTab: .notepad),
             .init(tabs: [.chat, .reader, .tasks, .artifacts], activeTab: .artifacts),
         ])
-        vm.openArtifactsBeside(notebookID: "notebook-2")
+        vm.activeWindowState.artifactCanvasNotebookID = "notebook-2"
+        vm.openCenterTabBeside(.notepad)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.notepad, .artifacts])
         #expect(vm.artifactCanvasNotebookID == "notebook-2")
 
@@ -1591,7 +1593,8 @@ extension ScheduleChatNavigationTests {
             .init(tabs: [.chat], activeTab: .chat),
             .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
-        vm.openArtifactsBeside(notebookID: "notebook-3")
+        vm.activeWindowState.artifactCanvasNotebookID = "notebook-3"
+        vm.openCenterTabBeside(.notepad)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .notepad])
     }
 
@@ -1659,7 +1662,7 @@ extension ScheduleChatNavigationTests {
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
-        vm.revealReaderBesideChat()
+        vm.revealReader(beside: .chat)
         #expect(vm.centerTabGroups.groups.count == 2)
         #expect(vm.centerTabGroups.groups[0].tabs == [.chat, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
         #expect(vm.centerTabGroups.groups[0].activeTab == .chat)
@@ -1669,7 +1672,7 @@ extension ScheduleChatNavigationTests {
             .init(tabs: [.chat, .tasks], activeTab: .tasks),
             .init(tabs: [.reader, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
-        vm.revealReaderBesideChat()
+        vm.revealReader(beside: .chat)
         #expect(vm.centerTabGroups.groups[0].activeTab == .chat)
         #expect(vm.centerTabGroups.groups[1].activeTab == .reader)
     }
@@ -1684,7 +1687,7 @@ extension ScheduleChatNavigationTests {
             .init(tabs: [.chat], activeTab: .chat),
             .init(tabs: [.notepad, .reader, .tasks], activeTab: .notepad),
         ])
-        vm.revealReaderBesideChat()
+        vm.revealReader(beside: .chat)
 
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
         #expect(vm.centerTabGroups.groups[1].openTabs == [.notepad, .reader])

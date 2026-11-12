@@ -120,8 +120,8 @@ enum URLNormalizer {
         // under /articles/<id>.pdf, and reaches the page through recommendation
         // links that carry `?fromPaywallRec=false`. Canonicalize on the article
         // id so a paper saved from a recommendation link and the bare address
-        // a web search cites are one key: on 2026-09-12 the chat's web sources
-        // footer offered Add to Sources for a Nature paper already in the
+        // a web search cites are one key: otherwise the chat's web sources
+        // footer offers Add to Sources for a Nature paper already in the
         // library because the stored URL kept that query string.
         if let host = components.host,
            host == "nature.com" || host.hasSuffix(".nature.com"),
@@ -198,9 +198,9 @@ enum URLNormalizer {
         }
 
         // youtube.com/shorts/ID, /embed/ID, /v/ID, /live/ID — the same video
-        // the watch page shows. Until 2026-09-19 these kept their own key, so
-        // a Short saved from Brave and the same video shared as a watch link
-        // became two sources, two transcripts and two AI runs; the classifier
+        // the watch page shows. Kept apart, a Short saved from Brave and the
+        // same video shared as a watch link would be two sources, two
+        // transcripts and two AI runs; the classifier
         // (Models.swift) and the transcript service already read them as one.
         if host == "youtube.com" || host == "www.youtube.com" || host == "m.youtube.com" {
             let parts = components.path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)

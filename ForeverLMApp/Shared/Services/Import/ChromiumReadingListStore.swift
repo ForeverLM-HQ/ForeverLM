@@ -6,8 +6,8 @@ import Foundation
 /// `<profile>/Sync Data/LevelDB`, a LevelDB whose keys are
 /// `reading_list-dt-<url>` and whose values are `ReadingListLocal` protobufs
 /// (components/reading_list/core/proto/reading_list.proto). Brave writes there
-/// whether or not Brave Sync is turned on; the `Bookmarks` JSON file no longer
-/// carries a `reading_list` root.
+/// whether or not Brave Sync is turned on; the `Bookmarks` JSON file does not
+/// carry a `reading_list` root.
 ///
 /// Chrome keeps a second store in the same LevelDB for the Google account the
 /// profile is signed in to, its keys prefixed `A-`

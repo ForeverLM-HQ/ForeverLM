@@ -619,11 +619,11 @@ struct ArtifactEditor: View {
     }
 
     /// A daily note's title row: its day, which is its name until it is
-    /// clicked and renamed (2026-10-07; emptying the name gives the day back),
+    /// clicked and renamed (emptying the name gives the day back),
     /// then ‹ and › to step a day back or forward — opening that
     /// day's note, made if it does not exist yet — and Today while the note
-    /// is another day's (docs/notes-graph-design.md, "Daily Notes"). Since
-    /// 2026-10-06 Today, ‹ and › show while the pointer is over the row, in
+    /// is another day's (docs/notes-graph-design.md, "Daily Notes"). Today,
+    /// ‹ and › show while the pointer is over the row, in
     /// slots that keep their size (the product owner: "cleaner and fewer buttons");
     /// ⇧⌘D still opens today. The day drags as a doc's title does, into a
     /// chat or to the center edge.

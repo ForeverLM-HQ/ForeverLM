@@ -39,7 +39,7 @@ enum AIModelDefaults {
 
     /// Batch transcription's product default, for dictation after the mic
     /// closes and for recordings: GPT-4o mini Transcribe under its OpenRouter
-    /// slug, because every transcription goes to OpenRouter (2026-09-27). The
+    /// slug, because every transcription goes to OpenRouter. The
     /// bare id an earlier build stored is read as this one
     /// (`ManagedTranscriptionClient.canonicalModel`).
     static let batchTranscription = "openai/gpt-4o-mini-transcribe"
@@ -47,7 +47,7 @@ enum AIModelDefaults {
     /// The model Canvas Voice starts on (`KeychainService.seedCanvasVoiceRoute`):
     /// a spoken canvas edit is waited on, and the Background model it would
     /// otherwise follow can take many seconds (DeepSeek V4 Pro took 18 s). The
-    /// eval of 2026-10-13 (KnowledgeMapVoice+Eval.swift: 16 spoken requests,
+    /// eval (KnowledgeMapVoice+Eval.swift: 16 spoken requests,
     /// three runs, reasoning off) put DeepSeek V4.1 Flash first: 48 of 48
     /// right, 0.62 s to the first edit (p90 0.79 s), the cheapest. Claude
     /// Haiku 5.5 was 48 of 48 at 0.94 s, Gemini 3.8 Flash 48 of 48 at 1.9 s,

@@ -160,7 +160,7 @@ struct GenerationActivation {
             Self.logger.notice("Activation started, mode \(decision.mode.rawValue, privacy: .public)")
         }
         // Step a recorded the rollback copy a store's first generation-2 launch took. No library is
-        // copied any more (every store this build opens is past generation 1), so a journal at it moves on.
+        // copied (every store this build opens is past generation 1), so a journal at it moves on.
         if (journal.step ?? .recordCopy) == .recordCopy {
             try advance(&journal, to: .catchUp)
         }

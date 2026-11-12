@@ -128,22 +128,6 @@ struct NotebookTasksBoardTests {
         #expect(!NotebookTaskBoard.isOverdue(Self.task("today", dueAt: today), now: now))
     }
 
-    @Test("The inspector summary counts open tasks and the member's share of them")
-    func openSummary() {
-        let tasks = [
-            Self.task("mine open", assignee: "me"),
-            Self.task("mine done", status: .done, assignee: "me"),
-            Self.task("theirs", status: .doing, assignee: "you"),
-            Self.task("unassigned"),
-        ]
-        let summary = NotebookTaskBoard.openSummary(tasks, currentUserRecordName: "me")
-        #expect(summary.open == 3)
-        #expect(summary.mine == 1)
-        let anonymous = NotebookTaskBoard.openSummary(tasks, currentUserRecordName: nil)
-        #expect(anonymous.open == 3)
-        #expect(anonymous.mine == 0)
-    }
-
     @Test("A task links to one source or one Doc; the other side clears")
     func linking() {
         let bare = Self.task("bare")

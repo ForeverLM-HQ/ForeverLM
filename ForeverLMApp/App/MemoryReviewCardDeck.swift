@@ -45,8 +45,8 @@ enum MemoryReviewCardFold {
 
     /// The deck: one exchange a card, or, for a review planned by topic
     /// (`byTopic`), one topic a card (docs/memory-design.md, "Review by
-    /// topic"). The old dealing stays for a review whose briefing carries no
-    /// topics, so a day prepared before topics reads exactly as it did.
+    /// topic"). The one-exchange dealing serves a review whose briefing carries no
+    /// topics.
     static func cards(_ messages: [ReviewSessionManager.Message], byTopic: Bool = false) -> [Card] {
         let turns = messages.map(turn)
         return byTopic ? MemoryReviewCardDealing.topicCards(turns) : MemoryReviewCardDealing.cards(turns)
@@ -396,8 +396,8 @@ enum MemoryReviewTopicCardFold {
 /// pane like a slide (product owner, 2026-09-25: "maybe the quiz can just be full
 /// screen cards?"), and its exchange starts at the top of it, set larger
 /// than the chat, in a column narrow enough to read at that size, with the
-/// answer field right under the question (2026-09-26: a question centred in
-/// the card left its top half empty and the field a screen away). An
+/// answer field right under the question (a question centred in
+/// the card leaves its top half empty and the field a screen away). An
 /// exchange taller than the card scrolls inside it.
 struct MemoryReviewCardSurface: ViewModifier {
     let isOn: Bool

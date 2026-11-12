@@ -6,7 +6,7 @@ import Foundation
 // the real-time voice mode again"). The proxy mints a short-lived client secret
 // on the company's OpenAI account (`ManagedAI.mintRealtimeVoiceSecret`), so no
 // company key reaches a device and the learner pays nothing. A learner who
-// stores their own OpenAI key (`ManagedAI.ownOpenAIVoiceKey`, 2026-11-08) has
+// stores their own OpenAI key (`ManagedAI.ownOpenAIVoiceKey`) has
 // the app mint the same secret straight with OpenAI on it, and pays OpenAI. This is the one
 // model route that does not go through OpenRouter, which serves no
 // speech-to-speech model.

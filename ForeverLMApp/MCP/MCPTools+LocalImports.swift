@@ -41,10 +41,10 @@ extension MCPDataStore {
     ///
     /// The paper is saved with its PDF before any model reads it, as the app's
     /// own import saves its pending row, and a failure is saved on it rather
-    /// than the PDF being taken back. On 2026-10-12 a call whose client timed
-    /// out was cancelled during Source Content Cleanup: the metadata step had
-    /// saved the paper as pending, and this function then deleted the PDF it
-    /// had just copied, leaving a paper reading "PDF needed" with no content.
+    /// than the PDF being taken back: a call whose client times out and is
+    /// cancelled during Source Content Cleanup, after the metadata step saved
+    /// the paper as pending, must not delete the PDF it had just copied and
+    /// leave a paper reading "PDF needed" with no content.
     func importLocalPDFAsPaperOutcome(
         filePath: String,
         title: String?,
@@ -280,10 +280,10 @@ extension MCPDataStore {
     /// `import_local_pdf_as_paper` and `import_local_file`'s paper route:
     /// the paper is staged at once (in the library with its PDF) and read by
     /// the models in the background, so the call answers in seconds with the
-    /// paper's id and the work's id. Before 2026-10-12 the call held the
-    /// store alone for the whole read, a minute or more a paper: seven
-    /// imports sent together ran one after another, every other call waited
-    /// behind them, and the later imports' clients timed out.
+    /// paper's id and the work's id. Holding the
+    /// store for the whole read, a minute or more a paper, would run seven
+    /// imports sent together one after another, make every other call wait
+    /// behind them, and time out the later imports' clients.
     func importLocalPDFAsPaperInBackground(
         filePath: String,
         title: String?,

@@ -8,10 +8,7 @@ extension KnowledgeStore {
     func saveDerivedSourceContent(_ sourceId: String, content: String) throws {
         try exec("BEGIN IMMEDIATE")
         do {
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?, ?)") { stmt in
-                bind(stmt, 1, sourceId)
-                bind(stmt, 2, content)
-            }
+            try writeSourceContent(sourceID: sourceId, content: content)
             try execBind("UPDATE sources SET state = ? WHERE id = ? AND source_type != ?") { stmt in
                 bind(stmt, 1, StudioArticleState.ready.rawValue)
                 bind(stmt, 2, sourceId)
@@ -121,7 +118,7 @@ extension KnowledgeStore {
     /// Rewrite every synced preference row whose value `PreferenceStore.decodePlist`
     /// rejects but `recoverPlist` can read, and name the rows that stay unreadable.
     ///
-    /// Found on 2026-08-31: two `meetingFolder.image.*` rows whose plist carried
+    /// Two `meetingFolder.image.*` rows once carried a plist with
     /// the two-character text `\t` where the encoder writes a tab — what a
     /// `sqlite3` insert typed with escape sequences leaves, since SQL string
     /// literals expand nothing. Written on one Mac and carried by sync to the
@@ -672,8 +669,8 @@ extension KnowledgeStore {
 
     /// Resets to zero every stored estimate for a call OpenRouter says it
     /// billed nothing for (`AIUsageEvent.estimatesSpendOpenRouterDidNotBill`).
-    /// Older builds priced `:free` calls at their paid sibling's list rate
-    /// even though the row's own usage said cost 0, adding spend that never
+    /// A stored estimate that priced a `:free` call at its paid sibling's list
+    /// rate even though the row's own usage said cost 0 adds spend that never
     /// happened to every total. This is the one case a stamped estimate is
     /// rewritten: the provider's bill contradicts it. Returns how many rows
     /// it corrected.

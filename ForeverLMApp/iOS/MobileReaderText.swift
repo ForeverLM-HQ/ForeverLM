@@ -1014,11 +1014,12 @@ enum MobileReaderPageScript {
     /// A passage is found the way the Mac's reader finds it
     /// (`ReaderWebHighlightSupport`): in the text as `ReaderTextAnchor.normalize`
     /// notebooks it, built in one pass with a map from every character back to its
-    /// text node, and scored as `ReaderTextAnchor.resolve` scores it. Until
-    /// 2026-09-28 the phone joined its text nodes with a space its position walk
-    /// never counted, so every span or footnote link before a passage — a book
-    /// chapter's markup is full of them — pushed the mark later in the text, and
-    /// a passage with a space after it in the same node found no end at all.
+    /// text node, and scored as `ReaderTextAnchor.resolve` scores it. Its text
+    /// nodes are joined without a space its position walk would not count: a
+    /// stray space would push the mark later in the text for every span or
+    /// footnote link before a passage (a book chapter's markup is full of
+    /// them), and a passage with a space after it in the same node would find
+    /// no end at all.
     static let highlightPainter = """
     (() => {
       if (window.foreverlmApplyHighlights) return;

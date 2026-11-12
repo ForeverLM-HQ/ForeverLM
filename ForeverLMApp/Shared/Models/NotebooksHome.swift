@@ -20,8 +20,7 @@ extension LearningGoalRecord: NotebookHomeListing {
 
 // MARK: - The Space's panes
 
-/// The two panes the Space's sidebar swaps in place (shell stage 4,
-/// 2026-10-01; the Notebooks home that led them went on 2026-10-09,
+/// The two panes the Space's sidebar swaps in place (shell stage 4;
 /// docs/notebooks-design.md, "The Notebooks home, retired"): the **Space**
 /// (`.artifacts`), its places beside the sidebar, and **Courses**
 /// (`.courses`), the list of courses the sidebar's Courses row opens, drawn

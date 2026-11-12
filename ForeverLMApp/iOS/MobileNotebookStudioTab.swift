@@ -42,8 +42,8 @@ struct MobileNotebookStudioTab: View {
                     .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
             }
             // What was made, under no heading, and nothing at all while
-            // nothing is (2026-10-06, as the Mac's Studio: the tiles say what
-            // can be made; it said "Outputs" and "Nothing made yet").
+            // nothing is (as the Mac's Studio: the tiles say what can be
+            // made, so there is no "Outputs" or "Nothing made yet").
             Section {
                 // The Mac's Studio shows no Cards row for a notebook with no
                 // card (`NotebookCardCounts.isEmpty`), and leads its outputs
@@ -189,7 +189,7 @@ struct MobileNotebookStudioTab: View {
         return NavigationLink(value: route) {
             HStack(spacing: MobileDesign.Spacing.small) {
                 MobileStudioOutputRow(systemImage: MemoryReviewSession.sidebarIcon, title: "Cards", line: line)
-                // Grey since 2026-10-06 ("Lists are monochrome").
+                // Grey ("Lists are monochrome").
                 Text(counts.toCheck > 0 ? "Check" : "Practice")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -947,18 +947,18 @@ private struct MobileDocBlockView: View {
     var body: some View {
         switch block {
         case .heading(let level, let text):
-            Text(Self.inline(text))
+            Text(MobileMnemonicReadingView.inline(text))
                 .font(level <= 1 ? .title2.weight(.bold) : level == 2 ? .title3.weight(.semibold) : .headline)
                 .padding(.top, level <= 2 ? MobileDesign.Spacing.small : 0)
                 .accessibilityAddTraits(.isHeader)
         case .paragraph(let text):
-            Text(Self.inline(text))
+            Text(MobileMnemonicReadingView.inline(text))
         case .bullets(let items):
             VStack(alignment: .leading, spacing: MobileDesign.Spacing.xSmall) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     HStack(alignment: .firstTextBaseline, spacing: MobileDesign.Spacing.small) {
                         Text("•")
-                        Text(Self.inline(item))
+                        Text(MobileMnemonicReadingView.inline(item))
                     }
                 }
             }
@@ -968,12 +968,12 @@ private struct MobileDocBlockView: View {
                     HStack(alignment: .firstTextBaseline, spacing: MobileDesign.Spacing.small) {
                         Text("\(index + 1).")
                             .monospacedDigit()
-                        Text(Self.inline(item))
+                        Text(MobileMnemonicReadingView.inline(item))
                     }
                 }
             }
         case .quote(let text):
-            Text(Self.inline(text))
+            Text(MobileMnemonicReadingView.inline(text))
                 .foregroundStyle(.secondary)
                 .padding(.leading, MobileDesign.Spacing.medium)
                 .overlay(alignment: .leading) {
@@ -990,13 +990,5 @@ private struct MobileDocBlockView: View {
         case .rule:
             Divider()
         }
-    }
-
-    private static func inline(_ text: String) -> AttributedString {
-        let options = AttributedString.MarkdownParsingOptions(
-            interpretedSyntax: .inlineOnlyPreservingWhitespace,
-            failurePolicy: .returnPartiallyParsedIfPossible
-        )
-        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 }

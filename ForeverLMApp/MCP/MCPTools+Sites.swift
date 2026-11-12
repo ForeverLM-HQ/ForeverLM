@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 ///
 /// The product owner (2026-09-09), after a chat asked to "make a site" produced a Doc:
 /// "it should also be able to make an arbitrary html site". A site is the
-/// author's files served as written, scripts included. Since 2026-09-22 those
+/// author's files served as written, scripts included. Those
 /// files live in the library — under the record's folder, synced through the
 /// learner's own iCloud inside the Artifact's body asset, and served in the
 /// app from `foreverlm-site://<id>/` under a CSP sandbox (the product owner:

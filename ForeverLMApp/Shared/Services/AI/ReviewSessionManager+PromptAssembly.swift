@@ -445,7 +445,7 @@ extension ReviewSessionManager {
             """
             : ""
 
-        // The day is the Mac's Calendar (2026-09-30, when the Planner went): a
+        // The day is the Mac's Calendar: a
         // chat plans it by writing events there. The rules the schema cannot
         // carry: read the day before writing, keep what is fixed with other
         // people, write the whole day once it is agreed rather than an event
@@ -495,11 +495,11 @@ extension ReviewSessionManager {
             """
             : ""
 
-        // GitHub is read through the plugin and nowhere else. On 2026-09-14 a
-        // chat asked to change a site published from a private repository
-        // opened github.com in the Browser, met GitHub's sign-in page and asked
-        // the learner to sign in there — the one thing the Browser must never
-        // be for: the plugin already reads GitHub as the learner, and a
+        // GitHub is read through the plugin and nowhere else. A chat asked
+        // to change a site published from a private repository would open
+        // github.com in the Browser, meet GitHub's sign-in page and ask the
+        // learner to sign in there — the one thing the Browser must never be
+        // for: the plugin already reads GitHub as the learner, and a
         // connection that is missing is made in Settings, which the chat
         // offers as a card under the failed step (ChatPluginRequest.SetupNeed).
         let githubGuidance = tools.contains(where: { $0.name == "list_github_repositories" })
@@ -512,9 +512,9 @@ extension ReviewSessionManager {
             """
             : ""
 
-        // Changing a published site used to mean reading every file back and
+        // Changing a published site must not mean reading every file back and
         // sending every file again — twelve read_site_file calls to change one
-        // page on 2026-09-14. An update now carries only the files that change.
+        // page. An update carries only the files that change.
         let sitesGuidance = tools.contains(where: { $0.name == "save_site" })
             ? """
 
@@ -628,7 +628,7 @@ extension ReviewSessionManager {
 
         // A reply is not an action. Asked "open this notebook", a free model
         // answered "I've opened the notebook … it is now active" with no tool
-        // call, and the learner stayed in the chat (2026-10-11). Opening is
+        // call, and the learner stayed in the chat. Opening is
         // named outright because it is the action a model most readily mistakes
         // for words: a link or a get_notebook read feels like showing it.
         let opensThings = tools.contains(where: { $0.name == "open_in_app" })
@@ -919,7 +919,7 @@ extension ReviewSessionManager {
     /// claim in it is drawn from that source, so a citation after each one
     /// says nothing the learner does not already know -- while the renderer
     /// dutifully draws a `[1]` on every paragraph and the source's card under
-    /// the reply. The learner asked for this to stop (2026-09-09): a reply in
+    /// the reply. A reply in
     /// such a chat cites only a source it reached for elsewhere in the library.
     private var singleSourceCitationRule: String {
         guard activeSourceIDs.count == 1 else { return "" }
@@ -930,7 +930,7 @@ extension ReviewSessionManager {
     }
 
     /// How to read a library source that is not in this chat's catalog. A
-    /// Notebook chat's agent reasoned it out every turn (2026-11-10): that
+    /// Notebook chat's agent would otherwise reason it out every turn: that
     /// retrieve_sources reads only the catalog, that get_source_content is a
     /// whole document, and that search_sources_keyword with source_ids gives
     /// passages. Stated once here, it is a rule instead of a deliberation.

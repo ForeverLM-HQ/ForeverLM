@@ -20,10 +20,10 @@ import os
 /// The recording beside it always does — `<yyyy-MM-dd HH.mm.ss> <topic>/`
 /// with the converted `audio*.m4a` and `video*.mp4`, or the raw
 /// `double_click_to_convert_*.zoom` files Zoom leaves when it was quit before
-/// converting. Four of the five standups in the folder on 2026-09-19 had a
-/// recording and no caption file, and none of them was found. So a recording
-/// folder with no caption file is filed too: as a session carrying the
-/// recording, transcribed by ForeverLM once Zoom has converted it. When Zoom
+/// converting. A meeting can have a recording and no caption file, and would
+/// then never be found. So a recording folder with no caption file is filed
+/// too: as a session carrying the recording, transcribed by ForeverLM once
+/// Zoom has converted it. When Zoom
 /// has not, only Zoom can: it alone reads a raw `.zoom` file, and it asks
 /// "Files from unknown sources" before converting one its meeting did not
 /// convert on the spot. The Meetings tab and Settings › Sources list each
@@ -300,11 +300,10 @@ extension StudioViewModel {
     /// the recording, which it does as the call ends, so the call ended no
     /// later than that. The two agree, to the minutes converting takes, for
     /// a call recorded to its end. They part when the host stops recording
-    /// and the call goes on: on 2026-09-30 the host stopped recording the
-    /// standup at 08:40 while the call went on, the free account cut the
-    /// call at 09:11, Zoom wrote the media at 09:11:55, and the reconnect in
-    /// the host's personal room at 09:11:26 — 31 min after the media's end — was
-    /// filed as a meeting of its own. A conversion Zoom did not do on the
+    /// and the call goes on: a host who stops recording at 08:40 while the call
+    /// runs to 09:11 has media that ends at 08:40 and written at 09:11:55, and
+    /// a reconnect in the host's personal room at 09:11:26 — 31 min after the
+    /// media's end — would be filed as a meeting of its own. A conversion Zoom did not do on the
     /// spot (the client quit first; converted by hand later that day)
     /// stretches the later bound to that conversion, and a same-day call in
     /// the host's room begun in between is taken for a reconnect; that is
@@ -504,7 +503,7 @@ extension StudioViewModel {
     /// calendar events, in that order: the first whose file-name form is the
     /// folder's topic and that is not itself spelled like a file name. A
     /// series made from a folder before its real title was known — the
-    /// "Alan __ Zara" group of 2026-09-23, since merged into the standup —
+    /// "Alan __ Zara" group —
     /// matches every folder of that meeting and recovers nothing, and it
     /// outranked the calendar's "Alan <> Zara" for every standup after it.
     /// Such a title is used only when nothing better matches, and the
@@ -676,7 +675,7 @@ extension StudioViewModel {
     /// invitation at all — so four of fifteen rows in one folder read an
     /// address or no one beside eleven that read "Alan Young, Zara
     /// Holt" (product owner, 2026-09-28: "can you please make sure these zoom
-    /// meetings show up consistently?", after the same ask on 2026-09-22).
+    /// meetings show up consistently?").
     nonisolated static func zoomSessionParticipantLine(
         speakers: [String],
         invited: [String],
@@ -835,8 +834,8 @@ extension StudioViewModel {
         // on disk changing, and the backstop is what brings the row up then.
         let needingConversion = Self.zoomLocalRecordingsNeedingConversion(folders, captions: files)
         let ignored = Self.zoomLocalRecordingIgnoredFoldersFromDefaults()
-        // The per-launch request counter, retired with the background request
-        // itself; a pass clears it so old builds' state does not linger.
+        // A pass clears the retired per-launch request counter, so no value
+        // lingers in preferences.
         if Preferences.isSet(Prefs.Meetings.retiredZoomLocalRecordingConversionRequests) {
             Preferences.reset(Prefs.Meetings.retiredZoomLocalRecordingConversionRequests)
         }
@@ -1005,13 +1004,10 @@ extension StudioViewModel {
     /// begins within minutes of the previous recording's end continues it
     /// (`zoomLocalRecordingHeads`): it takes the first call's topic and
     /// series, whatever its own folder is named, so that the sitting rule
-    /// folds the two sessions into one when its transcript lands. Before
-    /// this, the 2026-09-21 standup's second call — Zoom's forty-minute cut,
-    /// reconnected 49 s later in the host's personal room — was named
-    /// "Alan Young's Zoom Meeting", a series the learner had removed, and
-    /// was dropped without a word; the standup's transcript ended
-    /// mid-sentence (the product owner: "it didn't add together both transcripts from
-    /// the two meetings").
+    /// folds the two sessions into one when its transcript lands, so a
+    /// call that Zoom cut and the host reconnected seconds later in a personal
+    /// room is not named for that room's series and dropped (the product owner:
+    /// "it didn't add together both transcripts from the two meetings").
     ///
     /// Transcription here is not behind the Google Drive card's "transcribe
     /// when Google did not" switch: that switch guards against paying to
@@ -1099,16 +1095,15 @@ extension StudioViewModel {
                 // under any series. A session moved to another series by
                 // hand, or folded into a sitting there, keeps its recording,
                 // and its rows can still name the series it was filed under:
-                // on 2026-09-30 the standup's personal-room reconnect was
-                // moved into the standup series and folded in, and a look at
-                // that series' own rows alone would have filed the recording
-                // again and paid to transcribe it a second time.
+                // a personal-room reconnect moved into the standup series and
+                // folded in leaves its recording under that series, and a look
+                // at that series' own rows alone would file the recording
+                // again and pay to transcribe it a second time.
                 //
                 // Filed is not the same as transcribed, though. A session whose
                 // transcription failed or was cut short (the app quit mid-call)
                 // keeps its recording row and no transcript, and skipping it
-                // here left it so for good: the 2026-11-09 standup sat with
-                // only its file name until it was transcribed by hand on 11-11.
+                // here would leave it so for good.
                 // Such a session is taken further, as it is, in its own series.
                 let folderName = (folder.path as NSString).lastPathComponent
                 let filed = try await storage.loadMeetingArtifacts()
@@ -1379,8 +1374,8 @@ extension StudioViewModel {
 
     /// Zoom's converter, `Transcode.app`, verifies a recording's raw files
     /// before converting them, and a recording the meeting did not convert
-    /// on the spot — Zoom quit, or a call that dropped and was restarted, as
-    /// the 2026-09-25 standup was — fails that check however it is opened.
+    /// on the spot — Zoom quit, or a call that dropped and was restarted —
+    /// fails that check however it is opened.
     /// Zoom then asks "Files from unknown sources" with **Convert Anyway** and
     /// **Do Not Convert**. It has no setting that trusts its own recording
     /// folder: in Transcode 7.1.9 the only route past the check is that
@@ -1508,10 +1503,9 @@ extension StudioViewModel {
 
     /// A recording's raw files, and which of them iCloud has evicted.
     /// `~/Documents` is often an iCloud Drive folder, and a long meeting's
-    /// raw file is hundreds of MB that Optimise Mac Storage takes back: the
-    /// 2026-09-12 standup's 700 MB `double_click_to_convert_01.zoom` was
-    /// dataless on 2026-09-25, and Zoom opened on it sat at 0% while the file
-    /// came down, before it could even ask.
+    /// raw file is hundreds of MB that Optimise Mac Storage takes back: Zoom
+    /// opened on an evicted `double_click_to_convert_01.zoom` sits at 0% while
+    /// the file comes down, before it can even ask.
     nonisolated static func zoomLocalRecordingRawFiles(
         folderPath: String
     ) -> (names: Set<String>, evicted: [URL]) {
@@ -1650,8 +1644,8 @@ extension StudioViewModel {
 
     /// Convert a waiting recording without the learner, now that ForeverLM
     /// can answer Zoom's dialog itself. Only when ForeverLM may use
-    /// Accessibility — without it the open would be the dialog-at-every-launch
-    /// of 2026-09-20 — and only while Zoom is neither in a meeting nor
+    /// Accessibility — without it the open would be a dialog at every
+    /// launch — and only while Zoom is neither in a meeting nor
     /// converting. One recording at a time: the next pass after Zoom quits
     /// takes the next one. Zoom is not brought forward.
     nonisolated func convertZoomLocalRecordingAutomatically(

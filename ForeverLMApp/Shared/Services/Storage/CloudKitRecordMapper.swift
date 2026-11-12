@@ -1,6 +1,5 @@
 import AppKit
 import CloudKit
-import CryptoKit
 import Foundation
 import ImageIO
 import OSLog
@@ -698,8 +697,7 @@ struct CloudKitLearningGoalPayload: Codable, Sendable {
 
 enum CloudKitRecordMapper {
     static func recordName(for entity: CloudKitSyncEntity, logicalKey: String) -> String {
-        let digest = SHA256.hash(data: Data("\(entity.rawValue):\(logicalKey)".utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        "\(entity.rawValue):\(logicalKey)".sha256Hex
     }
 
     /// Book covers ship as a small JPEG asset so the phone's book lists can show
@@ -794,7 +792,7 @@ enum StoredPicturePackage {
     static func digest(_ files: [File], prefix: String, extra: String = "") -> String {
         var signature = files.map { "\($0.name):\($0.size):\($0.modified)" }.joined(separator: "|")
         if !extra.isEmpty { signature += "#" + extra }
-        return prefix + SHA256.hash(data: Data(signature.utf8)).map { String(format: "%02x", $0) }.joined()
+        return prefix + signature.sha256Hex
     }
 
     /// The package's bytes: a binary property list of file name → bytes,

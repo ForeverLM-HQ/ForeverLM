@@ -487,7 +487,7 @@ enum StudioCenterTabDragPayload {
     /// A private type keeps native Reader/Chat text views from competing with
     /// the edge split destination for what would look like an ordinary text
     /// drag. Keep UTF-8 text alongside it so the SwiftUI strip delegates retain
-    /// compatibility with drags started by older builds.
+    /// compatibility with plain-text drags.
     static let contentType = UTType(exportedAs: "com.foreverlm.studio-center-tab")
     static let pasteboardType = NSPasteboard.PasteboardType(contentType.identifier)
     static let dropTypes: [UTType] = [contentType, .utf8PlainText]

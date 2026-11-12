@@ -139,24 +139,6 @@ struct WindowNotebookTests {
         "studio.navigationRailVisible",
     ]
 
-    /// The layout template every new window starts from, and MCP's active
-    /// Notebook, which opening a notebook must leave alone: the unit host's
-    /// defaults are the real ones, so each test puts them back.
-    private func capturingSharedDefaults() -> () -> Void {
-        let template = Self.templateKeys.map { UserDefaults.standard.object(forKey: $0) }
-        let activeNotebookID = ActiveNotebookPreference.notebookID
-        return {
-            for (key, value) in zip(Self.templateKeys, template) {
-                if let value {
-                    UserDefaults.standard.set(value, forKey: key)
-                } else {
-                    UserDefaults.standard.removeObject(forKey: key)
-                }
-            }
-            ActiveNotebookPreference.notebookID = activeNotebookID
-        }
-    }
-
     private func templateValues() -> [String] {
         Self.templateKeys.map { String(describing: UserDefaults.standard.object(forKey: $0)) }
     }
@@ -225,8 +207,8 @@ struct WindowNotebookTests {
         // The view model's own fallback window opened nothing.
         #expect(vm.workbenchNotebookID == nil)
 
-        // A second click on the open folder closes it in that window only.
-        vm.inWindow(left) { vm.toggleNotebookInReader("bio") }
+        // Closing the open notebook closes it in that window only.
+        vm.inWindow(left) { vm.closeNotebook() }
         #expect(left.NotebookID == nil)
         #expect(right.NotebookID == "neuro")
 
@@ -381,18 +363,18 @@ struct NotebookRoutingTests {
         }
     }
 
-    @Test("A notebook opens on its chat in the window's own tabs, and a second click on its folder closes it")
-    func toggleClosesTheNotebook() {
+    @Test("A notebook opens on its chat in the window's own tabs, and closing it restores the tabs")
+    func closingTheNotebookRestoresTheTabs() {
         let restore = capturingTemplate()
         defer { restore() }
         let vm = makeViewModel()
         let window = StudioWindowState()
         window.centerTabGroups = .defaultLayout
         let tabs = window.centerTabGroups.groups.map(\.tabs)
-        vm.inWindow(window) { vm.toggleNotebookInReader("bio") }
+        vm.inWindow(window) { vm.openNotebookInReader("bio") }
         #expect(window.NotebookID == "bio")
         #expect(window.centerTabGroups.groups.map(\.activeTab) == [.chat], "the Space stays one of the pane's tabs")
-        vm.inWindow(window) { vm.toggleNotebookInReader("bio") }
+        vm.inWindow(window) { vm.closeNotebook() }
         #expect(window.notebook == nil)
         #expect(window.centerTabGroups.groups.map(\.tabs) == tabs)
     }

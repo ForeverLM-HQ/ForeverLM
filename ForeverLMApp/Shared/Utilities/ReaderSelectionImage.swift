@@ -5,7 +5,7 @@ import Foundation
 ///
 /// A drag over a web page takes pictures with it — a figure, an infographic,
 /// a diagram — and `selection.toString()` says nothing about them, which is
-/// why until 2026-09-20 a selection that was only a picture summoned no bar
+/// why a selection that was only a picture once summoned no bar
 /// at all (product owner, over a Waypoint Bio figure: "i want to be able to
 /// highlight stuff and also have that explained"). The page now reports each
 /// picture the selection covers, and the app does two things with it: Chat

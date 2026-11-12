@@ -6,7 +6,7 @@ import AppKit
 /// rail"): Spaces, Memory and Library as icons, with Home's sidebar beside
 /// them while a chat or the Reader is on screen: New chat and the Browser, the
 /// Notebooks header (the Space's All list), then the Pinned and Recent
-/// notebooks with their chats — a compact way in since 2026-10-03, the whole
+/// notebooks with their chats — a compact way in, the whole
 /// catalog living in the Space (`NotebookRail`); the library's own chats; the
 /// day and the account in the footer. The icon strip is always drawn, in a
 /// window holding a notebook too; the sidebar toggle folds only Home's
@@ -264,8 +264,7 @@ struct StudioNavigationRail: View {
                 renamingSession = nil
             }
         }
-        // Delete asks first, as Codex's does and Home's list does; until
-        // 2026-10-13 the rail's Delete was the one hard delete that did not.
+        // Delete asks first, as Codex's does and Home's list does.
         .confirmationDialog(
             "Delete \u{2018}\(deletingSession.map(railChatTitle) ?? "this chat")\u{2019}?",
             isPresented: Binding(
@@ -470,7 +469,7 @@ struct StudioNavigationRail: View {
         case .work: StudioWorkButton()
         // The OpenRouter button: paid work running in the background, one
         // click from its progress and a Stop (product owner, 2026-10-08),
-        // and under it what has run and the key (2026-10-15).
+        // and under it what has run and the key.
         case .aiUsage:
             BackgroundWorkButton(
                 monitor: BackgroundWorkMonitor.shared,
@@ -633,9 +632,8 @@ struct StudioNavigationRail: View {
                 // beneath it (`NotebookRail`): a compact way in, the whole
                 // catalog living in the Space (product owner, 2026-10-03, of ~52
                 // notebooks: "is it even still good design to have all these
-                // notebooks in the left sidebar as well?"). The collections'
-                // rows went with the Notebooks home (2026-10-09): All groups
-                // by collection. A notebook's
+                // notebooks in the left sidebar as well?"). The collections
+                // have no rows here: All groups by collection. A notebook's
                 // chats live directly beneath its row; library chats and
                 // chats whose notebook has no row here — archived, neither
                 // pinned nor recent — remain in the Chats section so nothing
@@ -1070,7 +1068,7 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// Home (2026-10-16), Codex's first icon, which took the + 's place on the
+    /// Home, Codex's first icon, which stands where the + was on the
     /// strip: a blank chat with Home's sidebar beside it, New chat, the
     /// notebooks and every chat. In a window holding a notebook it leaves the
     /// notebook first (`requestBlankReviewChat`), and the notebook's row
@@ -1130,7 +1128,7 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// A place since the card review (2026-10-01): the Memory pane, with
+    /// A place of the card review: the Memory pane, with
     /// today's cards across every notebook (a notebook one click away in the
     /// pane), Start Review, what is waiting to be checked, and every kept
     /// card. In a window holding a notebook it opens in the notebook's
@@ -1162,8 +1160,8 @@ struct StudioNavigationRail: View {
         .onAppear { goalTracker.configure(storage: vm.storage) }
     }
 
-    /// Spaces (2026-10-07): ChatGPT's Space, the first row of the rail since
-    /// the Notebooks home went (2026-10-09), with its own sidebar beside it
+    /// Spaces: ChatGPT's Space, the first row of the rail,
+    /// with its own sidebar beside it
     /// and every notebook and course in its All list. Lit while the Space is
     /// on one of this window's panes — its lists, the Courses list, or the
     /// global Pages and Sites. Today's daily note is a page in it (⇧⌘D opens it
@@ -1223,7 +1221,7 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// Plugins (2026-10-13), Codex's grid: every plugin and its state, and a
+    /// Plugins, Codex's grid: every plugin and its state, and a
     /// plugin's page a click away. A place like the Library: a pane with its
     /// ×, Open Beside, Open in Other Window and a drag; a click shows the
     /// list, as Codex's Plugins does, and in a window holding a notebook it
@@ -1328,9 +1326,9 @@ struct StudioNavigationRail: View {
     // MARK: - Chats
 
     /// A list draws this many chats, and this many more each time the
-    /// learner scrolls to its end. It was ten behind a "Show 10 more" row
-    /// until the product owner, on 2026-10-02: "instead of show 10 more i should just
-    /// be able to scroll down and see all? also make it 20". The page still
+    /// learner scrolls to its end. It is not ten behind a "Show 10 more" row
+    /// (product owner, 2026-10-02: "instead of show 10 more i should just
+    /// be able to scroll down and see all? also make it 20"). The page still
     /// matters: a notebook keeps its whole history, and a list drawn whole
     /// would push the Chats section out of reach before anyone scrolled.
     static let chatListPageSize = 20
@@ -1443,7 +1441,7 @@ struct StudioNavigationRail: View {
             // A day's review stays under Memory wherever it is filed, so
             // offering to move it would promise a change the rail never shows.
             notebooks: MemoryReviewSession.isMemorySession(session.id) ? [] : vm.notebooks,
-            // A Goal is the other home a chat can have (2026-09-20): the
+            // A Goal is the other home a chat can have: the
             // submenu lists the open ones beneath the notebooks.
             goals: MemoryReviewSession.isMemorySession(session.id) ? [] : vm.allGoals.filter { !$0.isDone && !$0.isArchived },
             // The chats this row sits beside in the rail. Only they may be
@@ -1511,8 +1509,8 @@ struct StudioNavigationRail: View {
     /// nobody continues; the pair of figures marks it apart from the
     /// learner's own chats. Every other chat draws none, as in ChatGPT's
     /// sidebar (product owner, 2026-10-06: "fewer buttons and bells and
-    /// whistles"): the iPhone and CarPlay marks, the scheduled run's clock and
-    /// the memory review's brain went that day. A memory review is listed
+    /// whistles"): there is no iPhone or CarPlay mark, no scheduled run's
+    /// clock and no memory review's brain. A memory review is listed
     /// under Memory, not in these lists, and a task's chat takes its task's
     /// title.
     private func chatRowIcon(for session: ReviewSessionRecord) -> String? {
@@ -1613,7 +1611,7 @@ struct StudioNavigationRail: View {
         // 2026-10-06: "fewer buttons and bells and whistles"). The open
         // team's badge says whose library this is, and the MCP status light
         // rides inside the button only while the connection needs attention;
-        // the comp crown is the account menu's "Usage is paid for" row now.
+        // the comp crown is the account menu's "Usage is paid for" row.
         // Their click actions live in the menu this button opens.
         HStack(spacing: 8) {
             accountAvatar(size: 22)
@@ -1805,7 +1803,7 @@ struct StudioNavigationRail: View {
     /// own key stored, everything the key
     /// covers goes straight to its router and is billed there, so the comp row
     /// said "Usage is paid for by ForeverLM · $0.00 used today" while the key
-    /// paid for the day's chats (2026-09-27). The help text names the key instead.
+    /// paid for the day's chats. The help text names the key instead.
     private var ownKeyPays: Bool { account.ownKey != nil }
 
     private var compHelpText: String {
@@ -1842,7 +1840,7 @@ struct StudioNavigationRail: View {
 
     /// The light on the account button: only while assistants cannot reach
     /// this Mac — connecting (amber), offline or failed (red). Connected
-    /// draws nothing (2026-10-06; it was a green dot at all times), and so
+    /// draws nothing (not a green dot at all times), and so
     /// do integrations the learner turned off, which is a choice rather than
     /// something to fix; `studio.showMCPStatusLight` turns it off altogether.
     /// The account menu's MCP row keeps saying how the connection stands.

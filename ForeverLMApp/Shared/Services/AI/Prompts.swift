@@ -455,7 +455,7 @@ enum Prompts {
     /// over thirty technical terms, most of them defined only in optional
     /// chips, and no concrete case anywhere. Each rule answers a finding of
     /// the learning-science review recorded in docs/walkthrough-design.md,
-    /// "2026-09-30: a walk explains the way a textbook does". Interpolated
+    /// "a walk explains the way a textbook does". Interpolated
     /// into the walkthrough writer, the course lesson writer, the explainer
     /// writer and the chats that explain.
     static let textbookExplanation = """
@@ -491,8 +491,7 @@ enum Prompts {
 
     /// Builds a source's review guide (`source_review_guides`): its questions
     /// and strong answers, which today's memory review reads beside the
-    /// canonical source text. The name is the task's synced id; the realtime
-    /// voice it was first written for went on 2026-10-01.
+    /// canonical source text. The name is the task's synced id.
     static let realtimeReviewPreparation = TutorContract.reviewPreparationInstructions
 
     /// System prompt for in-app explain-it-back review quiz sessions.
@@ -2457,14 +2456,13 @@ enum Prompts {
 
     // MARK: - Walkthroughs
 
-    /// The walkthrough's first pass (2026-09-23, from the merged lesson): the
+    /// The walkthrough's first pass: the
     /// source's argument as claims in teaching order, before any card is
     /// written. Short and cheap, and the reason the walk that follows teaches
-    /// claims instead of touring the figures one by one. Since 2026-09-29 the
-    /// claims meet the figures in their printed order by default: the walk
-    /// of "Engineered human resilience and durability" opened on its
-    /// Summary's headline, whose only figure was Figure 3, and showed Figure
-    /// 3 before Figures 1 and 2.
+    /// claims instead of touring the figures one by one. The
+    /// claims meet the figures in their printed order by default, so a walk
+    /// that opens on a summary's headline whose only figure is Figure 3 does not
+    /// show Figure 3 before Figures 1 and 2.
     static let walkthroughArgumentMapper = """
     You read one text — a research paper, a chapter of a book, or an article — and set out its argument for a guide who will walk a learner through it. You are given what the text is, the figures it prints (label · page · caption · panels · the words printed inside it · what an earlier look at it saw) or a note that it has none, and its text.
 
@@ -2488,18 +2486,18 @@ enum Prompts {
     /// source — a figure, a panel, a passage — so the Reader can scroll to it
     /// and outline or flash it; the anchors are checked against the source's
     /// figure index and text before anything is saved, so an invented figure
-    /// or a paraphrased "quote" costs the step its anchor. Since 2026-09-23
-    /// the writer is handed the argument the first pass set out and writes
+    /// or a paraphrased "quote" costs the step its anchor. The writer is
+    /// handed the argument the first pass set out and writes
     /// chapters that teach its claims, with the four question kinds and the
-    /// Say more chips the lesson had. Since 2026-09-29 the chapters meet the
+    /// Say more chips. The chapters meet the
     /// figures in printed order unless the argument needs otherwise, a step
     /// that jumps ahead says why, a figure is walked in one run with every
     /// known panel addressed, and each panel is read by its own axes
     /// (`PaperWalkthroughValidation.figureOrderWarnings` and
     /// `panelCoverageGaps` name a walk that does not). The turn says what the
     /// source is and whether it prints figures at all
-    /// (`PaperWalkthroughGeneratorService.writerUserMessage`). Since
-    /// 2026-09-30 the walk explains the way a textbook does
+    /// (`PaperWalkthroughGeneratorService.writerUserMessage`). The
+    /// walk explains the way a textbook does
     /// (`textbookExplanation`), for a newcomer unless the turn carries the
     /// learner's About you: the prerequisites are taught in beats before the
     /// steps that use them rather than left to Say more chips, each beat

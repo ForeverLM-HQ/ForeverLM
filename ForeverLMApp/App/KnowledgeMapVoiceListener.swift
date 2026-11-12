@@ -9,7 +9,7 @@ import Speech
 // owner, 2026-10-13: "make sure the time is VERY fast for these kind of
 // interactive canvas operations", and, of models, "potentially even on-disk
 // apple intelligence model if it's supported … try all these options").
-// Measured that night: OpenRouter's speech-to-text on the Dictation model
+// Measured: OpenRouter's speech-to-text on the Dictation model
 // starts only once the learner lets go, a round trip of the whole recording;
 // Apple's on-device recognizer (SpeechAnalyzer) took 83–269 ms for a whole
 // 3.5 s clip, and streamed while the learner speaks it has the words the
@@ -54,8 +54,8 @@ final class KnowledgeMapVoiceListener {
     private var running = false
     /// Whether the microphone's tap is installed. A recording (the eval)
     /// never opens it, and touching `engine.inputNode` when it was never
-    /// opened asks for the microphone, which hung `finish` behind the lock
-    /// screen on 2026-10-13.
+    /// opened asks for the microphone, which hangs `finish` behind the lock
+    /// screen.
     private var microphoneOpen = false
     /// What the microphone heard, kept as it is heard, for the transcription
     /// model the chat uses: the on-device words show as the learner speaks,

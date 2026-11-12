@@ -242,10 +242,10 @@ enum PaperService {
     ]
 
     /// True when `urlString` points at a paper's supplementary file rather
-    /// than the paper. On 2026-09-06 the reader's Download PDF, offered the
-    /// Nature page of a paper the learner had no access to, clicked the first
-    /// `.pdf` link on it — the four-page Reporting Summary — and that file was
-    /// saved as the paper's PDF, with metadata extracted from it. A file like
+    /// than the paper. The reader's Download PDF, offered the
+    /// Nature page of a paper the learner has no access to, would click the first
+    /// `.pdf` link on it — the four-page Reporting Summary — and save that file
+    /// as the paper's PDF, with metadata extracted from it. A file like
     /// this is never the paper, whatever the page offers.
     static func isSupplementaryPDFURL(_ urlString: String) -> Bool {
         let lower = urlString.lowercased()
@@ -468,7 +468,7 @@ enum PaperService {
         // script from a signed, short-lived `/doi/pdfdirect/` address. The
         // page's own Download control is `<a href="/doi/pdf/<doi>?download=true">`,
         // and a viewer page that lacks even that still says which paper it
-        // shows in its address (2026-09-21, "That link opened a page, not a PDF").
+        // shows in its address.
         if let pdfURL = unlessSupplementary(extractAtyponReaderPDFLink(fromHTML: html, relativeTo: url)) {
             return pdfURL
         }
@@ -738,10 +738,10 @@ enum PaperService {
     /// Every DOI printed in `text`, in the order printed, each as printed.
     ///
     /// A DOI's suffix may hold parentheses: The Lancet's DOIs from before 2005
-    /// read `10.1016/S0140-6736(04)16983-3`. The parsers here used to stop at
-    /// the `(`, which leaves `10.1016/S0140-6736` — itself a DOI to OpenAlex,
+    /// read `10.1016/S0140-6736(04)16983-3`. A parser that stopped at
+    /// the `(` would leave `10.1016/S0140-6736` — itself a DOI to OpenAlex,
     /// of a junk work whose open-access copy is an unrelated Lancet paper — so
-    /// importing Luoma et al. (2004) on 2026-09-28 saved Ginsburg et al. (2017)
+    /// importing Luoma et al. (2004) saved Ginsburg et al. (2017)
     /// in its place. A DOI runs to the next whitespace, quote or angle bracket;
     /// the sentence's closing punctuation comes off, and so does a `)` or `]`
     /// the DOI did not open, as `PDFReferenceEntries.doi(inReferenceEntry:)`
@@ -1014,7 +1014,7 @@ enum PaperService {
     /// scatter of small sections: citation counts, Share and Export panels,
     /// "How to cite", a footer, and the sign-in and password forms the site
     /// keeps hidden in the page. Aging Cell's Wiley landing page for a 2004
-    /// paper was stored as that paper's text (2026-11-08): its abstract ran
+    /// paper was stored as that paper's text: its abstract ran
     /// 224 words, and some twenty such sections, none over 75 words, carried
     /// it past `minimumPaperFullTextWordCount`.
     static let minimumPaperBodySectionWordCount = 150
@@ -1075,14 +1075,14 @@ enum PaperService {
 
     /// NCBI's own PDF route for a PMC article: `…/articles/<PMCID>/pdf/`.
     ///
-    /// Measured on 2026-09-23: the route answers with a 301 to the file
+    /// Measured: the route answers with a 301 to the file
     /// (`…/pdf/nihms-1720171.pdf`), and the file with PMC's "Preparing to
     /// download ..." proof-of-work page until the request carries the answer's
     /// cookie, which `SourceService.downloadPDF` computes. It is the first PDF
     /// candidate for any PMC article: Europe PMC's rendered copy
-    /// (`?pdf=render`), which the lookups used to hand out first, now answers
-    /// non-browser clients with 403 or 500, and a recheck that reached it
-    /// reported an open paper as having no PDF.
+    /// (`?pdf=render`), which answers
+    /// non-browser clients with 403 or 500, so a recheck that reached it
+    /// would report an open paper as having no PDF.
     static func ncbiPMCPDFURL(pmcid: String) -> String {
         let normalized = pmcid.uppercased().hasPrefix("PMC") ? "PMC" + pmcid.dropFirst(3) : "PMC\(pmcid)"
         return "https://pmc.ncbi.nlm.nih.gov/articles/\(normalized)/pdf/"
@@ -1108,9 +1108,9 @@ enum PaperService {
     }
 
     /// The short `…/articles/PMCXXXX/pdf` or `…/pdf/` link, with no file name
-    /// after it. `attach_pdf_to_paper` used to answer it with "No downloadable
-    /// PDF URL found", because it is not a `.pdf` path and its page scan met
-    /// the proof-of-work page, while the file it redirects to attached fine.
+    /// after it. `attach_pdf_to_paper` must not answer it with "No downloadable
+    /// PDF URL found" just because it is not a `.pdf` path and its page scan meets
+    /// the proof-of-work page: the file it redirects to attaches fine.
     static func isNCBIPMCShortPDFRoute(_ urlString: String) -> Bool {
         guard isNCBIPMCURL(urlString), let components = URLComponents(string: urlString) else { return false }
         let pattern = #"/articles/PMC\d+/pdf/?$"#
@@ -2121,7 +2121,7 @@ enum PaperService {
     }
 
     /// Europe PMC's search is Lucene syntax, where a bare `(` opens a group:
-    /// `DOI:10.1016/s0140-6736(04)16983-3` matched nothing (2026-09-28) while
+    /// `DOI:10.1016/s0140-6736(04)16983-3` matched nothing while
     /// the quoted DOI finds the record. Quoting leaves an ordinary DOI's
     /// answer unchanged.
     static func europePMCDOIQuery(_ doi: String) -> String {
@@ -2139,8 +2139,8 @@ enum PaperService {
 
     /// eLife's pages are a JavaScript app that advertises no `citation_pdf_url`
     /// and answers a request without `Accept-Encoding` with 406, so neither the
-    /// page scan nor a path rewrite finds the PDF; on 2026-09-07 an open-access
-    /// eLife paper sat in Papers that need attention for that reason. The public
+    /// page scan nor a path rewrite finds the PDF; an open-access
+    /// eLife paper would land in Papers that need attention. The public
     /// API names the file on eLife's CDN.
     static func eLifeArticle(from urlString: String) -> ELifeArticle? {
         guard let url = URL(string: urlString),
@@ -2428,14 +2428,6 @@ enum PaperService {
         let sourceName: String
     }
 
-    static func findOpenAccessAlternative(
-        url: String,
-        title: String,
-        doi storedDOI: String? = nil
-    ) async -> OpenAccessAlternativeResult? {
-        await findOpenAccessAlternatives(url: url, title: title, doi: storedDOI).first
-    }
-
     /// Discover all legitimate OA leads without pretending discovery proves
     /// downloadability. Publisher anti-bot challenges, expiring links, mirrors,
     /// and repository lag are normal on the scholarly web, so the consumer must
@@ -2463,7 +2455,7 @@ enum PaperService {
 
         // The indexes are independent, so they are asked at once: asked one
         // after another, each with its own 10–15 s timeout, a single paper's
-        // lookups outran the 60 s an MCP call has (2026-09-23). The order in
+        // lookups outran the 60 s an MCP call has. The order in
         // which their answers are appended below is the order candidates are
         // tried, and it is unchanged by asking in parallel.
         async let biorxivPublished: [OpenAccessAlternativeResult] = { () async -> [OpenAccessAlternativeResult] in
@@ -2613,8 +2605,8 @@ enum PaperService {
     /// Check Crossref for a `has-preprint` relation on a published DOI.
     private static func checkCrossrefHasPreprint(doi: String) async -> PreprintResult? {
         // The single-work route takes no `select`: with one it answers 400
-        // ("This route does not support select"), so this step never found a
-        // preprint until 2026-09-28.
+        // ("This route does not support select"), so a request with one never finds a
+        // preprint.
         guard let url = URL(string: "https://api.crossref.org/works/\(doi)") else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15

@@ -323,9 +323,7 @@ enum MemoryTutorIdentity {
             bytes.append(0)
             bytes.append(contentsOf: field.utf8)
         }
-        let digest = SHA256.hash(data: bytes)
-            .map { String(format: "%02x", $0) }
-            .joined()
+        let digest = SHA256.hash(data: bytes).hexString
         return "\(namespace)-\(digest)"
     }
 

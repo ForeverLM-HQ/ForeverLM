@@ -5,7 +5,7 @@ import Foundation
 /// (DASH) streams that carry YouTube's 720p and 1080p video.
 ///
 /// `AVURLAsset` cannot open one of these from its URL: it fails before reading a frame
-/// (error -12190, measured 2026-10-13). So this reads the file the way a DASH player does.
+/// (error -12190, measured). So this reads the file the way a DASH player does.
 /// One request fetches the initialization segment (`ftyp` and `moov`) and the segment index
 /// (`sidx`) that follows it. The index dates every media segment and gives its byte range,
 /// so only the segments that hold a requested time are fetched. Each is decoded from a small
@@ -400,7 +400,7 @@ enum SegmentedVideoFrameCapture {
     /// Such a file's timeline starts at the segment's first frame: AVFoundation lays a lone
     /// fragment's samples from zero rather than from its `tfdt` decode time, and the
     /// initialization segment's edit list absorbs the composition offset (measured on
-    /// YouTube's H.264 streams, 2026-10-13). `isFrame(at:closeEnoughTo:toleranceSeconds:)`
+    /// YouTube's H.264 streams). `isFrame(at:closeEnoughTo:toleranceSeconds:)`
     /// rejects the frame if that ever stops holding.
     static func localSeconds(_ seconds: Double, in segment: SegmentIndex.Segment) -> Double {
         min(max(0, seconds - segment.startSeconds), segment.durationSeconds)

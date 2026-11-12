@@ -225,13 +225,13 @@ final class MobileNotebookChatSession: ObservableObject {
 
 /// A notebook's Chat tab: with no chat open, the notebook's guide (the Mac's
 /// `NotebookChatGuide`) and its latest chats; else the chat under way — new,
-/// or a saved one continued — over one composer, ChatGPT's and the Mac's
-/// (2026-10-06): "Ask about <notebook>…", "+" (the chat's sources, Add
+/// or a saved one continued — over one composer, ChatGPT's and the Mac's:
+/// "Ask about <notebook>…", "+" (the chat's sources, Add
 /// Sources), the chat's model, dictation and send. A chat
 /// reads the ticked sources whole; when they do not all fit, a line over the
 /// composer says how many it reads. The toolbar holds the notebook's chats
-/// and, while a chat is open, New Chat (the conversation's own bar, with
-/// "‹ Chats", Copy and a speaker, went the same day).
+/// and, while a chat is open, New Chat (the conversation has no bar of its
+/// own).
 struct MobileNotebookChatTab: View {
     let notebook: MobileCloudNotebook
     @ObservedObject var selection: MobileNotebookChatSelectionStore
@@ -306,8 +306,7 @@ struct MobileNotebookChatTab: View {
             // Only while the Chat tab is on screen: the notebook's chats,
             // the Mac's Chats menu, and, while a chat
             // is open, ChatGPT's compose button, which goes back to the
-            // guide and its empty composer (the conversation's "‹ Chats"
-            // until 2026-10-06).
+            // guide and its empty composer.
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     showsChatHistory = true
@@ -851,7 +850,7 @@ private struct MobileNotebookChatSourcesSheet: View {
 }
 
 /// The chat under way, with its own composer bound to it. No bar of its own
-/// over the transcript (2026-10-06): New Chat and the notebook's chats are
+/// over the transcript: New Chat and the notebook's chats are
 /// the toolbar's, and Copy Conversation and Read Replies Aloud each finished
 /// reply's ⋯.
 private struct MobileNotebookConversation: View {
@@ -981,8 +980,8 @@ private struct MobileNotebookConversation: View {
     }
 }
 
-/// The notebook chat's composer, ChatGPT's and the Mac's one rounded box
-/// (2026-10-06): the field on top, saying "Ask about <notebook>…"; under it
+/// The notebook chat's composer, ChatGPT's and the Mac's one rounded box:
+/// the field on top, saying "Ask about <notebook>…"; under it
 /// "+" on the leading edge (Choose Sources, with how many the chat reads, and
 /// Add Sources), and on the trailing edge the model chip, dictation, and one
 /// round button, a filled ↑.
@@ -1089,8 +1088,7 @@ private struct MobileNotebookComposer: View {
     }
 
     /// "+", ChatGPT's and the Mac's: what the chat reads, and a way to add
-    /// to the notebook. Until 2026-10-06 the count was a "9 sources" chip
-    /// over the field.
+    /// to the notebook. The count is not a chip over the field.
     private var addMenu: some View {
         Menu {
             Button(action: onShowSources) {
@@ -1224,8 +1222,8 @@ private struct MobileNotebookComposer: View {
 }
 
 /// One saved chat in a notebook's list: its kind's grey glyph, its title, and
-/// when it last moved ("2 hr. ago"). The accent glyph and the turn count went
-/// on 2026-10-06, ChatGPT's list has neither.
+/// when it last moved ("2 hr. ago"). It has no accent glyph and no turn
+/// count, as ChatGPT's list has neither.
 struct MobileNotebookChatRow: View {
     let summary: MobileNotebookChatSummary
 

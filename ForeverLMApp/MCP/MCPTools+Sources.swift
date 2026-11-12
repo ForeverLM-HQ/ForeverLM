@@ -135,10 +135,10 @@ extension MCPDataStore {
 
     /// Every show and channel whose episodes are in knowledge, with how many.
     ///
-    /// A semantic search ranks the whole library at once, so "which Huberman
-    /// episodes are about mitochondria" competes with every other mitochondria
+    /// A semantic search ranks the whole library at once, so "which episodes of
+    /// one show are about mitochondria" competes with every other mitochondria
     /// podcast for eight slots and loses episodes of the show that was asked
-    /// about (2026-09-22: the Jared Rutter episode never surfaced). Naming the
+    /// about. Naming the
     /// show exactly is what lets `filter_sources` or a `show`-scoped search
     /// answer that exhaustively.
     func listShows(kind: String?) throws -> String {
@@ -317,7 +317,7 @@ extension MCPDataStore {
         }
 
         // The minute, not just the day: "the latest video" among five saved the
-        // same afternoon is only answerable when the order shows (2026-09-22).
+        // same afternoon is only answerable when the order shows.
         let addedAt = Self.sourceFilterMinuteFormatter()
         let shown = matches.prefix(requestedLimit)
         let countNote = matches.count > shown.count
@@ -805,8 +805,8 @@ extension MCPDataStore {
                     "key_pays_for": router.billedScope,
                 ] as [String: Any]
             },
-            // Bring your own key since 2026-09-25. The key runs AI features
-            // for every signed-in account; only MCP is paid for.
+            // Bring your own key: it runs AI features for every signed-in
+            // account.
         ]
         if let own = ManagedAI.ownKey {
             payload["configured"] = true
@@ -815,8 +815,7 @@ extension MCPDataStore {
             payload["key_suffix"] = own.suffix
             payload["key_pays_for"] = own.router.billedScope
             payload["billed_to"] = "\(own.router.label) account"
-            // The key pays for every model since realtime voice, the one
-            // thing OpenRouter could not serve, went on 2026-10-01.
+            // The key pays for every model.
             payload["balance_still_pays_for"] = "nothing while the key is stored"
         } else {
             payload["configured"] = false
@@ -2033,9 +2032,9 @@ extension MCPDataStore {
 // MARK: - Saying a listing is narrowed
 
 /// A take's listings are narrowed, and a client that cannot tell would read
-/// "the library holds only this" and confidently pick the closest match: on
-/// 2026-10-11 a client asking for the Notebook about a paper got the one empty
-/// Notebook a recording Mac listed, from the learner's other Mac, and chose it.
+/// "the library holds only this" and confidently pick the closest match: a client asking for the Notebook about a
+/// paper would get the one empty Notebook a recording Mac lists, from the
+/// learner's other Mac, and choose it.
 /// So while the mode is on, each listing it narrows says so in one field.
 ///
 /// The note names nothing that is left out, and no count of it either. A count

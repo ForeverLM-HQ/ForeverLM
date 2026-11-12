@@ -6,9 +6,8 @@ import Foundation
 /// The turn is Markdown the chat renderer already draws: the step's title as
 /// a heading, its paragraphs, the authors' own sentence about the panel as a
 /// quotation, the panel the step is about as a source image
-/// cropped to the panel's rectangle (the lens the resolver used to render
-/// for the panel — here the image grammar `SourceImageReference` carries the
-/// crop and every client renders it from its own PDF) when no Reader beside
+/// cropped to the panel's rectangle (the image grammar `SourceImageReference`
+/// carries the crop and every client renders it from its own PDF) when no Reader beside
 /// the chat is already showing the figure outlined, and, last, the step's
 /// question. The first line is the `WalkthroughStepTurn` marker, which
 /// the transcript reads to draw the anchor chip, panel letters and animation
@@ -103,8 +102,8 @@ enum WalkthroughStepComposer {
     /// Walkthrough Grading prompt held, folded into the reply). Kept out of
     /// the visible message: the learner typed their answer, not the rubric.
     ///
-    /// Since 2026-09-30 the reply is feedback that teaches, not a verdict
-    /// (docs/walkthrough-design.md, "2026-09-30: a walk explains the way a
+    /// The reply is feedback that teaches, not a verdict
+    /// (docs/walkthrough-design.md, "a walk explains the way a
     /// textbook does"): feedback that only says right or wrong does almost
     /// nothing, while the answer with why, tied back to what showed it, is
     /// what a question adds. An answer on the right track but short of it

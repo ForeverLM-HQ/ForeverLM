@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 // MARK: - Teams
@@ -133,8 +132,8 @@ enum TeamContentIdentity {
     /// A team's copy of a linked page — a ForeverLM site, a Claude artifact,
     /// a Codex site, a Google Doc. Keyed by the page's address rather than
     /// the record's id: a site rebuilt under the same address gets a new
-    /// record each time (three "Mitochondrial Therapeutics Atlas" copies on
-    /// 2026-09-19, one per rebuild), so the id has to name the page, not the
+    /// record each time (three "Mitochondrial Therapeutics Atlas" copies, one
+    /// per rebuild), so the id has to name the page, not the
     /// row that happened to point at it. Same normalization as `sourceID`.
     static func linkedPageArtifactID(teamID: String, url: String) -> String {
         "doc_" + hex("team:\(teamID):page:\(URLNormalizer.normalize(url))")
@@ -209,8 +208,7 @@ enum TeamContentIdentity {
     }
 
     private static func hex(_ key: String) -> String {
-        let digest = SHA256.hash(data: Data(key.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        key.sha256Hex
     }
 }
 

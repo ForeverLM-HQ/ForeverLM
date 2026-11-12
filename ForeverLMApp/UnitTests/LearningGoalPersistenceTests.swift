@@ -307,7 +307,7 @@ struct LearningGoalPersistenceTests {
 
         // Over-long text is capped rather than refused.
         try store.setLearningGoalSummary(goalID: goal.id, summary: String(repeating: "x", count: 500))
-        #expect(try #require(try store.loadLearningGoal(goal.id)).summary?.count == LearningGoalRecord.summaryMaxLength)
+        #expect(try #require(try store.loadLearningGoal(goal.id)).summary?.count == NotebookSummary.maxLength)
 
         try store.setLearningGoalSummary(goalID: goal.id, summary: "   ")
         let cleared = try #require(try store.loadLearningGoal(goal.id))
@@ -513,10 +513,6 @@ struct LearningGoalPersistenceTests {
         }
         sqlite3_finalize(statement)
         return value
-    }
-
-    private static func userVersion(at root: URL) -> Int32 {
-        Int32(scalarInt(at: root, "PRAGMA user_version"))
     }
 
     private static func columnExists(at root: URL, table: String, column: String) -> Bool {

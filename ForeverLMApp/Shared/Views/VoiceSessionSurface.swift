@@ -7,9 +7,9 @@ import UIKit
 // The voice conversation's screen: the ForeverLM mark moving with the session,
 // what the conversation reads, and the controls to mute or end it. Drawn by
 // voice mode on the Mac and the iPhone (`RealtimeVoiceController`, OpenAI
-// Realtime, back since 2026-11-07): a source, the assistant and CarPlay, and
+// Realtime): a source, the assistant and CarPlay, and
 // Review by Voice. It shows no words while the conversation talks (product
-// owner, 2026-11-07). The mark itself (`VoiceOrb`) is also the loading
+// owner). The mark itself (`VoiceOrb`) is also the loading
 // indicator on both platforms.
 
 enum VoiceSessionPhase: Equatable {
@@ -546,11 +546,11 @@ private struct VoiceContextCard: View {
 /// into a *mask*: it says which part of the artwork to reveal, and none of it is
 /// ever drawn. Nothing on screen is a curve this file decided the shape of.
 ///
-/// **The colours are the artwork's too.** The first version of this kept the
-/// sphere's per-activity palette and washed the mark in it — blue while
-/// listening, red while speaking. It read as a blue infinity symbol, not as our
-/// logo, which is exactly the trap `ForeverLMMark` warns about. So the palette
-/// is gone: the drift here is the same trick that view uses, taking its colour
+/// **The colours are the artwork's too.** A per-activity palette washed over the
+/// mark — blue while listening, red while speaking — would read as a blue
+/// infinity symbol, not as our logo, which is exactly the trap `ForeverLMMark`
+/// warns about. So there is no palette: the drift here is the same trick that
+/// view uses, taking its colour
 /// from enlarged, blurred, slowly orbiting copies of the artwork's own pixels,
 /// so every colour on screen is one the mark already contains, just somewhere
 /// else on it.

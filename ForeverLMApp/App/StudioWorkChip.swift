@@ -1,7 +1,7 @@
 #if os(macOS)
 import SwiftUI
 
-// MARK: - Work running in the background, as one quiet chip (2026-10-06)
+// MARK: - Work running in the background, as one quiet chip
 //
 // The product owner, 2026-10-06: "make the app more slick; kind of like the chatgpt app.
 // maybe cleaner and fewer buttons and bells and whistles". The Studio window's
@@ -17,7 +17,7 @@ import SwiftUI
 // Undo, the toast. The record is docs/ui-design.md, "Background work is one
 // chip", and docs/mcp-gateway.md, "What the learner sees while a call runs".
 //
-// Since 2026-10-13 the chip is an icon in the strip's bottom left, above the
+// The chip is an icon in the strip's bottom left, above the
 // OpenRouter one for paid work (product owner, 2026-10-13, of "2 things running"
 // over the Reader: "should instead be in the bottom left as an icon", "perhaps
 // with the chatgpt icon if it's codex; and with the claude icon if it's
@@ -68,8 +68,7 @@ struct StudioWorkItem: Identifiable, Equatable {
     }
 
     /// The chip's line: who is doing what to what. A running call names the
-    /// app that asked, the one thing the product owner asked to see while it works
-    /// (2026-09-27).
+    /// app that asked, the one thing the product owner asked to see while it works.
     var chipTitle: String {
         switch kind {
         case .assistant(let activity):

@@ -17,9 +17,8 @@ enum NotebookChatHome: Equatable {
 extension StudioViewModel {
     /// A notebook's chats in the rail's order — those filed in it and those
     /// on a Goal drawing on it (`reviewSessionGroups`) — for the notebook
-    /// window's Chats menus and its guide, where the full rail's folder
-    /// listed them before the rail became an icon strip in a notebook
-    /// (docs/notebooks-design.md, "The rail"). Every one: the menus list them
+    /// window's Chats menus and its guide, since the rail is an icon strip in a
+    /// notebook (docs/notebooks-design.md, "The rail"). Every one: the menus list them
     /// all, and the guide shows the latest and lists the rest on request.
     func notebookChats(notebookID: String) -> [ReviewSessionRecord] {
         guard let notebook = notebook(id: notebookID) else { return [] }

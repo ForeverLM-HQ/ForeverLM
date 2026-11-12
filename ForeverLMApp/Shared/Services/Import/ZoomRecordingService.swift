@@ -31,12 +31,12 @@ import OSLog
 /// failure: the caller keeps the session waiting and asks again later
 /// (`StudioViewModel.fetchZoomTranscript`).
 ///
-/// There used to be a fallback that downloaded the MP4 and paid for STT when
-/// Zoom had published no transcript. It never once worked: a share link hands
-/// an anonymous download a few seconds of the recording (2026-09-10 and -11:
-/// 5.1 s and 6.6 s of audio from 15-minute standups, per the usage ledger), so
-/// every standup ended in "Transcription produced no text" — and removal is a
-/// tombstone, so three of them can never be re-filed. The product owner, twice
+/// There is no fallback that downloads the MP4 and pays for STT when
+/// Zoom has published no transcript. It cannot work: a share link hands
+/// an anonymous download a few seconds of the recording (5.1 s and 6.6 s of
+/// audio from 15-minute standups), so every standup would end in "Transcription
+/// produced no text" — and removal is a tombstone, so such a standup can never
+/// be re-filed. The product owner, twice
 /// (2026-09-12: "no need to also have the recordings"; 2026-09-15: "we never
 /// really need to upload the recording, just the transcript is ok"). Waiting
 /// for Zoom is the whole strategy; do not reintroduce a media route.

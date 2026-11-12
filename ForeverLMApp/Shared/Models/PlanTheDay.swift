@@ -8,7 +8,7 @@ import Foundation
 /// fully stick to it; but the act of making a plan is helpful!").
 ///
 /// The day is the Mac's Calendar, and planning it is a chat that writes events
-/// into it (2026-09-30), so the question is whether today's calendar holds
+/// into it, so the question is whether today's calendar holds
 /// anything the learner planned. The question is a card at the bottom left of
 /// every Studio window, in the navigation rail's footer over the Now chip
 /// (`PlanTheDayCard`), that waits there until it is answered, and a

@@ -210,8 +210,8 @@ private final class RailTooltipPanel {
         // panel's content view with the default sizing options, the hosting
         // view pinned the panel's min and max size to SwiftUI's on every
         // constraints pass, and when the two disagreed each pass resized the
-        // panel and asked for another, until AppKit ended the app (build 210,
-        // 2026-10-11: clicking the calendar glyph quit ForeverLM). So the
+        // panel and asked for another, until AppKit ended the app (clicking the
+        // calendar glyph quit ForeverLM). So the
         // hosting view sits inside a plain view and sizes nothing.
         hosting.sizingOptions = []
         let container = NSView(frame: NSRect(origin: .zero, size: size))

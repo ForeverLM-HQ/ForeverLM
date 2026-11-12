@@ -209,8 +209,8 @@ extension SourceImageReference {
     ///
     /// This is not a reference the chat hands out — `slide/<n>` is — but it is
     /// what a model writes when it reads the slide block in a transcript and
-    /// pastes the path it finds there (2026-09-10: a reply carried exactly
-    /// that, and the chat drew a broken picture). Recognising the path lets
+    /// pastes the path it finds there (a reply carried exactly that, and the
+    /// chat drew a broken picture). Recognising the path lets
     /// the app turn it into the portable reference before the reply is kept,
     /// and lets a transcript that already carries one still show the slide.
     struct SlideFramePath: Hashable, Sendable {

@@ -237,7 +237,7 @@ struct SeedRowReader {
     /// Hands every row of a table to the outbox in one set-based statement, each as `enqueue` hands it: a
     /// table an activated store's trigger refresh watches for the first time (`installOutboxTriggers`),
     /// whose rows no trigger saw and no seed walked. Bounded by the table, which only a projection
-    /// registered after the activation makes new (the Ideas, 2026-10-13). Returns how many rows it queued.
+    /// registered after the activation makes new (the Ideas). Returns how many rows it queued.
     @discardableResult
     func enqueueAll(of table: SeedTable) throws -> Int {
         let merged = try merged(table)

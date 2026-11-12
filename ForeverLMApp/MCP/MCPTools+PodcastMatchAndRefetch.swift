@@ -97,9 +97,9 @@ extension MCPDataStore {
     /// Search for a podcast episode matching a source and stage the match for
     /// confirmation. The match is handed to the app (`offerPodcastMatch`),
     /// whose source holds it for the reader's Confirm button and for
-    /// resolve_podcast_match: it has no column, so a match this tool wrote to
-    /// SQLite alone was gone by the time resolve_podcast_match read the row
-    /// back, and the row was left asking to confirm nothing (2026-10-02).
+    /// resolve_podcast_match: it has no column, so a match written to
+    /// SQLite alone would be gone by the time resolve_podcast_match read the
+    /// row back, and the row would be left asking to confirm nothing.
     func findPodcastMatch(sourceID: String) async throws -> String {
         let store = try knowledgeStore()
         let id = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)

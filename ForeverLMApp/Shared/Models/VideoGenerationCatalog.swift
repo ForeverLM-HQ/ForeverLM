@@ -153,7 +153,7 @@ enum VideoGenerationCatalog {
 
     /// Settings › Videos' Suggested list: one model per maker, the best that
     /// is still affordable, as Settings › Chat suggests its own. Picked from
-    /// OpenRouter's video directory on 2026-09-28, at 720p: Veo 3.1 Fast
+    /// OpenRouter's video directory, at 720p: Veo 3.1 Fast
     /// $0.10 a second with sound, Wan 3.0 $0.10, Kling v3.0 Standard $0.084,
     /// MiniMax's H3 Max $0.08, Runway Gen-4.5 $0.12, Grok Imagine Video 1.5
     /// $0.14, FLUX.3 Video $0.17, Seedance 2.0 Fast by video tokens; Sora 2
@@ -173,8 +173,8 @@ enum VideoGenerationCatalog {
 
     static let directoryURL = OpenRouterAPI.videoModels
 
-    /// The ids stored before 2026-09-27, when Veo was filmed on Google's own
-    /// API, and the OpenRouter slug each became.
+    /// The ids stored when Veo was filmed on Google's own API, and the
+    /// OpenRouter slug each became.
     static let makerNativeIDs: [String: String] = [
         "veo-3.1-fast-generate-preview": "google/veo-3.1-fast",
         "veo-3.1-lite-generate-preview": "google/veo-3.1-lite",

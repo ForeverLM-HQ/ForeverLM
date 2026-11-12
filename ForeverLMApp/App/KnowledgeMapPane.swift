@@ -49,9 +49,9 @@ struct KnowledgeMapPane: View {
     /// The narrowest the plane is drawn beside its sidebars: room for its
     /// tools, the find field and the Library button. Below it the sidebars
     /// step aside (the Space's first, then the Library) rather than push the
-    /// pane wider than its frame: on 2026-10-13 a canvas opened beside the
-    /// home in a 1,300-point window drew its Space sidebar under the home and
-    /// cut the Library off at the window's edge.
+    /// pane wider than its frame: a canvas opened beside the home in a
+    /// 1,300-point window would otherwise draw its Space sidebar under the
+    /// home and cut the Library off at the window's edge.
     private static let minimumPlaneWidth: CGFloat = 440
     private static let librarySidebarWidth: CGFloat = 300
 

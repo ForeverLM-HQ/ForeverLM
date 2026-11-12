@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// The phone's memory answers (§3.5.22, §3.5.23): an attempt is an answer in this device's `Sitting`
@@ -23,8 +22,7 @@ actor MobileMemoryAttemptRecorder {
     /// The canonical record name of an attempt (the Mac's `CloudKitRecordMapper.recordName(for:
     /// .memoryAttempt, …)`), so the mobile catalog can publish the just-saved attempt at once.
     static func recordName(for attemptID: String) -> String {
-        let digest = SHA256.hash(data: Data("\(entityRawValue):\(attemptID)".utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        "\(entityRawValue):\(attemptID)".sha256Hex
     }
 
     /// Written once into the device's Sitting; the same answer again is a replay, another under this id

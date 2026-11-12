@@ -663,7 +663,7 @@ extension StudioSidebar {
         }
 
         // Every notebook holding this source, a click opening it in this
-        // window: the Library's rows no longer name them (product owner, 2026-10-03:
+        // window: the Library's rows do not name them (product owner, 2026-10-03:
         // "that can be upon right click maybe (show all notebooks that this
         // source is used in)").
         if !usesMultiSelection {
@@ -745,7 +745,7 @@ extension StudioSidebar {
             }
             .disabled(articleSpeech.backgroundGenerationSourceIDs.contains(article.id))
 
-            // The row's trash shows only under the pointer (2026-10-06), so
+            // The row's trash shows only under the pointer, so
             // its action is here too, as in the Reader's ⋯. One file stat,
             // made when the menu opens: this menu is built on request, not
             // with the rows.

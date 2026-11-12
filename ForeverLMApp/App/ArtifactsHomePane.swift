@@ -4,22 +4,20 @@ import SwiftUI
 /// **The Space**, the home of the app: ChatGPT's Space, copied (product owner,
 /// 2026-10-06, showing ChatGPT's: "maybe just copy this spaces design entirely
 /// from chatgpt; it looks good. i want you to do that and get to feature
-/// parity and also make sure it looks equally beautiful"), and the home since
-/// 2026-10-09, when the Notebooks home went ("it doesn't add anything") and
-/// the Space's All began to list every notebook and course. The Space sidebar
+/// parity and also make sure it looks equally beautiful"), and the home
+/// (product owner, 2026-10-09: the Notebooks home "doesn't add anything"), so
+/// the Space's All lists every notebook and course. The Space sidebar
 /// on the leading edge (New chat; Notebooks, Courses, Pages, Sites, Images,
 /// Google Drive; Recents; Spaces; Trash), and beside it the place chosen
 /// (`SpaceBrowseView`). A page opens in the page pane, which draws the same
 /// sidebar beside it (`ArtifactCanvas`), so opening one changes only what is
 /// beside the sidebar (docs/docs-design.md, "The Space").
 ///
-/// It began on 2026-09-17 as the Artifacts page over everything made, became
-/// the Notebooks home's Artifacts tab (2026-10-01), and its
-/// Docs tab on 2026-10-06, when the product owner said "maybe artifacts should JUST be at the
-/// notebook level.. not some overarching artifacts page" and kept Docs, Sites
-/// and Ideas above the notebooks. Copying the Space brought one kind back the
-/// same day: Images, a row of ChatGPT's sidebar, lists every picture this Mac
-/// holds again. The other one-off kinds — animations, audio overviews, films,
+/// There is no overarching artifacts page (product owner, 2026-10-06: "maybe
+/// artifacts should JUST be at the notebook level.. not some overarching
+/// artifacts page"); Docs, Sites and Ideas sit above the notebooks. Images, a
+/// row of ChatGPT's sidebar, lists every picture this Mac holds. The other
+/// one-off kinds — animations, audio overviews, films,
 /// walkthroughs, narrations, and a mnemonic reading a notebook holds — stay
 /// in their notebook's Studio (`NotebookOutputs`,
 /// `isListedOnlyInItsNotebook`).
@@ -94,8 +92,7 @@ struct ArtifactsHomePane: View {
         .background(Color(nsColor: .windowBackgroundColor))
         // Over the sidebar the chrome line holds nothing but the window's
         // own controls: the sidebar's top line is its first row
-        // (`SpaceSidebar.onSearch`). Over the list it holds nothing either:
-        // the Space | Goals tabs there went on 2026-10-10 (`SpaceTab`).
+        // (`SpaceSidebar.onSearch`). Over the list it holds nothing either.
         .studioChromeLineHeader {
             HStack(spacing: 0) {
                 if showsSidebar {
@@ -111,9 +108,8 @@ struct ArtifactsHomePane: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Space")
         // The list is the view model's; nothing else is guaranteed to have
-        // loaded it. Until 2026-09-19 the home drew only what a Docs or Sites
-        // pane had loaded before it, so opened first after launch it said
-        // "Nothing here yet" over a full library.
+        // loaded it, and a home opened first after launch would say "Nothing
+        // here yet" over a full library.
         .task {
             await vm.loadArtifacts()
             await vm.refreshPublishedDocStatuses()

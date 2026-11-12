@@ -174,7 +174,7 @@ enum PDFTextExtractor {
     ///   a page another figure holds. Failing that, a legend
     ///   opening its page under the running head belongs to a figure that
     ///   filled the page before, as Nature sets one: indexed to the caption's
-    ///   page, Fig. 6 of the cardiac-sodium paper (2026-09-20) cropped to the
+    ///   page, Fig. 6 of the cardiac-sodium paper cropped to the
     ///   running head. Otherwise it stays on its page.
     ///
     /// Pixels are read for a legend's page, and for the caption-free pages
@@ -345,10 +345,10 @@ enum PDFTextExtractor {
 
     /// A compact, portable figure index appended to canonical text.
     ///
-    /// This used to be a list of `![caption](file:///…)` links pointing at
-    /// rendered page JPEGs. Those absolute paths named one Mac's home directory,
-    /// so they were already dead on a second machine and meaningless to a model
-    /// reading the text. A label and a page number travel everywhere and are all
+    /// It is not a list of `![caption](file:///…)` links pointing at rendered
+    /// page JPEGs: those absolute paths name one Mac's home directory, so they
+    /// are dead on a second machine and meaningless to a model reading the
+    /// text. A label and a page number travel everywhere and are all
     /// any client needs to render the figure from the PDF itself. Captions are
     /// not repeated here — they are already in the extracted page text above.
     private static func figurePageMarkdown(
@@ -371,8 +371,8 @@ enum PDFTextExtractor {
     }
 
     /// A caption is a paragraph, and the page's text breaks it into lines
-    /// wherever the layout did. Until 2026-09-21 a record's caption was the
-    /// line its label opened, so Fig. 1 of the cardiac-sodium paper was titled
+    /// wherever the layout did. A caption taken as the line its label opened
+    /// would title Fig. 1 of the cardiac-sodium paper was titled
     /// "Intracellular Na elevation and contractility in isolated Langendorff"
     /// — the title's first printed line, cut where the column wrapped
     /// (the product owner: "this is not the full title actually"). With only the text
@@ -480,7 +480,7 @@ enum PDFTextExtractor {
     /// Page 6 of the Biophysical Journal's "How and when to measure
     /// mitochondrial inner membrane potentials" reads "… as exemplified in"
     /// / "Fig. 5. The measured fluorescence both inside and outside", and
-    /// until 2026-09-28 that sentence was Figure 5's title; its legend,
+    /// that sentence would be Figure 5's title; its legend,
     /// "FIGURE 5 Potential pitfalls…", is printed lower on the page.
     /// `PaperFigureRectRefiner.PageText.paragraphs` reads the line the same
     /// way, as a reference in the text. Only a page's measured lines can say
@@ -584,7 +584,7 @@ enum PDFTextExtractor {
             // The page's text can run two printed lines into one: a
             // watermark set across the page and the label printed under
             // it, "ACCELERATED ARTICLE PREVIEWExtended Data Fig. 1" (a
-            // Nature accelerated preview, 2026-09-28). A line that opens no
+            // Nature accelerated preview). A line that opens no
             // caption is read again as the lines PDFKit lays it out in,
             // when one of those opens one.
             if printed.count > 1, PaperFigureCaptionTitle.label(openingLine: line) == nil,
@@ -682,7 +682,7 @@ enum PDFTextExtractor {
         // is no text to sample a language from beforehand. The pixels are the
         // first evidence of the language, and they arrive here.
         //
-        // Measured 2026-08-19 on rendered pages. A hardcoded `["en-US"]` reads
+        // Measured on rendered pages. A hardcoded `["en-US"]` reads
         // Latin and Cyrillic correctly — Dutch survives blur and downscaling to
         // 85% word accuracy with byte-identical output either way — so a
         // language list buys nothing there. It returns an *empty string* for
@@ -763,8 +763,8 @@ private struct FigurePlacement {
         // of a label however often it is printed — a caption re-begun after a
         // broken line, a "Fig. 3 | continued", a bioRxiv page headed "Figure
         // 2" over the legend "Figure 2 – ATP synthesis…" — so a repeat on one
-        // page no longer needs dropping, which kept the heading and lost the
-        // words (2026-09-28).
+        // page needs no dropping (which would keep the heading and lose the
+        // words).
         var labels: [String] = []
         var printed: [String: [Caption]] = [:]
         for pageIndex in pages {
@@ -785,7 +785,7 @@ private struct FigurePlacement {
         // running text that opens with the label lends it words only when no
         // legend is printed: the Biophysical Journal's "… as exemplified in /
         // Fig. 5. The measured fluorescence…" came before Figure 5's legend
-        // on its page, and titled the figure (2026-09-28).
+        // on its page, and titled the figure.
         let words: [String: Caption] = printed.compactMapValues { lines in
             lines.first { !$0.isRunningText && !PaperFigureCaptionTitle.isStub($0.caption) }
                 ?? lines.first { !PaperFigureCaptionTitle.isStub($0.caption) }
@@ -830,8 +830,8 @@ private struct FigurePlacement {
             // follow one another — with two or more of them left without a
             // figure are a legends section, a preprint's, whose figures follow
             // on pages of their own however far on: 21 legends on pages 24–33
-            // and their figures on pages 42–62 of one bioRxiv preprint
-            // (2026-09-28). All such legends are then paired forward over the
+            // and their figures on pages 42–62 of one bioRxiv preprint. All
+            // such legends are then paired forward over the
             // later figure pages together, the nearest winning — a PMC
             // manuscript lists main legends it has no figures for before the
             // supplementary ones its last pages show — and the pairing is kept
@@ -899,7 +899,7 @@ private struct FigurePlacement {
 
     /// Whether a figure stands beside `legend` on its page: its region holds
     /// one (`PaperFigureRectRefiner.figureRegion`). Figure 4 of a JBC paper
-    /// (2026-09-28) fills the page before its legend, which is printed at the
+    /// fills the page before its legend, which is printed at the
     /// foot of Figure 5's page under two columns of text; with the page
     /// showing Figure 5, Figure 4 was indexed there and cropped to the text.
     /// A legend the page's text cannot place, or a sentence of the running

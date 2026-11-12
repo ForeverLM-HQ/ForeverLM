@@ -582,10 +582,10 @@ extension ReviewSessionManager {
     /// honor is dropped, mirroring a manual pick; nil is the model's default.
     ///
     /// When the saved model is retired, this clears any stale override rather
-    /// than leaving it in place. The routing path already refused to restore a
-    /// retired provider, but the composer pill kept rendering the saved model
-    /// from the session row — so the UI named a model that would never answer,
-    /// which is worse than naming the wrong one. The caller logs the switch.
+    /// than leaving it in place. The routing path refuses to restore a
+    /// retired provider, and the composer pill renders the saved model from the
+    /// session row — so left alone the UI would name a model that never
+    /// answers, which is worse than naming the wrong one. The caller logs the switch.
     nonisolated static func restoreSessionModelOverride(
         provider providerRaw: String?,
         modelID: String?,
@@ -1071,9 +1071,9 @@ extension ReviewSessionManager {
             case .native:
                 // The provider's tool rides every round: idle it costs nothing,
                 // and a model that read a doc or searched the library first still
-                // needs the web afterwards. Deep Research used to carry it on the
-                // first round only, so one library lookup silently turned the
-                // rest of the turn into a library-only answer. Its per-turn bound
+                // needs the web afterwards. Carrying it on the first round only
+                // would let one library lookup silently turn the rest of the
+                // turn into a library-only answer. Its per-turn bound
                 // is the round budget below on top of the per-request search
                 // ceiling (`AIWebSearchDepth.deepResearch`).
                 attachWebSearch = deepResearchTurn
@@ -1899,10 +1899,10 @@ extension ReviewSessionManager {
             )
         }
         // A source has one contour, at its opening. Probes that follow are
-        // graded by the tutor's own reply, not by the grader: on 2026-09-21 a
-        // paper's full seven-idea contour was re-graded on eight consecutive
-        // answers, so every correct answer to a narrow probe still scored ~0.1
-        // against the whole paper and eight low contours went onto its ladder.
+        // graded by the tutor's own reply, not by the grader: a
+        // paper's full seven-idea contour re-graded on every answer would
+        // score every correct answer to a narrow probe ~0.1
+        // against the whole paper and put a low contour on its ladder each time.
         if let sourceID = (arguments["source_id"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            memoryReviewStatusBySource[sourceID] != nil {

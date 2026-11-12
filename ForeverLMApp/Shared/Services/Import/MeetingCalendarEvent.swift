@@ -30,7 +30,7 @@ enum MeetingCalendarEvent {
     /// for a reconnect: Zoom's forty-minute cut ends the "Alan <> Zara"
     /// call at 09:12, the host starts a new one at 09:13 in a personal room
     /// the calendar shows as "Alan Young's Zoom Meeting" 09:15–09:45,
-    /// and the recording files under the first call's topic (2026-09-21). A
+    /// and the recording files under the first call's topic. A
     /// recording cannot begin inside a meeting that is over; only a day with
     /// nothing else takes it.
     static func event(startingAt start: Date, title: String, in events: [AppleCalendarEvent]) -> AppleCalendarEvent? {
@@ -125,9 +125,9 @@ enum MeetingCalendarEvent {
     /// down. Pure.
     static func knownStart(of article: StudioArticle, calendar: Calendar = .current) -> Date? {
         // The key is read off the URL by hand, not through URLComponents: a
-        // series id with a colon (`zoom:examplefellowship.zoom.us`) made
+        // series id with a colon (`zoom:examplefellowship.zoom.us`) makes
         // URLComponents refuse the URL, and every session of that series
-        // answered nil here (2026-09-19).
+        // would answer nil here.
         guard let key = StudioViewModel.meetingSessionKey(fromSourceURL: article.url) else { return nil }
         let pattern = #"(\d{4})[/-](\d{1,2})[/-](\d{1,2})\s+(\d{1,2})[:.](\d{2})"#
         guard let regex = try? NSRegularExpression(pattern: pattern),

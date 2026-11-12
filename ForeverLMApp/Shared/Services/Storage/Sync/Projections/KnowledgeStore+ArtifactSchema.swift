@@ -18,7 +18,7 @@ extension KnowledgeStore {
             ("local_path", "TEXT"),
         ], constraints: ["PRIMARY KEY (artifact_id, file_key)"]),
         // The time this Mac's seed or reconcile had a body's upload acknowledged (`sent_at`),
-        // keyed by wire id. `base_hash` and `base_text` are no longer written.
+        // keyed by wire id. `base_hash` and `base_text` are never written.
         ReplicaSchemaTable("ck_body_sends", [
             ("record_type", "TEXT NOT NULL"),
             ("wire_id", "TEXT NOT NULL"),

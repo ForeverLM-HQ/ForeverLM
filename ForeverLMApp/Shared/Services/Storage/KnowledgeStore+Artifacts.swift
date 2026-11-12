@@ -332,7 +332,7 @@ extension KnowledgeStore {
     /// last knew the server to hold, written when a body arrives from CloudKit
     /// and when CloudKit acknowledges an upload. It is the base a three-way
     /// merge needs when a server body arrives while this Mac holds a newer one
-    /// (`CloudKitRecordMapper.mergeArtifactServerConflict`). Neither sidecar is
+    /// (`ArtifactThreeWayMerge`, applied by `DocBodies`). Neither sidecar is
     /// synced; each is this device's own bookkeeping.
     private static let artifactBaseDocumentName = "document.base.md"
     /// A server body this Mac could not merge into its own — the same passage

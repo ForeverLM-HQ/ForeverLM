@@ -201,8 +201,8 @@ enum DirectionHomeKind: String, Codable, CaseIterable, Sendable {
 
     var noun: String { rawValue }
 
-    /// Reads the kind an older build saved as 'project' (a notebook was called a project
-    /// until 2026-10-04) as `.notebook`; writes only the current word.
+    /// Reads the kind a stored record may carry as 'project' (the word a
+    /// notebook was once called) as `.notebook`; writes only the current word.
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
         guard let kind = Self(rawValue: raw == "project" ? Self.notebook.rawValue : raw) else {
@@ -335,18 +335,10 @@ struct DirectionEvidence: Codable, Equatable, Hashable, Sendable {
     }
 
     /// A DOI as `10.x/y`: resolver prefixes and a `doi:` label stripped,
-    /// lowercased. nil when what is left is not a DOI.
+    /// lowercased. nil when what is left is not a DOI
+    /// (`PaperWalkthroughCitation.normalizedDOI`).
     static func normalizedDOI(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
-        for prefix in ["https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/", "doi:", "DOI:"] {
-            if value.lowercased().hasPrefix(prefix.lowercased()) {
-                value = String(value.dropFirst(prefix.count))
-                break
-            }
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard value.hasPrefix("10."), value.contains("/") else { return nil }
-        return value
+        PaperWalkthroughCitation.normalizedDOI(raw)
     }
 }
 

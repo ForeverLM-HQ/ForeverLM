@@ -94,7 +94,7 @@ enum MacSyncDeviceID {
 
     static var account: String {
         let folder = ForeverLMRuntimeIdentity.applicationSupportRootURL.standardizedFileURL.path
-        return "deviceID.\(SHA256.hash(data: Data(folder.utf8)).prefix(6).map { String(format: "%02x", $0) }.joined())"
+        return "deviceID.\(SHA256.hash(data: Data(folder.utf8)).prefix(6).hexString)"
     }
 
     static func current(clockDeviceID: String?) -> String {
@@ -133,7 +133,7 @@ enum MacSyncDeviceID {
 
     /// A unit-test host keeps the id in memory and never touches the Keychain: each build signs its
     /// host anew, so the Keychain asks whether that host may read the item, and the question waited
-    /// forever behind a locked screen (2026-10-14, `get_mcp_status` in the full suite).
+    /// forever behind a locked screen (a stalled `get_mcp_status` in the full suite).
     private static let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     private static let testHeld = OSAllocatedUnfairLock<String?>(initialState: nil)
 

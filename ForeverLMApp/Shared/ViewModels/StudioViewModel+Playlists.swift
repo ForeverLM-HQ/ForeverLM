@@ -202,11 +202,10 @@ extension StudioViewModel {
     ///
     /// A playlist import is the learner asking for exactly these videos, so a
     /// removal tombstone or an archived row left by an earlier import of the
-    /// same course must not veto it. Until 2026-09-11 it did: re-importing MIT
-    /// 7.05 after removing it found every video dismissed, `insertSourceIfNew`
-    /// refused each one, the loop skipped them without a word, and the learner
-    /// got an empty course plus "All videos from this playlist are already in
-    /// your library." The dismissal is cleared (and synced) here the way a
+    /// same course must not veto it: re-importing a course after removing it would find
+    /// every video dismissed, `insertSourceIfNew` would refuse each one, and
+    /// the learner would get an empty course plus "All videos from this
+    /// playlist are already in your library." The dismissal is cleared (and synced) here the way a
     /// re-liked video clears its own, and a storage failure on one video is
     /// counted and reported instead of silently swallowed.
     func attachPlaylistItems(

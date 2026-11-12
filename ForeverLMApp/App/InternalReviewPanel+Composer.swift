@@ -30,8 +30,8 @@ extension InternalReviewPanelContent {
     /// and whistles"): above the field only what the learner put there (a
     /// passage, pictures); in it the tokens that change how the next message
     /// is read; under it "+" on the leading edge, and the model and its
-    /// effort, the mic and send or Stop on the trailing one. Since 2026-10-11
-    /// it is Codex's (product owner: "make the chat experience more look
+    /// effort, the mic and send or Stop on the trailing one. It is
+    /// Codex's (product owner, 2026-10-11: "make the chat experience more look
     /// chatgpt codex"): a solid card, with the notebook and what is in
     /// context, where the window does not already say it, on a grey tray
     /// behind its top edge, as Codex shows the project there
@@ -356,9 +356,9 @@ extension InternalReviewPanelContent {
     }
 
     /// "+" at the composer's leading edge, as in ChatGPT's: what can be added
-    /// to the message, and Deep Research, which took the place of the
-    /// always-visible Chat / Deep Research pill on 2026-10-06 (the product owner: "make
-    /// the app more slick; kind of like the chatgpt app"). Its menu opens
+    /// to the message, and Deep Research, with no always-visible Chat /
+    /// Deep Research pill (product owner, 2026-10-06: "make the app more
+    /// slick; kind of like the chatgpt app"). Its menu opens
     /// upward, like the model picker's, since the composer sits at the foot of
     /// the window (`UpwardMenuChip`).
     @ViewBuilder
@@ -486,17 +486,17 @@ extension InternalReviewPanelContent {
     /// it is opened in. They wrap, so a canvas with many cards takes a second
     /// line rather than the width.
     ///
-    /// In its own notebook's window neither chip is drawn (2026-10-06, the
+    /// In its own notebook's window neither chip is drawn (the
     /// ChatGPT composer: nothing over the field the learner did not put
     /// there): the window is that notebook, and its Sources column says what
     /// the chat reads, ticked, with "N of M in chat". A Page attached to the
     /// chat is the exception, since the Sources column does not list it.
     ///
-    /// Since 2026-10-11 the row is the composer's tray, behind the card's top
+    /// The row is the composer's tray, behind the card's top
     /// edge (`ChatComposerStack`), where Codex shows the project.
     ///
     /// What is open beside the chat has a chip too, in every window, a
-    /// notebook's included (2026-10-13): the chat is told of it with every
+    /// notebook's included: the chat is told of it with every
     /// message, so the tray says so, and its × leaves it out
     /// (`onScreenChips`).
     @ViewBuilder

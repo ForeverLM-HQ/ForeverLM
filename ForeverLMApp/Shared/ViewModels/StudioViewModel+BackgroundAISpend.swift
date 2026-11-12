@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Spend control for background AI (2026-09-24)
+// MARK: - Spend control for background AI
 //
 // The drains in `runCanonicalContentCleanup` ask two things before they spend:
 // whether a bulk re-queue is waiting for the learner (its sources are passed

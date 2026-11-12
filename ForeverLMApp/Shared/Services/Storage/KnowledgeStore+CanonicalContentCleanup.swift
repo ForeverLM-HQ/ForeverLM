@@ -338,8 +338,8 @@ extension KnowledgeStore {
         }
     }
 
-    /// Older builds could commit canonical text and leave the preceding cleanup
-    /// timeout on the ready Source row. Clear only a code-owned cleanup failure,
+    /// A ready Source row can still carry the preceding cleanup timeout after
+    /// its canonical text was committed. Clear only a code-owned cleanup failure,
     /// and only when the current preparation contract and clean hash prove that
     /// cleanup actually completed. This never calls AI or rewrites content.
     @discardableResult
@@ -414,10 +414,7 @@ extension KnowledgeStore {
                 )
             }
 
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?, ?)") { stmt in
-                bind(stmt, 1, candidate.sourceID)
-                bind(stmt, 2, prepared.clean)
-            }
+            try writeSourceContent(sourceID: candidate.sourceID, content: prepared.clean)
             if candidate.isPendingIngestion {
                 try execBind("""
                     UPDATE sources
@@ -428,7 +425,7 @@ extension KnowledgeStore {
                 }
             } else {
                 // A successful historical re-clean supersedes any cleanup
-                // failure previously attached to this otherwise-ready row.
+                // failure still attached to this otherwise-ready row.
                 try execBind("""
                     UPDATE sources
                     SET error_message = NULL
@@ -524,10 +521,7 @@ extension KnowledgeStore {
             let wordCount = Int64(
                 candidate.raw.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
             )
-            try execBind("INSERT OR REPLACE INTO source_content (source_id, content) VALUES (?, ?)") { stmt in
-                bind(stmt, 1, candidate.sourceID)
-                bind(stmt, 2, candidate.raw)
-            }
+            try writeSourceContent(sourceID: candidate.sourceID, content: candidate.raw)
             try execBind("""
                 UPDATE sources
                 SET state = 'ready', error_message = NULL

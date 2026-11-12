@@ -175,11 +175,8 @@ struct ExplainerVideoGeneratorService: Sendable {
     static let groundingSourceTypes: Set<StudioSourceType> = [.paper, .article]
 
     func run(request: ExplainerVideoRequest) async throws -> ExplainerVideoGenerationResult {
-        let workflowID = UUID().uuidString
-        return try await AIUsageAttribution.$sessionID.withValue(workflowID) {
-            try await AIUsageAttribution.$activityID.withValue(workflowID) {
-                try await runStages(request: request)
-            }
+        try await AIUsageAttribution.withWorkflow {
+            try await runStages(request: request)
         }
     }
 

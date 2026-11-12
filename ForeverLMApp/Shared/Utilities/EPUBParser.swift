@@ -457,7 +457,7 @@ enum EPUBParser {
         let body = fragments.joined(separator: "\n")
         let bodyContent: String
         if extractHeadingFromHTML("<html><body>\(body)</body></html>") == nil {
-            bodyContent = "<h1>\(escapeHTML(title))</h1>\n\(body)"
+            bodyContent = "<h1>\(title.htmlEscaped)</h1>\n\(body)"
         } else {
             bodyContent = body
         }
@@ -465,7 +465,7 @@ enum EPUBParser {
         <html xmlns="http://www.w3.org/1999/xhtml">
         <head>
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
-        <title>\(escapeHTML(title))</title>
+        <title>\(title.htmlEscaped)</title>
         </head>
         <body>
         \(bodyContent)
@@ -1505,16 +1505,8 @@ enum EPUBParser {
         return components.isEmpty ? URL(fileURLWithPath: targetPath).lastPathComponent : components.joined(separator: "/")
     }
 
-    private static func escapeHTML(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-    }
-
     private static func escapeHTMLAttribute(_ value: String) -> String {
-        escapeHTML(value).replacingOccurrences(of: "'", with: "&#39;")
+        value.htmlEscaped.replacingOccurrences(of: "'", with: "&#39;")
     }
 
     private static func extractXMLElement(_ element: String, from xml: String) -> String? {

@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// The mobile targets do not compile the shared macOS AI service, so this is
@@ -72,8 +71,7 @@ enum MobileOpenRouterChat {
 
         let opening = messages.first?.content ?? ""
         let material = lowered + "\u{1f}" + system + "\u{1f}" + opening
-        let digest = SHA256.hash(data: Data(material.utf8))
-        let sessionID = "flm-" + digest.map { String(format: "%02x", $0) }.joined()
+        let sessionID = "flm-" + material.sha256Hex
 
         var payload: [String: Any] = [
             "model": model,
@@ -296,7 +294,7 @@ enum MobilePaperTextToSpeechPreparation {
         }
         let route = try await MobileModelPreferenceStore.shared.resolve(.paperTextToSpeechPreparation)
 
-        let sourceSignature = sha256(normalized)
+        let sourceSignature = normalized.sha256Hex
         let preparationSignature = currentPreparationSignature(route: route)
         if let manifest = SyncedArticleAudioStore.loadManifestIgnoringChunks(sourceID: sourceID),
            manifest.usesCurrentNarration,
@@ -358,13 +356,13 @@ enum MobilePaperTextToSpeechPreparation {
     }
 
     static func currentPreparationSignature(route: ResolvedAITextRoute) -> String {
-        PaperNarrationFilter.preparationContractPrefix + sha256([
+        PaperNarrationFilter.preparationContractPrefix + [
             String(PaperNarrationFilter.version),
             route.provider,
             route.model,
             route.effort ?? "",
             Prompts.paperTextToSpeechPreparation,
-        ].joined(separator: "\u{1F}"))
+        ].joined(separator: "\u{1F}").sha256Hex
     }
 
     private static func prepareChunks(
@@ -427,7 +425,7 @@ enum MobilePaperTextToSpeechPreparation {
     private static func checkpointURL(sourceID: String) -> URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ListenPreparation", isDirectory: true)
-            .appendingPathComponent(sha256(sourceID) + ".json")
+            .appendingPathComponent(sourceID.sha256Hex + ".json")
     }
 
     private static func loadCheckpoint(sourceID: String) -> Checkpoint? {
@@ -767,10 +765,6 @@ enum MobilePaperTextToSpeechPreparation {
               let encoded = String(data: data, encoding: .utf8),
               encoded.count >= 4 else { return text }
         return String(encoded.dropFirst(2).dropLast(2))
-    }
-
-    private static func sha256(_ text: String) -> String {
-        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }
 #endif

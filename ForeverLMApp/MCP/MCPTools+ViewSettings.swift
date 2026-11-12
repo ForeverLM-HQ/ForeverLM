@@ -121,8 +121,8 @@ extension MCPDataStore {
         return text
     }
 
-    /// A JSON array of row ids in the comma-separated form the rail reads. Until 2026-10-05 the
-    /// array was stored as it came, which the rail parsed as one unknown name and so hid nothing.
+    /// A JSON array of row ids in the comma-separated form the rail reads. The
+    /// array is not stored as it comes: the rail would parse it as one unknown name and so hide nothing.
     static func railHiddenItemsStorage(fromJSON text: String) throws -> String {
         let known = StudioRailItem.allCases.map(\.rawValue).joined(separator: ", ")
         guard let ids = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String] else {

@@ -596,10 +596,3 @@ export function refreshFoot() {
   if (footReferences || footDaily) renderFoot()
 }
 
-export function clearFoot() {
-  footReferences = null
-  footDaily = null
-  requestedMoreBefore = null
-  renderFoot()
-}
-

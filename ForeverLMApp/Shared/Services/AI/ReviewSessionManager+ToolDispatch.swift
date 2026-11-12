@@ -443,8 +443,8 @@ extension ReviewSessionManager {
         activity.state = (result.isError || trimmed.isEmpty) ? .failed : .succeeded
         if activity.state == .failed {
             // The row's own words are not saved with the chat, so a failure
-            // seen in a screenshot could not be traced back to its cause
-            // (2026-11-10). At error level the line stays in the unified log
+            // seen in a screenshot could not be traced back to its cause.
+            // At error level the line stays in the unified log
             // for hours.
             logger.error("Chat tool \(activity.toolName, privacy: .public) failed: \(String(trimmed.prefix(400)), privacy: .public)")
         }

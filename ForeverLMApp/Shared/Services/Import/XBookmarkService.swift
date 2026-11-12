@@ -738,8 +738,8 @@ actor XBookmarkService {
     /// Throws for any response that is not a 200, as the error the UI can act
     /// on. A 429 is X saying when to come back (`x-rate-limit-reset`) or, as
     /// `UsageCapExceeded`, that the app's monthly read allowance is spent. Both
-    /// used to fall into the generic "try again later" — advice a Try Again
-    /// button then made worse, since every early retry is another guaranteed
+    /// must not fall into the generic "try again later" — advice a Try Again
+    /// button would make worse, since every early retry is another guaranteed
     /// failure against the same limit. The status and X's own title and detail
     /// are logged public: that line is what answers "why did the sync fail" from
     /// `log show` after the fact, and neither carries anything of the learner's.
@@ -748,8 +748,8 @@ actor XBookmarkService {
         let body = String(data: data, encoding: .utf8) ?? ""
         logger.error("X \(endpoint, privacy: .public) failed: HTTP \(response.statusCode, privacy: .public) \(Self.errorSummary(fromBody: body), privacy: .public)")
         // 402 is X saying the developer app's pay-per-use credits are spent.
-        // It used to read as a generic "try again later", which sent the
-        // learner reconnecting an account that was never the problem.
+        // Read as a generic "try again later", it would send the
+        // learner reconnecting an account that is not the problem.
         if response.statusCode == 402 {
             throw XBookmarkError.creditsDepleted
         }

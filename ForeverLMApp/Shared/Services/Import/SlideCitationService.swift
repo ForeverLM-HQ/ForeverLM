@@ -263,12 +263,12 @@ actor SlideCitationService {
 
     /// Which slides to show the model.
     ///
-    /// Every one of them, bounded only by a spend ceiling. There used to be a filter here
-    /// that only forwarded slides whose *locally recognised text* looked like a citation —
-    /// a DOI, an "et al.", a year beside publication wording. It made the model's reach
+    /// Every one of them, bounded only by a spend ceiling. A filter that only forwarded
+    /// slides whose *locally recognised text* looked like a citation — a DOI, an "et al.",
+    /// a year beside publication wording — would make the model's reach
     /// depend on Apple Vision reading the frame first, and that dependency is silent when it
-    /// fails: a talk whose frames came out too small to OCR produced no recognised text, so
-    /// every slide was filtered out, the model was never called, and the result was
+    /// fails: a talk whose frames come out too small to OCR produces no recognised text, so
+    /// every slide would be filtered out, the model never called, and the result
     /// indistinguishable from a talk that cites nothing.
     ///
     /// The model reads the image. Let it be the one that decides what is on the slide.
@@ -780,9 +780,9 @@ actor SlideCitationService {
     /// One model call for a slide, on `config` and then its backups.
     ///
     /// A deck scan is background work, so it is paced and retried like the rest of
-    /// import's (`AIBackgroundRetry`). On 2026-09-27 free Nemotron's NVIDIA host was
-    /// full ("Worker local total request limit reached (16/16)") and every free backup
-    /// was rate-limited at the same moment. Asked only once, that slide was counted
+    /// import's (`AIBackgroundRetry`). A free model's host can be
+    /// full ("Worker local total request limit reached (16/16)") with every free backup
+    /// rate-limited at the same moment; asked only once, that slide would be counted
     /// unreadable and its papers never listed. A slide the learner pointed at is asked
     /// once, because they are waiting on the answer.
     private nonisolated static func slideCall(
@@ -1129,8 +1129,8 @@ actor SlideCitationService {
     /// Whether what was read off a slide names a paper at all: a title; an author with a
     /// year or a venue; a venue with its volume and first page; or a DOI. A DOI names its
     /// paper by itself — a lecturer's "Next class" slide showed nothing but a doi.org link
-    /// over a screenshot of the article's header, and until 2026-09-27 that read as a slide
-    /// citing nothing, because a citation had to carry a title or an attribution to be kept.
+    /// over a screenshot of the article's header, which must not read as a slide
+    /// citing nothing just because it carries no title or attribution.
     nonisolated static func readsAsCitation(
         title: String?,
         authors: String?,
@@ -1394,7 +1394,7 @@ actor SlideCitationService {
         do {
             var accumulated = ""
             // The reply is one small JSON object, but the budget has to hold whatever the
-            // model says on the way to it. At 600 every lookup of 2026-09-27 stopped on
+            // model says on the way to it. At 600 every lookup stopped on
             // "length" before the object was closed — DeepSeek V4.1 Flash reasons over the
             // search results first, and that counted against the same limit — so the whole
             // web fallback was silently dead and every citation the catalogs missed came
@@ -2242,10 +2242,6 @@ actor SlideCitationService {
     private nonisolated static func titleIdentityKey(_ value: String) -> String {
         let plain = value.decodingTitleMarkup().precomposedStringWithCompatibilityMapping
         return String(exactIdentityKey(plain).unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
-    }
-
-    nonisolated static func journalsMatch(_ slide: String, _ candidate: String) -> Bool {
-        exactIdentityKey(slide) == exactIdentityKey(candidate)
     }
 
     private nonisolated static func exactIdentityKey(_ value: String) -> String {

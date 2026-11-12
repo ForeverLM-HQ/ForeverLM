@@ -549,9 +549,9 @@ extension KnowledgeStore {
     // MARK: - Copies into a team
 
     /// The id `teamID`'s copy of the source at `url` goes by. That is
-    /// `TeamContentIdentity.sourceID` for every copy made since, but a copy
-    /// whose stored address was rewritten after it was made (the chapter-folder
-    /// rename of 2026-09-17) keeps the id it was made under — every member's
+    /// `TeamContentIdentity.sourceID`, but a copy
+    /// whose stored address was rewritten after it was made (a chapter-folder
+    /// rename) keeps the id it was made under — every member's
     /// references to it name that id — so a copy already at this address wins.
     /// Sharing the source again then updates that copy rather than adding a
     /// second one beside it.
@@ -809,7 +809,7 @@ extension KnowledgeStore {
             // nothing.
             // A source's draft deck of cards to check is the member's own
             // memory state and never enters a team record (the listing leaves
-            // it out; this holds for one an older build linked to a Notebook).
+            // it out; this also holds for one linked to a Notebook).
             for artifact in try loadArtifacts(notebookID: notebookID) where artifact.teamID == nil {
                 guard try !isAudioOverview(artifact), !artifact.isCardDeck else { continue }
                 _ = try artifactCopy(artifact.id, copyID)
@@ -1263,8 +1263,8 @@ extension KnowledgeStore {
             // holding its text. A page's copy is the same page — address and
             // kind kept, so it lists under the team's Sites or Animations and
             // opens the page — with the entry page's text copy riding along
-            // for chat and search. Until 2026-09-19 a page copied as a Doc
-            // with no address: teammates got "The atlas opens on
+            // for chat and search. A page is never copied as a Doc
+            // with no address: teammates would get "The atlas opens on
             // Interventions." three times over, and never the atlas.
             // A site kept in the library is served from its own record's
             // folder, so the copy's address names the copy.
@@ -1381,8 +1381,8 @@ extension KnowledgeStore {
     /// The id a team's copy of an artifact has, or would take. The keyed id
     /// first (`TeamContentIdentity.artifactCopyID`: by address for a page, by
     /// record for a Markdown Doc). A team may instead hold a page under an id
-    /// of its own: until build 114 a site or animation published straight
-    /// into a team Notebook was made as a team record under a random id, with
+    /// of its own: a site or animation published straight
+    /// into a team Notebook by an earlier writer is a team record under a random id, with
     /// no entry in the publisher's library. That row is the page's copy, so a
     /// share updates it rather than filing a second entry at the same
     /// address. Every reader of a team copy — the share, "who holds this",
@@ -1407,9 +1407,9 @@ extension KnowledgeStore {
     /// teammate shared — except a team's copy of a personal original, which is
     /// the original seen once more: the keyed copy id
     /// (`TeamContentIdentity.artifactCopyID`) for every team, and a team row at
-    /// a personal page's address (the adopted copy of decision 17). The product owner
-    /// (2026-09-19): "artifacts that are shared with my team or part of a team
-    /// that i'm a part of should STILL be shown under my personal library!"
+    /// a personal page's address (the adopted copy of decision 17) (product owner,
+    /// 2026-09-19: "artifacts that are shared with my team or part of a team
+    /// that i'm a part of should STILL be shown under my personal library!").
     /// A team library still shows only its own rows (`loadScopedArtifacts`).
     func loadMyLibraryArtifacts() throws -> [ArtifactRecord] {
         let all = try loadArtifacts()

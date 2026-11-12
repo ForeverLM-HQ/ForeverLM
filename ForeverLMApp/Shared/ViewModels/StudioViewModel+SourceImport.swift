@@ -1307,8 +1307,8 @@ extension StudioViewModel {
     /// imported again while it was still split into chapter files loses that
     /// folder once its chapters point at the book.
     ///
-    /// Runs after the book is in (`finishBookImport`). A book that read as
-    /// one entry until now (`wholeBookSourceID`) has that entry become its
+    /// Runs after the book is in (`finishBookImport`). A book that reads as
+    /// one entry (`wholeBookSourceID`) has that entry become its
     /// first chapter, and what the learner did on it moves to the chapters
     /// holding those pages (`moveWholeBookState`).
     func importPDFChapters(
@@ -1676,13 +1676,13 @@ extension StudioViewModel {
     /// The book stays one file (`EPUBBookFiles`): it is unpacked only into a
     /// staging folder to be read, and what the split made there — the
     /// chapters that join several documents — is packed back into the book's
-    /// `.epub`, without the whole-book document it read as until now. A
+    /// `.epub`, without the whole-book document it read as. A
     /// chapter is addressed `<book folder>/Chapters/<entry>`, the entry of
     /// that file, and no `Chapters` folder is left on disk; one an earlier
     /// import left goes once the chapters are saved.
     ///
     /// Runs after the book is in (`finishBookImport`). A book that read as one
-    /// entry until now (`wholeBookSourceID`) has that entry become its first
+    /// entry (`wholeBookSourceID`) has that entry become its first
     /// chapter, and what the learner did on it moves to the chapters holding
     /// those passages (`planWholeEPUBBook`, `moveWholeEPUBBookState`).
     func importEPUBChapters(
@@ -2262,9 +2262,8 @@ extension StudioViewModel {
     /// the chapters fall: it rejects lists that cannot be a book's chapters
     /// however the AI arrived at them.
     ///
-    /// Molecular Biology of the Cell (7th ed., 1532 pages, 24 chapters) came
-    /// back on 2026-08-24 as 130 chapters: some 120 of them one to four pages
-    /// long and titled after contents lines ("Polymerization", "Summary",
+    /// A 1,500-page book of 24 chapters can come back as 130: some 120 of them
+    /// one to four pages long and titled after contents lines ("Polymerization", "Summary",
     /// "Problems"), the rest lumps of 100–370 pages whose titles ran on
     /// through the table of contents ("11) Small-Molecule Transport …
     /// Chapter 12 … Chapter 13 …"). Each of those shapes is refused here:
@@ -2668,32 +2667,6 @@ extension StudioViewModel {
             .prefix(lineLimit)
         let snippet = lines.joined(separator: "\n")
         return String(snippet.prefix(characterLimit)).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    nonisolated static func validatePDFChapterStartPages(
-        _ chapters: [(title: String, pageIndex: Int)],
-        doc: PDFDocument
-    ) throws -> [(title: String, pageIndex: Int)] {
-        var validated: [(title: String, pageIndex: Int)] = []
-        for chapter in chapters {
-            let title = sanitizedPDFOutlineLabel(chapter.title)
-            guard !title.isEmpty else { continue }
-            guard chapter.pageIndex >= 0, chapter.pageIndex < doc.pageCount else {
-                throw SourceError.bookChapterBoundaryMismatch(
-                    "Could not split “\(title)”: its detected start page is outside the PDF."
-                )
-            }
-
-            if let previous = validated.last, chapter.pageIndex <= previous.pageIndex {
-                throw SourceError.bookChapterBoundaryMismatch(
-                    "Could not split “\(title)”: the AI returned overlapping or out-of-order chapter pages."
-                )
-            }
-
-            validated.append((title: title, pageIndex: chapter.pageIndex))
-        }
-
-        return validated.count == chapters.count ? validated : chapters
     }
 
     nonisolated static func validatePDFChapterRanges(

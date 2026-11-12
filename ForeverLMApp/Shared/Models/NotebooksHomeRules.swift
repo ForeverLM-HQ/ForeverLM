@@ -356,7 +356,7 @@ enum NotebookListCollections {
 
 // MARK: - The rail's notebooks
 
-/// What the rail lists about notebooks since 2026-10-03 (docs/notebooks-
+/// What the rail lists about notebooks (docs/notebooks-
 /// design.md, "The rail"). The product owner, of a rail listing ~52 notebooks: "is it
 /// even still good design to have all these notebooks in the left sidebar as
 /// well?" The whole catalog lives on the Notebooks home; the rail is a
@@ -439,10 +439,8 @@ struct NotebookRail: Equatable, Sendable {
 
 /// The notebooks the learner pinned to the rail: an explicit list, synced
 /// (`studio.pinnedNotebooks.v1`, per member like the order beside it).
-/// Until 2026-10-03 every notebook was pinned unless the learner took it off
-/// (`studio.unpinnedProjects`, the exceptions); with the catalog on the home
-/// and Recent in the rail, a pin is the few the learner keeps at hand, so
-/// nothing is pinned until they pin it.
+/// With the catalog on the home and Recent in the rail, a pin is the few the
+/// learner keeps at hand, so nothing is pinned until they pin it.
 enum NotebookPins {
     static let preferenceKey = Prefs.Studio.pinnedNotebooks.name
 

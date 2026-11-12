@@ -4,8 +4,8 @@ import Foundation
 //
 // Shell stage 3 (docs/notebooks-design.md, "Every window opens in a
 // notebook", "The full-window Library"). A window restored at launch holds its
-// notebook; a window that opens on its own shows the Space (2026-11-10, after
-// opening the last notebook by default proved unpleasant). The whole library
+// notebook; a window that opens on its own shows the Space, not the last
+// notebook it held. The whole library
 // stays manageable in a view of its own.
 
 extension StudioViewModel {

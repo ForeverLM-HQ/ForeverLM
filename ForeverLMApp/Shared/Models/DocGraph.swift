@@ -427,8 +427,7 @@ enum DocGraphError: LocalizedError, Equatable {
 /// one keeps out of Docs' side list, the Docs home and the home's Docs tab,
 /// where a year of days would bury the docs. A day that holds writing is
 /// listed like any page: a note the learner titled or edited is their work,
-/// and a list that hid it (the 2026-10-07 note, 8 KB of an essay, found in no
-/// list) would lose it from sight. A search is the other way in: typing a day
+/// and a list that hid it would lose it from sight. A search is the other way in: typing a day
 /// ("October 6") into a list's search field finds that day's note, the way
 /// Roam's search finds a daily page, because the search is the learner
 /// asking for something by name.

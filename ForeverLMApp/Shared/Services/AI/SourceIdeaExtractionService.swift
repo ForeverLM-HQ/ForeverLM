@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Extraction is billed per attempt, and the Memory row extracts for every
 /// cohort source that has no ideas — so a source whose text the model keeps
-/// answering with malformed JSON (Evo 2, on 2026-09-03: "Invalid AI response"
+/// answering with malformed JSON (Evo 2: "Invalid AI response"
 /// on every click) was billed again on every click and skipped from every
 /// review. A hard failure is remembered against the text it failed on, per
 /// device, and not retried for a day; a change to the text, or the day

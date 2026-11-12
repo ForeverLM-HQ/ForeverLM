@@ -443,8 +443,8 @@ extension KnowledgeStore {
     /// `DayPlan.activityMergeGapMinutes` — re-importing the same chat widens
     /// that chat's own span instead of drawing a second one beside it — and a
     /// range further off is a sitting of its own. Widening whatever span the
-    /// thing already had drew a chat's later exchange and its first as one
-    /// span, with the afternoon between them (2026-09-28). A range that
+    /// thing already had would draw a chat's later exchange and its first as one
+    /// span, with the afternoon between them. A range that
     /// crosses midnight is cut at the end of the day it began in, as a block
     /// is; the day's id is the start's.
     @discardableResult
@@ -538,14 +538,14 @@ extension KnowledgeStore {
     /// of an in-app chat is, and the moments are joined by the heartbeat's
     /// rule (`DayActivity.observedRuns`), so time the learner was away between
     /// two messages stays off the clock. Drawn as one span from its first
-    /// message to its last, a chat imported on 2026-09-28 covered 14:26–19:04,
-    /// 278 minutes, most of an afternoon spent elsewhere.
+    /// message to its last, an imported chat could cover 14:26–19:04, 278
+    /// minutes, most of an afternoon spent elsewhere.
     ///
     /// The record is read whole on every import, so on each day it touches
     /// the thing's spans inside the record's hours are redrawn from it rather
     /// than widened: a repeat call draws the same spans under the same ids, a
-    /// record that grew lengthens its last span or adds one, and a span an
-    /// older build drew across the whole chat becomes its first sitting. That
+    /// record that grew lengthens its last span or adds one, and a span
+    /// drawn across the whole chat becomes its first sitting. That
     /// span keeps its id, so the other Macs, which keep the newest copy of
     /// each span, shorten it too. A span of the thing outside the record's
     /// hours — the chat continued in ForeverLM — is kept, and one that crosses
@@ -744,8 +744,7 @@ extension KnowledgeStore {
             // Screen record mode (admin only): a block the take may not show —
             // a calendar event, the learner's own plan — is refused by its
             // hours alone. The message reaches the filmed chat, which read
-            // "Alan <> Zara (existing calendar event)" back to the camera
-            // (build 144, 2026-09-25).
+            // "Alan <> Zara (existing calendar event)" back to the camera.
             if let scope = screenRecordScope(), inTheWay.contains(where: { !scope.allowsBlock($0) }) {
                 let hours = inTheWay
                     .map { "\(DayPlan.clockString(minute: $0.startMinute))–\(DayPlan.clockString(minute: $0.endMinute))" }

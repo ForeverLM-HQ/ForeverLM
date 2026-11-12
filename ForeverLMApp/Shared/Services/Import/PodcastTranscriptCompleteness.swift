@@ -3,11 +3,10 @@ import Foundation
 /// Where a stored podcast transcript stops inside the episode text its Apple
 /// TTML holds, and whether that stop is the retired 50,000-character import cap.
 ///
-/// Until 06271e382 (2026-08-05) `SourceService.extractTextFromTTMLContent`
-/// returned only the first 50,000 characters of an episode. The schema-85
-/// audit counted a transcript as complete when it held 85% of the TTML text,
-/// so every episode of 50,000 to 58,800 characters passed with its last
-/// sixth missing. Length cannot separate the two cases that matter: speaker
+/// Stored transcripts imported by an earlier `SourceService.extractTextFromTTMLContent`
+/// hold only the first 50,000 characters of an episode. Counting a transcript
+/// as complete when it holds 85% of the TTML text would pass every episode of
+/// 50,000 to 58,800 characters with its last sixth missing. Length cannot separate the two cases that matter: speaker
 /// names and paragraph breaks push a capped transcript past 50,000, and the
 /// ad pass takes a closing sponsor read or outro off a complete one. Where the
 /// transcript stops can. The transcript's last words are found in the episode
@@ -28,8 +27,8 @@ enum PodcastTranscriptCompleteness {
     /// How far below the cap a capped transcript's last whole word can end.
     /// The cap cut wherever it fell, so the stored text stops inside the last
     /// word, or after the word before it, or after a speaker label the cap cut
-    /// short; every capped episode measured on a real library (67 of them,
-    /// 2026-10-06) stopped at character 49,984 to 50,000.
+    /// short; every capped episode measured on a real library (67 of them)
+    /// stopped at character 49,984 to 50,000.
     static let capWindow = 100
 
     /// How many of the transcript's words before its last are looked up in

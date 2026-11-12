@@ -8,7 +8,7 @@ import SwiftUI
 /// - **Filter**: chips for All, Uncategorized (once a collection exists) and
 ///   each collection, in grey, the chosen one primary on a neutral capsule;
 ///   a long press on a collection renames or deletes it
-///   (`NotebooksHomeFilter`). Since 2026-10-06 they carry no counts and no +
+///   (`NotebooksHomeFilter`). They carry no counts and no +
 ///   follows them: New Collection… is the ⋯'s (the product owner: "cleaner and fewer
 ///   buttons and bells and whistles").
 /// - **⋯ in the toolbar**: Grid | List, Sort By — Recent, Name, Sources,

@@ -610,7 +610,6 @@ struct PaperWalkthroughValidationTests {
 
         Together, the panels validate the central intervention.
         """
-        #expect(WalkthroughStepPanelNote.toursSeveralPanels(body))
         #expect(WalkthroughStepPanelNote.note(for: "a", inBody: body)
                 == "In panel a, the plot follows intracellular sodium, labelled \"23Na TQF (intracellular Na),\" over \"Time (min).\" The traces compare the printed conditions. Sodium rises during ouabain exposure and falls after washout.")
         #expect(WalkthroughStepPanelNote.note(for: "B", inBody: body)
@@ -637,9 +636,6 @@ struct PaperWalkthroughValidationTests {
         #expect(WalkthroughStepPanelNote.sentences(of: WalkthroughStepPanelNote.paragraphs(of: marked)[0])
                 == ["Panel b plots pressure vs. time, per Smith et al. 2020.", "The bars are means."])
         #expect(WalkthroughStepPanelNote.note(for: "b", inBody: marked) == "Panel b plots pressure vs. time, per Smith et al. 2020. The bars are means.")
-
-        // A step about one panel has no separate words for it: the bubble is the note.
-        #expect(!WalkthroughStepPanelNote.toursSeveralPanels("Panel a follows sodium over time. It rises with ouabain."))
     }
 
     @Test("The animation document carries the sandbox policy whatever shape the HTML came in")

@@ -10,7 +10,7 @@ import SwiftUI
 // the review's serif, the fold, the back and why, the edges of the cards still to come under it.
 
 /// To Check over every notebook or one: the Memory screen's section, and the screen a notebook's
-/// Studio Cards row pushes while cards wait. A card at a time since 2026-10-12, as on the Mac (product
+/// Studio Cards row pushes while cards wait. A card at a time, as on the Mac (product
 /// owner: "more intuitive if the review process just shows cards that i go through … and then i can
 /// say keep / edit etc"): over the card its source, which opens it, its place ("3 of 15") and the
 /// round's strip; under it Skip and Edit, pale, and Keep, dark. Swiping the card right keeps it and

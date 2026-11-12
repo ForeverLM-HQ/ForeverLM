@@ -1129,10 +1129,6 @@ extension StudioViewModel {
         }
     }
 
-    nonisolated static func applyYouTubeMetadata(_ metadata: YouTubeTranscriptService.VideoMetadata, to article: inout StudioArticle) {
-        StudioYouTubeMetadataApplicator.apply(metadata, to: &article)
-    }
-
     func refreshYouTubeMetadata(for articleId: String) async {
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
         guard YouTubeTranscriptService.isYouTubeURL(articles[idx].url),

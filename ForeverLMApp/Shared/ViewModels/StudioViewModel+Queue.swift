@@ -10,128 +10,17 @@ extension StudioViewModel {
 
     // MARK: - Queue Management
 
-    /// Load the full queue from persisted state.
-    ///
-    /// Startup is intentionally read-only and avoids filesystem discovery. New
-    /// browser Reading List items are picked up by explicit refresh or by the
-    /// change-triggered watcher after launch.
-
-    /// Start the auto-refresh timer (called once from the view layer).
-    /// Safe to call multiple times — only the first call starts the timer.
-    func startAutoRefreshIfNeeded() {
-        // Auto-refresh disabled — discovery is manual-only (refresh button).
-        // Prevents main-actor-blocking filesystem scans every 5 minutes.
-    }
+    /// Called once from the view layer. Starts nothing: discovery runs on the
+    /// refresh button and on the change-triggered watcher, because a timer of
+    /// filesystem scans would block the main actor.
+    func startAutoRefreshIfNeeded() {}
 
     /// Run the full Studio bootstrap only once per app session.
     /// Subsequent tab switches should reuse the existing queue state and rely on
-    /// manual refresh or the background auto-refresh timer for updates.
+    /// manual refresh or the change-triggered watcher for updates.
     func ensureInitialQueueLoaded() async {
         guard !hasCompletedInitialQueueLoad else { return }
         await loadQueue()
-    }
-
-    nonisolated static func makeMergeExistingSnapshot(from articles: [StudioArticle]) -> MergeExistingSnapshot {
-        var paperTitleDOIs: [String: [String?]] = [:]
-        for paper in articles where paper.sourceType == .paper {
-            let title = normalizedPaperTitle(paper.title)
-            guard !title.isEmpty else { continue }
-            paperTitleDOIs[title, default: []].append(paperIdentityDOI(of: paper))
-        }
-        return MergeExistingSnapshot(
-            urls: Set(articles.map { article in
-                article.url.hasPrefix("/") ? article.url : SourceDiscovery.normalizedURL(article.url)
-            }),
-            relativeURLs: Set(articles.map { StorageService.relativeSourcePath($0.url) }),
-            localPaths: Set(articles.compactMap(\.localFilePath)),
-            podcastWebURLs: Set(articles.compactMap(\.podcastWebPageURL)),
-            paperTitleDOIs: paperTitleDOIs,
-            localPaperFilenames: Set(
-                articles
-                    .filter { $0.sourceType == .paper && $0.url.hasPrefix("/") && $0.isPDF }
-                    .map { normalizedPaperFilename(($0.url as NSString).lastPathComponent) }
-            ),
-            paperPublisherKeys: Set(
-                articles
-                    .filter { $0.sourceType == .paper }
-                    .compactMap { paperPublisherIdentityKey(for: $0.url) }
-            )
-        )
-    }
-
-    nonisolated static func makeMergeDiscoveredSnapshot(from discoveredArticles: [StudioArticle]) -> [MergeDiscoveredSnapshot] {
-        discoveredArticles.enumerated().map { index, article in
-            let normalizedURL = article.url.hasPrefix("/") ? article.url : SourceDiscovery.normalizedURL(article.url)
-            let normalizedPaperTitle = article.sourceType == .paper ? normalizedPaperTitle(article.title) : ""
-            let normalizedPaperFilename =
-                article.sourceType == .paper && article.url.hasPrefix("http")
-                ? normalizedPaperFilename(paperFilename(from: article.url))
-                : nil
-            return MergeDiscoveredSnapshot(
-                index: index,
-                url: article.url,
-                normalizedURL: normalizedURL,
-                relativeURL: StorageService.relativeSourcePath(article.url),
-                sourceType: article.sourceType.rawValue,
-                title: article.title,
-                normalizedPaperTitle: normalizedPaperTitle,
-                paperDOI: article.sourceType == .paper ? paperIdentityDOI(of: article) : nil,
-                localFilePath: article.localFilePath,
-                podcastWebPageURL: article.podcastWebPageURL,
-                normalizedPaperFilename: normalizedPaperFilename,
-                paperPublisherKey: article.sourceType == .paper ? paperPublisherIdentityKey(for: article.url) : nil
-            )
-        }
-    }
-
-    nonisolated static func computeMergeResultOffMain(
-        discovered: [MergeDiscoveredSnapshot],
-        dismissedURLs: Set<String>,
-        existing: MergeExistingSnapshot
-    ) -> MergeComputationResult {
-        var newArticleIndexes: [Int] = []
-        var discoveredByURLIndexes: [String: Int] = [:]
-
-        for item in discovered {
-            discoveredByURLIndexes[item.normalizedURL] = discoveredByURLIndexes[item.normalizedURL] ?? item.index
-
-            if dismissedURLs.contains(item.url) { continue }
-            if let webURL = item.podcastWebPageURL, dismissedURLs.contains(webURL) { continue }
-            if existing.urls.contains(item.normalizedURL) { continue }
-            if existing.relativeURLs.contains(item.relativeURL) { continue }
-            if existing.localPaths.contains(item.url) || (item.localFilePath.map(existing.localPaths.contains) ?? false) { continue }
-
-            if item.sourceType == StudioSourceType.paper.rawValue {
-                if let publisherKey = item.paperPublisherKey,
-                   existing.paperPublisherKeys.contains(publisherKey) {
-                    continue
-                }
-                if let filename = item.normalizedPaperFilename, existing.localPaperFilenames.contains(filename) { continue }
-                let normalizedTitle = item.normalizedPaperTitle
-                // A held title skips the item unless every paper holding it
-                // has a DOI the item's contradicts (a Primer and its PrimeView).
-                if !normalizedTitle.isEmpty,
-                   let heldDOIs = existing.paperTitleDOIs[normalizedTitle],
-                   heldDOIs.contains(where: { !paperDOIsContradict($0, item.paperDOI) }) {
-                    continue
-                }
-            }
-
-            if item.sourceType == StudioSourceType.podcast.rawValue {
-                if existing.podcastWebURLs.contains(item.url) { continue }
-                if let webURL = item.podcastWebPageURL,
-                   existing.urls.contains(SourceDiscovery.normalizedURL(webURL)) {
-                    continue
-                }
-            }
-
-            newArticleIndexes.append(item.index)
-        }
-
-        return MergeComputationResult(
-            newArticleIndexes: newArticleIndexes,
-            discoveredByURLIndexes: discoveredByURLIndexes
-        )
     }
 
     struct LoadedArticleContentSnapshot {
@@ -231,6 +120,11 @@ extension StudioViewModel {
         }
     }
 
+    /// Load the full queue from persisted state.
+    ///
+    /// Startup is intentionally read-only and avoids filesystem discovery. New
+    /// browser Reading List items are picked up by explicit refresh or by the
+    /// change-triggered watcher after launch.
     func loadQueue() async {
         guard !isLoadingQueue else { return }
         isLoadingQueue = true
@@ -1672,10 +1566,9 @@ extension StudioViewModel {
     /// A row filed under the episode's web page may hold that page's text:
     /// show notes, not what was said. Text under an Apple address is taken for
     /// the finished transcript (`hydratePodcastTranscript`), so the address
-    /// must not change without the text going too. On 2026-10-02 three
-    /// episodes an assistant had added over MCP with their pages as content
-    /// were confirmed here and went ready on 45 to 525 words of show notes,
-    /// no transcript ever fetched. The store moves such a row and drops what
+    /// must not change without the text going too: an episode added over MCP
+    /// with its page as content would otherwise be confirmed here and go ready
+    /// on a few hundred words of show notes, no transcript ever fetched. The store moves such a row and drops what
     /// came from the page in one transaction, keeping the page as the
     /// episode's web page, as it does for a row the public-episode resolver
     /// places. A video matched to its episode keeps its text: its captions
@@ -2615,8 +2508,6 @@ extension StudioViewModel {
     /// before its time stops counting. Long enough to read a dense PDF page
     /// without touching anything; short enough that a paper left open in the
     /// frontmost app all afternoon is not booked as an afternoon of reading.
-    /// On 2026-09-20 a paper that was open but never read logged 37 engaged
-    /// minutes that way and was quizzed the next morning.
     static let readerEngagementIdleGrace: TimeInterval = 180
 
     /// Whether time in the open reader counts right now: the app has to be the

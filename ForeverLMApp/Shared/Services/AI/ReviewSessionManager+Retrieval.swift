@@ -171,9 +171,9 @@ extension ReviewSessionManager {
     func retrieveSourceContext(for call: RetrievalToolCall) async -> RetrievalResult {
         let activeIDSet = Set(activeSourceIDs)
         let requestedIDs = call.sourceIDs.filter { activeIDSet.contains($0) }
-        // Ids outside the catalog used to vanish: named alone, they fell
-        // through to a ranking of the catalog, so the model got passages from
-        // sources it never asked for. The answer now names them and the route
+        // Ids outside the catalog must not vanish: named alone, they would fall
+        // through to a ranking of the catalog, and the model would get passages
+        // from sources it never asked for. The answer names them and the route
         // that does read them.
         let outsideIDs = call.sourceIDs.filter { !activeIDSet.contains($0) }
         let outsideNote = outsideIDs.isEmpty ? "" : """
@@ -195,7 +195,7 @@ extension ReviewSessionManager {
             // That same ranking now also audits the choice. A model picking from
             // the catalog sees titles and little else, so a chapter whose title
             // does not imply its contents is invisible to it — and naming ids
-            // used to bypass the ranker outright, which made the guess final.
+            // must not bypass the ranker, which would make the guess final.
             // The ranker runs over the whole pool regardless, and anything that
             // outranks a named source comes back as a short lead.
             let ranking: [SourceSearchHit]
@@ -500,7 +500,7 @@ extension ReviewSessionManager {
         "\n\n[The source text held in this chat is full, so the newest excerpt was not added. Answer from the text already loaded and the catalog, and tell the learner when something you need is not available here.]"
 
     /// Fold a retrieval result into the session's context. Paged full-source
-    /// reads append too: replacing the block on every page used to discard the
+    /// reads append too: replacing the block on every page would discard the
     /// earlier pages before the model could synthesize across them.
     func adoptRetrievedSourceContext(_ retrieved: RetrievalResult) {
         appendRetrievedSourceContext(retrieved.text)

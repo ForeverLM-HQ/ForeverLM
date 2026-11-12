@@ -56,7 +56,7 @@ extension StudioViewModel {
     }
 
     var filteredBookGroupNames: [String] {
-        // The key reads every input `bookMatchesSearch` consults, so the view
+        // The key reads every input the book search consults, so the view
         // stays observation-tracked on a cache hit and a renamed book or a new
         // category still recomputes; only the per-book scan is skipped.
         let key = FilteredBookGroupNamesCacheKey(
@@ -95,11 +95,7 @@ extension StudioViewModel {
         return bookKinds[groupName] == selectedBookKind
     }
 
-    func bookMatchesSearch(_ groupName: String) -> Bool {
-        bookMatchesSearchMetadata(groupName) || bookMatchesSearchContent(groupName)
-    }
-
-    /// The synchronous half of `bookMatchesSearch`: the book's own metadata and its
+    /// The synchronous half of the book search: the book's own metadata and its
     /// chapters' metadata, which the list can answer as the learner types.
     func bookMatchesSearchMetadata(_ groupName: String) -> Bool {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -129,7 +125,7 @@ extension StudioViewModel {
         return bookSourceArticles(for: groupName).contains(where: { sourceMatchesSearch($0, query: query) })
     }
 
-    /// The asynchronous half of `bookMatchesSearch`: the indexed pass behind the
+    /// The asynchronous half of the book search: the indexed pass behind the
     /// search field records chapters whose text contains every typed term, and a
     /// book answers for any chapter it owns, so a term that appears only inside a
     /// chapter still finds the book. False while no search is running — this is
@@ -301,11 +297,6 @@ extension StudioViewModel {
 
     func sourceIdsForGroup(_ groupName: String) -> Set<String> {
         Set(sourceIDsForGroupInOrder(groupName))
-    }
-
-    func selectBookGroup(_ groupName: String) async {
-        guard let chapter = resumeBookChapter(for: groupName) else { return }
-        await selectReaderSource(chapter.id)
     }
 
     func selectReaderSource(_ articleId: String) async {

@@ -200,17 +200,6 @@ extension StudioViewModel {
         artifact.section
     }
 
-    /// Opens Docs scoped to a Notebook — its list and its New Doc are the
-    /// Notebook's — or, with nil, every doc. It opens beside what is on
-    /// screen, as a rail row's Open Beside does. (The
-    /// Notebook page that placed it right of itself went with the notebook's
-    /// Studio, which lists the notebook's Docs among its outputs.)
-    func openArtifactsBeside(notebookID: String? = nil) {
-        let destination = activeWindowState
-        if destination.artifactCanvasNotebookID != notebookID { destination.artifactCanvasNotebookID = notebookID }
-        openCenterTabBeside(.notepad)
-    }
-
     /// Opens one notebook in the window in scope — the single definition of
     /// "open a notebook", shared by the rail's folder rows, the Space's rows,
     /// links and Siri. The notebook workspace then draws the window
@@ -221,17 +210,6 @@ extension StudioViewModel {
     /// the active one.
     func openNotebookInReader(_ notebookID: String) {
         openNotebook(notebookID)
-    }
-
-    /// The navigation rail's folder-row interaction. A second click on the
-    /// notebook the window holds closes it, and the panes underneath come
-    /// back as they were.
-    func toggleNotebookInReader(_ notebookID: String) {
-        if workbenchNotebookID == notebookID {
-            closeNotebook()
-        } else {
-            openNotebookInReader(notebookID)
-        }
     }
 
     /// The notebook open in the key window (nil while it holds none and its

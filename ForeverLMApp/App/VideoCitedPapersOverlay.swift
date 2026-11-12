@@ -429,9 +429,8 @@ struct SlideCitedPapersColumn: View {
         .padding(.top, 7)
     }
 
-    /// Flush left, all of it. The old row hung the title off a leading document icon and then
-    /// pushed the subtitle and buttons back under it by a hardcoded inset; the header carries
-    /// that icon for the whole card now, so the column has one edge instead of two.
+    /// Flush left, all of it. The header carries the leading document icon for the
+    /// whole card, so the column has one edge instead of two.
     private func row(_ paper: VideoCitedPaper) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             CitedPaperTitle(paper: paper, font: .system(size: 12, weight: .medium))

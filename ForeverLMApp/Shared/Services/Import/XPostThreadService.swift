@@ -565,7 +565,7 @@ extension XPostThread {
     /// reading.
     var archiveHTML: String {
         var body = ""
-        body += "<h1>\(Self.escaped(sourceTitle))</h1>\n"
+        body += "<h1>\(sourceTitle.htmlEscaped)</h1>\n"
         if earlierPostsIncomplete {
             body += "<p><em>Earlier posts in this thread were not captured.</em></p>\n"
         }
@@ -575,36 +575,36 @@ extension XPostThread {
             if let date = post.createdAt {
                 heading += " · \(Self.dateFormatter.string(from: date))"
             }
-            body += "<p><strong>\(Self.escaped(heading))</strong></p>\n"
+            body += "<p><strong>\(heading.htmlEscaped)</strong></p>\n"
             for paragraph in post.text.components(separatedBy: "\n") where !paragraph.trimmingCharacters(in: .whitespaces).isEmpty {
-                body += "<p>\(Self.escaped(paragraph))</p>\n"
+                body += "<p>\(paragraph.htmlEscaped)</p>\n"
             }
             if post.isTruncated {
                 body += "<p><em>This post is longer on X.</em></p>\n"
             }
             if let quoted = post.quoted {
                 let quotedHandle = quoted.authorHandle.isEmpty ? "" : "@\(quoted.authorHandle)"
-                body += "<blockquote><p><strong>\(Self.escaped(quotedHandle))</strong></p>"
+                body += "<blockquote><p><strong>\(quotedHandle.htmlEscaped)</strong></p>"
                 for paragraph in quoted.text.components(separatedBy: "\n") where !paragraph.trimmingCharacters(in: .whitespaces).isEmpty {
-                    body += "<p>\(Self.escaped(paragraph))</p>"
+                    body += "<p>\(paragraph.htmlEscaped)</p>"
                 }
                 body += "</blockquote>\n"
             }
             for photo in post.photoURLs {
-                body += "<figure><img src=\"\(Self.escaped(photo))\" alt=\"\"></figure>\n"
+                body += "<figure><img src=\"\(photo.htmlEscaped)\" alt=\"\"></figure>\n"
             }
             if let poster = post.videoPosterURL {
-                body += "<figure><img src=\"\(Self.escaped(poster))\" alt=\"\">"
-                body += "<figcaption><a href=\"\(Self.escaped(post.permalink))\">Play the video on X</a></figcaption></figure>\n"
+                body += "<figure><img src=\"\(poster.htmlEscaped)\" alt=\"\">"
+                body += "<figcaption><a href=\"\(post.permalink.htmlEscaped)\">Play the video on X</a></figcaption></figure>\n"
             }
-            body += "<p><a href=\"\(Self.escaped(post.permalink))\">\(Self.escaped(post.permalink))</a></p>\n"
+            body += "<p><a href=\"\(post.permalink.htmlEscaped)\">\(post.permalink.htmlEscaped)</a></p>\n"
         }
         if subject != nil {
             body += "<p><em>Replies to this post are not captured — open it on X to read them.</em></p>\n"
         }
         return """
         <!DOCTYPE html>
-        <html><head><meta charset="utf-8"><title>\(Self.escaped(sourceTitle))</title></head>
+        <html><head><meta charset="utf-8"><title>\(sourceTitle.htmlEscaped)</title></head>
         <body>\(body)</body></html>
         """
     }
@@ -618,14 +618,6 @@ extension XPostThread {
         formatter.dateFormat = "MMM d, yyyy 'at' HH:mm 'UTC'"
         return formatter
     }()
-
-    private static func escaped(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-    }
 }
 
 // MARK: - Errors

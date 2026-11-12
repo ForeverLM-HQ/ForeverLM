@@ -835,12 +835,6 @@ enum MemoryTutorQueueIdentity {
     static func firstReview(sourceID: String) -> String {
         firstReviewPrefix + sourceID
     }
-
-    static func firstReviewSourceID(from value: String) -> String? {
-        guard value.hasPrefix(firstReviewPrefix) else { return nil }
-        let sourceID = String(value.dropFirst(firstReviewPrefix.count))
-        return sourceID.isEmpty ? nil : sourceID
-    }
 }
 
 // MARK: - Due selection

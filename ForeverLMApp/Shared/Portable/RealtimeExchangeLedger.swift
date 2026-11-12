@@ -1,9 +1,7 @@
-/// What remains of the realtime voice conversation's exchange ledger.
+/// The mark a realtime voice conversation leaves in its saved review exchanges.
 ///
-/// Realtime voice (speech to speech, through OpenAI, Gemini and xAI) recorded
-/// its conversations as review exchanges until 2026-10-01, when every model
-/// moved to OpenRouter and realtime voice went. Those saved conversations stay
-/// readable, and one mark in them still needs a name: the question recorded
+/// Voice mode (speech to speech on OpenAI Realtime) records its conversations
+/// as review exchanges. One mark in them needs a name: the question recorded
 /// for a learner line that no tutor line preceded. Every transcript renderer
 /// (the Mac's chat, the iPhone's notebook chats, MCP transcripts) hides it.
 public enum RealtimeExchangeLedger {

@@ -6,7 +6,7 @@ import Observation
 // `@AppStorage` observes its key by KVO, and KVO never fires for a key containing
 // a dot: `"studio.foo"` is parsed as a key-path traversal. Almost every key here
 // is dotted, so `AppStorage` falls back to `UserDefaults.didChangeNotification`,
-// which fires for *every* defaults write in the process. Measured 2026-09-02:
+// which fires for *every* defaults write in the process. Measured:
 // persisting the center-pane layout (`studio.centerTabGroups.v1`) re-ran the body
 // of every view holding one of these, `StudioSidebar` included, which then
 // re-diffed the whole sources List: a few hundred milliseconds on a library of a

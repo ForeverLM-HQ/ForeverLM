@@ -585,8 +585,8 @@ extension KnowledgeMapModel {
         guard !spots.isEmpty else { return 0 }
         let room = roomUnder(cards)
         // Cards that all sat in one region keep to it: it grows to hold them
-        // where they land (a row laid out from a region's cards ran out of
-        // it, 2026-10-14). Cards from several regions, or none, do not.
+        // where they land, so a row laid out from a region's cards does not
+        // run out of it. Cards from several regions, or none, do not.
         // When they are all of its cards (and it holds no region), it fits
         // them, as Fit to Content does: a row left a grid's empty frame.
         let homes = Set(refs.filter { layout.placements[$0] != nil }.map { innermostRegionID(holding: $0) })
@@ -646,8 +646,7 @@ extension KnowledgeMapModel {
 
     /// The cards an arrangement now covers, moved down out from under it,
     /// keeping their places to one another: a row laid out across the
-    /// canvas hid the cards in its way (2026-10-14, a canvas built by
-    /// speaking). A card in a folded region (not drawn) or a locked one stays.
+    /// canvas would otherwise hide the cards in its way. A card in a folded region (not drawn) or a locked one stays.
     private func roomUnder(_ arranged: [KnowledgeMapArranging.PlacedRect]) -> [String: Spot] {
         let refs = Set(arranged.map(\.ref))
         let folded = layout.regions.values.filter(\.isCollapsed).map { Rect(x: $0.x, y: $0.y, w: $0.w, h: $0.h) }

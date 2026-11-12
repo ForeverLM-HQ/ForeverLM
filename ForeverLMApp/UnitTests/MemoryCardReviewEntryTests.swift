@@ -29,28 +29,6 @@ struct MemoryCardReviewEntryTests {
         return (StudioViewModel(storageService: StorageService(storeRoot: root), observeCloudKitChanges: false), root)
     }
 
-    private static let templateKeys = [
-        "studio.centerTabGroups.v1",
-        "studio.navigationRailVisible",
-    ]
-
-    /// The unit host's defaults are the real ones: the layout template a pane
-    /// change writes, and the active Notebook an open moves.
-    private func capturingSharedDefaults() -> () -> Void {
-        let template = Self.templateKeys.map { UserDefaults.standard.object(forKey: $0) }
-        let activeNotebookID = ActiveNotebookPreference.notebookID
-        return {
-            for (key, value) in zip(Self.templateKeys, template) {
-                if let value {
-                    UserDefaults.standard.set(value, forKey: key)
-                } else {
-                    UserDefaults.standard.removeObject(forKey: key)
-                }
-            }
-            ActiveNotebookPreference.notebookID = activeNotebookID
-        }
-    }
-
     /// A notebook of the library the view model has open.
     private func notebook(_ id: String, sources: [String] = [], in vm: StudioViewModel) -> LearningGoalRecord {
         let now = Date()

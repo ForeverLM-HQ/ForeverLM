@@ -118,11 +118,10 @@ enum KnowledgeMapSummaries {
     /// and written off the main actor on one serial queue, in call order, so a
     /// model made after another one saved reads what it saved.
     ///
-    /// Until 2026-10-11 it lived in `UserDefaults` under `cacheKey`, about
-    /// 300 KB that CFPreferences re-merged and re-diffed for its KVO observers
-    /// on the first read after every defaults write in the process, and that
-    /// each Map model decoded on the main actor when it was made. The first
-    /// read moves an older build's copy here and removes the key
+    /// It lives in a file, not `UserDefaults`: at about 300 KB, CFPreferences
+    /// would re-merge and re-diff it for its KVO observers on the first read
+    /// after every defaults write in the process. The first read moves a copy
+    /// still under `cacheKey` here and removes the key
     /// (`loadCache(fileURL:movingFrom:)`).
     static let cacheKey = Prefs.KnowledgeMap.summaryCache.name
 
@@ -153,10 +152,10 @@ enum KnowledgeMapSummaries {
         cacheQueue.async { writeCache(cache, to: cacheFileURL) }
     }
 
-    /// The cache at `fileURL`, once the copy an older build kept in `defaults`
+    /// The cache at `fileURL`, once the copy kept in `defaults`
     /// is moved there, byte for byte, and its key removed. A file already there
-    /// was written by this build, so a copy still in defaults is an older
-    /// build's, run since: the two are merged, its entries winning. A copy that
+    /// was written by the file-backed cache, so a copy still in defaults is an
+    /// older build's, run since: the two are merged, its entries winning. A copy that
     /// cannot be read, which no build could use either, is only removed. When
     /// the file cannot be written, the key stays to be moved at the next read,
     /// and this read answers with what both hold.

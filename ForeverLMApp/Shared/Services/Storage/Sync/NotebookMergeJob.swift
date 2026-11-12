@@ -8,7 +8,6 @@ import Foundation
 /// `foldKind`, both S, written in one save). Nothing belongs to it any more: its Entries are deleted
 /// once their twins exist, every child is re-pointed, and whatever still names it later (a late Entry,
 /// a late child, a late edit of the stub) is moved on by any Mac that sees it (`NotebookStubUpkeep`).
-/// Generation 1 deletes the merged row instead, as build 177 does (D40).
 enum NotebookStubs {
     /// Over a `learning_goals` row: a stub a merge or an emptying split left.
     static let isStubSQL = "COALESCE(merged_into, '') <> ''"
@@ -73,7 +72,7 @@ struct NotebookWords: Equatable, Sendable {
     }
 }
 
-/// Today's `foldNotebookWordsInTransaction` (73c2f2244), shared by a merge and an emptying split, and
+/// The fold of a notebook's own words, shared by a merge and an emptying split, and
 /// by the forwarding of late edits to a stub: the target's words win; a blank Instructions, summary,
 /// topic or repository is filled; research questions and open questions are unioned (trimmed,
 /// case-insensitive, the target's first); the links are unioned, minus both notebooks; and the notes
@@ -282,7 +281,7 @@ enum NotebookEntryTwins {
             case .twin:
                 if from.isApproved, to.reviewState == "pending" || to.reviewState == "rejected" { set("review_state", .text("approved")) }
                 if let relevance = from.relevance, relevance > (to.relevance ?? 0) { set("relevance", .real(relevance)) }
-                // Local study history, never on the record: the better of the two, as today's rule keeps it.
+                // Local study history, never on the record: the better of the two, as the merge rule keeps it.
                 if from.addedAt < to.addedAt { set("added_at", .real(from.addedAt)) }
                 if let done = from.completedAt, done > (to.completedAt ?? 0) { set("completed_at", .real(done)) }
                 if let quizzed = from.lastQuizzedAt, quizzed > (to.lastQuizzedAt ?? 0) { set("last_quizzed_at", .real(quizzed)) }
@@ -363,7 +362,7 @@ enum NotebookEntryTwins {
 
 /// What a notebook holds by id, moved to another: every row `ck_notebook_children` lists, each table
 /// in its own way, plus the local rows no record carries that file things under a notebook, as
-/// today's merge moves them. Entries are twinned (`NotebookEntryTwins`), and the member's NotebookState
+/// a merge moves them. Entries are twinned (`NotebookEntryTwins`), and the member's NotebookState
 /// is per-member state that is handed over, never re-pointed (D18).
 enum NotebookChildren {
     /// Each child table of the back-pointer index, and the statements that move its rows from `?2` to `?1`.
@@ -398,7 +397,7 @@ enum NotebookChildren {
     /// Child tables of the index that are not re-pointed: Entries are twinned, NotebookStates handed over.
     static let notRepointed: Set<String> = ["learning_goal_items", "notebook_course_links", "notebook_states"]
 
-    /// Local rows the index does not list, moved as today's merge moves them: Planner blocks, Schedule
+    /// Local rows the index does not list, moved as a merge moves them: Planner blocks, Schedule
     /// placements' tags, journal matches, and the links other notebooks hold to the old one (a notebook
     /// never links to itself, so a link that would collapse onto the target goes).
     static let localRepoints: [String] = [
@@ -467,7 +466,7 @@ enum NotebookChildren {
 
 // MARK: - The jobs (§5.2 Merge, Split)
 
-/// `NotebookMergeJob` and `NotebookSplitJob` (§5.2): run on the Mac, in one transaction of the
+/// `NotebookMergeJob`, its `merge` and `split` (§5.2): run on the Mac, in one transaction of the
 /// caller's, on the store's own connection, so every row they write goes out through the outbox. The
 /// redirect is written first; the job does not wait for its acknowledgement, so a merge works
 /// offline. When another device folded the same notebook first, its fold stands (`mergedInto` and
@@ -876,7 +875,7 @@ extension KnowledgeStore {
     func mergeNotebooksUnderGeneration2(survivorID: String, mergeeIDs: [String], title: String?, mergeNotes: Bool) throws -> CompanionGoalMergeResult {
         try refuseStubs([survivorID] + mergeeIDs)
         var merged = NotebookMergeJob.Merged()
-        try inNotebookJobTransaction { store in
+        try inDerivationTransaction { store in
             merged = try NotebookMergeJob(connection: store, registry: Self.projectionRegistry)
                 .merge(mergeeIDs, into: survivorID, title: title, mergeNotes: mergeNotes)
         }
@@ -887,12 +886,12 @@ extension KnowledgeStore {
         )
     }
 
-    /// Split under generation 2 (§5.2): `NotebookSplitJob` in one transaction. The caller checked the
+    /// Split under generation 2 (§5.2): `NotebookMergeJob.split` in one transaction. The caller checked the
     /// specs (titles, sources of the parent's pool, each named once).
     func splitNotebookUnderGeneration2(parentID: String, splits: [CompanionGoalSplitSpec], keepParent: Bool) throws -> CompanionGoalSplitResult {
         try refuseStubs([parentID])
         var result = NotebookMergeJob.Split(childIDs: [], heirID: nil)
-        try inNotebookJobTransaction { store in
+        try inDerivationTransaction { store in
             result = try NotebookMergeJob(connection: store, registry: Self.projectionRegistry).split(
                 parentID, into: splits.map { NotebookMergeJob.Child(title: $0.title, topic: $0.topic, sourceIDs: $0.sourceIDs, gapIDs: $0.gapIDs) },
                 keepParent: keepParent
@@ -909,7 +908,7 @@ extension KnowledgeStore {
         guard try scalarInteger("SELECT EXISTS(SELECT 1 FROM learning_goals WHERE \(NotebookStubs.isStubSQL))") == 1
         else { return [] }
         var notices: [String] = []
-        try inNotebookJobTransaction { store in
+        try inDerivationTransaction { store in
             _ = try NotebookStubUpkeep(feeder: OutboxFeeder(connection: store, registry: Self.projectionRegistry)).run()
             notices = try NotebookFoldNotices.take(store)
         }
@@ -922,17 +921,6 @@ extension KnowledgeStore {
             guard try scalarInteger("SELECT EXISTS(SELECT 1 FROM learning_goals WHERE id = ? AND \(NotebookStubs.isStubSQL))", [.text(id)]) == 1 else { continue }
             let survivor = try NotebookResolutionTable.resolve(id, connection: self).id
             throw KnowledgeStoreError.invalidData("Notebook \(id) was merged into \(survivor); use that notebook instead.")
-        }
-    }
-
-    private func inNotebookJobTransaction(_ body: (KnowledgeStore) throws -> Void) throws {
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try body(self)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
         }
     }
 }

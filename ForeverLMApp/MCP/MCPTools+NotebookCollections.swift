@@ -8,8 +8,7 @@ import Foundation
 // preference rows (`NotebookCollections`), written through `PreferenceStore`
 // as the Space's Add to Collection writes them, never a Notebook write; the
 // open window picks them up through the `foreverLMDataDidChange` reload.
-// The Notebooks home that once drew them went on 2026-10-09: the Space groups
-// All by them, and these tools reach every collection.
+// The Space groups All by them, and these tools reach every collection.
 
 extension MCPDataStore {
 

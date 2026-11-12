@@ -212,26 +212,6 @@ struct MnemonicReadingFormatTests {
         #expect(extra.reading.sections.last?.isWritten == true)
     }
 
-    @Test("Two copies merge question by question: a section either wrote is written, and nothing is held for a choice")
-    func union() throws {
-        let mine = Self.reading
-        let fresh = Self.question("chapter-2", quote: "A failure of System 2.", question: "What is a lapse of attention a failure of?", answer: "System 2.")
-        var theirs = Self.reading.writing([fresh], in: "chapter-2").reading
-        theirs = theirs.writing([Self.question("chapter-5")], in: "chapter-5", title: "Chapter 5").reading
-
-        let merged = try #require(MnemonicReading.union(mine: mine.markdown, theirs: theirs.markdown))
-        let reading = MnemonicReading.parse(merged, fallbackTitle: "F")
-        #expect(reading.pendingSourceIDs.isEmpty)
-        #expect(reading.section(sourceID: "chapter-2")?.questions == [fresh])
-        #expect(reading.sections.map(\.sourceID) == ["chapter-1", "chapter-2", "chapter-3", "chapter-5"])
-        // The other way round gives the same questions.
-        let back = try #require(MnemonicReading.union(mine: theirs.markdown, theirs: mine.markdown))
-        #expect(Set(MnemonicReading.parse(back, fallbackTitle: "F").questions.map(\.id)) == Set(reading.questions.map(\.id)))
-        // Nothing new: mine as it was.
-        #expect(MnemonicReading.union(mine: theirs.markdown, theirs: mine.markdown) == theirs.markdown)
-        #expect(MnemonicReading.union(mine: "# Doc", theirs: mine.markdown) == nil)
-    }
-
     @Test("A reading asks about one question for every 350 words, fewer or more on request, at least one and at most a chapter's cap")
     func density() {
         #expect(MnemonicReadingDensity.auto.questionCount(words: 3_500) == 10)

@@ -184,10 +184,8 @@ actor PodcastTranscriptCleanupService {
             return await result(processed: [], error: error.localizedDescription)
         }
         guard !candidates.isEmpty else { return await result(processed: [], error: nil) }
-        // The historical backfill waited for Transcript Formatting to be given
-        // a model of its own until tasks stopped having one (2026-09-28). It
-        // runs on Background › Text now, like new transcripts, under the
-        // daily background cap (`backgroundSpendAllowed`).
+        // The historical backfill runs on Background › Text, like new
+        // transcripts, under the daily background cap (`backgroundSpendAllowed`).
         let config: AITaskConfig
         if let explicitlyAuthorizedConfig {
             config = explicitlyAuthorizedConfig
@@ -727,10 +725,9 @@ extension StudioViewModel {
     /// the podcast source. Returned best match first — the reader presents that
     /// one and keeps the rest as alternatives.
     ///
-    /// On 2026-09-30 Core Memory's EP 90, "He's Here To End Death", was up on
-    /// YouTube as "Can We Put Death On Hold?", linked from the episode's page
-    /// and first on the show's channel, while every Data API search came back
-    /// empty and the reader said no matching video was found.
+    /// An episode can be up on YouTube under a different title than the
+    /// podcast app's, linked from the episode's page and first on the show's
+    /// channel, while every Data API search on its own title comes back empty.
     func findYouTubeTranscriptCandidates(for podcastID: String) async throws -> [YouTubeVideoSearchResult] {
         guard let article = articles.first(where: { $0.id == podcastID }) else {
             throw PodcastYouTubeTranscriptRecoveryError.sourceMissing
@@ -1973,11 +1970,11 @@ extension StudioViewModel {
         }
 
         // A transcript its source diarized already names each turn on a
-        // `[Name]` line, and the model's "speaker" could only repeat it — a
-        // `**Name:**` marker right above the `[Name]` line, in 390 of 1,092
-        // stored episodes on 2026-10-06 — or contradict it, as when a host's
-        // welcome was filed under the guest's name. Such a transcript takes the
-        // model's paragraph breaks and none of its speakers.
+        // `[Name]` line, and the model's "speaker" could only repeat it (a
+        // `**Name:**` marker right above the `[Name]` line) or contradict it,
+        // as when a host's welcome was filed under the guest's name. Such a
+        // transcript takes the model's paragraph breaks and none of its
+        // speakers.
         let diarized = transcriptIsDiarized ?? isDiarizedPodcastTranscriptOffMain(text)
         for annotation in annotations.reversed() {
             guard let rawAfter = annotation.after else { continue }

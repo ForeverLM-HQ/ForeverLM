@@ -444,10 +444,9 @@ extension MCPDataStore {
 
     static let aiTaskSettingsTargets = ["default_model", "docs", "background_text", "background_multimodal", "task_model", "meetings", "data_privacy", "host", "backups"]
 
-    /// What `set_ai_task_settings` took until background tasks stopped having
-    /// models of their own (2026-09-28) and still does not: `task_id` names the
-    /// task now (2026-10-07). A caller still sending these is told so rather
-    /// than having them ignored.
+    /// Arguments `set_ai_task_settings` does not take, because background tasks
+    /// have no models of their own: `task_id` names the task. A caller sending
+    /// these is told so rather than having them ignored.
     static let retiredAITaskSettingsArguments = ["task", "effort", "speed", "reset"]
 
     static func aiTaskSettingsPayload(includeCatalogue: Bool) -> [String: Any] {

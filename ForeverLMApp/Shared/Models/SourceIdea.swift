@@ -247,8 +247,8 @@ struct MemoryGradedExchange: Equatable, Sendable {
 /// A topic's opening grade covers ideas from several sources at once, and
 /// Go deeper grades the ideas that did not come back again, one at a time
 /// (docs/memory-design.md, "Review by topic"). If every grade counted, a
-/// correct answer to a narrow probe would score a whole source (the
-/// 2026-09-21 contour re-grades did exactly that). So an idea's first grade
+/// correct answer to a narrow probe would score a whole source (contour
+/// re-grades did exactly that). So an idea's first grade
 /// of the day is the evidence, a later grade of it moves nothing, and two
 /// topics that each cue some of a paper's ideas make one outcome for it.
 /// An idea whose first grade came under an ambiguous question contributes
