@@ -595,14 +595,49 @@ extension KnowledgeStore {
             dismissedNormalizedURLs.insert(URLNormalizer.normalize(url))
         }
 
-        return candidates.compactMap { candidate in
+        return try candidates.compactMap { candidate in
             if existingPersistedURLs.contains(candidate.persistedURL) { return nil }
             if existingNormalizedURLs.contains(candidate.normalizedURL) { return nil }
             if dismissedPersistedURLs.contains(candidate.persistedURL) { return nil }
             if dismissedPersistedURLs.contains(candidate.normalizedURL) { return nil }
             if dismissedNormalizedURLs.contains(candidate.normalizedURL) { return nil }
+            // A source filed under another address holds this one as a work key
+            // (a Substack post saved from an app link): it is no candidate either.
+            if try sourceID(forWorkKeys: ["url:" + candidate.normalizedURL], teamID: candidate.article.teamID) != nil {
+                return nil
+            }
             return candidate.article
         }
+    }
+
+    /// The active sources saved under a Substack app link that hold no other
+    /// address: the ones whose post address is still to be asked for
+    /// (`SubstackAppLink`). A source that holds a second, non-app-link `url:`
+    /// key has been asked already.
+    func substackAppLinkSourcesWithoutPostAddress() throws -> [(id: String, url: String)] {
+        var rows: [(id: String, url: String)] = []
+        try query("""
+            SELECT a.source_id, a.url FROM articles a JOIN sources s ON s.id = a.source_id
+            WHERE s.status = 'active' AND a.url LIKE '%substack.com/%'
+            ORDER BY a.source_id
+        """, []) { row in
+            if let id = row.text(0), let url = row.text(1), SubstackAppLink.isAppLink(url) { rows.append((id, url)) }
+        }
+        return try rows.filter { row in
+            var holdsPostAddress = false
+            try query("SELECT work_key FROM source_work_keys WHERE source_id = ? AND work_key LIKE 'url:%'", [.text(row.id)]) { key in
+                guard let address = key.text(0).map({ String($0.dropFirst(4)) }) else { return }
+                if !SubstackAppLink.isAppLink("https://" + address) { holdsPostAddress = true }
+            }
+            return !holdsPostAddress
+        }
+    }
+
+    /// Records that a saved source is also at `address`. The key is a normal
+    /// tracked write, so it reaches every device, and duplicate resolution folds
+    /// this source and one already saved under that address into one.
+    func addAddress(_ address: String, toSource sourceID: String) throws {
+        try addWorkKeys(SourceWorkKeys.keys(url: address, normalizedURL: nil), to: sourceID)
     }
 
     func collectExistingValues(
@@ -635,8 +670,13 @@ extension KnowledgeStore {
     /// (the user explicitly removed them). Returns true if inserted, false if skipped
     /// because the source already exists or was dismissed. Throws if the underlying
     /// write fails — a failed insert must not be reported as success.
+    ///
+    /// `alsoAt` names other addresses of the same work that only the import knows
+    /// (a Substack app link, when the source is filed under the post's own
+    /// address): they are looked up with the source's own keys and kept as work
+    /// keys, so the source is found by any of them.
     @discardableResult
-    func insertSourceIfNew(_ article: inout StudioArticle) throws -> Bool {
+    func insertSourceIfNew(_ article: inout StudioArticle, alsoAt: [String] = []) throws -> Bool {
         let normalizedURL = URLNormalizer.normalize(article.url)
         article.normalizedURL = normalizedURL
         article.title = Self.persistedTitle(for: article)
@@ -649,6 +689,11 @@ extension KnowledgeStore {
         // Generation 1 mints as it always has.
         var importKeys: [String] = []
         importKeys = workKeys(for: article, hashingFile: true)
+        for address in alsoAt {
+            for key in SourceWorkKeys.keys(url: address, normalizedURL: nil) where !importKeys.contains(key) {
+                importKeys.append(key)
+            }
+        }
         if let existingID = try sourceID(forWorkKeys: importKeys, teamID: article.teamID) {
             try addWorkKeys(importKeys, to: existingID)
             if let existing = try loadSourceWithoutContent(existingID) { article = existing }

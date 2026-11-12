@@ -92,6 +92,9 @@ extension StudioViewModel {
         }
 
         loadingStep = "Classifying new sources…"
+        let discoveredAppLinks = await Self.filingSubstackPostsUnderTheirOwnAddress(
+            &discovered, postAddress: substackPostAddress
+        )
         await classifyDiscoveredSourceTypesBeforePersistence(&discovered)
         await enrichYouTubeMetadataBeforePersistence(&discovered)
 
@@ -112,7 +115,9 @@ extension StudioViewModel {
         var insertedSources: [StudioArticle] = []
         for i in discovered.indices {
             do {
-                let inserted = try await storage.insertSourceIfNew(&discovered[i])
+                let inserted = try await storage.insertSourceIfNew(
+                    &discovered[i], alsoAt: discoveredAppLinks[discovered[i].id] ?? []
+                )
                 if inserted {
                     insertedCount += 1
                     insertedSources.append(discovered[i])
@@ -897,10 +902,61 @@ extension StudioViewModel {
         }
     }
 
+    /// Once a launch: each source saved under a Substack app link before such
+    /// links were filed under the post's own address learns that address as a
+    /// work key. Adding the post from the publication's site then finds it, and
+    /// a pair already saved both ways shares a key, which duplicate resolution
+    /// folds into one source. A link Substack does not answer for is asked
+    /// again next launch.
+    func givePostAddressesToSubstackAppLinkSources() async {
+        guard !didGivePostAddressesToSubstackAppLinkSources else { return }
+        didGivePostAddressesToSubstackAppLinkSources = true
+        do {
+            var found: [(sourceID: String, address: String)] = []
+            for row in try await storage.substackAppLinkSourcesWithoutPostAddress() {
+                if let address = await substackPostAddress(row.url) {
+                    found.append((row.id, address))
+                }
+            }
+            try await storage.addAddresses(found)
+            if !found.isEmpty {
+                logger.info("Gave \(found.count) Substack app-link source(s) their post address")
+            }
+        } catch {
+            logger.error("Could not give Substack app-link sources their post address: \(error.localizedDescription)")
+        }
+    }
+
+    /// Files each discovered Substack app link under the post's own address
+    /// (`SubstackAppLink`), before it is classified or saved. Returns, by the
+    /// re-filed source's id, the app link it came as, which the insert keeps as
+    /// a work key. Two links that name one post leave one candidate holding
+    /// both. A link Substack does not answer for stays as it came.
+    nonisolated static func filingSubstackPostsUnderTheirOwnAddress(
+        _ candidates: inout [StudioArticle],
+        postAddress: @Sendable (String) async -> String?
+    ) async -> [String: [String]] {
+        var appLinks: [String: [String]] = [:]
+        var filed: [StudioArticle] = []
+        var filedIDs = Set(candidates.filter { !SubstackAppLink.isAppLink($0.url) }.map(\.id))
+        for candidate in candidates {
+            guard SubstackAppLink.isAppLink(candidate.url), let address = await postAddress(candidate.url) else {
+                filed.append(candidate)
+                continue
+            }
+            let moved = candidate.readdressed(to: address)
+            appLinks[moved.id, default: []].append(candidate.url)
+            if filedIDs.insert(moved.id).inserted { filed.append(moved) }
+        }
+        candidates = filed
+        return appLinks
+    }
+
     nonisolated static func persistReadingListAutoSync(
         browserResult: BrowserReadingListScanResult,
         existingArticles: [StudioArticle],
-        storage: StorageService
+        storage: StorageService,
+        postAddress: @Sendable (String) async -> String? = { await SubstackAppLink.resolvePostAddress($0) }
     ) async -> ReadingListAutoSyncPersistenceResult {
         let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Studio")
         var seenURLs = Set<String>()
@@ -946,6 +1002,7 @@ extension StudioViewModel {
             )
         }
 
+        let appLinks = await filingSubstackPostsUnderTheirOwnAddress(&candidates, postAddress: postAddress)
         await classifyDiscoveredSourceTypesBeforePersistence(&candidates)
         await enrichYouTubeMetadataBeforePersistence(&candidates)
 
@@ -962,7 +1019,7 @@ extension StudioViewModel {
 
         for i in candidates.indices {
             do {
-                let inserted = try await storage.insertSourceIfNew(&candidates[i])
+                let inserted = try await storage.insertSourceIfNew(&candidates[i], alsoAt: appLinks[candidates[i].id] ?? [])
                 guard inserted else { continue }
                 insertedIDs.insert(candidates[i].id)
                 insertedSources.append(candidates[i])

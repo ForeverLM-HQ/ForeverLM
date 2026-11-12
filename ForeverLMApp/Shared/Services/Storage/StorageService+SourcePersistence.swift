@@ -15,12 +15,35 @@ extension StorageService {
         return try knowledgeStore().sourceExistsByURL(url)
     }
 
-    func insertSourceIfNew(_ article: inout StudioArticle) throws -> Bool {
-        let inserted = try knowledgeStore().insertSourceIfNew(&article)
-        if inserted {
+    func insertSourceIfNew(_ article: inout StudioArticle, alsoAt: [String] = []) throws -> Bool {
+        let inserted = try knowledgeStore().insertSourceIfNew(&article, alsoAt: alsoAt)
+        // An import that found its source may still have taught it an address.
+        if inserted || !alsoAt.isEmpty {
             scheduleCloudKitSync(.immediate)
         }
         return inserted
+    }
+
+    /// Whether a source of the learner's own library is saved at `address` or
+    /// holds it as a work key.
+    func holdsSource(atAddress address: String) throws -> Bool {
+        try knowledgeStore().sourceID(
+            forWorkKeys: SourceWorkKeys.keys(url: address, normalizedURL: nil), teamID: nil
+        ) != nil
+    }
+
+    func substackAppLinkSourcesWithoutPostAddress() throws -> [(id: String, url: String)] {
+        try knowledgeStore().substackAppLinkSourcesWithoutPostAddress()
+    }
+
+    /// Records the other address each saved source is at, in one sync.
+    func addAddresses(_ addresses: [(sourceID: String, address: String)]) throws {
+        guard !addresses.isEmpty else { return }
+        let store = try knowledgeStore()
+        for entry in addresses {
+            try store.addAddress(entry.address, toSource: entry.sourceID)
+        }
+        scheduleCloudKitSync(.immediate)
     }
 
     func newSourceCandidates(from articles: [StudioArticle]) throws -> [StudioArticle] {

@@ -349,6 +349,13 @@ class StudioViewModel {
     @ObservationIgnored var didResolveSuppressedDuplicatePapers = false
     /// Whether this launch has taken preprints' published DOIs out of their work keys.
     @ObservationIgnored var didRepairPublishedDOIWorkKeys = false
+    /// Whether this launch has asked for the post address of the sources saved under a Substack app link.
+    @ObservationIgnored var didGivePostAddressesToSubstackAppLinkSources = false
+    /// Asks Substack which post an app link names (`SubstackAppLink`); a test
+    /// answers for it.
+    @ObservationIgnored var substackPostAddress: @Sendable (String) async -> String? = {
+        await SubstackAppLink.resolvePostAddress($0)
+    }
 
     @ObservationIgnored private var resolvedPathRevalidationTask: Task<Void, Never>?
 

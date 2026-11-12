@@ -941,6 +941,7 @@
 		6449238BCB27A868C3F1B578 /* MobileSourceChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67AF460D4A2EC267B3E81CE7 /* MobileSourceChatService.swift */; };
 		647D2875B2D74B329C8A04C9 /* MobileVoiceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E615BABBEC8C75C608F437 /* MobileVoiceUITests.swift */; };
 		647F7B8AE0047B1AD624C30E /* MobileVoiceSourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3D8E9F280C5F0826F23AFC /* MobileVoiceSourceResolver.swift */; };
+		648E732B1FB8CF1EB422A501 /* SubstackAppLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DC90E28189597661E8610CB /* SubstackAppLink.swift */; };
 		64903DB860ADFFE097ECFF75 /* ChatRobustnessTests+PromptCaching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43422F982D61DC9314DCC2FA /* ChatRobustnessTests+PromptCaching.swift */; };
 		6498FF53B240048A604E9F6B /* MobileMnemonicReadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F97C4A0E87053FB5816B2CF /* MobileMnemonicReadingTests.swift */; };
 		649D000E6E68EA774034478B /* ChatToolSurfaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20863456560CF66EC3684A3B /* ChatToolSurfaceTests.swift */; };
@@ -2156,6 +2157,7 @@
 		EBD5DAB3D0CF35FEBA733D60 /* PlanTheDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B89C692873DF462A5FB51A07 /* PlanTheDay.swift */; };
 		EBDE43AA1F5CB940B92C2214 /* NotebookVersusGoalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D59A84EBE5D13CDB7A76728 /* NotebookVersusGoalTests.swift */; };
 		EBE567B3A5EF3A9E84967BAB /* MobileBookReadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BDC9F70853A47F4BC8B4B48 /* MobileBookReadingTests.swift */; };
+		EBF6501C7C4FA4DD975040D2 /* SubstackAppLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63EB0E745DE5FE47756DF48 /* SubstackAppLinkTests.swift */; };
 		EBFE39BD68F74690E9008B46 /* DuplicateSourceResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B201F248D2CE1A777FE0F285 /* DuplicateSourceResolutionTests.swift */; };
 		EBFF73266E76B72995EC63E5 /* StudioViewModel+CanvasMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BC529ADC539C86438C3807 /* StudioViewModel+CanvasMemory.swift */; };
 		EC4F89FFAD5F0A63C754EA50 /* ReviewGradingTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6260B5A5710708B7D7E62492 /* ReviewGradingTaskTests.swift */; };
@@ -3432,6 +3434,7 @@
 		7D91DF34ADCEB68DDC4233E6 /* TranscriptReaderViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptReaderViews.swift; sourceTree = "<group>"; };
 		7DA5932D59CCA824CAC751C7 /* StudioNavigationRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioNavigationRail.swift; sourceTree = "<group>"; };
 		7DB00A953DB63F0D1E81CC64 /* SourceReaderWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceReaderWindow.swift; sourceTree = "<group>"; };
+		7DC90E28189597661E8610CB /* SubstackAppLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackAppLink.swift; sourceTree = "<group>"; };
 		7DCF409DBE58F363BBDE8934 /* MCPCourseQuizToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPCourseQuizToolTests.swift; sourceTree = "<group>"; };
 		7DE23C1AD46576BCB15F3597 /* PDFPageRotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFPageRotations.swift; sourceTree = "<group>"; };
 		7E3E456492C7EDB8E87E2352 /* HighlightColorMeaningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightColorMeaningTests.swift; sourceTree = "<group>"; };
@@ -4200,6 +4203,7 @@
 		D58B8CE6383C30C7968E2EFD /* StudioViewModel+NotebookFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+NotebookFiles.swift"; sourceTree = "<group>"; };
 		D58E6EF27AC2AAF1DB0E47D0 /* StorageService+SourceLevels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorageService+SourceLevels.swift"; sourceTree = "<group>"; };
 		D6127EF954B10EBACFB7B455 /* DocSpaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocSpaceTests.swift; sourceTree = "<group>"; };
+		D63EB0E745DE5FE47756DF48 /* SubstackAppLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackAppLinkTests.swift; sourceTree = "<group>"; };
 		D651C2649BBB201FC46C0321 /* DocGraphSyntaxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocGraphSyntaxTests.swift; sourceTree = "<group>"; };
 		D69676E8922CE39FEFF191A6 /* MobileNotebookRailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileNotebookRailTests.swift; sourceTree = "<group>"; };
 		D6CA083164CABDE45A11CBB2 /* StorageService+VideoCitedPapers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorageService+VideoCitedPapers.swift"; sourceTree = "<group>"; };
@@ -5518,6 +5522,7 @@
 				B0EEFEE702DEC47FA2DBD2B0 /* StudioModelTests.swift */,
 				8F4E473322D3B66E8B52C493 /* StudioRailHiddenItemsTests.swift */,
 				58189E59BF7ED6B172B3D377 /* StudioViewModelTests.swift */,
+				D63EB0E745DE5FE47756DF48 /* SubstackAppLinkTests.swift */,
 				E68682739E4F62F9D3FEEB66 /* SyncedStorageObserverTests.swift */,
 				E52D7F85B6DFFE945BF01C20 /* SyncStatusCenterTests.swift */,
 				29AA70A69C7F9C4D1F9048D6 /* TabManagementTests.swift */,
@@ -6421,6 +6426,7 @@
 				5F51405FEE0BB55F9E475924 /* SourceError.swift */,
 				4BDD40F82E0F72FC69010424 /* SourceService.swift */,
 				54404A32A6D16ED8DDDC2138 /* SourceWebSession.swift */,
+				7DC90E28189597661E8610CB /* SubstackAppLink.swift */,
 				FAB36D9DCDC08DA87A26B978 /* TeachableCourseService.swift */,
 				FA8B235FF41116342969AA56 /* WebVerificationRequests.swift */,
 				1BCCF00E277F222F834DF3C3 /* XAccounts.swift */,
@@ -8034,6 +8040,7 @@
 				CD2ACCFCB1ABD466B7FCF5B8 /* StudioModelTests.swift in Sources */,
 				15B7CBC98C514E9C1BF72330 /* StudioRailHiddenItemsTests.swift in Sources */,
 				49269EA8E3F10ED7504591E2 /* StudioViewModelTests.swift in Sources */,
+				EBF6501C7C4FA4DD975040D2 /* SubstackAppLinkTests.swift in Sources */,
 				9372247633A75A84A7215444 /* SyncBackfillDrainTests.swift in Sources */,
 				E11861B4328CBAB62D6DAFAF /* SyncCoreReviewTests.swift in Sources */,
 				ABE3015B12E8E59B4A58381A /* SyncEnvelopeTests.swift in Sources */,
@@ -9756,6 +9763,7 @@
 				189DB318D9B9DAE454AB75BF /* StudioViewModelTypes.swift in Sources */,
 				C8040504AFA590DC4D6B4FC9 /* StudioViewSupport.swift in Sources */,
 				45368FFBA37E624FE4A3737E /* StudioWorkChip.swift in Sources */,
+				648E732B1FB8CF1EB422A501 /* SubstackAppLink.swift in Sources */,
 				B1AE098562F7E575F913AA31 /* SyncBackfillDrain.swift in Sources */,
 				81508A34B043E0653EE273BB /* SyncCoordinator.swift in Sources */,
 				49F6C5864262E8DD8E546382 /* SyncJSON.swift in Sources */,

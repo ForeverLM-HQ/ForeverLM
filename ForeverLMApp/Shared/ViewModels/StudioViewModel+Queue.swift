@@ -300,6 +300,7 @@ extension StudioViewModel {
             guard let self else { return }
 
             await self.convergePaperIdentityDuplicates()
+            await self.givePostAddressesToSubstackAppLinkSources()
             await self.drainPendingWebCourseImports()
             await self.drainPendingWebBookImports()
             await self.runDeferredBookFileMerge()
@@ -1055,7 +1056,20 @@ extension StudioViewModel {
         reviveArchivedSourceIfNeeded: Bool = false,
         knownTitle: String? = nil
     ) async throws {
-        guard let normalized = Self.normalizedSourceAddress(url) else { return }
+        guard var normalized = Self.normalizedSourceAddress(url) else { return }
+
+        // A Substack app link the library does not know is filed under the
+        // post's own address, which Substack names, and kept as one more key of
+        // that source: the post saved from the publication's site is then found
+        // instead of being saved twice (`SubstackAppLink`).
+        var appLinks: [String] = []
+        if SubstackAppLink.isAppLink(normalized),
+           !articles.contains(where: { $0.url == normalized }),
+           !(try await storage.holdsSource(atAddress: normalized)),
+           let postAddress = await substackPostAddress(normalized) {
+            appLinks = [normalized]
+            normalized = postAddress
+        }
 
         // A page ForeverLM links rather than scrapes is never a source, on this
         // route or any other: the source bar, a browser pane's Add to Sources, a
@@ -1088,6 +1102,12 @@ extension StudioViewModel {
 
         // Check for duplicates — exact URL match
         guard !articles.contains(where: { $0.url == normalized }) else {
+            // The post is here under its own address: it learns the app link,
+            // so the reading list that offers that link again finds it.
+            if !appLinks.isEmpty {
+                var known = StudioArticle(url: normalized)
+                _ = try await storage.insertSourceIfNew(&known, alsoAt: appLinks)
+            }
             errorMessage = "This URL is already in your reading list."
             return
         }
@@ -1220,7 +1240,7 @@ extension StudioViewModel {
         // insert rather than leaving a session no list can show.
         await assignZoomMeetingSeries(to: &article, explicit: true)
 
-        var inserted = try await storage.insertSourceIfNew(&article)
+        var inserted = try await storage.insertSourceIfNew(&article, alsoAt: appLinks)
         if !inserted, reviveArchivedSourceIfNeeded {
             if let revivedID = try await storage.unarchiveSourceMatchingURL(
                 normalized,
@@ -1269,7 +1289,7 @@ extension StudioViewModel {
             // A dismissal can outlive a source row. Clearing that tombstone is
             // still meaningful, so retry the insert once before reporting that
             // the source already exists.
-            inserted = try await storage.insertSourceIfNew(&article)
+            inserted = try await storage.insertSourceIfNew(&article, alsoAt: appLinks)
         }
         guard inserted else {
             errorMessage = "This source is already in your library or was previously removed."
