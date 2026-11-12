@@ -35,7 +35,7 @@ test('a source card the library does not answer for shows no library label', asy
   await settle(page)
   const alpha = page.locator('p.artifact-reference', { hasText: 'Alpha title' })
   await expect(alpha.locator('.artifact-reference-control')).toHaveText('')
-  await expect(page.locator('p.artifact-reference', { hasText: 'Beta title' }).locator('button[data-role="open"]')).toHaveCount(1)
+  await expect(page.locator('p.artifact-reference', { hasText: 'Beta title' })).toHaveAttribute('data-reference-state', 'inLibrary')
   expect(await page.locator('.ProseMirror').innerText()).not.toContain('Not in this library')
   expect(errors).toEqual([])
 })

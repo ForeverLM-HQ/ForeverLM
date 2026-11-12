@@ -1312,21 +1312,10 @@ body.is-dragging-card * {
   border-color: color-mix(in srgb, AccentColor 38%, transparent);
 }
 
-.artifact-reference-control button[data-role="open"] {
-  padding: 0 5px;
-}
-
-/* In the library: a filled check. A real element, not a pseudo-element, so
-   the accent colour actually paints in this WebView. */
-.artifact-reference-check {
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: LinkText;
-  background: AccentColor;
-  color: Canvas;
+/* A card with nothing to offer (its source in the library, or no answer yet)
+   keeps no gap at its trailing edge. */
+.artifact-reference-control:empty {
+  display: none;
 }
 
 /* Crepe centres a list marker on the first line of ordinary prose; a card's
@@ -1336,10 +1325,6 @@ body.is-dragging-card * {
 .milkdown .editor li.list-item:has(> .children > .content-dom > p.artifact-reference:first-child) > .label-wrapper {
   height: auto;
   padding-top: 11px;
-}
-
-.artifact-reference-check svg {
-  display: block;
 }
 
 /* In a narrow pane the floated control would leave the title a few characters

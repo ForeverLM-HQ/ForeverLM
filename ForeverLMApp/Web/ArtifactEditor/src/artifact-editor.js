@@ -2768,29 +2768,16 @@ const referenceRequestSVG = '<svg viewBox="0 0 12 12" width="12" height="12"><pa
 const referencePlusSVG = '<svg viewBox="0 0 12 12" width="12" height="12"><path d="M6 2.2v7.6M2.2 6h7.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
 
 /// What the library says about an address, as the one control a card offers:
-/// in the library, a filled check that opens the source; not in the library,
-/// Add to Sources; a wait while the import runs; nothing while the host has not
-/// answered. `compact` draws Add to Sources as a plus with the words as its
-/// label, for the margin cards, whose width the words would not fit.
+/// not in the library, Add to Sources; a wait while the import runs; nothing
+/// while the host has not answered. A card the library holds offers nothing
+/// either: the card itself opens the source when pressed, and a check on
+/// every card inserted from the library said only what all of them were
+/// (product owner, 2026-11-12: "All these have a selection blue check mark on
+/// the right. Like, why is that?"). `compact` draws Add to Sources as a plus
+/// with the words as its label, for the margin cards, whose width the words
+/// would not fit.
 function referenceAction(href, status, compact = false) {
   const state = status?.state ?? 'unknown'
-  if (state === 'inLibrary') {
-    const open = document.createElement('button')
-    open.type = 'button'
-    open.dataset.role = 'open'
-    open.title = 'In your library — open in Reader'
-    open.setAttribute('aria-label', 'In your library. Open in Reader')
-    const check = document.createElement('span')
-    check.className = 'artifact-reference-check'
-    check.setAttribute('aria-hidden', 'true')
-    check.innerHTML = referenceCheckSVG
-    open.append(check)
-    open.addEventListener('click', (event) => {
-      event.stopPropagation()
-      post('openSourceRequested', { href, sourceID: status?.sourceID ?? '' })
-    })
-    return open
-  }
   if (state === 'adding') {
     const pending = document.createElement('span')
     pending.className = 'artifact-reference-pending'

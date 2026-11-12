@@ -23,10 +23,18 @@ test('a press on the title, the picture, the line under it or the room beside th
   const box = await alpha.boundingBox()
   await page.mouse.click(box.x + box.width * 0.7, box.y + box.height / 2)
   expect(await opened(page)).toEqual(['alpha', 'alpha', 'alpha', 'alpha'])
-  // The check at the trailing edge opens it once, not twice.
-  await alpha.locator('.artifact-reference-control button').click()
-  expect(await opened(page)).toHaveLength(5)
   expect(await stored(page)).toBe(page2)
+  expect(errors).toEqual([])
+})
+
+test('a card the library holds wears no check at its trailing edge', async ({ page }) => {
+  const errors = await openEditor(page, page2)
+  await held(page)
+  await settle(page)
+  const alpha = page.locator('p.artifact-reference', { hasText: 'Alpha title' })
+  await expect(alpha).toHaveAttribute('data-reference-state', 'inLibrary')
+  await expect(alpha.locator('.artifact-reference-control button')).toHaveCount(0)
+  await expect(alpha.locator('.artifact-reference-control')).toBeHidden()
   expect(errors).toEqual([])
 })
 
