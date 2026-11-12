@@ -24,6 +24,20 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.215.0 (build 295) — 2026-11-12
+
+**Highlights:**
+- **Each window is its own:** sidebars, layouts, zoom, the Reader's panels and the Canvas no longer follow another window.
+- **Dictation in chat goes where the cursor is.**
+- **Security fixes** from a pre-launch audit.
+
+- **Each window is its own.** With two windows open, the sidebar toggle, list or grid, sort, folded sections, column widths, zoom, the Reader's Levels, References and Legends panels, and the Canvas and Atlas change only the window you are in. A toast, an Undo banner or the AI Usage popover shows only in the window that raised it. Each window comes back as you left it.
+- **Dictation in chat goes where the cursor is**, not after the draft.
+- **A reply that failed stays with its chat** when you leave and come back.
+- **A meeting series scopes a search**, like a podcast show.
+- **Disconnect a connected AI app** in Settings › MCP.
+- **Security fixes** from a pre-launch audit: shared Docs, MCP clients and approvals, run_code, OAuth redirects, links and URL imports.
+
 ## 0.214.0 (build 294) — 2026-11-12
 
 **Highlights:**
