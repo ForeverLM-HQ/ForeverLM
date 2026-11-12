@@ -41,10 +41,6 @@ struct StudioNavigationRail: View {
     @State private var deletingSession: ReviewSessionRecord?
     @State private var notebookFromChatRequest: NotebookFromChatRequest?
     @State private var renameText = ""
-    /// Disclosure is local navigation state, but it persists across launches so
-    /// opening Studio does not repeatedly erase the learner's rail organization.
-    /// It is intentionally not a synced preference.
-    @State private var expandedNotebookIDs: Set<String> = StudioNavigationRail.storedExpandedNotebookIDs()
     /// How many chats each list has drawn as the learner scrolled past its
     /// first page, keyed by list (a notebook, the loose chats or the hidden
     /// ones). Absent means the list shows one page. Window state, not a
@@ -216,7 +212,7 @@ struct StudioNavigationRail: View {
             await vm.loadTeams()
             await vm.loadLearningGoals()
             await vm.loadReviewSessionLinks()
-            reconcileExpandedNotebooks()
+            expandChatsContainingActiveChats()
         }
         // An accepted invitation and a roster change both happen outside the
         // view model; the switcher's list has to follow them.
@@ -225,26 +221,6 @@ struct StudioNavigationRail: View {
                 await vm.loadTeams()
                 if let teamID = note.object as? String { await vm.refreshTeamMembers(teamID: teamID) }
             }
-        }
-        .onChange(of: expandedNotebookIDs) { _, ids in
-            Preferences.set(ids.sorted(), for: Prefs.Rail.expandedNotebookIDs)
-            NotebookSidebarSync.setExpanded(ids)
-        }
-        // The folds the rail keeps in `@PreferenceStorage` redraw themselves when a
-        // remote change lands; this one is a `Set` seeded once into `@State`, so
-        // it has to be reseeded explicitly or the other Mac's change would not
-        // show until the next launch — the difference `PreferenceStore` warns
-        // about for exactly this shape of reader.
-        .onReceive(NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)) { note in
-            guard PreferenceStore.notification(note, mayHaveChanged: Prefs.Rail.expandedNotebookIDs) else { return }
-            let stored = Self.storedExpandedNotebookIDs()
-            if stored != expandedNotebookIDs { expandedNotebookIDs = stored }
-        }
-        .onChange(of: activeSessionIDs) { _, _ in
-            expandNotebooksContainingActiveChats()
-        }
-        .onChange(of: vm.notebooks.map(\.id)) { _, _ in
-            reconcileExpandedNotebooks()
         }
         // Codex's Rename chat: the title in a field, Save.
         .alert(
@@ -627,32 +603,23 @@ struct StudioNavigationRail: View {
             }
 
             ScrollView {
-                // Notebooks is a clickable section header that opens the
-                // Space's All list, with the Pinned and Recent notebooks
-                // beneath it (`NotebookRail`): a compact way in, the whole
-                // catalog living in the Space (product owner, 2026-10-03, of ~52
-                // notebooks: "is it even still good design to have all these
-                // notebooks in the left sidebar as well?"). The collections
-                // have no rows here: All groups by collection. A notebook's
-                // chats live directly beneath its row; library chats and
-                // chats whose notebook has no row here — archived, neither
-                // pinned nor recent — remain in the Chats section so nothing
-                // becomes unreachable.
-                // The notebook this window holds: another window's never
-                // lights a notebook here.
-                let scopedNotebook = vm.railScopedNotebook(in: windowState)
+                // Chats only: every notebook lives in the Space's Notebooks
+                // list, so the sidebar holds no notebook rows (product owner,
+                // 2026-11-11: "I don't think it makes sense to have notebooks
+                // also in this sidebar with chats"). A notebook's chats are
+                // listed here with the rest, newest first.
                 let rail = vm.notebookRail(in: windowState)
                 let notebooks = railNotebooksByID(rail)
                 let railNotebooks = rail.notebookIDs.compactMap { notebooks[$0] }
                 let chatGroups = vm.reviewSessionGroups(for: railNotebooks)
-                // A pinned chat leaves its notebook's chats or the loose ones
-                // for Pinned, under the pinned notebooks, as Codex's pinned
+                // A pinned chat leaves the list for Pinned, as Codex's pinned
                 // chats leave their project (`ChatPins`).
                 let chats = vm.splittingPinnedChats(
                     byNotebookID: chatGroups.byNotebookID,
                     outsideNotebooks: chatGroups.outsideNotebooks
                 )
-                let unreadChatIDs = ChatReadMarks.shared.unreadSessionIDs
+                let allChats = (chats.outsideNotebooks + chats.byNotebookID.values.flatMap { $0 })
+                    .sorted { $0.createdAt > $1.createdAt }
                 // Hidden chats leave every list above and sit folded under the
                 // loose chats, whichever Notebook they are filed in.
                 let hiddenChats = vm.hiddenReviewSessions(for: railNotebooks)
@@ -669,87 +636,8 @@ struct StudioNavigationRail: View {
                 // sized history that produced a multi-gigabyte display list and a
                 // permanent beachball. Keep only the viewport's rows alive.
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    // The header opens the Space's All list, where every
-                    // notebook is listed: in a window holding a notebook it
-                    // opens as one more tab of the notebook's panes. Home's sidebar
-                    // shows only while the window is not on the Space, so the
-                    // header is never the lit row.
-                    RailSectionHeaderButton(
-                        title: "Notebooks",
-                        identifier: "studio.navigation.notebooks"
-                    ) {
-                        vm.inWindow(windowState) { vm.showSpaceAll(in: windowState) }
-                    }
-                    .onDrag {
-                        StudioDragVisibility.shared.begin(centerTab: .artifacts)
-                        return studioCenterTabDragProvider(for: .artifacts)
-                    }
-                    .contextMenu {
-                        // The Courses list: every course, which lives in no
-                        // notebook.
-                        Section("Courses") {
-                            Button("Open Courses", systemImage: "graduationcap") {
-                                vm.inWindow(windowState) { vm.showSpaceTab(.courses) }
-                            }
-                            Button("Open Courses Beside", systemImage: "rectangle.split.2x1") {
-                                vm.inWindow(windowState) {
-                                    vm.openCenterTabBeside(.courses)
-                                    vm.openCoursesListInReader()
-                                }
-                            }
-                            OpenStudioDestinationInOtherWindowMenu(
-                                destination: .courses,
-                                currentWindowState: windowState,
-                                openNewWindow: { openWindow(id: "studio") }
-                            )
-                        }
-                        // The Space: every page, site, picture, canvas, list,
-                        // notebook and course. Goals and Ideas are the chat's
-                        // to show (`SpaceTab`).
-                        Section("Space") {
-                            Button("Open Space", systemImage: "square.grid.2x2") {
-                                vm.inWindow(windowState) { vm.showSpaceAll(in: windowState) }
-                            }
-                            Button("Open Space Beside", systemImage: "rectangle.split.2x1") {
-                                vm.inWindow(windowState) {
-                                    vm.openCenterTabBeside(.artifacts)
-                                    vm.openArtifactsInReader()
-                                }
-                            }
-                            OpenStudioDestinationInOtherWindowMenu(
-                                destination: .artifacts,
-                                currentWindowState: windowState,
-                                openNewWindow: { openWindow(id: "studio") }
-                            )
-                        }
-                        // The Notebooks header cannot be hidden, so this menu is
-                        // the one route back that survives hiding every row
-                        // above it.
-                        Divider()
-                        RailItemVisibilityMenu()
-                    }
-
-                    // Both placeholders wait for the first library load: until
-                    // then an empty list means "still reading", and "No notebooks
-                    // yet" would greet a learner whose notebooks are seconds away.
-                    if railNotebooks.isEmpty, vm.hasCompletedInitialQueueLoad {
-                        RailPlaceholderRow(
-                            text: vm.archivedNotebooks.isEmpty ? "No notebooks yet" : "No active notebooks",
-                            indent: 8
-                        )
-                    }
-
-                    if !rail.pinnedIDs.isEmpty || !chats.pinned.isEmpty {
+                    if !chats.pinned.isEmpty {
                         RailSectionHeader(title: "Pinned")
-                        ForEach(rail.pinnedIDs.compactMap { notebooks[$0] }) { notebook in
-                            notebookRow(
-                                notebook,
-                                scopedNotebook: scopedNotebook,
-                                chatGroups: chats.byNotebookID,
-                                runningSessionIDs: runningSessionIDs,
-                                unreadChatIDs: unreadChatIDs
-                            )
-                        }
                         // The pinned chats, in the learner's order: a drop on
                         // one moves the dragged pin to its place.
                         let pinnedIDs = chats.pinned.map(\.id)
@@ -764,23 +652,6 @@ struct StudioNavigationRail: View {
                                         vm.reorderPinnedChat(from: dragged, to: session.id, listed: pinnedIDs)
                                     }
                                 }
-                            )
-                        }
-                    }
-
-                    // The last few worked in, and the notebook this window last
-                    // left when it is neither pinned nor recent, so going back
-                    // to it stays one click.
-                    let recent = (rail.recentIDs + [rail.openNotebookID].compactMap { $0 }).compactMap { notebooks[$0] }
-                    if !recent.isEmpty {
-                        RailSectionHeader(title: "Recent")
-                        ForEach(recent) { notebook in
-                            notebookRow(
-                                notebook,
-                                scopedNotebook: scopedNotebook,
-                                chatGroups: chats.byNotebookID,
-                                runningSessionIDs: runningSessionIDs,
-                                unreadChatIDs: unreadChatIDs
                             )
                         }
                     }
@@ -829,6 +700,11 @@ struct StudioNavigationRail: View {
                         } else {
                             Text("No hidden chats")
                         }
+                        // The Chats header cannot be hidden, so this menu is
+                        // the one route back that survives hiding every row
+                        // above it.
+                        Divider()
+                        RailItemVisibilityMenu()
                     }
                     if isChatsExpanded {
                         if chatGroups.totalCount == 0 && hiddenChats.isEmpty {
@@ -839,7 +715,7 @@ struct StudioNavigationRail: View {
                                 )
                             }
                         } else {
-                            chatList(chats.outsideNotebooks, listID: Self.looseChatListID, runningSessionIDs: runningSessionIDs)
+                            chatList(allChats, listID: Self.looseChatListID, runningSessionIDs: runningSessionIDs)
                             if !hiddenChats.isEmpty, isHiddenChatsExpanded {
                                 hiddenChatsFold(hiddenChats, runningSessionIDs: runningSessionIDs)
                             }
@@ -865,79 +741,6 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// One notebook's row, Pinned or Recent, and its chats beneath it while
-    /// it is unfolded.
-    @ViewBuilder
-    private func notebookRow(
-        _ notebook: LearningGoalRecord,
-        scopedNotebook: LearningGoalRecord?,
-        chatGroups: [String: [ReviewSessionRecord]],
-        runningSessionIDs: Set<String>,
-        unreadChatIDs: Set<String>
-    ) -> some View {
-        let isExpanded = expandedNotebookIDs.contains(notebook.id)
-        // Its chats that read as unread on this Mac: the row carries Codex's
-        // dot for them while it is folded, and Mark All as Read.
-        let unreadInNotebook = unreadChatIDs.isEmpty
-            ? []
-            : (chatGroups[notebook.id] ?? []).map(\.id).filter(unreadChatIDs.contains)
-        RailNotebookRow(
-            goal: notebook,
-            notebookTitle: NotebookTitle(notebook.title),
-            // Active means "this notebook is open" — the rail keeps
-            // showing which one even after the reader column has
-            // moved on to a source, so fresh chats keep adopting it.
-            isActive: scopedNotebook?.id == notebook.id,
-            // Selected while its notebook fills this window.
-            isSelected: windowState.NotebookID == notebook.id,
-            isExpanded: isExpanded,
-            unreadChatIDs: unreadInNotebook,
-            // A click opens the notebook in this window and shows
-            // its chats; it never closes the notebook or folds
-            // them — ‹ Notebooks, the notebook's ⋯ and the
-            // Notebook menu close it, and the chevron folds.
-            // A notebook fills its window, so there is no pane
-            // to open it beside; Open in Other Window is on the
-            // row's menu.
-            open: {
-                if !isExpanded {
-                    withAnimation(.easeInOut(duration: 0.16)) {
-                        _ = expandedNotebookIDs.insert(notebook.id)
-                    }
-                }
-                vm.inWindow(windowState) { vm.openNotebookInReader(notebook.id) }
-            },
-            toggleExpanded: {
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    if isExpanded {
-                        expandedNotebookIDs.remove(notebook.id)
-                    } else {
-                        expandedNotebookIDs.insert(notebook.id)
-                    }
-                }
-            },
-            // Open the notebook first: the fresh chat has to land
-            // in it and appear beneath this row.
-            newChat: {
-                vm.inWindow(windowState) {
-                    vm.openNotebook(notebook.id, startsNotebookChat: false)
-                    vm.requestBlankReviewChat(notebookID: notebook.id)
-                }
-            }
-        )
-        if isExpanded {
-            // The row already reserves an icon column. A small
-            // extra inset is enough to communicate nesting
-            // without pushing chat titles into a second column.
-            chatList(
-                chatGroups[notebook.id] ?? [],
-                listID: Self.notebookChatListID(notebook.id),
-                runningSessionIDs: runningSessionIDs,
-                indent: 12
-            )
-        }
-    }
-
     /// Whether the loose chats show beneath the Chats header. Open by default
     /// so a learner who has never folded it finds the chats; it folds so a long history of chats
     /// outside Notebooks stops pushing the account row's neighbours around.
@@ -946,37 +749,14 @@ struct StudioNavigationRail: View {
     /// is hidden to be out of the way, and the fold's count says it is there.
     @PreferenceStorage(Prefs.Rail.hiddenChatsExpanded) private var isHiddenChatsExpanded: Bool
 
-    private static func storedExpandedNotebookIDs() -> Set<String> {
-        Set(Preferences.value(Prefs.Rail.expandedNotebookIDs) ?? [])
-    }
-
-    /// Folds are kept for every active notebook, not only those with a row
-    /// now: Recent changes as the learner works, and a notebook coming back
-    /// into it comes back as it was left.
-    private func reconcileExpandedNotebooks() {
-        let validIDs = Set(vm.notebooks.map(\.id))
-        expandedNotebookIDs.formIntersection(validIDs)
-        expandNotebooksContainingActiveChats()
-    }
-
-    private func expandNotebooksContainingActiveChats() {
-        let railIDs = Set(vm.notebookRail(in: windowState).notebookIDs)
+    /// An active chat opens the Chats section, so the row being worked in is
+    /// never folded away.
+    private func expandChatsContainingActiveChats() {
         for session in vm.reviewSessionLinks where activeSessionIDs.contains(session.id) {
-            if MemoryReviewSession.isMemorySession(session.id) {
-                // A day's review has no row in the rail; the Memory row is
-                // where it is reached, and nothing unfolds.
-                continue
-            } else if vm.isChatPinned(session.id) {
-                // Its row is in Pinned, which never folds.
-                continue
-            } else if let goalID = session.goalID, railIDs.contains(goalID) {
-                expandedNotebookIDs.insert(goalID)
-            } else {
-                // Loose, or in a notebook the rail has no row for (archived,
-                // neither pinned nor recent): the row lives in Chats, so an
-                // active one unfolds the section the way it would a notebook.
-                isChatsExpanded = true
-            }
+            // A day's review has no row in the rail (the Memory row reaches
+            // it), and a pinned chat's row is in Pinned, which never folds.
+            if MemoryReviewSession.isMemorySession(session.id) || vm.isChatPinned(session.id) { continue }
+            isChatsExpanded = true
         }
     }
 
@@ -1335,7 +1115,6 @@ struct StudioNavigationRail: View {
 
     static let looseChatListID = "chats"
     static let hiddenChatListID = "chats.hidden"
-    static func notebookChatListID(_ notebookID: String) -> String { "notebook:\(notebookID)" }
 
     /// How many of a list's `total` chats the rail draws. `revealed` is the
     /// count scrolling to the list's end has reached (nil for a fresh list),
