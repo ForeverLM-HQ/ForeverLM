@@ -1112,6 +1112,11 @@ body.is-dragging-card * {
   margin: 0.3em 0;
 }
 
+/* A card the library holds opens its source when pressed anywhere. */
+.milkdown .editor p.artifact-reference[data-reference-state="inLibrary"] {
+  cursor: pointer;
+}
+
 .milkdown .editor p.artifact-reference a {
   color: inherit;
   font-weight: 600;

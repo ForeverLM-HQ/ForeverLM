@@ -1212,6 +1212,14 @@ function withPrivateAddressPreviews(ctx) {
         if (reference && status?.state === 'inLibrary') {
           hide.call(tooltip)
           hideInAppLinkTooltip(true)
+          // A card is already that row, and a press on it opens the source:
+          // a second copy of it under the pointer would be the same thing to
+          // press again (product owner, 2026-11-12: "Why not just click the
+          // box directly?").
+          if (linkIsCardTitle(view, from)) {
+            hideLibraryLinkTooltip(true)
+            return
+          }
           showLibraryLinkTooltip(reference, view.state.doc.textBetween(from, to), status, rect)
           return
         }
@@ -1243,6 +1251,17 @@ function withPrivateAddressPreviews(ctx) {
       return tooltip
     },
   })
+}
+
+/// Whether the link starting at `from` is the title of a card.
+function linkIsCardTitle(view, from) {
+  try {
+    const { node } = view.domAtPos(Math.min(from + 1, view.state.doc.content.size))
+    const element = node instanceof Element ? node : node.parentElement
+    return Boolean(element?.closest('p.artifact-reference'))
+  } catch {
+    return false
+  }
 }
 
 /// The source row for a hovered web link the library already holds. It is the
@@ -3266,6 +3285,53 @@ function cardGrippedAt(view, target) {
   const grip = target.closest('.artifact-reference-thumbnail, .artifact-reference-meta')
   const card = grip?.closest('p.artifact-reference')
   return card && card.parentElement === view.dom ? card : null
+}
+
+// ─── Pressing a card ───────────────────────────────────────────────────────
+// A card whose source the library holds opens it when pressed anywhere: the
+// picture, the title, the line under it, the room around them (product owner,
+// 2026-11-12: "Why not just click the box directly?"). The press still puts
+// the caret where it landed, so the title is edited as before when the writer
+// comes back to the page. A drag (a selection, or the card being moved) and a
+// press with a modifier key are not a press on the card, and the control at
+// its trailing edge answers its own.
+let cardPress = null
+
+document.addEventListener('mousedown', (event) => {
+  cardPress = event.button === 0 ? { x: event.clientX, y: event.clientY } : null
+}, true)
+
+document.addEventListener('click', (event) => {
+  const press = cardPress
+  cardPress = null
+  if (!press || event.button !== 0 || event.defaultPrevented) return
+  if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
+  if (Math.hypot(event.clientX - press.x, event.clientY - press.y) >= cardDragSlop) return
+  if (!(event.target instanceof Element) || event.target.closest('.artifact-reference-control')) return
+  const card = event.target.closest('p.artifact-reference[data-reference-state="inLibrary"]')
+  const view = activeEditorView()
+  if (!card || !view || !view.dom.contains(card)) return
+  const selection = window.getSelection()
+  if (selection && !selection.isCollapsed) return
+  const href = cardHref(view, card)
+  if (!href) return
+  post('openSourceRequested', { href, sourceID: referenceStatus(href)?.sourceID ?? '' })
+})
+
+/// The address the card drawn by `element` stands for, or null.
+function cardHref(view, element) {
+  let paragraph = null
+  try {
+    paragraph = view.state.doc.resolve(view.posAtDOM(element, 0)).parent
+  } catch {
+    return null
+  }
+  let href = null
+  paragraph.forEach((child) => {
+    const mark = child.marks.find((candidate) => candidate.type.name === 'link')
+    if (!href && mark) href = referenceHref(mark.attrs?.href)
+  })
+  return href
 }
 
 /// The index of the top-level block drawn by `element`, or -1.
