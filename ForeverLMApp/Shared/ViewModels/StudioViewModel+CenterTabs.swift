@@ -134,6 +134,12 @@ extension StudioViewModel {
             tab,
             focusedGroupID: destination.focusedGroupID
         ) else { return }
+        // A place already in front of a pane full screen hides is still a
+        // place asked for: the panes come back so it is seen.
+        if let fullScreenID = destination.fullScreenGroupID,
+           !layout.groups.contains(where: { $0.id == fullScreenID && $0.activeTab == tab }) {
+            destination.fullScreenGroupID = nil
+        }
         // Guarded rather than self-assigning: @Observable routes every
         // assignment through withMutation and would invalidate observers (and
         // enqueue a preference save) on a no-op.

@@ -569,6 +569,7 @@ struct SourceReaderPanel: View {
             )
         } trailing: {
             HStack(spacing: StudioTopBar.paneControlSpacing) {
+                readerFullScreenButton
                 readerOverflowMenuWithCitedPapers(for: article)
                 if showsCloseButton {
                     readerCloseButton
@@ -629,6 +630,12 @@ struct SourceReaderPanel: View {
         Group {
             Button("Find in Reader") { findState.show() }
                 .keyboardShortcut("f", modifiers: .command)
+            // The window's own Reader answers ⇧⌘↩; a second Reader beside it
+            // has the button, so one press never means two panes.
+            if paneGroupID != nil, !isSecondaryReader {
+                Button("Full Screen") { toggleReaderFullScreen() }
+                    .keyboardShortcut(.return, modifiers: [.command, .shift])
+            }
             if supportsReaderZoom(article) {
                 Button("Zoom In") { zoomIn(article) }
                     .keyboardShortcut("+", modifiers: .command)
@@ -905,6 +912,21 @@ struct SourceReaderPanel: View {
                 Label("Find in Reader", systemImage: "magnifyingglass")
             }
             .keyboardShortcut("f", modifiers: .command)
+
+            if paneGroupID != nil {
+                let isFullScreen = paneIsFullScreen
+                Button {
+                    toggleReaderFullScreen()
+                } label: {
+                    Label(
+                        isFullScreen ? "Exit Full Screen" : "Full Screen",
+                        systemImage: isFullScreen
+                            ? "arrow.down.right.and.arrow.up.left"
+                            : "arrow.up.left.and.arrow.down.right"
+                    )
+                }
+                .keyboardShortcut(.return, modifiers: [.command, .shift])
+            }
 
             if let pageURL = addableLibraryPageURL(for: article) {
                 let state = addPageToolbarState(for: pageURL)
@@ -1930,6 +1952,46 @@ struct SourceReaderPanel: View {
         !centerTabStripVisible
             && !isSecondaryReader
             && overrideArticleId == nil
+    }
+
+    /// Full Screen: this Reader's pane alone across the window, the window
+    /// full screen with it, and the same button back (product owner,
+    /// 2026-11-11: "a nice way to quickly go into full screen mode for the
+    /// reader"). On the bar beside ⋯ rather than inside it, since it is one
+    /// click in and the visible way out. ⇧⌘↩ does the same
+    /// (`readerKeyEquivalents`). Only in a pane of the tab layout: a
+    /// notebook's slot and the pop-out window have no panes to step aside.
+    @ViewBuilder
+    private var readerFullScreenButton: some View {
+        if paneGroupID != nil {
+            let isFullScreen = paneIsFullScreen
+            TitlebarBandButton(
+                help: isFullScreen ? "Exit Full Screen (⇧⌘↩)" : "Full Screen (⇧⌘↩)",
+                accessibilityLabel: isFullScreen ? "Exit Full Screen" : "Full Screen",
+                accessibilityIdentifier: "studio.reader.fullScreen",
+                controlSize: StudioPanelChrome.readerCloseButtonSize,
+                action: toggleReaderFullScreen
+            ) {
+                Image(systemName: isFullScreen
+                    ? "arrow.down.right.and.arrow.up.left"
+                    : "arrow.up.left.and.arrow.down.right")
+                    .zoomedSystemFont(size: 11, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .frame(
+                        width: StudioPanelChrome.readerCloseButtonSize,
+                        height: StudioPanelChrome.readerCloseButtonSize
+                    )
+            }
+        }
+    }
+
+    private var paneIsFullScreen: Bool {
+        paneGroupID != nil && windowState.fullScreenGroupID == paneGroupID
+    }
+
+    private func toggleReaderFullScreen() {
+        guard let paneGroupID else { return }
+        windowState.toggleFullScreen(ofGroup: paneGroupID)
     }
 
     private var readerCloseButton: some View {

@@ -716,6 +716,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         GeometryReader { geo in
             let groups = windowState.centerTabGroups.groups
             let fractions = validFractions(count: groups.count)
+            let fullScreenID = windowState.fullScreenGroup?.id
             HStack(spacing: 0) {
                 // Keyed on the group's own identity, not its slot. Reordering
                 // the panes then moves each column's hosted views — the
@@ -726,54 +727,81 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 // `index` is still what the widths and dividers are addressed
                 // by, so it stays in the element.
                 ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-                    let width = groupWidth(at: index, fractions: fractions, count: groups.count, totalWidth: geo.size.width)
-                    groupColumn(
-                        group,
-                        at: index,
-                        width: width,
-                        enclosingClip: StudioCenterTabGroupSizing.clippedTrailingWidth(
-                            groupStart: groupStart(at: index, fractions: fractions, count: groups.count, totalWidth: geo.size.width),
-                            groupWidth: width,
-                            totalWidth: geo.size.width,
-                            enclosingOverflow: outerTrailingOverflow
+                    // Full screen draws its pane alone, across the whole
+                    // center; the others leave and come back as they were.
+                    // Filtered inside the same ForEach, so the full-screen
+                    // pane keeps its identity and its reader its loaded page.
+                    if let fullScreenID, group.id != fullScreenID {
+                        EmptyView()
+                    } else {
+                        let width = fullScreenID == nil
+                            ? groupWidth(at: index, fractions: fractions, count: groups.count, totalWidth: geo.size.width)
+                            : geo.size.width
+                        groupColumn(
+                            group,
+                            at: index,
+                            isLeading: index == 0 || fullScreenID != nil,
+                            width: width,
+                            enclosingClip: StudioCenterTabGroupSizing.clippedTrailingWidth(
+                                groupStart: fullScreenID == nil
+                                    ? groupStart(at: index, fractions: fractions, count: groups.count, totalWidth: geo.size.width)
+                                    : 0,
+                                groupWidth: width,
+                                totalWidth: geo.size.width,
+                                enclosingOverflow: outerTrailingOverflow
+                            )
                         )
-                    )
-                    if index < groups.count - 1 {
-                        dividerHandle(at: index, groups: groups, totalWidth: geo.size.width)
+                        if fullScreenID == nil, index < groups.count - 1 {
+                            dividerHandle(at: index, groups: groups, totalWidth: geo.size.width)
+                        }
                     }
                 }
             }
+            // The window goes full screen with its pane, and comes back out
+            // with it when Full Screen made it so.
+            .background(StudioPaneFullScreenWindowBridge(
+                isFullScreen: fullScreenID != nil,
+                onWindowLeftFullScreen: { windowState.fullScreenGroupID = nil }
+            ))
             .overlay(alignment: .leading) {
-                edgeSplitPreview(
-                    leading: true,
-                    groups: groups,
-                    fractions: fractions,
-                    totalWidth: geo.size.width
-                )
+                if fullScreenID == nil {
+                    edgeSplitPreview(
+                        leading: true,
+                        groups: groups,
+                        fractions: fractions,
+                        totalWidth: geo.size.width
+                    )
+                }
             }
             .overlay(alignment: .trailing) {
-                edgeSplitPreview(
-                    leading: false,
-                    groups: groups,
-                    fractions: fractions,
-                    totalWidth: geo.size.width
-                )
+                if fullScreenID == nil {
+                    edgeSplitPreview(
+                        leading: false,
+                        groups: groups,
+                        fractions: fractions,
+                        totalWidth: geo.size.width
+                    )
+                }
             }
             .overlay(alignment: .leading) {
-                edgeSplitZone(
-                    leading: true,
-                    groups: groups,
-                    fractions: fractions,
-                    totalWidth: geo.size.width
-                )
+                if fullScreenID == nil {
+                    edgeSplitZone(
+                        leading: true,
+                        groups: groups,
+                        fractions: fractions,
+                        totalWidth: geo.size.width
+                    )
+                }
             }
             .overlay(alignment: .trailing) {
-                edgeSplitZone(
-                    leading: false,
-                    groups: groups,
-                    fractions: fractions,
-                    totalWidth: geo.size.width
-                )
+                if fullScreenID == nil {
+                    edgeSplitZone(
+                        leading: false,
+                        groups: groups,
+                        fractions: fractions,
+                        totalWidth: geo.size.width
+                    )
+                }
             }
             // Keep divider drag translation anchored to the stationary center
             // area. A divider's local coordinates move as its width updates,
@@ -809,6 +837,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     // MARK: Group column
 
     /// - Parameters:
+    ///   - isLeading: Whether the column stands at the center's leading edge,
+    ///     under the traffic lights: the first pane, or the full-screen one.
     ///   - width: The group's column width in the groups layout.
     ///   - enclosingClip: How much of that column the outer Reader column clips
     ///     off its trailing edge (`StudioCenterTabGroupSizing.clippedTrailingWidth`).
@@ -816,6 +846,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     private func groupColumn(
         _ group: StudioCenterTabGroups.Group,
         at index: Int,
+        isLeading: Bool,
         width: CGFloat,
         enclosingClip: CGFloat
     ) -> some View {
@@ -837,13 +868,13 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             activeTab: group.activeTab,
             width: width,
             enclosingClip: enclosingClip,
-            leadingReservation: index == 0 ? headerLeadingInset : 0,
+            leadingReservation: isLeading ? headerLeadingInset : 0,
             bandPassesThrough: !showsStrip,
             swapDestinationCount: StudioPaneSwap.centerDestinations.count
         ) {
             VStack(spacing: 0) {
                 if titlebarBandHeight == nil && showsStrip {
-                    strip(for: group, at: index)
+                    strip(for: group, at: index, isLeading: isLeading)
                         .frame(height: StudioPanelChrome.headerHeight)
                 }
                 // The tab in front, and behind it each kept place this pane
@@ -886,7 +917,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         } band: {
             if let band = titlebarBandHeight, showsStrip {
                 StudioBandRow(band: band) {
-                    strip(for: group, at: index)
+                    strip(for: group, at: index, isLeading: isLeading)
                         .frame(height: band)
                 }
             }
@@ -1035,7 +1066,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
 
     private func strip(
         for group: StudioCenterTabGroups.Group,
-        at groupIndex: Int
+        at groupIndex: Int,
+        isLeading: Bool
     ) -> some View {
         let readerShowsVideo = vm.readerShowsVideo(in: windowState)
         let spaceTitle = vm.spaceTabTitle(in: windowState)
@@ -1165,7 +1197,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         // holds: the traffic lights in the band, and in full screen ‹ › and
         // the sidebar toggle, which stand on this very row (the Chat tab would
         // otherwise sit on the toggle).
-        .padding(.leading, groupIndex == 0
+        .padding(.leading, isLeading
             ? max(StudioTopBar.centerTabStripHorizontalPadding, headerLeadingInset)
             : StudioTopBar.centerTabStripHorizontalPadding)
         .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
@@ -1668,5 +1700,71 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         [.chat, .secondaryChat].contains(group.activeTab)
             ? StudioCenterTabGroupSizing.minimumChatContentWidth
             : StudioCenterTabGroupSizing.minimumContentWidth
+    }
+}
+
+// MARK: - Full screen
+
+/// Takes the window into macOS full screen when a pane goes full screen
+/// (`StudioWindowState.fullScreenGroupID`), and out again when the pane comes
+/// back — only when it was Full Screen that took it in: a window the learner
+/// had in full screen already stays there. The window leaving full screen by
+/// itself (the green button, ⌃⌘F) brings the panes back too, since full
+/// screen without the room is not what was asked for.
+struct StudioPaneFullScreenWindowBridge: NSViewRepresentable {
+    let isFullScreen: Bool
+    let onWindowLeftFullScreen: () -> Void
+
+    func makeNSView(context: Context) -> BridgeView {
+        BridgeView()
+    }
+
+    func updateNSView(_ view: BridgeView, context: Context) {
+        view.onWindowLeftFullScreen = onWindowLeftFullScreen
+        view.setPaneFullScreen(isFullScreen)
+    }
+
+    final class BridgeView: NSView {
+        var onWindowLeftFullScreen: () -> Void = {}
+        private var paneIsFullScreen = false
+        /// Whether this pane's Full Screen is what took the window in.
+        private var tookWindowIn = false
+        private var exitObserver: NSObjectProtocol?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let exitObserver { NotificationCenter.default.removeObserver(exitObserver) }
+            exitObserver = nil
+            guard let window else { return }
+            exitObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.willExitFullScreenNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.tookWindowIn = false
+                    if self.paneIsFullScreen { self.onWindowLeftFullScreen() }
+                }
+            }
+        }
+
+        deinit {
+            if let exitObserver { NotificationCenter.default.removeObserver(exitObserver) }
+        }
+
+        func setPaneFullScreen(_ fullScreen: Bool) {
+            guard fullScreen != paneIsFullScreen else { return }
+            paneIsFullScreen = fullScreen
+            guard let window else { return }
+            let windowIsFullScreen = window.styleMask.contains(.fullScreen)
+            if fullScreen, !windowIsFullScreen {
+                tookWindowIn = true
+                window.toggleFullScreen(nil)
+            } else if !fullScreen, tookWindowIn {
+                tookWindowIn = false
+                if windowIsFullScreen { window.toggleFullScreen(nil) }
+            }
+        }
     }
 }

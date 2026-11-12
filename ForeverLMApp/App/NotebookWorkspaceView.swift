@@ -805,6 +805,6 @@ extension StudioWindowState {
     /// (`StudioCenterTabGroupSizing.minimumWidth(for:)`). Nil for a window
     /// holding no notebook.
     var notebookPanesMinimum: CGFloat? {
-        notebook == nil ? nil : StudioCenterTabGroupSizing.minimumWidth(for: centerTabGroups.groups)
+        notebook == nil ? nil : StudioCenterTabGroupSizing.minimumWidth(for: drawnCenterGroups)
     }
 }

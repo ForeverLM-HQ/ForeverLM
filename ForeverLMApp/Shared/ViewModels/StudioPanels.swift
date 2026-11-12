@@ -651,6 +651,7 @@ final class StudioWindowState: Identifiable {
                 return
             }
             noteReaderCover(from: oldValue)
+            noteFullScreenPane(from: oldValue)
             recordPersistentChange {
                 Preferences.set(reconciled.persistedRepresentation, for: Prefs.Studio.centerTabGroups)
             }
@@ -692,6 +693,50 @@ final class StudioWindowState: Identifiable {
             tab: before.activeTab,
             backDepth: readerBackStack.count
         )
+    }
+
+    /// The pane, by `Group.id`, drawn alone across the window: Full Screen
+    /// from the Reader's header (product owner, 2026-11-11: "a nice way to
+    /// quickly go into full screen mode for the reader"). Every other pane and
+    /// Home's sidebar step aside, and the window goes full screen with it
+    /// (`StudioPaneFullScreenWindowBridge`); the icon strip stays, as it
+    /// always does. Presentation, absent from `Snapshot`: pane identities are
+    /// new after a relaunch.
+    var fullScreenGroupID: UUID?
+
+    /// The pane drawn alone, while it is still one of this window's panes.
+    var fullScreenGroup: StudioCenterTabGroups.Group? {
+        guard let fullScreenGroupID else { return nil }
+        return centerTabGroups.groups.first { $0.id == fullScreenGroupID }
+    }
+
+    /// The panes on screen: the full-screen one alone, else every pane.
+    var drawnCenterGroups: [StudioCenterTabGroups.Group] {
+        fullScreenGroup.map { [$0] } ?? centerTabGroups.groups
+    }
+
+    /// Full Screen's button and ⇧⌘↩: the pane `groupID` alone across the
+    /// window, or every pane back.
+    func toggleFullScreen(ofGroup groupID: UUID) {
+        fullScreenGroupID = fullScreenGroupID == groupID ? nil : groupID
+    }
+
+    /// Full screen ends when the panes it hid change underneath it — a pane
+    /// opened or closed, something opened in a hidden one — or its own pane
+    /// goes, so nothing the learner asked for opens where they cannot see it.
+    /// Compared by what each hidden pane shows — its identity, its tab in
+    /// front and its open tabs — not by its parked tabs, which reconciling a
+    /// layout appends to without anything coming on screen.
+    private func noteFullScreenPane(from old: StudioCenterTabGroups) {
+        guard let id = fullScreenGroupID else { return }
+        let others = { (layout: StudioCenterTabGroups) in
+            layout.groups.filter { $0.id != id }.map { group in
+                [group.id.uuidString, group.activeTab.rawValue] + group.openTabs.map(\.rawValue)
+            }
+        }
+        if fullScreenGroup == nil || others(centerTabGroups) != others(old) {
+            fullScreenGroupID = nil
+        }
     }
 
     /// Whether the Reader's ‹ goes back to the surface it covered: it still
@@ -739,7 +784,8 @@ final class StudioWindowState: Identifiable {
     /// says, unless a memory review has the window and the learner has not
     /// asked for the sidebar beside it.
     var drawsNavigationRail: Bool {
-        showsNavigationRail && (memoryReviewFocus == nil || memoryReviewFocusShowsSidebar)
+        showsNavigationRail && fullScreenGroupID == nil
+            && (memoryReviewFocus == nil || memoryReviewFocusShowsSidebar)
     }
 
     /// The sidebar toggle, and View ▸ Show or Hide Navigation Sidebar. A
@@ -781,6 +827,9 @@ final class StudioWindowState: Identifiable {
     /// weird"). Never the icon strip. Returns the Space sidebar's hidden
     /// state to store in `space.sidebarHidden`, or nil in a notebook.
     func setSidebarShownFromToggle(_ shown: Bool) -> Bool? {
+        // A sidebar asked for in full screen is the learner leaving it: the
+        // panes come back with the sidebar.
+        if shown, fullScreenGroupID != nil { fullScreenGroupID = nil }
         // A notebook's one sidebar beside the icon strip is its Sources
         // column; folded, it leaves the window rather than leaving a second
         // strip (product owner, 2026-10-17).

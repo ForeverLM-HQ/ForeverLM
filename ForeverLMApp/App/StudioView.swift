@@ -170,7 +170,7 @@ struct StudioView: View {
                     studioShows: !windowState.isDockedReaderImmersive,
                     panesMinimum: windowState.notebookPanesMinimum
                 )
-            } ?? StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)
+            } ?? StudioCenterTabGroupSizing.minimumWidth(for: windowState.drawnCenterGroups)
         )
     }
 

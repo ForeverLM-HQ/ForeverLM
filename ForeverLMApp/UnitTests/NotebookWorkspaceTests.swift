@@ -394,6 +394,48 @@ struct NotebookRoutingTests {
         #expect(window.NotebookID == "bio")
         #expect(window.centerTabGroups == panes)
     }
+
+    @Test("Full Screen draws one pane alone, and ends when a hidden pane is asked for")
+    func fullScreenPane() {
+        let restore = capturingTemplate()
+        defer { restore() }
+        let vm = makeViewModel()
+        let window = StudioWindowState()
+        window.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.library, .artifacts], activeTab: .library),
+            .init(tabs: [.reader], activeTab: .reader),
+        ])
+        let reader = window.centerTabGroups.groups[1].id
+
+        window.toggleFullScreen(ofGroup: reader)
+        #expect(window.drawnCenterGroups.map(\.id) == [reader])
+        #expect(!window.drawsNavigationRail, "Home's sidebar steps aside with the other panes")
+
+        // The Reader asked for again is the pane already on screen.
+        vm.activateCenterTab(.reader, in: window)
+        #expect(window.fullScreenGroupID == reader)
+
+        // The same button brings every pane back.
+        window.toggleFullScreen(ofGroup: reader)
+        #expect(window.fullScreenGroupID == nil)
+        #expect(window.drawnCenterGroups.count == 2)
+
+        // A place in front of a hidden pane, asked for, ends it.
+        window.toggleFullScreen(ofGroup: reader)
+        vm.activateCenterTab(.library, in: window)
+        #expect(window.fullScreenGroupID == nil)
+
+        // So does a hidden pane changing what it shows.
+        window.toggleFullScreen(ofGroup: reader)
+        window.centerTabGroups.groups[0].activeTab = .artifacts
+        #expect(window.fullScreenGroupID == nil)
+
+        // And the full-screen pane closing.
+        window.toggleFullScreen(ofGroup: window.centerTabGroups.groups[0].id)
+        window.centerTabGroups = StudioCenterTabGroups(groups: [.init(tabs: [.reader], activeTab: .reader)])
+        #expect(window.fullScreenGroup == nil)
+        #expect(window.fullScreenGroupID == nil)
+    }
 }
 
 /// The Add sources sheet's field, its ticks, Add all and Upload PDF, the
