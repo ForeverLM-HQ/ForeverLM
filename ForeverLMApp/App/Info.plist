@@ -85,6 +85,16 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Plain-http pages load in web views: the Browser pane, the Reader, and
+	     the hidden page reader ingestion falls back to (SourceService.fetchPageHTML).
+	     Without this ATS refuses them (-1022), and an http-only site such as
+	     incompleteideas.net can never become a source. URLSession stays
+	     https-only; NSAllowsArbitraryLoads is not set. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
