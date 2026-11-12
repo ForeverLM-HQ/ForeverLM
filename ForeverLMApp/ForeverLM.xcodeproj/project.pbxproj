@@ -9952,7 +9952,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
@@ -9961,7 +9961,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.share;
 				PRODUCT_MODULE_NAME = ForeverLMShare;
 				PRODUCT_NAME = "Add to ForeverLM";
@@ -9979,7 +9979,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
@@ -9988,7 +9988,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.share;
 				PRODUCT_MODULE_NAME = ForeverLMShare;
 				PRODUCT_NAME = "Add to ForeverLM";
@@ -10100,7 +10100,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
@@ -10114,7 +10114,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -10134,7 +10134,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
@@ -10143,7 +10143,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.widget;
 				PRODUCT_NAME = "ForeverLM Today";
 				SDKROOT = iphoneos;
@@ -10296,7 +10296,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
@@ -10310,7 +10310,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
 				PRODUCT_NAME = ForeverLM;
@@ -10329,7 +10329,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
@@ -10338,7 +10338,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.share;
 				PRODUCT_MODULE_NAME = ForeverLMShare;
 				PRODUCT_NAME = "Add to ForeverLM";
@@ -10459,7 +10459,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOSDevelopment.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Development;
@@ -10473,7 +10473,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
 				PRODUCT_NAME = ForeverLM;
@@ -10493,7 +10493,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
@@ -10502,7 +10502,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.widget;
 				PRODUCT_NAME = "ForeverLM Today";
 				SDKROOT = iphoneos;
@@ -10610,7 +10610,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 42;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
@@ -10619,7 +10619,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.widget;
 				PRODUCT_NAME = "ForeverLM Today";
 				SDKROOT = iphoneos;
