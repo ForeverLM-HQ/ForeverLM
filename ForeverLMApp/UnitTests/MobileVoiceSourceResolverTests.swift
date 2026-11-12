@@ -528,9 +528,31 @@ struct MobileSourceTypeGroupingTests {
 
     @Test("Known types read as catalog labels, unknown ones fall back to capitalization")
     func labelsSourceTypes() {
-        #expect(MobileSourceTypeGrouping.label(for: "xpost") == "X")
         #expect(MobileSourceTypeGrouping.label(for: "meeting") == "Meetings")
         #expect(MobileSourceTypeGrouping.label(for: "webinar") == "Webinar")
+    }
+
+    /// The library writes the type `xPost` (`SyncSchema`'s `SourceType`) and the replica hands it over as
+    /// written. Keyed in lower case, the label matched nothing and the Library's row read "Xpost".
+    @Test("X posts are X, under the type the library writes, and sit last of the known types")
+    func labelsXPosts() {
+        #expect(SyncSchema.enums["SourceType"]?.contains("xPost") == true)
+        #expect(MobileSourceTypeGrouping.label(for: "xPost") == "X")
+        #expect(MobileSourceTypeGrouping.singularLabel(for: "xPost") == "X post")
+        #expect(MobileSourceTypeGrouping.singularLabel(for: "paper") == "Paper")
+
+        let sources = ["xPost", "zine", "meeting"].map { type in
+            MobileCloudSource(
+                id: type,
+                title: type,
+                subtitle: nil,
+                sourceType: type,
+                dateAdded: Date(timeIntervalSinceReferenceDate: 0),
+                hasAudio: false,
+                isArchived: false
+            )
+        }
+        #expect(MobileSourceTypeGrouping.groups(for: sources).map(\.label) == ["Meetings", "X", "Zine"])
     }
 }
 

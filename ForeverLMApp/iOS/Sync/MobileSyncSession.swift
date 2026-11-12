@@ -42,6 +42,10 @@ actor MobileSyncSession {
     /// The phone's search index over its text set (§8a).
     nonisolated let textIndexer: MobileTextIndexer
     private var cadence: SyncRoundLoop?
+    /// Runs while the library arrives for the first time (`statusMoved`).
+    private var arrivalReadout: Task<Void, Never>?
+    /// What the screens last heard about the arrival.
+    private var announced = MobileLibraryArrival.settled
 
     /// The round cadence (`SyncRoundLoop`), made on first use: it calls back into the session.
     private var loop: SyncRoundLoop {
@@ -90,6 +94,7 @@ actor MobileSyncSession {
                 )
                 session.writer.whenWritten { due in Task { await session.wrote(dueIn: due) } }
                 await session.coordinator.observe { status in
+                    Task { await session.statusMoved() }
                     switch status.phase {
                     case .upToDate, .stopped, .waiting: Task { await session.settled(status.phase) }
                     default: break
@@ -167,6 +172,131 @@ actor MobileSyncSession {
             Task.detached(priority: .utility) { [satellites] in await satellites.downloadSpaces(spaces) }
         }
     }
+
+    // MARK: - The library's first arrival
+
+    /// How often the screens hear that the library is still arriving, and read what has arrived.
+    static let arrivalInterval: TimeInterval = 4
+
+    /// The coordinator's status moved. While a round fetches a library this phone has never held whole,
+    /// the screens hear `.arriving` now and every few seconds, so they say the library is still coming
+    /// and show what has come; a first fetch takes minutes, and the replica is on screen from its first
+    /// records. The live status is read here rather than handed over, so two calls that run out of order
+    /// both act on where the round is now.
+    func statusMoved() async {
+        let phase = await coordinator.status.phase
+        guard MobileLibraryArrival.isFetching(phase) else {
+            await endArrivalReadout(phase)
+            return
+        }
+        guard arrivalReadout == nil else { return }
+        let whole = await holdsLibraryWhole()
+        // Asked again: another call may have started the readout while the replica was read.
+        guard !whole, arrivalReadout == nil else { return }
+        announce(.arriving)
+        arrivalReadout = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(Self.arrivalInterval * 1_000_000_000))
+                guard !Task.isCancelled, let self else { return }
+                await self.arrivalTick()
+            }
+        }
+    }
+
+    /// One beat of the readout. It ends itself when the round is over, so a readout started just as the
+    /// round settled never outlives it.
+    private func arrivalTick() async {
+        let phase = await coordinator.status.phase
+        if MobileLibraryArrival.isFetching(phase) {
+            announce(.arriving)
+        } else {
+            await endArrivalReadout(phase)
+        }
+    }
+
+    /// The round is over: the readout stops, and the screens hear that nothing is arriving any more, or
+    /// that the round failed before the library was whole (the next one goes on from where this one
+    /// stopped). Only a failed round reads the replica: any other end leaves nothing to say.
+    private func endArrivalReadout(_ phase: SyncStatus.Phase) async {
+        arrivalReadout?.cancel()
+        arrivalReadout = nil
+        var state = MobileLibraryArrival.settled
+        if case .failed = phase {
+            state = MobileLibraryArrival.state(phase: phase, heldWhole: await holdsLibraryWhole())
+            // A new round began while the replica was read: its readout speaks now.
+            guard arrivalReadout == nil else { return }
+        }
+        guard state != announced else { return }
+        announce(state)
+    }
+
+    /// Says where the arrival stands, and keeps it, so a round that ends with nothing new to say is silent.
+    private func announce(_ arrival: MobileLibraryArrival) {
+        announced = arrival
+        post(arrival)
+    }
+
+    private func holdsLibraryWhole() async -> Bool {
+        do {
+            return try await replica.read { try MobileLibraryArrival.holdsWhole(in: $0) }
+        } catch {
+            // Unknown reads as whole: a line that says "syncing" must have a fetch behind it.
+            Self.logger.error("Whether the library has arrived whole could not be read: \(String(describing: error), privacy: .public)")
+            return true
+        }
+    }
+
+    private nonisolated func post(_ arrival: MobileLibraryArrival) {
+        Task { @MainActor in
+            NotificationCenter.default.post(
+                name: .mobileLibraryArrivalDidChange, object: nil, userInfo: [MobileLibraryArrival.userInfoKey: arrival]
+            )
+        }
+    }
+}
+
+/// Where the library's first arrival on this phone stands (§2.3). A first fetch of `Library` and `Catalog`
+/// takes minutes and the phone shows its replica from the first records, so a list is short, and its
+/// counts low, until the fetch reaches the end. iCloud hands records over oldest change first: whatever a
+/// Mac rewrote last (a pass over every paper, say) arrives last. The screens say so while it lasts.
+enum MobileLibraryArrival: Equatable, Sendable {
+    /// A round is fetching a library this phone has never held whole.
+    case arriving
+    /// That round failed before the library was whole; the next round goes on.
+    case interrupted
+    /// The library is whole on this phone, or nothing is fetching it (no account, no root yet, a stop).
+    case settled
+
+    static let userInfoKey = "arrival"
+
+    /// Whether a round is under way.
+    static func isFetching(_ phase: SyncStatus.Phase) -> Bool {
+        switch phase {
+        case .starting, .syncing: return true
+        default: return false
+        }
+    }
+
+    static func state(phase: SyncStatus.Phase, heldWhole: Bool) -> MobileLibraryArrival {
+        if heldWhole { return .settled }
+        if isFetching(phase) { return .arriving }
+        if case .failed = phase { return .interrupted }
+        return .settled
+    }
+
+    /// Whether both zones the engine fetches have been taken to their end on this phone: each has a
+    /// complete pass, which the audit after a fetch from nothing writes (`ReplicaAudit`) and a purge clears.
+    static func holdsWhole(in replica: MobileReplica) throws -> Bool {
+        try PrivateSyncZones.engineZones.allSatisfy {
+            try replica.replica.zone(key: PrivateSyncZones.key($0))?.lastCompletePassAt != nil
+        }
+    }
+}
+
+extension Notification.Name {
+    /// The library's first arrival moved, or is still under way: `userInfo[MobileLibraryArrival.userInfoKey]`
+    /// holds the `MobileLibraryArrival`. Posted on the main actor, every few seconds while it arrives.
+    static let mobileLibraryArrivalDidChange = Notification.Name("ForeverLM.mobileLibraryArrivalDidChange")
 }
 
 extension Notification.Name {

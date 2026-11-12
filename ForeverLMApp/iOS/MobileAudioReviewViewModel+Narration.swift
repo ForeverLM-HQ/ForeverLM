@@ -227,6 +227,13 @@ extension MobileAudioReviewViewModel {
         return backgroundTextToSpeechGenerationProgress[sourceID]
     }
 
+    /// The speech model narrating a source whose audio is being made: the one
+    /// the generation reports once its chunks start, and before that the pick
+    /// it started with.
+    func textToSpeechModelName(sourceID: String) -> String? {
+        textToSpeechGenerationProgress(sourceID: sourceID)?.modelName ?? textToSpeechModelNames[sourceID]
+    }
+
     /// Reads one source aloud end to end — already-synced audio when it exists,
     /// freshly generated cloud narration otherwise.
     func readSourceAloud(sourceID: String) async {

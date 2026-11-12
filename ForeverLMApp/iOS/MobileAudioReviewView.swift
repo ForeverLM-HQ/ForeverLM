@@ -133,7 +133,10 @@ struct MobileAudioReviewView: View {
     @ViewBuilder
     private var homeRoot: some View {
         Group {
-            if vm.isLoading && vm.allSources.isEmpty && !vm.hasDismissedInitialSyncScreen {
+            // The library's first arrival outlasts the load, which only reads
+            // the replica: the welcome stays until sources show or the learner
+            // moves on, never an empty Home that looks like an empty library.
+            if (vm.isLoading || vm.isInitialCatalogSync) && vm.allSources.isEmpty && !vm.hasDismissedInitialSyncScreen {
                 loadingState
             } else {
                 MobileNotebookHomeView { route in open(route) }
@@ -332,7 +335,7 @@ struct MobileAudioReviewView: View {
     /// (a lock mid-pass stops it) — never the headline.
     private var initialSyncCard: some View {
         HStack(alignment: .top, spacing: MobileDesign.Spacing.medium) {
-            if let status = vm.syncStatus, status.fractionComplete == nil {
+            if let status = vm.syncStatus, status.fractionComplete == nil, status.isRunning {
                 ProgressView()
                     .controlSize(isRegularWidth ? .regular : .small)
                     .padding(.top, 2)
@@ -381,8 +384,13 @@ struct MobileAudioReviewView: View {
                     .progressViewStyle(.linear)
                     .frame(width: 220)
                     .accessibilityIdentifier("voice.syncProgressBar")
-            } else {
+            } else if status.isRunning {
                 ProgressView()
+            } else {
+                Image(systemName: "icloud.slash")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
             Text(status.stepText)
                 .font(.subheadline)

@@ -41,59 +41,38 @@ extension MobileAudioReviewViewModel {
         }
     }
 
-    /// Streams a sync into the UI: a two-step progress readout, and the list
-    /// itself filling in batch by batch — "nothing until minute ten" is the
-    /// exact first-run experience this replaces.
-    func handleSyncProgress(
-        pending: Int,
-        walking: Bool,
-        scanned: Int,
-        fullPass: Bool,
-        expectedScan: Int?,
-        drainTotal: Int?
-    ) async {
-        if walking {
-            // The scanned count is the line's spine: the zone is mostly record
-            // types the walk skips (usage events, chat history), and on a
-            // from-scratch pass whole minutes can go by before the first
-            // source-type record appears. "Found" alone would sit at nothing.
-            // The previous full walk's total turns the count into a real bar.
-            let expected = fullPass ? expectedScan : nil
-            let denominator = expected.map { " of ~\($0.formatted())" } ?? ""
-            let found = pending > 0 ? " · \(pending.formatted()) to download" : ""
-            publishSyncStatus(
-                MobileCatalogSyncStatus(
-                    phase: .scanning,
-                    stepText: "Step 1 of 2 · Scanning your library",
-                    detailText: "\(scanned.formatted())\(denominator) records\(found)",
-                    fractionComplete: expected.map { min(Double(scanned) / Double(max($0, 1)), 0.98) }
-                )
-            )
-        } else if pending > 0 {
-            let total = max(drainTotal ?? pending, pending)
-            let done = total - pending
-            publishSyncStatus(
-                MobileCatalogSyncStatus(
-                    phase: .downloading,
-                    stepText: "Step 2 of 2 · Downloading sources",
-                    detailText: "\(done.formatted()) of \(total.formatted()) records",
-                    fractionComplete: Double(done) / Double(max(total, 1))
-                )
-            )
-        } else {
+    /// The library's first arrival on this phone, as the session reports it
+    /// (`MobileLibraryArrival`): now, then every few seconds while it lasts.
+    /// The screens say the library is still coming, and the lists fill with
+    /// what has come, so a short list or a low count never reads as the whole
+    /// library. A paper list that showed 64 of a thousand with nothing on
+    /// screen to say more were on their way is what this answers.
+    ///
+    /// The fill is the replica read alone: the full load (sign-in state,
+    /// Spotlight, automatic audio) runs once, when the round settles.
+    func handleLibraryArrival(_ arrival: MobileLibraryArrival) async {
+        libraryArrival = arrival
+        isInitialCatalogSync = arrival != .settled
+        guard arrival != .settled else {
             publishSyncStatus(nil)
+            return
         }
-
-        if pending > 0 || allSources.isEmpty {
-            notebooks = await sourceCatalog.currentNotebooks()
-            collections = await sourceCatalog.currentCollections()
-            audioOverviewRecords = await sourceCatalog.currentAudioOverviews()
-            await publishNotebookCatalog()
-            publishCatalogSources(await sourceCatalog.currentSources())
-            scheduledSources = await sourceCatalog.currentScheduledSources()
-            scheduleItems = await sourceCatalog.currentScheduleItems()
-            await refreshMemorySnapshot()
-        }
+        // The line first, with the count on screen now: the read below can
+        // take a moment on a library that is thousands of records in.
+        publishSyncStatus(.arrival(arrival, sourceCount: allSources.count))
+        guard (try? await sourceCatalog.loadSources(forceRefresh: true)) != nil else { return }
+        notebooks = await sourceCatalog.currentNotebooks()
+        collections = await sourceCatalog.currentCollections()
+        audioOverviewRecords = await sourceCatalog.currentAudioOverviews()
+        await publishNotebookCatalog()
+        publishCatalogSources(await sourceCatalog.currentSources())
+        scheduledSources = await sourceCatalog.currentScheduledSources()
+        scheduleItems = await sourceCatalog.currentScheduleItems()
+        await refreshMemorySnapshot()
+        // The arrival may have ended while this read ran: its line is gone,
+        // and stays gone.
+        guard libraryArrival == arrival else { return }
+        publishSyncStatus(.arrival(arrival, sourceCount: allSources.count))
     }
 
     func dismissInitialSyncScreen() {
@@ -557,7 +536,8 @@ extension MobileAudioReviewViewModel {
         return await task.value
     }
 
-    /// True while a first sync is running and the full-screen readout is not:
+    /// True while the library's first arrival is under way (or its round
+    /// failed short of the end) and the full-screen readout is not showing:
     /// either sources are already on screen behind it, or the learner left it.
     /// Ordinary delta syncs stay silent — this is the multi-minute pass only.
     var showsShellSyncStatus: Bool {
@@ -617,10 +597,6 @@ extension MobileAudioReviewViewModel {
     }
 
     private func performLoad(forceRefresh: Bool, scansNarrations: Bool = true) async -> Bool {
-        defer {
-            publishSyncStatus(nil)
-        }
-
         await refreshManagedSignInState()
         isLoading = true
 

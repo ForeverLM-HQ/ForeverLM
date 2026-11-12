@@ -85,10 +85,13 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// status above drives newer screens, but keeping this projection makes the
     /// catalog persistence change independent of an accompanying view rollout.
     @Published var syncProgressText: String?
-    /// True for the whole span of a from-scratch catalog pass (no change
-    /// token yet) — what gates the "first sync takes a few minutes" hint, so
-    /// it shows even before the first checkpoint posts any numbers.
-    @Published private(set) var isInitialCatalogSync = false
+    /// True from the first word that the library is arriving on this phone for
+    /// the first time until it is whole (`handleLibraryArrival`) — what gates
+    /// the first-sync welcome, the shell's sync row and the Library's note
+    /// that its counts are still growing.
+    @Published var isInitialCatalogSync = false
+    /// Where that arrival stands, as the session last said.
+    var libraryArrival = MobileLibraryArrival.settled
     /// True while a first launch's narration scan (the iCloud Drive manifest
     /// pass) is still running. Keeps the shell's sync row up after CloudKit
     /// finishes, now with that scan's own count in it.
@@ -112,6 +115,11 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// being prepared at once without turning playback into a global lock.
     @Published var backgroundTextToSpeechPreparingTitles: [String: String] = [:]
     @Published var backgroundTextToSpeechGenerationProgress: [String: MobileTextToSpeechGenerationProgress] = [:]
+    /// The speech model each running generation narrates with, by source, from
+    /// the moment the generation knows it will make audio: a paper's narration
+    /// is prepared for a while before the first chunk reports, and the row
+    /// names the model through that wait too (`textToSpeechModelName`).
+    @Published var textToSpeechModelNames: [String: String] = [:]
     @Published var automaticAudioProgress: SourceAudioAutomation.GenerationProgress?
     @Published var textToSpeechCostConfirmation: MobileTextToSpeechCostConfirmation?
     /// Explainer ids by the id of the source they explain, derived from the
@@ -354,27 +362,15 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         let storedGrader = Preferences.value(Prefs.Mobile.reviewGrader)
         reviewGrader = storedGrader.flatMap(MobileReviewGrader.init(rawValue:)) ?? .default
         super.init()
-        // Checkpoint-by-checkpoint sync progress from the catalog actor. The
-        // userInfo ints are read here, outside the main-actor hop, because
-        // Notification itself is not Sendable.
+        // The library's first arrival, from the session: now and every few
+        // seconds while it lasts. The value is read here, outside the
+        // main-actor hop, because Notification itself is not Sendable.
         NotificationCenter.default
-            .publisher(for: MobileCloudSourceCatalog.syncProgressNotification)
+            .publisher(for: .mobileLibraryArrivalDidChange)
             .sink { [weak self] note in
-                let pending = note.userInfo?["pending"] as? Int ?? 0
-                let walking = note.userInfo?["walking"] as? Bool ?? false
-                let scanned = note.userInfo?["scanned"] as? Int ?? 0
-                let fullPass = note.userInfo?["fullPass"] as? Bool ?? false
-                let expectedScan = note.userInfo?["expectedScan"] as? Int
-                let drainTotal = note.userInfo?["drainTotal"] as? Int
+                guard let arrival = note.userInfo?[MobileLibraryArrival.userInfoKey] as? MobileLibraryArrival else { return }
                 Task { @MainActor in
-                    await self?.handleSyncProgress(
-                        pending: pending,
-                        walking: walking,
-                        scanned: scanned,
-                        fullPass: fullPass,
-                        expectedScan: expectedScan,
-                        drainTotal: drainTotal
-                    )
+                    await self?.handleLibraryArrival(arrival)
                 }
             }
             .store(in: &cancellables)

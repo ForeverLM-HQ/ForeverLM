@@ -6,6 +6,9 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.
+- **On the iPhone, X posts are filed under X, with X's mark,** where the Library's row read "Xpost" beside a placeholder.
+- **The iPhone names the voice model from the moment you ask for audio.** A paper's narration is prepared before the first chunk is generated, and the model's name now shows through that wait too.
 - **ForeverLM is paid once, after 30 free days.** The first 30 days from your first sign-in are free (no card, nothing to click); after that, pay $19 once, no subscription, in Settings › Billing. Until then it all works: the Mac app, the web library, sync, Chat and every AI feature, on your own OpenRouter key. If the 30 days end unpaid, the Mac app and the web library lock and show only the way to pay, and AI on your own key and MCP stop; nothing is deleted, and paying brings everything back by itself. The iPhone and iPad apps stay open and show no price.
 - **CarPlay shows ForeverLM's mark while you talk to it,** in place of the coloured dot. It breathes while listening, a band of light crosses it while thinking, and it pulses while speaking.
 - **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.

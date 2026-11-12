@@ -52,9 +52,9 @@ struct MobileSourceBrowserView: View {
             // sync it is simply not true yet — say which of the two it is.
             if let status = vm.syncStatus {
                 ContentUnavailableView {
-                    Label("Syncing your library", systemImage: "arrow.triangle.2.circlepath")
+                    Label(status.stepText, systemImage: status.isRunning ? "arrow.triangle.2.circlepath" : "icloud.slash")
                 } description: {
-                    Text("\(status.stepText). Sources appear here as they arrive.")
+                    Text(status.isRunning ? "Sources appear here as they arrive." : status.detailText)
                 }
                 .listRowBackground(Color.clear)
                 .accessibilityIdentifier("sources.syncing")
@@ -94,6 +94,15 @@ struct MobileSourceBrowserView: View {
                         )
                     }
                     .accessibilityIdentifier("browser.typeRow")
+                }
+            } footer: {
+                // The counts above are what has arrived, not the library: said
+                // here, where they are read, for as long as it is true.
+                if vm.isInitialCatalogSync {
+                    Text(vm.syncStatus?.phase == .interrupted
+                        ? "Your library is not all here yet. ForeverLM will go on syncing it from iCloud."
+                        : "Still syncing from iCloud. These counts grow as your library arrives.")
+                        .accessibilityIdentifier("browser.arrivingNote")
                 }
             }
 
@@ -240,7 +249,15 @@ struct MobileCompactPlaybackBar: View {
 
     private func syncRow(_ status: MobileCatalogSyncStatus?) -> some View {
         HStack(spacing: 12) {
-            ProgressView()
+            // A spinner only while something runs: a round that stopped short
+            // says so with a still mark.
+            if status?.isRunning ?? true {
+                ProgressView()
+            } else {
+                Image(systemName: "icloud.slash")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(status?.stepText ?? "Syncing your library")
                     .font(.subheadline.weight(.semibold))
@@ -301,7 +318,8 @@ struct MobileCompactPlaybackBar: View {
             Spacer(minLength: 0)
             MobileTextToSpeechProgressText(
                 detail: vm.textToSpeechPreparationDetail,
-                progress: vm.textToSpeechGenerationProgress
+                progress: vm.textToSpeechGenerationProgress,
+                modelName: vm.textToSpeechPreparingSourceID.flatMap { vm.textToSpeechModelName(sourceID: $0) }
             )
             if let sourceID = vm.textToSpeechPreparingSourceID {
                 MobileTextToSpeechStopButton(audio: vm, sourceID: sourceID)
@@ -352,7 +370,8 @@ struct MobileCompactPlaybackBar: View {
                     MobileTextToSpeechProgressText(
                         detail: detail,
                         progress: progress,
-                        download: download
+                        download: download,
+                        modelName: vm.textToSpeechModelName(sourceID: item.id)
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
                     if vm.isPreparingAudio(sourceID: item.id) {
@@ -805,6 +824,10 @@ struct MobileTextToSpeechProgressText: View {
     /// A narration coming down from iCloud. Shown when nothing is being
     /// generated: the counts are the whole story, so no phase text is needed.
     var download: MobileNarrationDownloadProgress? = nil
+    /// The speech model the audio is being made with, for the wait before the
+    /// first chunk reports (`progress` names it from then on). A paper's
+    /// narration is prepared first, and that wait is the long one.
+    var modelName: String? = nil
 
     var body: some View {
         if let progress {
@@ -830,10 +853,17 @@ struct MobileTextToSpeechProgressText: View {
                     .lineLimit(1)
             }
         } else {
-            Text(detail ?? "Preparing audio…")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(detail ?? "Preparing audio…")
+                    .font(.caption)
+                if let modelName {
+                    Text(modelName)
+                        .font(.caption2)
+                }
+            }
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -886,8 +916,12 @@ struct MobileTextToSpeechProgressText: View {
 /// the iOS asset catalog); rows and fallbacks use SourceThumbnail.swift's
 /// symbol + color pairs.
 enum MobileSourceTypeStyle {
-    /// The Mac sidebar's badge asset, when that type has one. X is a template
-    /// asset so its bare monochrome mark follows the current foreground style.
+    /// X posts' type as the library names it (`SyncSchema`'s `SourceType`): the
+    /// replica hands the type over as it is written, capital P and all.
+    static let xPost = "xPost"
+
+    /// The Mac sidebar's badge asset, when that type has one. X has none: its
+    /// mark is a template asset, drawn on a tile of its own (`MobileXBadge`).
     static func assetName(for sourceType: String) -> String? {
         switch sourceType {
         case "article": return "ArticlesIcon"
@@ -897,7 +931,6 @@ enum MobileSourceTypeStyle {
         case "meeting": return "MeetingsIcon"
         case "podcast": return "ApplePodcastsIcon"
         case "video": return "YouTubeIcon"
-        case "xpost": return "XIcon"
         default: return nil
         }
     }
@@ -910,7 +943,7 @@ enum MobileSourceTypeStyle {
         case "course": return "graduationcap"
         case "meeting": return "person.2.wave.2"
         case "video": return "play.rectangle"
-        case "xpost": return "bubble.left"
+        case xPost: return "bubble.left"
         default: return "doc.richtext"
         }
     }
@@ -923,7 +956,7 @@ enum MobileSourceTypeStyle {
         case "course": return .indigo
         case "meeting": return .teal
         case "video": return .red
-        case "xpost": return .primary
+        case xPost: return .primary
         default: return .blue
         }
     }
@@ -936,7 +969,7 @@ struct MobileSourceTypeGlyph: View {
 
     @ViewBuilder
     var body: some View {
-        if sourceType == "xpost" {
+        if sourceType == MobileSourceTypeStyle.xPost {
             Image("XIcon")
                 .resizable()
                 .scaledToFit()
@@ -945,6 +978,26 @@ struct MobileSourceTypeGlyph: View {
             Image(systemName: MobileSourceTypeStyle.icon(for: sourceType))
                 .font(.system(size: pointSize, weight: weight))
         }
+    }
+}
+
+/// X's badge beside the other types' on the Library: its own mark, white on
+/// black as its app icon draws it. The hairline keeps the black tile's edge on
+/// a dark list.
+struct MobileXBadge: View {
+    var size: CGFloat = 34
+
+    var body: some View {
+        let tile = RoundedRectangle(cornerRadius: size * 8 / 34, style: .continuous)
+        Image("XIcon")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size / 2, height: size / 2)
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(.black, in: tile)
+            .overlay(tile.strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+            .accessibilityHidden(true)
     }
 }
 
@@ -1281,7 +1334,9 @@ private struct MobileSourceTypeButtonRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            if let asset = MobileSourceTypeStyle.assetName(for: sourceType) {
+            if sourceType == MobileSourceTypeStyle.xPost {
+                MobileXBadge()
+            } else if let asset = MobileSourceTypeStyle.assetName(for: sourceType) {
                 Image(asset)
                     .resizable()
                     .scaledToFit()
@@ -1974,7 +2029,7 @@ struct MobileBrowserSourceRow: View {
         case .titleOnly:
             return nil
         case .citation, .citationUnderTypeHeading:
-            var parts = subtitleStyle == .citation ? [source.sourceType.capitalized] : []
+            var parts = subtitleStyle == .citation ? [MobileSourceTypeGrouping.singularLabel(for: source.sourceType)] : []
             if let subtitle = source.citationSubtitle, !subtitle.isEmpty {
                 parts.insert(subtitle, at: 0)
             }

@@ -85,16 +85,18 @@ struct MobileBookContinuationOffer: Equatable {
     let nextTitle: String
 }
 
-/// One line of catalog sync state for the home screen: which of the two
-/// phases is running, step + detail text, and a 0–1 fraction when the phase
-/// can honestly estimate one (nil → indeterminate spinner).
+/// One line of catalog sync state for the home screen: what is running, step
+/// + detail text, and a 0–1 fraction when the phase can honestly estimate one
+/// (nil → indeterminate spinner).
 struct MobileCatalogSyncStatus: Equatable {
     enum Phase: Equatable {
-        case scanning
-        case downloading
+        /// The library is arriving on this phone for the first time.
+        case arriving
+        /// That arrival's round failed; nothing is fetching until the next one.
+        case interrupted
         /// The iCloud Drive manifest pass, which decides the audio badges. It
-        /// runs alongside the two CloudKit phases and is shown only once they
-        /// have nothing left to say.
+        /// runs alongside the library's arrival and is shown only once that
+        /// has nothing left to say.
         case narrations
     }
 
@@ -102,6 +104,34 @@ struct MobileCatalogSyncStatus: Equatable {
     var stepText: String
     var detailText: String
     var fractionComplete: Double?
+
+    /// Whether something is running now: a spinner belongs to this, never to
+    /// a round that stopped.
+    var isRunning: Bool { phase != .interrupted }
+
+    /// What the phone says while its library arrives for the first time
+    /// (`MobileLibraryArrival`), nil once nothing is arriving. The count is
+    /// the sources on screen, so the line and the lists agree.
+    static func arrival(_ arrival: MobileLibraryArrival, sourceCount: Int) -> MobileCatalogSyncStatus? {
+        switch arrival {
+        case .settled:
+            return nil
+        case .arriving:
+            let detail: String
+            switch sourceCount {
+            case 0: detail = "Connecting to iCloud…"
+            case 1: detail = "1 source so far"
+            default: detail = "\(sourceCount.formatted()) sources so far"
+            }
+            return MobileCatalogSyncStatus(phase: .arriving, stepText: "Syncing your library", detailText: detail)
+        case .interrupted:
+            return MobileCatalogSyncStatus(
+                phase: .interrupted,
+                stepText: "Sync paused",
+                detailText: "iCloud did not answer. ForeverLM will try again."
+            )
+        }
+    }
 }
 
 enum MobileTextToSpeechPreparationError: LocalizedError {

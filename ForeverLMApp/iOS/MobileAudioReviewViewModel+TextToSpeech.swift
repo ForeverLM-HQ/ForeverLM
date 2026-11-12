@@ -255,6 +255,14 @@ extension MobileAudioReviewViewModel {
         return (selection, repair?.message)
     }
 
+    /// Names the speech model on the rows of a generation that is about to
+    /// make audio: the device's pick when it starts, then the one the request
+    /// goes out on (the account's pick read again, or a language's own voice).
+    /// Audio another device already made names none, since nothing is made.
+    private func noteTextToSpeechModel(_ modelID: String?, sourceID: String) {
+        textToSpeechModelNames[sourceID] = modelID.map { ArticleSpeechCatalog.model(id: $0)?.name ?? $0 }
+    }
+
     private func generateTextToSpeechManifest(
         for source: MobileCloudSource,
         narration: MobilePreparedTextToSpeechNarration,
@@ -364,6 +372,7 @@ extension MobileAudioReviewViewModel {
         defer {
             backgroundTextToSpeechPreparingTitles[source.id] = nil
             backgroundTextToSpeechGenerationProgress[source.id] = nil
+            textToSpeechModelNames[source.id] = nil
             releaseTextToSpeechGenerationLease()
         }
 
@@ -378,6 +387,7 @@ extension MobileAudioReviewViewModel {
                     await play(item)
                 }
             } else {
+                noteTextToSpeechModel((try? CloudArticleTTS.currentSelection())?.model, sourceID: source.id)
                 let narration = try await prepareTextToSpeechNarration(for: source) { _ in }
                 let isSignedIn = await Task.detached(priority: .userInitiated) {
                     ManagedAI.isSignedIn
@@ -386,6 +396,7 @@ extension MobileAudioReviewViewModel {
                     throw CloudArticleTTS.GenerationError.missingAPIKey
                 }
                 let (selection, repairNotice) = try await refreshedTextToSpeechSelection()
+                noteTextToSpeechModel(selection.model, sourceID: source.id)
                 if let repairNotice { errorMessage = repairNotice }
                 let generationStartedAt = Date()
                 let onOpeningReady: (@Sendable (SyncedArticleAudioManifest) async -> Void)?
@@ -668,6 +679,7 @@ extension MobileAudioReviewViewModel {
             textToSpeechAutoplaySourceID = nil
             textToSpeechPreparationDetail = nil
             textToSpeechGenerationProgress = nil
+            textToSpeechModelNames[source.id] = nil
             // A generation that failed after its opening started leaves no
             // second half coming; the opening is ordinary playback again.
             if openingPlaybackSourceID == source.id {
@@ -705,6 +717,7 @@ extension MobileAudioReviewViewModel {
             return
         }
 
+        noteTextToSpeechModel((try? CloudArticleTTS.currentSelection())?.model, sourceID: source.id)
         let narration = try await prepareTextToSpeechNarration(for: source) { [weak self] detail in
             self?.textToSpeechPreparationDetail = detail
         }
@@ -747,6 +760,7 @@ extension MobileAudioReviewViewModel {
         } else {
             resolvedSelection = selection
         }
+        noteTextToSpeechModel(resolvedSelection.model, sourceID: source.id)
         let unnarratableLanguage = language?.outcome == .unsupported
 
         // Confirmation suppression follows the account. Refresh immediately

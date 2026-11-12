@@ -256,3 +256,81 @@ struct MobileReplicaTests {
         #expect(try MobileReplica.fileURL(environment: .development).lastPathComponent == "ForeverLMReplica-Development.sqlite")
     }
 }
+
+/// The library's first arrival on the phone (`MobileLibraryArrival`, §2.3): a first fetch takes minutes and
+/// the replica is on screen from its first records, so the screens say the library is still coming until
+/// both fetched zones have been taken to their end. A paper list that read 64 of a thousand, with nothing
+/// to say the rest were on their way, is what these hold.
+@Suite("iPhone library arrival", .serialized)
+struct MobileLibraryArrivalTests {
+    private static func holdsWhole(_ replica: MobileReplica) async throws -> Bool {
+        try await replica.read { try MobileLibraryArrival.holdsWhole(in: $0) }
+    }
+
+    private static func markComplete(_ zones: [CloudZoneID], in replica: MobileReplica) async throws {
+        try await replica.perform { state in
+            for zone in zones {
+                guard var held = try state.replica.zone(key: PrivateSyncZones.key(zone)) else { continue }
+                held.lastCompletePassAt = Date().timeIntervalSinceReferenceDate
+                try state.replica.upsertZone(held)
+            }
+        }
+    }
+
+    @Test("A round over a library never held whole is arriving, a failed one interrupted, anything else settled")
+    func stateFollowsTheRound() {
+        #expect(MobileLibraryArrival.state(phase: .starting, heldWhole: false) == .arriving)
+        #expect(MobileLibraryArrival.state(phase: .syncing, heldWhole: false) == .arriving)
+        #expect(MobileLibraryArrival.state(phase: .failed("The network connection was lost."), heldWhole: false) == .interrupted)
+        #expect(MobileLibraryArrival.state(phase: .upToDate, heldWhole: false) == .settled)
+        #expect(MobileLibraryArrival.state(phase: .noAccount, heldWhole: false) == .settled)
+        #expect(MobileLibraryArrival.state(phase: .waiting(.zonesWithoutRoot), heldWhole: false) == .settled)
+        #expect(MobileLibraryArrival.state(phase: .idle, heldWhole: false) == .settled)
+    }
+
+    @Test("A library held whole never reads as arriving: an ordinary round stays silent")
+    func aWholeLibraryStaysSilent() {
+        #expect(MobileLibraryArrival.state(phase: .syncing, heldWhole: true) == .settled)
+        #expect(MobileLibraryArrival.state(phase: .starting, heldWhole: true) == .settled)
+        #expect(MobileLibraryArrival.state(phase: .failed("offline"), heldWhole: true) == .settled)
+    }
+
+    @Test("The library is whole once Library and Catalog each have a complete pass, and a purge takes that back")
+    func wholeNeedsBothZones() async throws {
+        let replica = try await MobileWriterFixture.replica(space: nil)
+        #expect(try await Self.holdsWhole(replica) == false, "zones adopted, nothing fetched to its end")
+
+        try await Self.markComplete([PrivateSyncZones.library], in: replica)
+        #expect(try await Self.holdsWhole(replica) == false, "Catalog, which holds the sources, is still coming")
+
+        try await Self.markComplete([PrivateSyncZones.catalog], in: replica)
+        #expect(try await Self.holdsWhole(replica))
+
+        try await replica.perform { try PurgeHandler.handle(.zoneDeleted(reason: .purged), in: $0) }
+        #expect(try await Self.holdsWhole(replica) == false, "after a purge the library arrives again from nothing")
+    }
+
+    @Test("A replica with no zones yet is not whole: a first launch reads as arriving")
+    func noZonesIsNotWhole() async throws {
+        let replica = try MobileReplica(path: ":memory:")
+        #expect(try await Self.holdsWhole(replica) == false)
+    }
+
+    @Test("The line counts the sources on screen while they arrive, and says a failed round will be tried again")
+    func statusLines() {
+        #expect(MobileCatalogSyncStatus.arrival(.settled, sourceCount: 12) == nil)
+
+        let connecting = MobileCatalogSyncStatus.arrival(.arriving, sourceCount: 0)
+        #expect(connecting?.stepText == "Syncing your library")
+        #expect(connecting?.detailText == "Connecting to iCloud…")
+        #expect(connecting?.isRunning == true)
+
+        #expect(MobileCatalogSyncStatus.arrival(.arriving, sourceCount: 1)?.detailText == "1 source so far")
+        #expect(MobileCatalogSyncStatus.arrival(.arriving, sourceCount: 64)?.detailText == "64 sources so far")
+
+        let paused = MobileCatalogSyncStatus.arrival(.interrupted, sourceCount: 64)
+        #expect(paused?.phase == .interrupted)
+        #expect(paused?.isRunning == false, "a round that stopped never spins")
+        #expect(paused?.detailText == "iCloud did not answer. ForeverLM will try again.")
+    }
+}

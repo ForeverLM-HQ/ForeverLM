@@ -888,17 +888,6 @@ actor MobileCloudSourceCatalog {
         .sorted { $0.plannedAt < $1.plannedAt }
     }
 
-    /// Posted after every checkpoint write. userInfo: "decoded" (sources so
-    /// far), "pending" (records still to fetch), "walking" (true while the
-    /// zone enumeration itself is still paging), "scanned" (zone records the
-    /// walk has paged past, of every type — the only number that moves while
-    /// the walk is crossing the stretches of records it does not collect,
-    /// like usage events and chat history; survives interruptions),
-    /// "fullPass" (true when the walk started from a nil token), plus when
-    /// known "expectedScan" (the last full walk's total, the scan bar's
-    /// denominator) and "drainTotal" (records this drain started with).
-    static let syncProgressNotification = Notification.Name("MobileCatalogSyncProgress")
-
     func diagnose() async -> MobileSourceSyncDiagnostic {
         let checkedAt = Date()
         // The replica is the library, and the session reports its rounds.

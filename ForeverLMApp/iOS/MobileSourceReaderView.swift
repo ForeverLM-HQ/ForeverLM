@@ -351,7 +351,8 @@ struct MobileSourceReaderView: View {
             MobileTextToSpeechProgressText(
                 detail: detail,
                 progress: progress,
-                download: download
+                download: download,
+                modelName: audio.textToSpeechModelName(sourceID: sourceID)
             )
             .frame(maxWidth: .infinity, alignment: .leading)
             if audio.isPreparingAudio(sourceID: sourceID) {

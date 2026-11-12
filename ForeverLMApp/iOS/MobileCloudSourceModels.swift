@@ -1256,7 +1256,7 @@ func canonicalSourceType(_ sourceType: String) -> String {
 enum MobileSourceTypeGrouping {
     private static let curatedOrder = [
         "paper", "book", "article", "podcast", "video",
-        "course", "meeting", "xpost",
+        "course", "meeting", "xPost",
     ]
 
     private static let labels: [String: String] = [
@@ -1267,11 +1267,19 @@ enum MobileSourceTypeGrouping {
         "video": "YouTube",
         "course": "Courses",
         "meeting": "Meetings",
-        "xpost": "X",
+        // The type as the library writes it (`SyncSchema`'s `SourceType`). Keyed in lower case it
+        // matched nothing, and the row read "Xpost", the type's own name capitalized.
+        "xPost": "X",
     ]
 
     static func label(for sourceType: String) -> String {
         labels[sourceType] ?? sourceType.capitalized
+    }
+
+    /// One source's type as a row names it beside its citation ("Paper", "Podcast"): the type's own
+    /// name, and X's for a post, which capitalized reads "Xpost".
+    static func singularLabel(for sourceType: String) -> String {
+        sourceType == "xPost" ? "X post" : sourceType.capitalized
     }
 
     /// `alsoIncluding` names types that must get a section even with no source
