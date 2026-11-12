@@ -602,7 +602,11 @@ enum AIModelCatalog {
     /// selection of it keeps resolving. Once the successor is pinned on the
     /// lab's own route it dedups against that entry and this adds nothing.
     private static func withDirectorySuccessors(_ group: MakerGroup) -> MakerGroup {
-        let listed = openRouterReleaseDateLock.withLock { loadedOpenRouterReleaseDateTable() }
+        // The loader takes `openRouterReleaseDateLock` itself, and NSLock is
+        // not recursive: called with that lock held, it waits on itself
+        // forever while this thread holds `catalogSnapshotLock`, and every
+        // catalog read after it, the main thread's included, hangs.
+        let listed = loadedOpenRouterReleaseDateTable()
             .mapValues { Date(timeIntervalSince1970: $0) }
         return MakerGroup(
             maker: group.maker,
