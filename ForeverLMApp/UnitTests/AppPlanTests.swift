@@ -35,7 +35,7 @@ struct AppPlanTests {
         #expect(access.prices.onceCents == 1900)
         #expect(access.prices.monthlyCents == 400, "Monthly's price from before the lock, which the proxy still reports")
         #expect(!access.isPaid)
-        #expect(!access.isMCPLocked(at: now))
+        #expect(!access.isLocked(at: now))
         let roundTrip = try JSONDecoder().decode(ManagedAI.AppAccess.self, from: JSONEncoder().encode(access))
         #expect(roundTrip == access)
         // The cache keeps only what this build reads.
@@ -56,7 +56,7 @@ struct AppPlanTests {
         """)
         #expect(access.state == .free)
         #expect(!access.isPaid)
-        #expect(!access.isMCPLocked(at: now))
+        #expect(!access.isLocked(at: now))
         #expect(access.freeDaysLeft(at: now) == nil)
         #expect(access.plansOnSale.isEmpty)
         // The top-level state is app_state's vocabulary too.
@@ -64,12 +64,12 @@ struct AppPlanTests {
         #expect(old.filling(.init(state: "free", unlocked: true, freeUntil: nil)).state == .free)
         // The welcome line names no price while nothing is sold; before the
         // access is known it names neither the days nor the price (2026-11-11:
-        // MCP is paid again, after 30 free days).
+        // the whole app is paid again, after 30 free days).
         #expect(EarlyUserDealOffer.welcomeLine(access: access) == "ForeverLM is free, MCP included.")
-        #expect(EarlyUserDealOffer.welcomeLine(access: nil) == "The app is free. MCP: Free to start, then pay once. No subscription.")
+        #expect(EarlyUserDealOffer.welcomeLine(access: nil) == "Free to start, then pay once. No subscription.")
         #expect(EarlyUserDealOffer.freeTitle == "MCP is free")
         let selling = ManagedAI.AppAccess(state: .freeDays, prices: .init(onceCents: 1900, monthlyCents: nil), freeDaysTotal: 30)
-        #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "The app is free. MCP: 30 days free, then $19 once. No subscription.")
+        #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "30 days free, then $19 once. No subscription.")
         for text in [EarlyUserDealOffer.freeWelcomeLine, EarlyUserDealOffer.freeTitle] {
             #expect(!text.contains("$"))
             #expect(!text.contains("—"))
@@ -103,7 +103,7 @@ struct AppPlanTests {
         for raw in ["paused", "free_week"] {
             let unknown = try decode(#"{"app_state":"\#(raw)","unlocked":true}"#)
             #expect(unknown.state == .freeDays, "\(raw)")
-            #expect(!unknown.isMCPLocked(at: now), "\(raw)")
+            #expect(!unknown.isLocked(at: now), "\(raw)")
         }
         #expect(ManagedAI.AppAccess.State(serverValue: nil) == .freeDays)
     }
@@ -145,20 +145,20 @@ struct AppPlanTests {
           "prices":{"monthly_cents":400,"yearly_cents":6700,"forever_cents":12500,"believer_cents":1900}}}
         """)
         #expect(cached.state == .freeDays)
-        #expect(!cached.isMCPLocked(at: now), "an unlocked account in its free days runs, whatever own_key_allowed said")
+        #expect(!cached.isLocked(at: now), "an unlocked account in its free days runs, whatever own_key_allowed said")
         #expect(cached.freeDaysLeft(at: now) == 2)
 
         // app_lock false no longer keeps a lapsed or locked account open.
         let lapsed = try decode(#"{"app_state":"free_days","unlocked":true,"app_lock":false,"free_until":"2026-10-01T00:00:00Z"}"#)
-        #expect(lapsed.isMCPLocked(at: now))
+        #expect(lapsed.isLocked(at: now))
         #expect(lapsed.freeDaysLeft(at: now) == nil)
-        #expect(try decode(#"{"app_state":"locked","unlocked":false,"app_lock":false}"#).isMCPLocked(at: now))
+        #expect(try decode(#"{"app_state":"locked","unlocked":false,"app_lock":false}"#).isLocked(at: now))
 
         // A missing unlocked never locks, and nothing missing fails the decode.
         let bare = try decode(#"{}"#)
         #expect(bare.unlocked)
         #expect(bare.state == .freeDays)
-        #expect(!bare.isMCPLocked(at: now))
+        #expect(!bare.isLocked(at: now))
         #expect(bare.freeDaysLeft(at: now) == nil, "no free days to count without free_until")
         #expect(bare.prices == .unknown)
     }
@@ -166,14 +166,14 @@ struct AppPlanTests {
     @Test("The proxy's unlocked decides, and the free days run out on the proxy's clock even offline")
     func lock() throws {
         let locked = try decode(#"{"app_state":"locked","unlocked":false}"#)
-        #expect(locked.isMCPLocked(at: now))
+        #expect(locked.isLocked(at: now))
         #expect(!locked.isPaid)
         // unlocked false locks whatever the state says.
-        #expect(try decode(#"{"app_state":"free_days","unlocked":false}"#).isMCPLocked(at: now))
+        #expect(try decode(#"{"app_state":"free_days","unlocked":false}"#).isLocked(at: now))
 
         let freeDays = try decode(#"{"app_state":"free_days","unlocked":true,"free_until":"2026-10-21T12:00:00Z"}"#)
-        #expect(!freeDays.isMCPLocked(at: now))
-        #expect(freeDays.isMCPLocked(at: now.addingTimeInterval(86_400)), "the cached free days end at free_until without asking")
+        #expect(!freeDays.isLocked(at: now))
+        #expect(freeDays.isLocked(at: now.addingTimeInterval(86_400)), "the cached free days end at free_until without asking")
 
         // A paid account never locks for the time passing, so being offline
         // cannot lock it.
@@ -185,7 +185,7 @@ struct AppPlanTests {
         ] {
             let paid = try decode(json)
             #expect(paid.isPaid)
-            #expect(!paid.isMCPLocked(at: now.addingTimeInterval(365 * 86_400)), "\(json)")
+            #expect(!paid.isLocked(at: now.addingTimeInterval(365 * 86_400)), "\(json)")
             #expect(paid.freeDaysLeft(at: now) == nil, "\(json)")
         }
     }
@@ -199,13 +199,16 @@ struct AppPlanTests {
         #expect(freeDays.freeDaysLeft(at: now.addingTimeInterval(5 * 86_400 + 1)) == 1, "day 6")
         #expect(freeDays.freeDaysLeft(at: now.addingTimeInterval(6 * 86_400 + 1)) == 0, "day 7, the last")
         #expect(freeDays.freeDaysLeft(at: freeUntil) == nil)
-        #expect(!freeDays.isMCPLocked(at: freeUntil.addingTimeInterval(-1)))
-        #expect(freeDays.isMCPLocked(at: freeUntil), "day 8 locks")
+        #expect(!freeDays.isLocked(at: freeUntil.addingTimeInterval(-1)))
+        #expect(freeDays.isLocked(at: freeUntil), "day 8 locks")
 
-        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 6) == "MCP free: 6 days left")
-        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 2) == "MCP free: 2 days left")
-        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 1) == "MCP free: 1 day left")
-        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 0) == "MCP free: last day")
+        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 6) == "6 days free left")
+        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 2) == "2 days free left")
+        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 1) == "1 day free left")
+        #expect(ManagedAI.AppAccess.freeDaysStatus(daysLeft: 0) == "Last free day")
+        #expect(ManagedAI.AppAccess.phoneFreeDaysStatus(daysLeft: 6) == "Free, 6 days left")
+        #expect(ManagedAI.AppAccess.phoneFreeDaysStatus(daysLeft: 1) == "Free, 1 day left")
+        #expect(ManagedAI.AppAccess.phoneFreeDaysStatus(daysLeft: 0) == "Free, last day")
     }
 
     @Test("Two days before the end and the last day each bring one notice offering the deal")
@@ -218,10 +221,10 @@ struct AppPlanTests {
         #expect(FreeDaysNotices.due(daysLeft: 1) == .twoDaysLeft, "missed the day before, shown the next")
         #expect(FreeDaysNotices.due(daysLeft: 0) == .lastDay)
         #expect(FreeDaysNotices.message(daysLeft: 2, onceCents: 1900)
-            == "MCP free: 2 days left. Keep your assistants connected with the Early user deal, $19 paid once, no subscription.")
-        #expect(FreeDaysNotices.message(daysLeft: 0, onceCents: 1900).hasPrefix("MCP free: last day."))
+            == "2 days free left. Keep everything you've built with the Early user deal, $19 paid once, no subscription.")
+        #expect(FreeDaysNotices.message(daysLeft: 0, onceCents: 1900).hasPrefix("Last free day."))
         #expect(FreeDaysNotices.message(daysLeft: 2, onceCents: nil)
-            == "MCP free: 2 days left. Keep your assistants connected with the Early user deal, paid once, no subscription.")
+            == "2 days free left. Keep everything you've built with the Early user deal, paid once, no subscription.")
     }
 
     @Test("The top-level lock fields fill what the access block left out, and never override it")
@@ -229,7 +232,7 @@ struct AppPlanTests {
         let silent = try decode(#"{"app_state":"free_days"}"#)
         let filled = silent.filling(.init(unlocked: false, freeUntil: "2026-10-23T09:00:00Z"))
         #expect(!filled.unlocked)
-        #expect(filled.isMCPLocked(at: now))
+        #expect(filled.isLocked(at: now))
         #expect(filled.freeUntil == ISO8601DateFormatter().date(from: "2026-10-23T09:00:00Z"))
         let said = try decode(#"{"app_state":"free_days","unlocked":true,"free_until":"2026-10-25T09:00:00Z"}"#)
         let kept = said.filling(.init(unlocked: false, freeUntil: "2026-10-23T09:00:00Z"))
@@ -243,7 +246,7 @@ struct AppPlanTests {
         )
         #expect(top.state == "locked")
         #expect(top.unlocked == false)
-        #expect(silent.filling(top).isMCPLocked(at: now))
+        #expect(silent.filling(top).isLocked(at: now))
     }
 
     @Test("Prices come from the proxy, the paid-once price under its older name too, and are never made up")
@@ -260,22 +263,23 @@ struct AppPlanTests {
     @MainActor
     func wording() {
         #expect(EarlyUserDealOffer.title == "Early user deal")
-        #expect(EarlyUserDealOffer.terms == "Unlocks MCP. Paid once, no subscription")
+        #expect(EarlyUserDealOffer.terms == "paid once, no subscription")
         #expect(EarlyUserDealOffer.buyTitle(onceCents: 1900) == "Get the Early User Deal: $19")
         #expect(EarlyUserDealOffer.buyTitle(onceCents: nil) == "Get the Early User Deal")
-        #expect(EarlyUserDealOffer.headline(onceCents: 1900, freeDays: 7) == "MCP: 7 days free, then $19 once. No subscription.")
-        #expect(EarlyUserDealOffer.headline(onceCents: nil, freeDays: 7) == "MCP: 7 days free, then pay once. No subscription.")
-        #expect(EarlyUserDealOffer.headline(onceCents: 1900, freeDays: nil) == "MCP: Free to start, then $19 once. No subscription.",
+        #expect(EarlyUserDealOffer.headline(onceCents: 1900, freeDays: 7) == "7 days free, then $19 once. No subscription.")
+        #expect(EarlyUserDealOffer.headline(onceCents: nil, freeDays: 7) == "7 days free, then pay once. No subscription.")
+        #expect(EarlyUserDealOffer.headline(onceCents: 1900, freeDays: nil) == "Free to start, then $19 once. No subscription.",
                 "a proxy that has not said the count gets no count of the build's own")
-        #expect(EarlyUserDealOffer.welcomeLine(onceCents: 1900, freeDays: 7)
-            == "The app is free. MCP: 7 days free, then $19 once. No subscription.")
-        #expect(EarlyUserDealOffer.ownKeyLine == "The app is free. AI runs on your OpenRouter API key, at OpenRouter's cost. ForeverLM adds nothing.")
-        #expect(EarlyUserDealOffer.lockedTitle == "MCP is locked")
-        #expect(ManagedAI.mcpLockedMessage == "ForeverLM's MCP connection is not unlocked on this account. Open ForeverLM on your Mac to unlock it.")
+        #expect(EarlyUserDealOffer.ownKeyLine == "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing.")
+        #expect(AppLockWall.title == "Your free days are over")
+        #expect(AppLockWall.message == "Keep everything you've built: pay once and ForeverLM is yours to use.")
+        #expect(AppLockWall.libraryLine == "Your library stays in your iCloud Drive (ForeverLM folder), as plain files you own.")
+        #expect(ManagedAI.appLockedMCPMessage == "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue.")
+        #expect(ManagedAI.appLockedMessage == "Your free days of ForeverLM are over.")
         for text in [
             EarlyUserDealOffer.headline(onceCents: 1900, freeDays: 7), EarlyUserDealOffer.buyTitle(onceCents: 1900),
-            EarlyUserDealOffer.welcomeLine(onceCents: 1900, freeDays: 7), EarlyUserDealOffer.lockedTitle,
-            FreeDaysNotices.message(daysLeft: 2, onceCents: 1900), ManagedAI.mcpLockedMessage,
+            FreeDaysNotices.message(daysLeft: 2, onceCents: 1900), AppLockWall.title, AppLockWall.message,
+            ManagedAI.appLockedMessage, ManagedAI.appLockedMCPMessage,
         ] {
             #expect(!text.contains("—"))
             #expect(!text.localizedCaseInsensitiveContains("lifetime"))
@@ -318,7 +322,7 @@ struct AppPlanTests {
         """)
         #expect(subscriber.state == .monthly)
         #expect(subscriber.isPaid)
-        #expect(!subscriber.isMCPLocked(at: now.addingTimeInterval(365 * 86_400)))
+        #expect(!subscriber.isLocked(at: now.addingTimeInterval(365 * 86_400)))
         #expect(subscriber.planName == "Monthly")
         #expect(!subscriber.renewsYearly)
         #expect(subscriber.subscriptionPriceCents == 400)
@@ -364,13 +368,13 @@ struct AppPlanTests {
         #expect(ManagedAI.httpDate("not a date") == nil)
     }
 
-    @Test("A tool call reaching this Mac directly is refused while MCP is locked, and only then")
+    @Test("A tool call reaching this Mac directly is refused while the app is locked, and only then")
     func directPathGate() {
         var direct = MCPAccessContext.internalFullAccess
-        #expect(MCPProtocolHandler.mcpLockRefusal(for: direct, locked: true) == nil, "in-app chat is never gated here")
+        #expect(MCPProtocolHandler.appLockRefusal(for: direct, locked: true) == nil, "in-app chat is never gated here")
         direct.arrivedWithoutGateway = true
-        #expect(MCPProtocolHandler.mcpLockRefusal(for: direct, locked: true) == ManagedAI.mcpLockedMessage)
-        #expect(MCPProtocolHandler.mcpLockRefusal(for: direct, locked: false) == nil)
+        #expect(MCPProtocolHandler.appLockRefusal(for: direct, locked: true) == ManagedAI.appLockedMCPMessage)
+        #expect(MCPProtocolHandler.appLockRefusal(for: direct, locked: false) == nil)
     }
 
     @Test("Cancellation reasons are Stripe's feedback values, and the answer carries the end date")

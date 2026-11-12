@@ -1314,7 +1314,7 @@ struct StudioNavigationRail: View {
     /// anything; a click opens MCP settings (Billing while MCP is locked).
     private var railMCPButton: some View {
         Button {
-            onOpenSettings(account.isMCPLocked ? .aiBilling : .mcp)
+            onOpenSettings(account.isAppLocked ? .aiBilling : .mcp)
         } label: {
             RailGlyph(systemImage: "point.3.connected.trianglepath.dotted")
                 .overlay(alignment: .bottomTrailing) {
@@ -1460,10 +1460,9 @@ struct StudioNavigationRail: View {
                 accessibilityIdentifier: AccessibilityID.mcpStatusButton
             ) {
                 showsAccountMenu = false
-                // Locked, the way back to MCP is Billing, where it is paid for.
-                onOpenSettings(account.isMCPLocked ? .aiBilling : .mcp)
+                onOpenSettings(.mcp)
             }
-            .help(account.isMCPLocked ? "Open Billing" : "Open MCP settings")
+            .help("Open MCP settings")
             .accessibilityValue(mcpStatusLightLabel)
         }
 
@@ -1579,11 +1578,11 @@ struct StudioNavigationRail: View {
     // MARK: Comp
 
     /// The comp pays only for what goes through the proxy. With the learner's
-    /// own key stored, everything the key
+    /// own key stored and allowed to run (a comp is unlocked), everything the key
     /// covers goes straight to its router and is billed there, so the comp row
     /// said "Usage is paid for by ForeverLM · $0.00 used today" while the key
-    /// paid for the day's chats. The help text names the key instead.
-    private var ownKeyPays: Bool { account.ownKey != nil }
+    /// paid for the day's chats (2026-09-27). The help text names the key instead.
+    private var ownKeyPays: Bool { account.ownKey != nil && account.ownKeyAllowed }
 
     private var compHelpText: String {
         if let own = account.ownKey, ownKeyPays {
@@ -1647,12 +1646,12 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// While MCP is locked (the free days over, nothing paid) the connection
-    /// is stopped on purpose (product owner, 2026-10-10), so the light says
-    /// so rather than calling it a failure.
+    /// While the app is locked (the free days over, nothing paid) the
+    /// connection is stopped on purpose (product owner, 2026-10-10), so the
+    /// light says so rather than calling it a failure.
     private var mcpStatusLightLabel: String {
         guard assistantIntegrationsEnabled else { return "MCP disabled" }
-        if account.isMCPLocked { return "MCP locked" }
+        if account.isAppLocked { return "MCP locked" }
         switch mcpLauncher.state {
         case .running:
             return "MCP connected"

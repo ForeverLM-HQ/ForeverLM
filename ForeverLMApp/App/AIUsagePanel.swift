@@ -68,6 +68,18 @@ struct AIUsageAccountSections: View {
         ) {
             billingCard {
                 VStack(alignment: .leading, spacing: 0) {
+                    // The key runs while the account is unlocked: the free
+                    // days, or paid. Otherwise the proxy refuses it for every
+                    // model, free ones included (`app_locked`); paying is
+                    // Billing's, so this row only goes there.
+                    if !account.ownKeyAllowed {
+                        billingRow(title: AppLockWall.title, detail: "Your key runs AI features again once you pay") {
+                            Button("Open Billing") { onOpenBilling() }
+                                .buttonStyle(.bordered)
+                                .accessibilityIdentifier("billing.ownKey.choosePlan")
+                        }
+                        rowDivider
+                    }
                     if let own = account.ownKey {
                         billingRow(
                             title: "\(own.router.label) key ending in \(own.suffix)",

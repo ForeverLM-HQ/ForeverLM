@@ -6,8 +6,8 @@ import Security
 #endif
 import AuthenticationServices
 
-/// UI-facing state for the managed AI rail ("ForeverLM AI"): sign-in, the
-/// account's access (MCP's free days, payment, its lock),
+/// UI-facing state for the managed AI rail ("ForeverLM AI"): sign-in, the paid
+/// app's access (the free days, payment, the lock),
 /// the own OpenRouter key, any leftover balance, and billing history. `@MainActor @Observable`, with in-flight
 /// flags and no `throws` out of its methods; failures land in `errorMessage` as a
 /// full user-facing sentence.
@@ -39,7 +39,7 @@ final class ManagedAIAccountModel {
         }
     }
 
-    /// The account's access: MCP's free days, paid once, monthly (bought
+    /// The paid app's access: the free days, paid once, monthly (bought
     /// before the lock), comped, family or locked. Nil until a worker that reports plans has answered.
     /// See `ManagedAI.AppAccess`.
     private(set) var appAccess: ManagedAI.AppAccess? = ManagedAI.appAccess {
@@ -52,9 +52,9 @@ final class ManagedAIAccountModel {
     private(set) var planCheckoutInFlight: ManagedAI.AppPlan?
     /// A cancel or keep-plan call on its way to the proxy.
     private(set) var planChangeInFlight = false
-    /// Reads the account again every few seconds after checkout opens, until
-    /// it is paid, so Billing shows MCP unlocked by itself once Stripe's
-    /// webhook lands (product owner, 2026-10-13: no "I've Paid").
+    /// Reads the account again every few seconds after checkout opens, while
+    /// the app is locked, so the pay screen opens the app by itself once
+    /// Stripe's webhook lands (product owner, 2026-10-13: no "I've Paid").
     @ObservationIgnored private var paymentWatch: Task<Void, Never>?
 
     /// Moves when the free days cross a day, or end, while the app is open,
@@ -62,14 +62,17 @@ final class ManagedAIAccountModel {
     private(set) var freeDaysClock = 0
     @ObservationIgnored private var freeDaysTick: Task<Void, Never>?
 
+    /// Whether the learner's own router key may pay for requests: for any
+    /// account that is not locked (`ManagedAI.ownKeyAllowed`).
+    var ownKeyAllowed: Bool { !isAppLocked }
     /// What the app costs, as the proxy last reported it.
     var planPrices: ManagedAI.AppAccess.Prices { appAccess?.prices ?? .unknown }
 
-    /// Whether MCP is locked: the free days are over and nothing is paid
-    /// (`ManagedAI.isMCPLocked`). Only the assistant connection stops.
-    var isMCPLocked: Bool {
+    /// Whether the app is locked: the free days are over and nothing is paid
+    /// (`ManagedAI.isAppLocked`). The Mac then shows only `AppLockWall`.
+    var isAppLocked: Bool {
         _ = freeDaysClock
-        return appAccess?.isMCPLocked(at: ManagedAI.serverNow) ?? false
+        return appAccess?.isLocked(at: ManagedAI.serverNow) ?? false
     }
 
     /// Whole free days left after today, while the free days run. Nil
@@ -588,7 +591,7 @@ final class ManagedAIAccountModel {
     }
 
     /// Opens Stripe Checkout in the browser: the Early user deal (`.once`),
-    /// the one plan sold, which unlocks MCP. It takes effect when Stripe's webhook
+    /// the one plan the paid app sells. It takes effect when Stripe's webhook
     /// lands; the app becoming active again, or the payment watch, picks it up.
     func choosePlan(_ plan: ManagedAI.AppPlan) async {
         guard planCheckoutInFlight == nil else { return }
@@ -608,16 +611,16 @@ final class ManagedAIAccountModel {
         }
     }
 
-    /// Until the account is paid, reads it every five seconds for ten minutes
-    /// after checkout opens, and stops as soon as it is.
+    /// While the app is locked, reads the account every five seconds for ten
+    /// minutes after checkout opens, and stops as soon as it is unlocked.
     private func watchForPayment() {
         paymentWatch?.cancel()
-        guard appAccess?.isPaid != true else { return }
+        guard isAppLocked else { return }
         let deadline = Date().addingTimeInterval(600)
         paymentWatch = Task { [weak self] in
             while Date() < deadline {
                 try? await Task.sleep(for: .seconds(5))
-                guard !Task.isCancelled, let self, self.appAccess?.isPaid != true else { return }
+                guard !Task.isCancelled, let self, self.isAppLocked else { return }
                 await self.refresh(minimumInterval: 2, silently: true)
             }
         }
@@ -625,7 +628,7 @@ final class ManagedAIAccountModel {
 
     /// Re-reads the lock and the account menu's count when the free days
     /// next cross a day on the proxy's clock, and once more when they end,
-    /// so MCP on a Mac left open locks on time and a refresh confirms it.
+    /// so a Mac left open locks on time and a refresh confirms it.
     private func scheduleFreeDaysTick() {
         freeDaysTick?.cancel()
         freeDaysTick = nil

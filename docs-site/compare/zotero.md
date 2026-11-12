@@ -14,7 +14,7 @@ This is not a claim that ForeverLM replaces Zotero for academic writing. It does
 
 | | ForeverLM | Zotero |
 |---|---|---|
-| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free and open source; 300 MB file sync free, then $20/year for 2 GB, $60/year for 6 GB, or $120/year unlimited |
+| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free and open source; 300 MB file sync free, then $20/year for 2 GB, $60/year for 6 GB, or $120/year unlimited |
 | **Platforms** | Mac-centered library with synced iPhone access | Mac, Windows, Linux, iOS, Android, and web library |
 | **Paper capture** | Browser reading lists, URL paste, local PDFs, MCP, and custom plugins; open PDFs fetched when available | Excellent browser plugin, DOI/ISBN lookup, database translators, file import, and feeds |
 | **Organization** | Notebooks, source types, search, status, tags, and a day-by-day Schedule | Collections, tags, related items, saved searches, duplicate detection, and group libraries |

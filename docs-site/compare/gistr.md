@@ -12,7 +12,7 @@ Gistr calls itself an AI-native notebook. You save YouTube videos, podcasts, PDF
 
 | | ForeverLM | Gistr |
 |---|---|---|
-| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free (500 credits/mo, 5 collections, 5 sources per thread); Curious $8/mo; Explorer $16/mo; Thinker $40/mo; yearly billing gives two months free |
+| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free (500 credits/mo, 5 collections, 5 sources per thread); Curious $8/mo; Explorer $16/mo; Thinker $40/mo; yearly billing gives two months free |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Web, Chrome extension, Android; iOS in development; no desktop app |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Gistr's cloud; hosting provider and region not stated; says your content is never used for training |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | By tier: fast models on Free, frontier Claude, GPT and Gemini from Explorer ($16/mo); no bring-your-own-key |
@@ -28,7 +28,7 @@ Gistr calls itself an AI-native notebook. You save YouTube videos, podcasts, PDF
 
 Gistr meters AI in credits: 500 a month free, 2,500 on Curious ($8), 10,000 on Explorer ($16) and 55,000 on Thinker ($40), with unused credits rolling over up to a cap on paid plans. The tier also decides the model: the most capable Claude, GPT and Gemini models start at Explorer. On the free plan, content you haven't touched for three months goes cold and has to be processed again before you can ask about it.
 
-ForeverLM is free, with no subscription and no tiers: the whole app and every model are open. Only MCP, the connection for an outside assistant, is paid: 30 days free, then $19 once. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP, which is what the $19 covers.
+ForeverLM is 30 days free, then $19 once, with no subscription and no tiers: paying gets the whole app and every model. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP.
 
 ## Where Gistr is better
 

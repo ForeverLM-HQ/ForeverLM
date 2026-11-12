@@ -181,11 +181,11 @@ final class MCPProtocolHandler: @unchecked Sendable {
         // A beta feature's tool on a Mac that does not show it is refused by
         // callToolDetailed, as a tool error the assistant reads out.
 
-        // Locked MCP (product owner, 2026-10-10 and 2026-10-16: the free days
-        // over and nothing paid) answers no tool call. The gateway checks the
-        // calls it signs; a call on this Mac's own bearer never passes it, so
-        // it is checked here, as a tool error the assistant reads out.
-        if let refusal = Self.mcpLockRefusal(for: access) {
+        // A locked app (product owner, 2026-10-10: the free days over and
+        // nothing paid) answers no tool call. The gateway checks the calls it
+        // signs; a call on this Mac's own bearer never passes it, so it is
+        // checked here, as a tool error the assistant reads out.
+        if let refusal = Self.appLockRefusal(for: access) {
             return jsonRPCResult(id, result: [
                 "content": [["type": "text", "text": refusal]],
                 "isError": true,
@@ -214,13 +214,13 @@ final class MCPProtocolHandler: @unchecked Sendable {
     }
 
     /// What a tool call answers instead of running when it arrived without
-    /// the gateway while MCP is locked (`ManagedAI.isMCPLocked`, from the
+    /// the gateway while the app is locked (`ManagedAI.isAppLocked`, from the
     /// cached access). Nil lets it run, which is also the answer while the
     /// proxy has not said: unknown is not locked. `initialize` and
     /// `tools/list` stay open, as on the gateway.
-    static func mcpLockRefusal(for access: MCPAccessContext, locked: Bool = ManagedAI.isMCPLocked) -> String? {
+    static func appLockRefusal(for access: MCPAccessContext, locked: Bool = ManagedAI.isAppLocked) -> String? {
         guard access.arrivedWithoutGateway, locked else { return nil }
-        return ManagedAI.mcpLockedMessage
+        return ManagedAI.appLockedMCPMessage
     }
 
     /// The MCP content parts of a tool result: the text first, then one

@@ -17,7 +17,14 @@ struct ContentView: View {
             && !UITestConfiguration.isUITesting
     }
 
-    private var hidesStudio: Bool { presentsAccountWall }
+    /// The pay screen: signed in, and the free days are over with nothing paid
+    /// (`ManagedAIAccountModel.isAppLocked`). It comes after the account wall
+    /// and ahead of everything else.
+    private var presentsAppLock: Bool {
+        !presentsAccountWall && account.isAppLocked && !UITestConfiguration.isUITesting
+    }
+
+    private var hidesStudio: Bool { presentsAccountWall || presentsAppLock }
 
     var body: some View {
         ZStack {
@@ -91,6 +98,10 @@ struct ContentView: View {
                 AppleAccountWall(
                     isCheckingSession: account.isLoadingStoredSession || account.isValidatingLapsedSession
                 )
+            } else if presentsAppLock {
+                // Studio stays mounted underneath, for the same reason as the
+                // wall above: paying brings it back exactly as it was.
+                AppLockWall()
             }
         }
         .task {

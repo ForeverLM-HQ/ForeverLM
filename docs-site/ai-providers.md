@@ -9,18 +9,7 @@ title: AI Providers & Models
 
 Every text model, whether Anthropic, OpenAI, Google, Meta, xAI or the long tail, is served through [OpenRouter](https://openrouter.ai), on your key, by way of ForeverLM's proxy. A request never falls back silently to another route.
 
-You can also skip the built-in AI entirely and drive ForeverLM from Claude, Codex, Gemini, or Grok, [connected over MCP](/setup-mcp). Connecting an assistant is ForeverLM's one paid part (MCP: 30 days free, then $19 once), and ForeverLM charges nothing per MCP tool call: your assistant's subscription covers the thinking. Sources, Schedule, and semantic search work either way. Most people mix the two.
-
-## Use your OpenAI or Anthropic API credits
-
-If you already have API credits with OpenAI or Anthropic, they can pay for those labs' models through OpenRouter's own-key setting (BYOK, bring your own key). The setup guide's **Connect OpenRouter** page links to the same steps:
-
-1. On OpenRouter, open [Settings → Integrations](https://openrouter.ai/settings/integrations).
-2. Add your OpenAI or Anthropic API key under that company's name.
-3. Choose **Never use shared capacity**, so a call your key cannot serve fails instead of billing your OpenRouter credits.
-4. In ForeverLM, pick their models: in the setup guide under **Choose my own**, or later in **Settings → Chat** and **Settings → Background**.
-
-ForeverLM sends Claude and GPT models to Anthropic's and OpenAI's own endpoints when it runs on your key, since another host (Bedrock, Vertex, Azure) never uses your provider key. A task you set to **Cheapest host**, or a model held to a region, names its own hosts instead. OpenRouter's [BYOK fee](https://openrouter.ai/docs/guides/overview/auth/byok) applies only above a large monthly allowance. AI Usage marks each model whose calls ran on your provider key with a **BYOK** capsule.
+You can also skip the built-in AI entirely and drive ForeverLM from Claude, Codex, Gemini, or Grok, [connected over MCP](/setup-mcp). Connecting an assistant is part of the app, with nothing extra to buy, and ForeverLM charges nothing per MCP tool call: your assistant's subscription covers the thinking. Sources, Schedule, and semantic search work either way. Most people mix the two.
 
 ## Chat and reviews (text models)
 
@@ -67,7 +56,7 @@ Semantic source search runs entirely on-device using Apple's NaturalLanguage con
 
 - **Your key pays, at OpenRouter's cost.** With an OpenRouter key stored under **API keys** in the OpenRouter button at the bottom of the sidebar, everything ForeverLM sends through OpenRouter goes on your key and OpenRouter bills you directly. ForeverLM adds nothing to it. The key covers text models (chat, reviews, and background tasks) *and* every voice, speech-to-text, image and video model OpenRouter serves: the Gemini and Grok voices, GPT-4o mini transcription, the GPT Image, Gemini, FLUX, Recraft and Seedream image models, and Veo, Kling, Wan, Sora and the other video models. **Settings → AI Models → Images** and **→ Videos** list every one of them, read from OpenRouter each time the pane opens, so a model OpenRouter adds shows up there on its own; each card shows OpenRouter's price. Over MCP the same setting is `get_own_router_key` / `set_own_router_key`.
 - **Your key never touches ForeverLM's servers.** It is saved only in your Keychain, which iCloud Keychain syncs end-to-end encrypted to your Macs and iPhone, and the app sends it only to OpenRouter. Connect OpenRouter signs in at openrouter.ai and hands the key back to the app on your Mac directly. The remote ForeverLM connector refuses to carry a key, so an AI assistant cannot set one through it; paste the key into the app instead.
-- **The app's price is separate from AI.** ForeverLM itself is free. MCP, the connection for an outside assistant, is 30 days free from your first sign-in, then $19 paid once (no subscription), before applicable tax, in **Settings → Billing**. Paying never buys AI: your key runs every model, and OpenRouter's free models cost nothing.
+- **The app's price is separate from AI.** ForeverLM is 30 days free from your first sign-in, then $19 paid once (no subscription), before applicable tax, in **Settings → Billing**. Paying never buys AI: your key runs every model, and OpenRouter's free models cost nothing.
 - The **Activity** list under the sidebar's OpenRouter button itemises every request with the exact cost OpenRouter reports, precise below a cent. Models without a published rate are shown as unpriced rather than guessed.
 - **Prepaid balance is retired.** ForeverLM no longer sells AI balance or offers auto top-up. A balance left from an earlier purchase is shown, read-only, while it lasts, and pays for requests sent without your own key. While a key is stored, it pays for nothing.
 - Background tasks (paper metadata extraction, transcript cleanup, search embeddings) run on the same key and are itemised per task in the ledger. They run on the Background models in **Settings → Background**, which the chat can change too (`set_ai_task_settings`), so a cheap or free model there keeps them cheap. While the Text model is free, meeting work stays on a paid model unless you let it use the free one: a meeting's transcript holds private conversations. Each Background model can also list up to ten **backups**, tried in order when it is busy, fails or sends back nothing usable: right-click a model and choose **Use as Backup**. A backup is billed at its own price. A free model you pick brings the next two free models as its backups when it has none. The chat's model can list backups too, in **Settings → AI Models → Chat**, but only a scheduled task's run moves to them: a chat you type in stays on the model you picked.

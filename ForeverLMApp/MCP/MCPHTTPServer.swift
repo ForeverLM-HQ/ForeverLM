@@ -392,11 +392,11 @@ enum MCPAuthorization {
 /// let anyone who extracts it from one app copy read any user's knowledge base
 /// through their hosted MCP URL.
 ///
-/// No entitlement check happens here; the gate is the MCP lock (product owner,
-/// 2026-10-10 and 2026-10-16: the free days over and nothing paid). The hosted
-/// gateway refuses `tools/call` for a locked account on the account server's
-/// word. A call on this Mac's own bearer never passes the gateway, so it is
-/// marked `arrivedWithoutGateway` and `MCPProtocolHandler.mcpLockRefusal` refuses it
+/// No entitlement check happens here; the gate is the app lock (product owner,
+/// 2026-10-10: the free days over and nothing paid). The hosted gateway
+/// refuses `tools/call` for a locked account on the account server's word. A
+/// call on this Mac's own bearer never passes the gateway, so it is marked
+/// `arrivedWithoutGateway` and `MCPProtocolHandler.appLockRefusal` refuses it
 /// the same way. While locked the tunnel itself does not run either
 /// (`MCPServerLauncher.startHostedTunnel`).
 func authorizeMCPRequest(_ request: HTTPRequest) async -> MCPAuthorization {

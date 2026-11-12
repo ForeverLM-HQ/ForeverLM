@@ -191,14 +191,14 @@ struct MCPSettingsDetailView: View {
                 }
                 .padding(.top, 20)
 
-                if account.isMCPLocked {
+                if account.isAppLocked {
                     // The connection is stopped until MCP is paid for; nothing
                     // else in the app is held back.
                     GroupBox {
                         HStack(spacing: 10) {
                             Image(systemName: "lock.fill")
                                 .foregroundStyle(.secondary)
-                            Text(EarlyUserDealOffer.lockedTitle)
+                            Text(AppLockWall.title)
                                 .font(.title3.weight(.semibold))
                             Spacer()
                             Button(action: onOpenBilling) {

@@ -12,7 +12,7 @@ EndNote is Clarivate's established reference manager for large scholarly librari
 
 | | ForeverLM | EndNote 2025 |
 |---|---|---|
-| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | $275 full license; $150 student; $125 upgrade |
+| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | $275 full license; $150 student; $125 upgrade |
 | **Primary job** | Source library and active learning | Professional reference management and academic writing |
 | **Citations** | Metadata storage without cite-while-you-write | Cite While You Write and more than 6,000 bibliographic styles |
 | **AI** | Configurable source chat and external MCP assistants | EndNote Research Assistant for paper and library questions |
@@ -36,7 +36,7 @@ EndNote is Clarivate's established reference manager for large scholarly librari
 - **Research includes more than citations.** Podcasts, courses, videos, books, articles, and meetings share context with academic papers.
 - **AI is not tied to one vendor.** Choose the model and use external assistants through MCP.
 - **The tutor asks you questions.** A review session evaluates your explanation instead of only answering a query.
-- **A lower one-time price.** ForeverLM itself is free, so you can build the library without buying a $275 desktop license; only MCP costs anything ($19 once after 30 free days).
+- **A lower one-time price.** ForeverLM is $19 once after a 30-day free start, so you can build the library without buying a $275 desktop license.
 
 ## Which should you choose?
 

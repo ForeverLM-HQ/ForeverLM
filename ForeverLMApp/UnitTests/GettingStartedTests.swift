@@ -369,14 +369,17 @@ struct GettingStartedTests {
         #expect(GettingStartedStep.enhancements.rawValue == 4)
     }
 
-    @Test("Setup's AI step needs the OpenRouter key, or another way to pay")
-    func aiStepNeedsAKeyOrAnotherWayToPay() {
-        // The app is free, so the key runs on every account: it alone is
-        // enough, and without one nothing pays.
-        #expect(GettingStartedAIPayment.isReady(hasOwnKey: true, canPayWithoutKey: false))
-        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, canPayWithoutKey: false))
+    @Test("Setup's AI step needs the OpenRouter key on an account that may run it, or another way to pay")
+    func aiStepNeedsKeyTheAccountMayRun() {
+        // The proxy refuses the key on an account it may not run on: a locked
+        // one in the paid app (2026-10-10; the free days run it). So a key
+        // alone, or an unlocked account alone, pays for nothing.
+        #expect(GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: true, canPayWithoutKey: false))
+        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: false, canPayWithoutKey: false))
+        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: true, canPayWithoutKey: false))
+        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: false, canPayWithoutKey: false))
         // A comp, or balance left from before top-ups were retired, still pays.
-        #expect(GettingStartedAIPayment.isReady(hasOwnKey: false, canPayWithoutKey: true))
+        #expect(GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: false, canPayWithoutKey: true))
     }
 
     @Test("Every Setup step that asks a question names its options and can be answered")

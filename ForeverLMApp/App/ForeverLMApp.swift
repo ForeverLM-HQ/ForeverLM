@@ -687,12 +687,12 @@ struct ForeverLMApp: App {
                     }
                 }
                 .task {
-                    // MCP follows its own enable toggle, and stops while MCP is
-                    // locked (its free days over, nothing paid): the gate is in
+                    // MCP follows its own enable toggle, and stops while the app is
+                    // locked (the free days over, nothing paid): the gate is in
                     // `MCPServerLauncher.startHostedTunnel`, and the lock's change
                     // below stops or restarts the connection. Tool calls that reach
                     // this Mac directly are refused while locked by
-                    // `MCPProtocolHandler.mcpLockRefusal`; the hosted gateway refuses
+                    // `MCPProtocolHandler.appLockRefusal`; the hosted gateway refuses
                     // its own. Non-blocking: errors are shown in Settings -> MCP,
                     // not here.
                     //
@@ -718,16 +718,19 @@ struct ForeverLMApp: App {
                         }
                     }
                 }
-                .onChange(of: managedAIAccount.isMCPLocked) { _, locked in
-                    // MCP's free days are over and nothing is paid: the MCP
-                    // connection stops, and only it (docs/pricing-pro-design.md →
-                    // MCP is the paid part). Paying brings it back as it was.
+                .onChange(of: managedAIAccount.isAppLocked) { _, locked in
+                    // The pay screen is up: background AI, sync and the MCP
+                    // connection stop (docs/pricing-pro-design.md → Day 8). Paying
+                    // brings them back exactly as they were.
                     guard !UITestConfiguration.isUITesting else { return }
                     Task {
                         if locked {
                             await MCPRuntimeCoordinator.stopAll()
-                        } else if AssistantIntegrationSettings.isEnabled, managedAIAccount.hasAccountAccess {
-                            await MCPRuntimeCoordinator.startPreferredRuntime()
+                        } else {
+                            if AssistantIntegrationSettings.isEnabled, managedAIAccount.hasAccountAccess {
+                                await MCPRuntimeCoordinator.startPreferredRuntime()
+                            }
+                            await MacSyncSession.current?.syncNow()
                         }
                     }
                 }

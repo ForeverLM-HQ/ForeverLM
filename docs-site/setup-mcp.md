@@ -5,7 +5,7 @@ title: Connect an AI Assistant
 
 # Connect an AI Assistant
 
-The app is free; connecting an assistant is the paid part. MCP is free for 30 days from your first sign-in (no card, nothing to click), then $19 once, the Early user deal, with no subscription, in **Settings → Billing** on the Mac. It covers Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. When the 30 free days are over and nothing is paid, only MCP locks: the connection stops and an assistant's tool calls are refused with "ForeverLM's MCP connection is not unlocked on this account. Open ForeverLM on your Mac to unlock it." The app keeps working, the in-app Chat is never locked, and nothing is deleted. Paying brings the connection back by itself. The iPhone shows no price, since it has no MCP connection.
+Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 30 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. Once the 30 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
 
 ::: tip Most people don't need this
 The easiest way to use your sources with AI is to [drag & drop](/drag-and-drop) them directly from Studio. A persistent connection lets an assistant search your full library and run review sessions without dragging files each time.

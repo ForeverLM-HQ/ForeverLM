@@ -12,7 +12,7 @@ Elicit is an AI research assistant for finding literature, screening papers, ext
 
 | | ForeverLM | Elicit |
 |---|---|---|
-| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic; Plus $132/year; Pro $480/year; Scale $1,068/year |
+| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic; Plus $132/year; Pro $480/year; Scale $1,068/year |
 | **Core job** | Persistent source library and learning workflow | Literature discovery, screening, extraction, and systematic review |
 | **Corpus** | Your papers, articles, books, podcasts, videos, and other sources | Search across more than 138 million papers plus imports and uploads |
 | **AI output** | Source-grounded conversation and review | Reports, evidence tables, extraction columns, screening, and paper chat |

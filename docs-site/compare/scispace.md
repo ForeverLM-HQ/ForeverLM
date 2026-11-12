@@ -12,7 +12,7 @@ SciSpace is an end-to-end academic research platform for discovering literature,
 
 | | ForeverLM | SciSpace |
 |---|---|---|
-| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic with credits; Premium starts at $12/month billed annually |
+| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic with credits; Premium starts at $12/month billed annually |
 | **Core job** | Long-term source library and learning loop | Academic search, literature review, PDF explanation, and writing tools |
 | **Discovery** | Imports and plugins; not a scholarly search engine | Search and agentic review across scientific literature |
 | **AI** | Configurable models, cross-source Chat, and MCP assistants | Literature Review, Deep Review, Chat with PDF, paraphrasing, and AI detection |

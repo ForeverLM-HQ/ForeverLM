@@ -996,9 +996,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.subscriptions.icon,
                 title: "Do you already pay for an AI app?",
-                // MCP is free (product owner, 2026-11-08), which a learner
-                // asked what they pay for should not have to guess.
-                detail: "Tick every one you pay for. Next, you add ForeverLM to each, at no cost, so it can reach your library."
+                detail: "Tick every one you pay for. Next, you add ForeverLM to each, so it can reach your library."
             )
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -1268,9 +1266,9 @@ struct GettingStartedGuide: View {
     /// Setup's AI step is two pages, one question each (product owner,
     /// 2026-10-11: "more like a Typeform"): connect OpenRouter, then pick the
     /// models. AI features run on the learner's own OpenRouter key, billed by
-    /// OpenRouter at cost; the app is free, so there is no plan row
-    /// (product owner, 2026-10-16). The data policy and the single Chat model
-    /// are in Settings. Pressing Continue on the models page
+    /// OpenRouter at cost; the free days run the key, so there is no plan row
+    /// (the paid app, 2026-10-10). The data policy and the single Chat model
+    /// left setup for Settings. Pressing Continue on the models page
     /// is also the consent to background work, which that page says.
     private var enhancementsStep: some View {
         Group {
@@ -1598,6 +1596,7 @@ struct GettingStartedGuide: View {
             case .key:
                 return GettingStartedAIPayment.isReady(
                     hasOwnKey: account.ownKey != nil,
+                    ownKeyAllowed: account.ownKeyAllowed,
                     canPayWithoutKey: hasUsableForeverLMCredits
                 )
             case .models:

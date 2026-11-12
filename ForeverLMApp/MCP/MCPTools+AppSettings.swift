@@ -200,7 +200,7 @@ extension MCPDataStore {
     static let settingsOnlyInTheWindow: [[String: String]] = [
         ["control": "Sign in with Apple", "why": "An Apple sign-in sheet only the learner can answer.", "open_settings": "billing"],
         ["control": "Connect a plugin (X, YouTube, Google Drive, Slack, GitHub), in the Plugins place on the icon strip", "why": "The provider's consent page in a browser.", "open_settings": "plugins"],
-        ["control": "Unlock MCP, or change or cancel a monthly plan", "why": "Stripe Checkout or the Stripe billing portal.", "open_settings": "billing"],
+        ["control": "Pay for ForeverLM, or change or cancel a monthly plan", "why": "Stripe Checkout or the Stripe billing portal.", "open_settings": "billing"],
         ["control": "Manage team members", "why": "Apple's iCloud sharing sheet.", "open_settings": "data_privacy"],
     ]
 
@@ -1338,11 +1338,11 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "open_settings",
-                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, unlocking MCP, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
+                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, unlocking MCP; ai_usage is the key, spending and activity; plugins and a plugin's id open the Plugins place."],
+                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity; plugins and a plugin's id open the Plugins place."],
                     ],
                     "required": [] as [String],
                 ]
