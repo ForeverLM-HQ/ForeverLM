@@ -30,15 +30,17 @@ extension StudioViewModel {
     /// **Copy as Markdown**: the open canvas, or `refs` of it, on the
     /// pasteboard as Markdown.
     func copyKnowledgeMapMarkdown(_ refs: [String]) {
-        Task {
-            let text = await canvasMarkdown(refs: refs)
+        // The canvas of the window it was chosen in, taken before the task
+        // starts: the menu's own scope is gone by then.
+        task(in: activeWindowState) {
+            let text = await self.canvasMarkdown(refs: refs)
             guard !text.isEmpty else {
-                showToast(refs.isEmpty ? "Nothing on the canvas to copy" : "Nothing to copy")
+                self.showToast(refs.isEmpty ? "Nothing on the canvas to copy" : "Nothing to copy")
                 return
             }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
-            showToast("Copied as Markdown")
+            self.showToast("Copied as Markdown")
         }
     }
 

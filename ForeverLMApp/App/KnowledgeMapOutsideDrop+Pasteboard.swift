@@ -108,16 +108,18 @@ extension StudioViewModel {
             return (known, nil, nil)
         }
         // A clip is saved as it lands, so the page knows its card.
-        let clipRefs = drop.clips.isEmpty ? [] : await knowledgeMapClipRefs(drop.clips)
-        let placed = knowledgeMapDrop(sourceIDs: drop.sourceIDs, docIDs: drop.docIDs, notebookIDs: drop.notebookIDs)
-        let outsideRefs = drop.outside.isEmpty ? [] : await knowledgeMapOutsideRefs(drop.outside)
+        let clipRefs = drop.clips.isEmpty ? [] : await knowledgeMapClipRefs(drop.clips, on: map)
+        let placed = knowledgeMapDrop(sourceIDs: drop.sourceIDs, docIDs: drop.docIDs, notebookIDs: drop.notebookIDs, on: map)
+        let outsideRefs = drop.outside.isEmpty ? [] : await knowledgeMapOutsideRefs(drop.outside, on: map)
         let refs = placed.refs + clipRefs + outsideRefs
         guard !refs.isEmpty else {
             // What came from outside said why in a toast of its own.
             if drop.outside.isEmpty { showToast("Nothing dropped is on the canvas yet") }
             return nil
         }
-        guard map.mapID == knowledgeMap.mapID else {
+        // The window turned to another canvas while the drop was read: the
+        // cards go to the canvas they were dropped on, written to its row.
+        guard isShown(map) else {
             await addToCanvas(refs: refs, canvasID: map.mapID)
             return nil
         }

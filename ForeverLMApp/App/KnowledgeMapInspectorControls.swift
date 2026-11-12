@@ -95,14 +95,16 @@ struct KnowledgeMapColourMenu: View {
 /// of what each applies to.
 struct KnowledgeMapCardActionItems: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     let refs: [String]
 
     var body: some View {
-        let placed = vm.knowledgeMapPlacedRefs(among: refs)
+        // Answered for this window's canvas, key or not.
+        let placed = vm.inWindow(windowState) { vm.knowledgeMapPlacedRefs(among: refs) }
         if !placed.isEmpty {
-            facesAndWords(vm.knowledgeMapCardActions(for: placed))
-            Button(vm.knowledgeMapCardsAreFolded(placed) ? "Unfold" : "Fold") { vm.toggleKnowledgeMapFold(placed) }
+            facesAndWords(vm.inWindow(windowState) { vm.knowledgeMapCardActions(for: placed) })
+            Button(vm.inWindow(windowState, { vm.knowledgeMapCardsAreFolded(placed) }) ? "Unfold" : "Fold") { vm.toggleKnowledgeMapFold(placed) }
                 .help("Draw a card as its title line, or open it again")
                 .accessibilityIdentifier("knowledgeMap.selection.fold")
             Button("Fit to Content") { vm.fitKnowledgeMapCardsToContent(placed) }
@@ -120,7 +122,7 @@ struct KnowledgeMapCardActionItems: View {
                     }
                 }
             }
-            let canvases = vm.knowledgeMapMoveTargets()
+            let canvases = vm.inWindow(windowState) { vm.knowledgeMapMoveTargets() }
             Menu("Move to Canvas") {
                 ForEach(canvases) { canvas in
                     Button(canvas.name) { vm.moveKnowledgeMapCards(placed, toCanvas: canvas.id) }
@@ -214,6 +216,7 @@ struct KnowledgeMapPageTurner: View {
 /// touched. Not offered for an Idea, whose note holds its words.
 struct KnowledgeMapAnnotationField: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     let ref: String
 
@@ -224,7 +227,7 @@ struct KnowledgeMapAnnotationField: View {
     @State private var canvasID: String?
     @FocusState private var focused: Bool
 
-    private var stored: String { vm.knowledgeMap.layout.placements[ref]?.annotation ?? "" }
+    private var stored: String { vm.knowledgeMap(in: windowState).layout.placements[ref]?.annotation ?? "" }
 
     var body: some View {
         TextField("Why is it on this canvas?", text: $text, axis: .vertical)
@@ -233,7 +236,7 @@ struct KnowledgeMapAnnotationField: View {
             .zoomedSystemFont(size: 12)
             .focused($focused)
             .onAppear {
-                canvasID = vm.knowledgeMap.mapID
+                canvasID = vm.knowledgeMap(in: windowState).mapID
                 text = stored
             }
             .onChange(of: focused) { _, isFocused in
@@ -242,7 +245,7 @@ struct KnowledgeMapAnnotationField: View {
             // The words written elsewhere (the plane's editor, an assistant)
             // show here, unless they are being typed over.
             .onChange(of: stored) { _, words in
-                if !focused, vm.knowledgeMap.mapID == canvasID { text = words }
+                if !focused, vm.knowledgeMap(in: windowState).mapID == canvasID { text = words }
             }
             .onDisappear(perform: commit)
             .help("Why this card is on this canvas: written under it, for this canvas only")
@@ -250,7 +253,7 @@ struct KnowledgeMapAnnotationField: View {
     }
 
     private func commit() {
-        guard vm.knowledgeMap.mapID == canvasID,
+        guard vm.knowledgeMap(in: windowState).mapID == canvasID,
               text.trimmingCharacters(in: .whitespacesAndNewlines) != stored else { return }
         vm.setKnowledgeMapAnnotation(ref, text)
         // What the canvas kept: trimmed, and cut to the room a card has.
@@ -270,13 +273,13 @@ struct KnowledgeMapOpenInMenu: View {
     var body: some View {
         Menu("Open in") {
             Button("Beside") {
-                Task { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
+                vm.task(in: windowState) { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
             }
             .accessibilityIdentifier("knowledgeMap.openIn.beside")
             otherWindow
             if vm.knowledgeMapCardHasReader(ref) {
                 Button("Reader") {
-                    Task { await vm.openKnowledgeMapItem(ref, in: windowState) }
+                    vm.task(in: windowState) { await vm.openKnowledgeMapItem(ref, in: windowState) }
                 }
                 .accessibilityIdentifier("knowledgeMap.openIn.reader")
             }
@@ -286,7 +289,7 @@ struct KnowledgeMapOpenInMenu: View {
     /// Where Open in Other Window takes it: the same place a click does.
     @ViewBuilder
     private var otherWindow: some View {
-        switch vm.knowledgeMapOtherWindowTarget(for: ref) {
+        switch vm.inWindow(windowState, { vm.knowledgeMapOtherWindowTarget(for: ref) }) {
         case .source(let id): OtherWindowSourceMenuItem(sourceID: id)
         case .doc(let id): OtherWindowMenuItem(.doc(id))
         case .ideas: OtherWindowMenuItem(.ideas)
@@ -377,6 +380,7 @@ struct KnowledgeMapEdgeStyleControls: View {
 /// over the label just left, or drop words typed and not yet sent).
 struct KnowledgeMapEdgeLabelField: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     let edgeID: String
 
@@ -384,14 +388,14 @@ struct KnowledgeMapEdgeLabelField: View {
     @State private var canvasID: String?
     @FocusState private var focused: Bool
 
-    private var stored: String { vm.knowledgeMap.layout.edges[edgeID]?.label ?? "" }
+    private var stored: String { vm.knowledgeMap(in: windowState).layout.edges[edgeID]?.label ?? "" }
 
     var body: some View {
         TextField("Label", text: $text)
             .textFieldStyle(.roundedBorder)
             .focused($focused)
             .onAppear {
-                canvasID = vm.knowledgeMap.mapID
+                canvasID = vm.knowledgeMap(in: windowState).mapID
                 text = stored
             }
             .onSubmit(commit)
@@ -399,14 +403,14 @@ struct KnowledgeMapEdgeLabelField: View {
                 if !isFocused { commit() }
             }
             .onChange(of: stored) { _, words in
-                if !focused, vm.knowledgeMap.mapID == canvasID { text = words }
+                if !focused, vm.knowledgeMap(in: windowState).mapID == canvasID { text = words }
             }
             .onDisappear(perform: commit)
             .accessibilityIdentifier("knowledgeMap.edge.label")
     }
 
     private func commit() {
-        guard vm.knowledgeMap.mapID == canvasID, vm.knowledgeMap.layout.edges[edgeID] != nil, text != stored else { return }
-        vm.knowledgeMap.relabelEdge(edgeID, to: text)
+        guard vm.knowledgeMap(in: windowState).mapID == canvasID, vm.knowledgeMap(in: windowState).layout.edges[edgeID] != nil, text != stored else { return }
+        vm.knowledgeMap(in: windowState).relabelEdge(edgeID, to: text)
     }
 }

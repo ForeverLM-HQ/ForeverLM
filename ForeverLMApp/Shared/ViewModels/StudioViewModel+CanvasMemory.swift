@@ -73,7 +73,8 @@ extension StudioViewModel {
     /// Every Canvas card's mark, read again while the layer shows or a review
     /// runs. A failed read leaves the last marks standing rather than
     /// inventing none; it is logged.
-    func refreshKnowledgeMapMemory() async {
+    func refreshKnowledgeMapMemory(for model: KnowledgeMapModel? = nil) async {
+        let knowledgeMap = model ?? self.knowledgeMap
         let memory = knowledgeMap.memory
         guard memory.isShown || memory.review != nil else { return }
         let groups = CanvasMemoryMarks.refSources(content: knowledgeMap.content) { self.canonicalSourceID($0) }
@@ -143,7 +144,8 @@ extension StudioViewModel {
         for group in groups {
             if let spot = map.layout.placements[group.ref] { positions[group.ref] = (spot.x, spot.y) }
         }
-        let window = activeWindowState
+        // The window whose Canvas this is runs the review.
+        let window = window(showing: map) ?? activeWindowState
         let now = Date()
         memory.isStartingReview = true
         Task { [weak self] in
@@ -231,14 +233,15 @@ extension StudioViewModel {
     /// through the sitting as the card review writes it, then the marks are
     /// read again.
     func answerKnowledgeMapReview(remembered: Bool) {
-        guard let review = knowledgeMap.memory.review, review.session.sitting.isAnswerShown else { return }
+        let map = knowledgeMap
+        guard let review = map.memory.review, review.session.sitting.isAnswerShown else { return }
         let previous = review.focusRef
         review.session.answer(remembered: remembered)
         review.cardChanged(from: previous)
         let session = review.session
         Task { [weak self] in
             await session.waitForWrites()
-            await self?.refreshKnowledgeMapMemory()
+            await self?.refreshKnowledgeMapMemory(for: map)
         }
     }
 
@@ -250,11 +253,12 @@ extension StudioViewModel {
     /// Done, Escape or ×: the Canvas comes back as it was, and once the
     /// answers have landed the counts and the marks are read again.
     func endKnowledgeMapReview() {
-        guard let review = knowledgeMap.memory.end() else { return }
+        let map = knowledgeMap
+        guard let review = map.memory.end() else { return }
         cardSessionDidEnd(review.session)
         Task { [weak self] in
             await review.session.waitForWrites()
-            await self?.refreshKnowledgeMapMemory()
+            await self?.refreshKnowledgeMapMemory(for: map)
         }
     }
 
@@ -278,7 +282,7 @@ extension StudioViewModel {
             return
         }
         requestReaderPassage(quote, for: id, in: windowState)
-        knowledgeMap.memory.review?.refocus()
+        knowledgeMap(in: windowState).memory.review?.refocus()
     }
 
     // MARK: Cards from what the learner made sense of

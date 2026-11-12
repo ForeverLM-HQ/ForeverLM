@@ -47,50 +47,57 @@ extension StudioViewModel {
 
     /// Clips dropped on the Canvas: each saved (once), the cards read again so
     /// the page knows them, and their refs handed back to place.
-    func knowledgeMapClipRefs(_ clips: [StudioClipTransfer]) async -> [String] {
+    func knowledgeMapClipRefs(_ clips: [StudioClipTransfer], on model: KnowledgeMapModel? = nil) async -> [String] {
+        // The canvas they were dropped on, kept across the saves.
+        let knowledgeMap = model ?? self.knowledgeMap
         var refs: [String] = []
         for clip in clips {
             guard let saved = await saveReaderClip(clip, announce: false) else { continue }
             if ReaderClip.isPassage(saved) { knowledgeMap.pendingPassageIDs.insert(saved.id) }
             refs.append(KnowledgeMap.ItemRef(kind: .clip, id: saved.id).description)
         }
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: knowledgeMap)
         return refs.filter { knowledgeMap.nodesByRef[$0] != nil }
     }
 
     /// **Add to Canvas** on a passage in the Reader's notes: set down in the
-    /// middle of the open canvas, which opens beside the reader if it is not
-    /// showing.
+    /// middle of the window's canvas, which opens beside the reader if the
+    /// window is not showing it.
     func addPassageToCanvas(_ highlight: SourceHighlight, in windowState: StudioWindowState) async {
         guard ReaderClip.isPassage(highlight) else { return }
+        let knowledgeMap = knowledgeMap(in: windowState)
         knowledgeMap.pendingPassageIDs.insert(highlight.id)
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: knowledgeMap)
         let ref = KnowledgeMap.ItemRef(kind: .clip, id: highlight.id).description
         guard knowledgeMap.nodesByRef[ref] != nil else {
             showToast("That passage's source is not on the canvas's shelf")
             return
         }
-        if !knowledgeMapIsOnScreen { openCenterTabBeside(.knowledgeMap) }
+        if !visibleCenterTabs(in: windowState).contains(.knowledgeMap) {
+            inWindow(windowState) { openCenterTabBeside(.knowledgeMap) }
+        }
         knowledgeMap.send(.dropAtCenter(refs: [ref], regionName: nil))
     }
 
     /// The learner's words on a clip: the mark's note, shown under its picture.
     func setKnowledgeMapClipNote(_ note: String, clipID: String) async {
+        let knowledgeMap = self.knowledgeMap
         guard let clip = knowledgeMap.clips[clipID] else { return }
         await loadReaderHighlightsIfNeeded(for: clip.sourceID)
         await setReaderNoteComment(note, highlightID: clipID, sourceID: clip.sourceID)
         knowledgeMapClipRevision &+= 1
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: knowledgeMap)
     }
 
     /// Deletes a clip: off the Canvas, and gone from its source's notes.
     func deleteKnowledgeMapClip(_ clipID: String) async {
+        let knowledgeMap = self.knowledgeMap
         guard let clip = knowledgeMap.clips[clipID] else { return }
         knowledgeMap.unplace([KnowledgeMap.ItemRef(kind: .clip, id: clipID).description])
         await loadReaderHighlightsIfNeeded(for: clip.sourceID)
         await removeReaderHighlight(highlightID: clipID, sourceID: clip.sourceID)
         knowledgeMapClipRevision &+= 1
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: knowledgeMap)
     }
 
     /// A clip's picture as the Canvas draws it: its page region, rendered from
@@ -111,6 +118,7 @@ extension StudioViewModel {
     /// A clip's double-click: its paper opens beside the Canvas at the page,
     /// with the box outlined where it was cut.
     func openKnowledgeMapClip(_ clipID: String, in windowState: StudioWindowState) async {
+        let knowledgeMap = knowledgeMap(in: windowState)
         // A passage opens its paper at the words, as a highlight in the
         // Reader's notes does (Heptabase: a click on a highlight card goes
         // to where it came from).
@@ -277,7 +285,7 @@ extension StudioViewModel {
         guard let shape = await knowledgeMapPDFShape(of: article, pages: nil) else {
             throw KnowledgeMapPagesError.noPDF(article.title)
         }
-        guard knowledgeMap === map else { throw KnowledgeMapPagesError.canvasChanged }
+        guard isShown(map) else { throw KnowledgeMapPagesError.canvasChanged }
         guard let wanted = KnowledgeMap.pageRange(spec, pageCount: shape.pageCount) else {
             throw KnowledgeMapPagesError.noSuchPages(article.title, shape.pageCount)
         }
@@ -293,7 +301,7 @@ extension StudioViewModel {
             collapsed: collapsed
         )
         // The page cards are read again from the layout now holding them.
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: map)
         return KnowledgeMapPagesOutcome(
             sourceTitle: article.title,
             pageCount: shape.pageCount,
@@ -372,13 +380,13 @@ extension StudioViewModel {
             transfers.append(transfer)
             labels.append(figure.figureLabel)
         }
-        guard knowledgeMap === canvas else { throw KnowledgeMapPagesError.canvasChanged }
-        let refs = await knowledgeMapClipRefs(transfers)
-        guard knowledgeMap === canvas else { throw KnowledgeMapPagesError.canvasChanged }
+        guard isShown(canvas) else { throw KnowledgeMapPagesError.canvasChanged }
+        let refs = await knowledgeMapClipRefs(transfers, on: canvas)
+        guard isShown(canvas) else { throw KnowledgeMapPagesError.canvasChanged }
         let map = canvas
         let alreadyOn = zip(refs, labels).filter { map.layout.placements[$0.0] != nil }.map(\.1)
         let placed = map.layOutRow(refs, regionName: article.title, near: center, color: color, collapsed: collapsed)
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: map)
         return KnowledgeMapFiguresOutcome(
             sourceTitle: article.title,
             figureCount: figures.count,
@@ -446,7 +454,7 @@ extension StudioViewModel {
                     showToast("\(outcome.extendedLeftOut) extended \(outcome.extendedLeftOut == 1 ? "figure" : "figures") left out; choose Figures + Extended to show them")
                 }
             }
-            if let first = refs.first { knowledgeMap.send(.focus(refs: [first], regionID: nil)) }
+            if let first = refs.first { map.send(.focus(refs: [first], regionID: nil)) }
         } catch {
             showToast(error.localizedDescription)
         }
@@ -455,8 +463,8 @@ extension StudioViewModel {
     /// The width over height of each page card the canvas draws that has not
     /// been read yet (a canvas synced from another Mac, or a PDF replaced),
     /// so every card is as tall as its page. Reads each PDF once.
-    func loadKnowledgeMapPageShapes() async {
-        let map = knowledgeMap
+    func loadKnowledgeMapPageShapes(for model: KnowledgeMapModel? = nil) async {
+        let map = model ?? knowledgeMap
         var wanted: [String: [Int]] = [:]
         for ref in map.pageRefs where map.pageAspects[ref] == nil {
             guard let parts = KnowledgeMap.ItemRef(ref)?.pageParts else { continue }
@@ -480,8 +488,8 @@ extension StudioViewModel {
     /// give one, so a paper set down shows its page at once. Each PDF is read
     /// once, off the main actor, eight at a time; one found to have no PDF is
     /// read again when this Mac comes to hold it.
-    func loadKnowledgeMapPageFaces() async {
-        let map = knowledgeMap
+    func loadKnowledgeMapPageFaces(for model: KnowledgeMapModel? = nil) async {
+        let map = model ?? knowledgeMap
         var wanted: Set<String> = []
         for (ref, placement) in map.layout.placements where placement.page != nil {
             if let item = KnowledgeMap.ItemRef(ref), item.kind == .source { wanted.insert(item.id) }

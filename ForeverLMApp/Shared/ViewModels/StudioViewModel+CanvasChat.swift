@@ -75,15 +75,15 @@ extension StudioViewModel {
     /// takes them from `pendingChatCanvasCards`, and loads the text of the
     /// sources and Docs among them as a dropped one is loaded.
     func addKnowledgeMapCardsToChat(_ refs: [String], in windowState: StudioWindowState) {
-        let cards = knowledgeMapChatCards(refs)
+        let cards = inWindow(windowState) { knowledgeMapChatCards(refs) }
         guard !cards.isEmpty else {
             showToast("Select cards on the canvas to add to the chat")
             return
         }
         let handOff = KnowledgeMapChatCards(
             windowID: windowState.id,
-            canvasID: knowledgeMap.mapID,
-            canvasName: openCanvasName,
+            canvasID: knowledgeMap(in: windowState).mapID,
+            canvasName: inWindow(windowState) { openCanvasName },
             cards: cards,
             replaces: false
         )
@@ -108,8 +108,9 @@ extension StudioViewModel {
     /// first when another is open, or the Canvas is not on screen.
     func showKnowledgeMapChatCard(_ ref: String, canvasID: String, in windowState: StudioWindowState?) async {
         let window = windowState ?? activeWindowState
-        if knowledgeMap.mapID == canvasID, visibleCenterTabs(in: window).contains(.knowledgeMap) {
-            knowledgeMap.send(.focus(refs: [ref], regionID: nil))
+        let shown = knowledgeMap(in: window)
+        if shown.mapID == canvasID, visibleCenterTabs(in: window).contains(.knowledgeMap) {
+            shown.send(.focus(refs: [ref], regionID: nil))
             return
         }
         guard listedCanvases.contains(where: { $0.id == canvasID }) else {

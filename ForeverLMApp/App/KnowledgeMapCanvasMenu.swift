@@ -110,8 +110,8 @@ struct KnowledgeMapCanvasMenu {
         let placements = placed.compactMap { model.layout.placements[$0] }
 
         if refs.count == 1, let ref = refs.first {
-            menu.addItem(item("Open") { Task { await vm.openKnowledgeMapItem(ref, in: windowState) } })
-            menu.addItem(item("Open Beside") { Task { await vm.openKnowledgeMapItemBeside(ref, in: windowState) } })
+            menu.addItem(item("Open") { vm.task(in: windowState) { await vm.openKnowledgeMapItem(ref, in: windowState) } })
+            menu.addItem(item("Open Beside") { vm.task(in: windowState) { await vm.openKnowledgeMapItemBeside(ref, in: windowState) } })
             if ideaRefs.count == 1 {
                 menu.addItem(item("Edit") {
                     canvas.call("editIdea", KnowledgeMapCanvasView.Coordinator.jsString(ref))
@@ -130,7 +130,7 @@ struct KnowledgeMapCanvasMenu {
 
         // How the cards are drawn and what is written under them: each item is
         // here only when it applies to every card selected.
-        let faceItems = cardFaceItems(vm.knowledgeMapCardActions(for: refs))
+        let faceItems = cardFaceItems(vm.inWindow(windowState) { vm.knowledgeMapCardActions(for: refs) })
         for entry in faceItems { menu.addItem(entry) }
         if !faceItems.isEmpty { menu.addItem(.separator()) }
 
@@ -174,7 +174,7 @@ struct KnowledgeMapCanvasMenu {
         menu.addItem(item("Take Off Canvas", enabled: !placed.isEmpty) { model.unplace(placed) })
         if !ideaRefs.isEmpty {
             menu.addItem(item(ideaRefs.count == 1 ? "Delete Idea" : "Delete Ideas") {
-                Task { await vm.deleteKnowledgeMapItems(ideaRefs) }
+                vm.task(in: windowState) { await vm.deleteKnowledgeMapItems(ideaRefs) }
             })
         }
         return menu
@@ -318,7 +318,10 @@ struct KnowledgeMapCanvasMenu {
     }
 
     private func item(_ title: String, enabled: Bool = true, checked: Bool = false, _ action: @escaping () -> Void) -> NSMenuItem {
-        let menuItem = ClosureMenuItem(title: title, handler: action)
+        // A right-click does not make its window key: each item acts in the
+        // window whose canvas the menu was opened on.
+        let vm = vm, windowState = windowState
+        let menuItem = ClosureMenuItem(title: title, handler: { vm.inWindow(windowState, action) })
         menuItem.isEnabled = enabled
         menuItem.state = checked ? .on : .off
         return menuItem

@@ -13,6 +13,7 @@ import SwiftUI
 /// Restore; Delete Forever is the list's, which asks first.
 struct SpaceCanvasMenuItems: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let canvas: KnowledgeMapCanvas
     /// Opens it here; nil where it is already open (the canvas's own name).
     var onOpen: (() -> Void)?
@@ -34,7 +35,7 @@ struct SpaceCanvasMenuItems: View {
             }
             PageSpaceMenu(itemIDs: [canvas.id])
             // What needs the canvas drawn, or the cards' words: the open one.
-            if vm.knowledgeMap.mapID == canvas.id {
+            if vm.knowledgeMap(in: windowState).mapID == canvas.id {
                 Divider()
                 canvasExportItems
             }

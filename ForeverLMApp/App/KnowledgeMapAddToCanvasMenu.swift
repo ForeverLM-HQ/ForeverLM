@@ -25,18 +25,18 @@ struct KnowledgeMapAddToCanvasMenu: View {
 
     var body: some View {
         if vm.listsCanvases, !vm.isActiveLibraryReadOnly, !refs.isEmpty {
-            let canvases = vm.canvasesToAddTo
+            let canvases = vm.inWindow(windowState) { vm.canvasesToAddTo }
             let refs = refs
             Menu {
                 ForEach(canvases) { canvas in
                     Button(canvas.name) {
-                        Task { await vm.addToCanvas(refs: refs, canvasID: canvas.id) }
+                        vm.task(in: windowState) { await vm.addToCanvas(refs: refs, canvasID: canvas.id) }
                     }
                 }
                 if !canvases.isEmpty { Divider() }
                 Button("New Canvas…") {
                     KnowledgeMapCanvasNamePrompt.ask(startingWith: vm.canvasNameSuggestion(forRefs: refs)) { name in
-                        Task { await vm.addToNewCanvas(refs: refs, named: name, in: windowState) }
+                        vm.task(in: windowState) { await vm.addToNewCanvas(refs: refs, named: name, in: windowState) }
                     }
                 }
             } label: {
@@ -91,7 +91,7 @@ struct KnowledgeMapOnCanvasesSection: View {
             Section("On Canvases") {
                 ForEach(canvases) { canvas in
                     Button(canvas.name, systemImage: KnowledgeMap.symbolName) {
-                        Task { await vm.showCardOnCanvas(ref, canvasID: canvas.id, in: windowState) }
+                        vm.task(in: windowState) { await vm.showCardOnCanvas(ref, canvasID: canvas.id, in: windowState) }
                     }
                     .help("Open \(canvas.name) at this card")
                 }
@@ -118,7 +118,7 @@ struct KnowledgeMapOnCanvasesLine: View {
                     .foregroundStyle(.tertiary)
                 ForEach(Array(canvases.enumerated()), id: \.element.id) { index, canvas in
                     Button {
-                        Task { await vm.showCardOnCanvas(ref, canvasID: canvas.id, in: windowState) }
+                        vm.task(in: windowState) { await vm.showCardOnCanvas(ref, canvasID: canvas.id, in: windowState) }
                     } label: {
                         Text(index < canvases.count - 1 ? canvas.name + "," : canvas.name)
                             .zoomedSystemFont(size: 11)

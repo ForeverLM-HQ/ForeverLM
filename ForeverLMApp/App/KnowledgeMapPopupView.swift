@@ -18,7 +18,7 @@ struct KnowledgeMapPopupLayer: View {
     @Environment(StudioWindowState.self) private var windowState
 
     var body: some View {
-        if let popup = vm.knowledgeMap.popup, popup.windowID == nil || popup.windowID == windowState.id {
+        if let popup = vm.knowledgeMap(in: windowState).popup, popup.windowID == nil || popup.windowID == windowState.id {
             KnowledgeMapPopupHost(popup: popup)
                 .id(popup.ref)
         }
@@ -36,13 +36,14 @@ enum KnowledgeMapPopupMetrics {
 
 private struct KnowledgeMapPopupHost: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     let popup: KnowledgeMapPopup
 
     @State private var cardHeight: CGFloat = 200
     @State private var armed = false
 
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
+    private var map: KnowledgeMapModel { vm.knowledgeMap(in: windowState) }
 
     /// Where the camera is, so a pan or a zoom (which moves the card from
     /// under the popup) takes it away.
@@ -122,7 +123,7 @@ struct KnowledgeMapPopupCard: View {
         self.onClose = onClose
     }
 
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
+    private var map: KnowledgeMapModel { vm.knowledgeMap(in: windowState) }
     private static let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
 
     var body: some View {
@@ -168,14 +169,14 @@ struct KnowledgeMapPopupCard: View {
                     }
                     if item.kind != .idea {
                         Button("Open Beside") {
-                            Task { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
+                            vm.task(in: windowState) { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
                         }
                         .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                         .help("Open it beside the Canvas")
                         .accessibilityIdentifier("knowledgeMap.popup.openBeside")
                         Button("Open") {
                             onClose()
-                            Task { await vm.openKnowledgeMapItem(ref, in: windowState) }
+                            vm.task(in: windowState) { await vm.openKnowledgeMapItem(ref, in: windowState) }
                         }
                         .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                         .accessibilityIdentifier("knowledgeMap.popup.open")
@@ -316,7 +317,7 @@ struct KnowledgeMapIdeaEditor: View {
     private static let evidenceLimit = 6
 
     var body: some View {
-        let evidence = vm.knowledgeMap.evidence(of: ref)
+        let evidence = vm.knowledgeMap(in: windowState).evidence(of: ref)
         VStack(alignment: .leading, spacing: 8) {
             TextField("The idea, in a line", text: $title, axis: .vertical)
                 .textFieldStyle(.plain)
@@ -352,9 +353,9 @@ struct KnowledgeMapIdeaEditor: View {
                         .textSelection(.disabled)
                     ForEach(evidence.prefix(Self.evidenceLimit), id: \.self) { evidenceRef in
                         Button {
-                            Task { await vm.openKnowledgeMapItemBeside(evidenceRef, in: windowState) }
+                            vm.task(in: windowState) { await vm.openKnowledgeMapItemBeside(evidenceRef, in: windowState) }
                         } label: {
-                            Text(vm.knowledgeMap.title(of: evidenceRef))
+                            Text(vm.knowledgeMap(in: windowState).title(of: evidenceRef))
                                 .zoomedSystemFont(size: 12)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
@@ -374,7 +375,7 @@ struct KnowledgeMapIdeaEditor: View {
             HStack {
                 Button("Open in Ideas") {
                     commit()
-                    Task { await vm.openIdea(idea.id) }
+                    vm.task(in: windowState) { await vm.openIdea(idea.id) }
                 }
                 .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                 .zoomedSystemFont(size: 12)
@@ -398,6 +399,6 @@ struct KnowledgeMapIdeaEditor: View {
             return
         }
         let ideaID = idea.id, newTitle = title, newNotes = notes
-        Task { await vm.updateIdea(ideaID: ideaID, title: newTitle, notes: newNotes) }
+        vm.task(in: windowState) { await vm.updateIdea(ideaID: ideaID, title: newTitle, notes: newNotes) }
     }
 }

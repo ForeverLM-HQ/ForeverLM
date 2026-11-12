@@ -12,13 +12,14 @@ import SwiftUI
 /// The inspector's Ask over the selected cards, or a selected region's.
 struct KnowledgeMapAskSection: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     /// The cards asked about: the selection, or the cards a region holds.
     let refs: [String]
     /// The notebook of a selected notebook's frame, which an Atlas is made for.
     var notebookID: String? = nil
 
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
+    private var map: KnowledgeMapModel { vm.knowledgeMap(in: windowState) }
 
     var body: some View {
         let placedCount = refs.filter { map.layout.placements[$0] != nil }.count
@@ -147,13 +148,14 @@ struct KnowledgeMapAskProgress: View {
 /// runs with the inspector closed, its progress shows here instead.
 struct KnowledgeMapProposalBanner: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     /// Whether an Ask's progress shows here: the inspector, which shows it, is
     /// closed.
     let showsProgress: Bool
 
     var body: some View {
-        let map = vm.knowledgeMap
+        let map = vm.knowledgeMap(in: windowState)
         VStack(alignment: .leading, spacing: 6) {
             if let set = map.proposals {
                 HStack(spacing: 10) {
@@ -193,9 +195,10 @@ struct KnowledgeMapProposalBanner: View {
 /// when it does.
 struct KnowledgeMapFacesToggle: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     var body: some View {
-        @Bindable var map = vm.knowledgeMap
+        @Bindable var map = vm.knowledgeMap(in: windowState)
         Toggle(isOn: $map.showsWrittenFaces) {
             Image(systemName: "text.below.photo")
                 .zoomedSystemFont(size: 14)

@@ -14,20 +14,45 @@ extension StudioViewModel {
         activateCenterTab(.knowledgeMap, in: destinationWindowState ?? activeWindowState)
     }
 
-    /// Whether any window shows the Map.
+    /// Whether the window whose Canvas `model` is shows it now.
+    func knowledgeMapIsOnScreen(_ model: KnowledgeMapModel) -> Bool {
+        guard let window = window(showing: model),
+              StudioWindowRegistry.shared.states.contains(where: { $0 === window }) else { return false }
+        return visibleCenterTabs(in: window).contains(.knowledgeMap)
+    }
+
+    /// The model to act on for canvas `canvasID`: the Canvas of the window in
+    /// scope when it is open on it, else of a window showing it now, else of
+    /// any window open on it; nil when no window is.
+    func knowledgeMapModel(showing canvasID: String) -> KnowledgeMapModel? {
+        let here = knowledgeMap
+        if here.mapID == canvasID { return here }
+        let open = knowledgeMaps(showing: canvasID)
+        return open.first { knowledgeMapIsOnScreen($0) } ?? open.first
+    }
+
+    /// Whether the Canvas an act made now lands on is on screen: the Canvas
+    /// of the window in scope, else of the key window, which is the one a
+    /// command, the voice assistant and MCP write to. Another window showing
+    /// a canvas of its own does not count: nothing sent here would draw there.
     var knowledgeMapIsOnScreen: Bool {
-        // What each window shows: a window holding a notebook shows the
+        // What the window shows: a window holding a notebook shows the
         // notebook, whatever its panes underneath hold: a canvas opened over
         // MCP behind a restored notebook is not on screen, though its pane is
         // in the window's layout.
-        StudioWindowRegistry.shared.states.contains { state in
-            visibleCenterTabs(in: state).contains(.knowledgeMap)
-        }
+        knowledgeMapIsOnScreen(knowledgeMap)
     }
 
     /// What the cards change with, cheap to compare: the Map pane rebuilds its
     /// cards when this moves.
     var knowledgeMapContentSignature: String {
+        knowledgeMapContentSignature(for: knowledgeMap)
+    }
+
+    /// The same for one window's Canvas: each pane rebuilds its own model's
+    /// cards when its own signature moves, so a library change reaches every
+    /// window's Canvas and a page placed in one moves only that one.
+    func knowledgeMapContentSignature(for knowledgeMap: KnowledgeMapModel) -> String {
         let ideaStamp = ideas.map(\.updatedAt.timeIntervalSince1970).max() ?? 0
         let notebookStamp = learningGoals.map(\.updatedAt.timeIntervalSince1970).max() ?? 0
         return [
@@ -46,7 +71,7 @@ extension StudioViewModel {
             "\(articles.reduce(0) { $0 + ($1.isRead ? 1 : 0) })",
             // Another canvas made, renamed, trashed or written, and the Images
             // library changed: the shortcut and picture cards.
-            "\(knowledgeMapShortcutCanvases.map { "\($0.id)\($0.name)\($0.cardCount)\($0.regionCount)" }.joined().hashValue)",
+            "\(knowledgeMapShortcutCanvases(for: knowledgeMap).map { "\($0.id)\($0.name)\($0.cardCount)\($0.regionCount)" }.joined().hashValue)",
             "\(knowledgeMap.picturesRevision)",
         ].joined(separator: "|")
     }
@@ -54,7 +79,12 @@ extension StudioViewModel {
     /// The other canvases the open one can hold a shortcut card to: those the
     /// Space lists, not in Trash, not the open one.
     var knowledgeMapShortcutCanvases: [KnowledgeMapCanvas] {
-        listedCanvases.filter { !$0.isTrashed && $0.id != knowledgeMap.mapID }
+        knowledgeMapShortcutCanvases(for: knowledgeMap)
+    }
+
+    /// The other canvases `map`'s canvas can hold a shortcut card to.
+    func knowledgeMapShortcutCanvases(for map: KnowledgeMapModel) -> [KnowledgeMapCanvas] {
+        listedCanvases.filter { !$0.isTrashed && $0.id != map.mapID }
     }
 
     /// The Images library as picture cards: each image's name and shape, and
@@ -62,9 +92,8 @@ extension StudioViewModel {
     /// its folder changed (`GeneratedImageStore.folderStamp`), and a picture's
     /// shape is read from its file once. A team's library holds none (the
     /// pictures are this Mac's files).
-    private func knowledgeMapPictureCards() async -> [KnowledgeMapPictureCard] {
+    private func knowledgeMapPictureCards(for map: KnowledgeMapModel) async -> [KnowledgeMapPictureCard] {
         guard activeTeamID == nil else { return [] }
-        let map = knowledgeMap
         // The notices counted before the read are the ones it already holds; one that lands
         // while it runs is read again next time.
         let revision = map.picturesRevision
@@ -107,13 +136,19 @@ extension StudioViewModel {
         return width / height
     }
 
-    /// Rebuilds the Map's cards from the library on this Mac, with each
-    /// source's first highlight read in one query.
-    func refreshKnowledgeMapContent() async {
+    /// Rebuilds a Canvas's cards from the library on this Mac, with each
+    /// source's first highlight read in one query: `model`'s, else those of
+    /// the window in scope (the key window's). The model is taken once, so a
+    /// window that turns to another canvas or loses the key while this reads
+    /// still gets its own cards. Each window's pane asks for its own when
+    /// its signature moves (`knowledgeMapContentSignature(for:)`), which is
+    /// how a library change reaches every window.
+    func refreshKnowledgeMapContent(for model: KnowledgeMapModel? = nil) async {
+        let knowledgeMap = model ?? self.knowledgeMap
         let sources = articles.filter { $0.status == .active && !$0.isHidden }
         var firstHighlights: [String: String] = [:]
         var clips: [SourceHighlight] = []
-        let notebookSources: Set<String> = openCanvas?.notebookID
+        let notebookSources: Set<String> = canvas(of: knowledgeMap)?.notebookID
             .flatMap { notebook(id: $0)?.approvedSourceIDs }
             .map { Set($0.map(canonicalSourceID)) } ?? []
         do {
@@ -144,9 +179,9 @@ extension StudioViewModel {
             // its cards; the failure is logged, not hidden.
             logger.error("Canvas could not read highlights: \(error.localizedDescription)")
         }
-        await findPassagePages(for: clips)
-        await loadKnowledgeMapPageShapes()
-        await loadKnowledgeMapPageFaces()
+        await findPassagePages(for: clips, on: knowledgeMap)
+        await loadKnowledgeMapPageShapes(for: knowledgeMap)
+        await loadKnowledgeMapPageFaces(for: knowledgeMap)
         let captions = await knowledgeMapFigureCaptions(for: clips)
         var groupTitles: [String: String] = [:]
         var origins: [String: SourceArtwork.Origin] = [:]
@@ -160,7 +195,7 @@ extension StudioViewModel {
             }
         }
         // Pictures of the Images library: drawn from their own files.
-        let pictures = await knowledgeMapPictureCards()
+        let pictures = await knowledgeMapPictureCards(for: knowledgeMap)
         for picture in pictures {
             if let path = picture.path { origins[picture.ref] = .file(path) }
         }
@@ -186,7 +221,7 @@ extension StudioViewModel {
                 KnowledgeMapPageCard(ref: ref, aspect: knowledgeMap.pageAspects[ref].flatMap { $0 > 0 ? $0 : nil })
             },
             captions: captions,
-            canvases: knowledgeMapShortcutCanvases,
+            canvases: knowledgeMapShortcutCanvases(for: knowledgeMap),
             pictures: pictures
         )
         knowledgeMap.linkNotebookRegions()
@@ -225,7 +260,7 @@ extension StudioViewModel {
     /// The page of each passage card whose mark has no page geometry, found
     /// by searching the paper's own PDF for its first words, once, off the
     /// main actor (reading the PDF may pull it down from iCloud).
-    private func findPassagePages(for clips: [SourceHighlight]) async {
+    private func findPassagePages(for clips: [SourceHighlight], on knowledgeMap: KnowledgeMapModel) async {
         #if canImport(PDFKit)
         let wanted: [(id: String, quote: String, article: StudioArticle)] = clips.compactMap { clip in
             guard ReaderClip.isPassage(clip), clip.pdfAnchor == nil, knowledgeMap.passagePages[clip.id] == nil,
@@ -338,7 +373,7 @@ extension StudioViewModel {
         switch item.kind {
         case .source:
             await selectArticle(item.id, in: windowState, revealingReader: true)
-            requestReaderPassage(nil, page: knowledgeMap.layout.placements[ref]?.page, for: canonicalSourceID(item.id), in: windowState)
+            requestReaderPassage(nil, page: knowledgeMap(in: windowState).layout.placements[ref]?.page, for: canonicalSourceID(item.id), in: windowState)
         case .doc:
             revealArtifact(item.id, in: windowState)
         case .idea:
@@ -375,6 +410,9 @@ extension StudioViewModel {
     /// good: Ideas have no Trash of their own), and any other card is taken
     /// off the Canvas, as ⌫ does. Nothing else is deleted from the library.
     func deleteKnowledgeMapItems(_ refs: [String]) async {
+        // The canvas they were deleted on: the key window may change while
+        // an Idea is archived.
+        let knowledgeMap = knowledgeMap
         let items = refs.compactMap(KnowledgeMap.ItemRef.init)
         let ideaIDs = items.filter { $0.kind == .idea }.map(\.id)
         let others = items.filter { $0.kind != .idea }.map(\.description)
@@ -390,7 +428,8 @@ extension StudioViewModel {
     /// Docs dragged, and for a notebook its ticked sources and what it made, under a
     /// region that is the notebook's frame (named after it, linked to it) when
     /// the notebook is all that was dropped.
-    func knowledgeMapDrop(sourceIDs: [String], docIDs: [String], notebookIDs: [String]) -> (refs: [String], regionName: String?, notebookID: String?) {
+    func knowledgeMapDrop(sourceIDs: [String], docIDs: [String], notebookIDs: [String], on model: KnowledgeMapModel? = nil) -> (refs: [String], regionName: String?, notebookID: String?) {
+        let knowledgeMap = model ?? self.knowledgeMap
         var refs: [String] = []
         var seen: Set<String> = []
         func add(_ ref: KnowledgeMap.ItemRef) {
@@ -417,6 +456,8 @@ extension StudioViewModel {
     /// to the Idea (listed in Ideas too), and drawn under it on the Map.
     func linkKnowledgeMapEvidence(ideaRef: String, refs: [String]) async {
         guard let idea = KnowledgeMap.ItemRef(ideaRef), idea.kind == .idea else { return }
+        // The canvas the drop was made on, kept across the awaits.
+        let knowledgeMap = knowledgeMap
         let items = refs.compactMap(KnowledgeMap.ItemRef.init)
         // A clip dropped on an Idea links the paper it was cut from as the
         // Idea's evidence, and is set down just under the Idea, side by side:
@@ -427,7 +468,7 @@ extension StudioViewModel {
         let docIDs = items.filter { $0.kind == .doc }.map(\.id)
         if !sourceIDs.isEmpty { await linkIdea(ideaID: idea.id, kind: .source, targetIDs: Array(Set(sourceIDs)).sorted()) }
         if !docIDs.isEmpty { await linkIdea(ideaID: idea.id, kind: .artifact, targetIDs: docIDs) }
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: knowledgeMap)
         if !clipRefs.isEmpty, let spot = knowledgeMap.layout.placements[ideaRef] {
             let y = spot.y + KnowledgeMap.cardHeight + 30
             knowledgeMap.place(clipRefs.enumerated().map { index, ref in
@@ -438,12 +479,12 @@ extension StudioViewModel {
 
     /// Writes a note where the learner clicked: an Idea (the learner's own
     /// thought, listed in Ideas too) placed on the Map at that spot.
-    func createKnowledgeMapNote(_ text: String, at spot: (x: Double, y: Double)) async {
+    func createKnowledgeMapNote(_ text: String, at spot: (x: Double, y: Double), on model: KnowledgeMapModel? = nil) async {
         // The canvas written on: another may be opened while the Idea is made,
         // and the note belongs where it was written.
-        let canvas = knowledgeMap
+        let canvas = model ?? knowledgeMap
         guard let idea = await createIdea(title: text) else { return }
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: canvas)
         canvas.place([(ref: KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description, x: spot.x, y: spot.y)])
     }
 
@@ -478,9 +519,10 @@ extension StudioViewModel {
         parentRef: String? = nil,
         after: String? = nil,
         regionID: String? = nil,
-        copyOf: String? = nil
+        copyOf: String? = nil,
+        on model: KnowledgeMapModel? = nil
     ) async -> KnowledgeMapNewIdea? {
-        let map = knowledgeMap
+        let map = model ?? knowledgeMap
         var words = (title: title, note: note)
         if let copyOf, let source = KnowledgeMap.ItemRef(copyOf), source.kind == .idea,
            let idea = ideas.first(where: { $0.id == source.id }) {
@@ -492,7 +534,7 @@ extension StudioViewModel {
             title: fresh ? Self.knowledgeMapNewIdeaTitle : words.title,
             notes: written.isEmpty ? nil : written
         ) else { return nil }
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: map)
         let ref = KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description
         var x = spot.x, y = spot.y
         if let parentRef, let parent = map.layout.placements[parentRef] {

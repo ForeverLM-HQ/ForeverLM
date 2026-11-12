@@ -159,6 +159,9 @@ struct KnowledgeMapCanvasActTests {
     func createAndOpen() throws {
         try withCanvasDefaults { defaults in
             let vm = makeViewModel()
+            // The window's canvas before the new one exists: a window that has
+            // not asked for its Canvas yet opens on the newest canvas there is.
+            let before = vm.knowledgeMap
             let space = try #require(vm.createPageSpace(named: "Aging"))
             let canvas = vm.createCanvas(named: "Clocks", inPageSpace: space.id)
             #expect(canvas.id.hasPrefix(KnowledgeMap.canvasIDPrefix))
@@ -166,7 +169,6 @@ struct KnowledgeMapCanvasActTests {
             #expect(defaults.string(forKey: KnowledgeMap.layoutPreferenceKey(mapID: canvas.id)) != nil, "listed before anything is placed")
             #expect(vm.pageSpace(ofPage: canvas.id) == space)
 
-            let before = vm.knowledgeMap
             vm.showCanvas(canvas.id)
             #expect(vm.knowledgeMap.mapID == canvas.id)
             #expect(vm.knowledgeMap !== before)

@@ -21,7 +21,7 @@ struct AtlasPane: View {
     @Namespace private var namespace
     @State private var confirmsDelete = false
 
-    private var model: AtlasModel { vm.atlas }
+    private var model: AtlasModel { windowState.atlas }
 
     var body: some View {
         let model = model
@@ -49,12 +49,12 @@ struct AtlasPane: View {
         .studioCenterTabCloseChrome(for: .atlas)
         .task {
             await vm.refreshAtlasListings()
-            await vm.refreshAtlasMemory()
+            await vm.refreshAtlasMemory(for: windowState.atlas)
         }
-        .onChange(of: model.focusID) { vm.deepenAtlasFocusIfNeeded() }
-        .onChange(of: model.level) { vm.deepenAtlasFocusIfNeeded() }
-        .onChange(of: model.viewMode) { vm.deepenAtlasFocusIfNeeded() }
-        .onChange(of: model.current?.id) { vm.deepenAtlasFocusIfNeeded() }
+        .onChange(of: model.focusID) { vm.inWindow(windowState) { vm.deepenAtlasFocusIfNeeded() } }
+        .onChange(of: model.level) { vm.inWindow(windowState) { vm.deepenAtlasFocusIfNeeded() } }
+        .onChange(of: model.viewMode) { vm.inWindow(windowState) { vm.deepenAtlasFocusIfNeeded() } }
+        .onChange(of: model.current?.id) { vm.inWindow(windowState) { vm.deepenAtlasFocusIfNeeded() } }
         .confirmationDialog(
             "Delete this Atlas?",
             isPresented: $confirmsDelete,
@@ -169,7 +169,7 @@ struct AtlasPane: View {
                 Divider()
                 ForEach(others.prefix(20)) { listing in
                     Button(listing.topic) {
-                        Task { await vm.openStoredAtlas(id: listing.id) }
+                        vm.task(in: windowState) { await vm.openStoredAtlas(id: listing.id) }
                     }
                 }
             }
@@ -198,11 +198,11 @@ struct AtlasPane: View {
         let branch = focus.flatMap { $0.id == atlas.rootID || atlas.children(of: $0.id).isEmpty ? nil : $0 }
         return Menu {
             Button("The Whole Atlas") {
-                Task { await vm.layOutAtlasOnCanvas(branch: nil, in: windowState) }
+                vm.task(in: windowState) { await vm.layOutAtlasOnCanvas(branch: nil, in: windowState) }
             }
             Button(branch.map { "\($0.name) and What Is Under It" } ?? "This Branch") {
                 guard let branch else { return }
-                Task { await vm.layOutAtlasOnCanvas(branch: branch.id, in: windowState) }
+                vm.task(in: windowState) { await vm.layOutAtlasOnCanvas(branch: branch.id, in: windowState) }
             }
             .disabled(branch == nil)
         } label: {
@@ -224,7 +224,7 @@ struct AtlasPane: View {
 
     private var moreMenu: some View {
         Menu {
-            Button("Rebuild", systemImage: "arrow.clockwise") { vm.rebuildAtlas() }
+            Button("Rebuild", systemImage: "arrow.clockwise") { vm.inWindow(windowState) { vm.rebuildAtlas() } }
                 .disabled(model.building != nil)
             OtherWindowMenuItem(.atlas)
             Divider()
@@ -347,7 +347,7 @@ struct AtlasPane: View {
                             .padding(.bottom, 4)
                         ForEach(model.listings.prefix(12)) { listing in
                             Button {
-                                Task { await vm.openStoredAtlas(id: listing.id) }
+                                vm.task(in: windowState) { await vm.openStoredAtlas(id: listing.id) }
                             } label: {
                                 HStack {
                                     Image(systemName: Self.systemImage)
@@ -379,7 +379,7 @@ struct AtlasPane: View {
     private func buildDraft() {
         let topic = model.draftTopic.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !topic.isEmpty else { return }
-        vm.buildAtlas(topic: topic)
+        vm.inWindow(windowState) { vm.buildAtlas(topic: topic) }
     }
 
     // MARK: Content
@@ -480,7 +480,7 @@ struct AtlasFisheyeView: View {
     let namespace: Namespace.ID
     let onFocus: (String) -> Void
 
-    private var model: AtlasModel { vm.atlas }
+    private var model: AtlasModel { windowState.atlas }
 
     var body: some View {
         let focusID = model.focusID ?? atlas.rootID
@@ -667,6 +667,7 @@ struct AtlasFisheyeView: View {
 /// quoted, its open questions, its memory and Learn.
 struct AtlasFocusCard: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState
 
     let atlas: Atlas
     let concept: AtlasConcept
@@ -675,7 +676,7 @@ struct AtlasFocusCard: View {
     @State private var shownTerm: String?
     @State private var showsAllEvidence = false
 
-    private var model: AtlasModel { vm.atlas }
+    private var model: AtlasModel { windowState.atlas }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -782,7 +783,7 @@ struct AtlasFocusCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Try Again") {
                         model.deepenError = nil
-                        vm.deepenAtlasFocusIfNeeded()
+                        vm.inWindow(windowState) { vm.deepenAtlasFocusIfNeeded() }
                     }
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                 }
@@ -870,7 +871,7 @@ struct AtlasFocusCard: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Button {
-                    Task { await vm.openAtlasPassage(passage) }
+                    vm.task(in: windowState) { await vm.openAtlasPassage(passage) }
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "doc.text")
@@ -938,7 +939,7 @@ struct AtlasFocusCard: View {
                 ProgressView().controlSize(.small)
             }
             Button {
-                Task { await vm.learnAtlasConcept(concept.id) }
+                vm.task(in: windowState) { await vm.learnAtlasConcept(concept.id) }
             } label: {
                 Label("Learn", systemImage: "rectangle.stack.badge.plus")
                     .zoomedSystemFont(size: 12, weight: .medium)
@@ -961,11 +962,12 @@ struct AtlasFocusCard: View {
 /// row focuses it; the Fisheye shares the focus.
 struct AtlasLadderView: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState
 
     let atlas: Atlas
     let onFocus: (String) -> Void
 
-    private var model: AtlasModel { vm.atlas }
+    private var model: AtlasModel { windowState.atlas }
 
     var body: some View {
         let focusID = model.focusID ?? atlas.rootID

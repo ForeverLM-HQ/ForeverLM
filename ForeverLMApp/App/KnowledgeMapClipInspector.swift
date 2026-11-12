@@ -22,7 +22,7 @@ struct KnowledgeMapClipInspector: View {
     @State private var citations: [VideoCitedPaper] = []
     @State private var hanging: Set<String> = []
 
-    private var clip: SourceHighlight? { vm.knowledgeMap.clips[clipID] }
+    private var clip: SourceHighlight? { vm.knowledgeMap(in: windowState).clips[clipID] }
 
     var body: some View {
         if let clip {
@@ -31,8 +31,8 @@ struct KnowledgeMapClipInspector: View {
             VStack(alignment: .leading, spacing: 10) {
                 // Where it was cut from; the line is the way to the page.
                 if let source = vm.articlesById[clip.sourceID] {
-                    Button { Task { await vm.openKnowledgeMapClip(clipID, in: windowState) } } label: {
-                        Text(source.title + (slide.map { ", slide \($0)" } ?? (ReaderClip.page(of: clip) ?? ReaderClip.passagePage(of: clip) ?? vm.knowledgeMap.passagePage(clip.id)).map { ", page \($0)" } ?? ""))
+                    Button { vm.task(in: windowState) { await vm.openKnowledgeMapClip(clipID, in: windowState) } } label: {
+                        Text(source.title + (slide.map { ", slide \($0)" } ?? (ReaderClip.page(of: clip) ?? ReaderClip.passagePage(of: clip) ?? vm.knowledgeMap(in: windowState).passagePage(clip.id)).map { ", page \($0)" } ?? ""))
                             .zoomedSystemFont(size: 12)
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
@@ -65,10 +65,10 @@ struct KnowledgeMapClipInspector: View {
                             .accessibilityIdentifier("knowledgeMap.selection.addToChat")
                         Divider()
                         Button("Open Beside", systemImage: "rectangle.righthalf.inset.filled") {
-                            Task { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
+                            vm.task(in: windowState) { await vm.openKnowledgeMapItemBeside(ref, in: windowState) }
                         }
                         // The card's colour: one of eight, or the kind's own.
-                        if let placement = vm.knowledgeMap.layout.placements[ref] {
+                        if let placement = vm.knowledgeMap(in: windowState).layout.placements[ref] {
                             KnowledgeMapColourMenu(selected: placement.color, defaultIsSelected: placement.color == nil) { hex in
                                 vm.setKnowledgeMapCardColor([ref], to: hex)
                             }
@@ -78,10 +78,10 @@ struct KnowledgeMapClipInspector: View {
                         if !isPassage {
                             Button("Copy Picture", action: copyPicture)
                         }
-                        Button("Take Off Canvas") { vm.knowledgeMap.unplace([ref]) }
+                        Button("Take Off Canvas") { vm.knowledgeMap(in: windowState).unplace([ref]) }
                         Divider()
                         Button("Delete Clip", role: .destructive) {
-                            Task { await vm.deleteKnowledgeMapClip(clipID) }
+                            vm.task(in: windowState) { await vm.deleteKnowledgeMapClip(clipID) }
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -106,7 +106,7 @@ struct KnowledgeMapClipInspector: View {
             }
             .onDisappear(perform: commit)
             .task(id: clipID) {
-                citations = slide == nil ? [] : await vm.knowledgeMapSlideCitations(clipID: clipID)
+                citations = slide == nil ? [] : await vm.withWindow(windowState) { await vm.knowledgeMapSlideCitations(clipID: clipID) }
             }
         }
     }
@@ -143,7 +143,7 @@ struct KnowledgeMapClipInspector: View {
     @ViewBuilder
     private func citationAction(_ paper: VideoCitedPaper) -> some View {
         let held = vm.librarySourceID(citedBy: paper)
-        let placed = held.map { vm.knowledgeMap.layout.placements[KnowledgeMap.ItemRef(kind: .source, id: vm.canonicalSourceID($0)).description] != nil } ?? false
+        let placed = held.map { vm.knowledgeMap(in: windowState).layout.placements[KnowledgeMap.ItemRef(kind: .source, id: vm.canonicalSourceID($0)).description] != nil } ?? false
         if hanging.contains(paper.id) {
             ProgressView().controlSize(.small)
         } else if placed {
@@ -153,7 +153,7 @@ struct KnowledgeMapClipInspector: View {
         } else if held != nil || paper.url?.isEmpty == false {
             Button(held != nil ? "Place" : "Add") {
                 hanging.insert(paper.id)
-                Task {
+                vm.task(in: windowState) {
                     await vm.hangCitedPaper(paper, underSlideClip: clipID)
                     hanging.remove(paper.id)
                 }
@@ -171,7 +171,7 @@ struct KnowledgeMapClipInspector: View {
     private func commit() {
         guard let clip, note.trimmingCharacters(in: .whitespacesAndNewlines) != clip.note else { return }
         let text = note
-        Task { await vm.setKnowledgeMapClipNote(text, clipID: clipID) }
+        vm.task(in: windowState) { await vm.setKnowledgeMapClipNote(text, clipID: clipID) }
     }
 
     private func copyPicture() {

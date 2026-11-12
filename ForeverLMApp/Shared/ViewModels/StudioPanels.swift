@@ -1312,6 +1312,46 @@ final class StudioWindowState: Identifiable {
     /// (`KnowledgeMapCanvasHistory`). Not part of `Snapshot`: a relaunch starts
     /// every window with none.
     let canvasHistory = KnowledgeMapCanvasHistory()
+    /// This window's Canvas: the canvas it shows, with its own lens,
+    /// selection, tool, camera, popup, review in place and its Minimap, Focus
+    /// and Library switches, so opening a canvas or changing its view here
+    /// leaves every other window's Canvas as it was (product owner,
+    /// 2026-11-12: "Those two windows have to be independent"). Made the
+    /// first time it is asked for, on the canvas this Mac had open last
+    /// (`StudioViewModel.knowledgeMap(in:)`), and replaced, never turned into
+    /// another canvas, by `StudioViewModel.showCanvas`. Not part of
+    /// `Snapshot`: a relaunch opens every window on the canvas open last.
+    ///
+    /// Kept out of the macro's storage so that making it, which a view body
+    /// may be the first to ask for, publishes nothing; reads and the swap to
+    /// another canvas are observed by hand.
+    @ObservationIgnored private var canvasModel: KnowledgeMapModel?
+
+    /// The window's Canvas model, or nil while the window never asked for one.
+    var canvasIfMade: KnowledgeMapModel? {
+        access(keyPath: \.canvasIfMade)
+        return canvasModel
+    }
+
+    /// The window's Canvas model, made by `make` when it has none yet.
+    func canvas(orMake make: () -> KnowledgeMapModel) -> KnowledgeMapModel {
+        access(keyPath: \.canvasIfMade)
+        if let canvasModel { return canvasModel }
+        let made = make()
+        canvasModel = made
+        return made
+    }
+
+    /// Puts another canvas's model in the window (`StudioViewModel.showCanvas`).
+    func setCanvas(_ model: KnowledgeMapModel) {
+        guard canvasModel !== model else { return }
+        withMutation(keyPath: \.canvasIfMade) { canvasModel = model }
+    }
+
+    /// This window's Atlas pane: the Atlas on screen, the concept in focus
+    /// and the way back, the level and the view (docs/atlas-design.md). Each
+    /// window keeps its own, as it keeps its Canvas.
+    let atlas = AtlasModel()
     /// Whether this window's Reader has a source of its own. Until it does, the
     /// window renders the app-wide selection, so navigation that only moves
     /// `selectedArticleId` still lands somewhere. Once it does — including on a

@@ -13,7 +13,10 @@ extension StudioViewModel {
     /// lack. A burst of moves asks once; a request while a pass runs makes it
     /// run once more when it ends.
     func refreshKnowledgeMapFaces() async {
-        let state = knowledgeMap.facesState
+        // This window's canvas, kept across the wait: the pass reads and
+        // writes the faces of the model it was asked for.
+        let map = knowledgeMap
+        let state = map.facesState
         state.request &+= 1
         let request = state.request
         do { try await Task.sleep(for: .seconds(2)) } catch { return }
@@ -26,12 +29,11 @@ extension StudioViewModel {
         defer { state.isRunning = false }
         repeat {
             state.runAgain = false
-            await knowledgeMapFacesPass()
+            await knowledgeMapFacesPass(on: map)
         } while state.runAgain
     }
 
-    private func knowledgeMapFacesPass() async {
-        let map = knowledgeMap
+    private func knowledgeMapFacesPass(on map: KnowledgeMapModel) async {
         let state = map.facesState
         let drawn = map.drawnSourceIDs
         guard !drawn.isEmpty else { return }

@@ -693,11 +693,11 @@ extension InternalReviewPanelContent {
         KnowledgeMapChatChipRow(
             context: context,
             symbol: { card in
-                vm.knowledgeMap.nodesByRef[card.ref].map(KnowledgeMapCardGlyph.symbol(for:)) ?? "rectangle.on.rectangle"
+                vm.knowledgeMap(in: windowState).nodesByRef[card.ref].map(KnowledgeMapCardGlyph.symbol(for:)) ?? "rectangle.on.rectangle"
             },
             showCanvas: { vm.showKnowledgeMapChatCanvas(context.canvasID, in: windowState) },
             showCard: { ref in
-                Task { await vm.showKnowledgeMapChatCard(ref, canvasID: context.canvasID, in: windowState) }
+                vm.task(in: windowState) { await vm.showKnowledgeMapChatCard(ref, canvasID: context.canvasID, in: windowState) }
             },
             removeCard: { manager.removeCanvasCard($0) },
             removeCanvas: { manager.removeCanvasContext() }

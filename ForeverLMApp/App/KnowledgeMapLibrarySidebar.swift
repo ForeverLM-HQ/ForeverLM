@@ -27,7 +27,7 @@ struct KnowledgeMapLibrarySidebar: View {
     /// The card or notebook whose popover shows, one at a time.
     @State private var popoverRef: String?
 
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
+    private var map: KnowledgeMapModel { vm.knowledgeMap(in: windowState) }
 
     /// The Ideas that show before Show All.
     private static let ideasShown = 12
@@ -91,7 +91,7 @@ struct KnowledgeMapLibrarySidebar: View {
         // open Ideas not placed (product owner, 2026-10-09).
         var notebookTitle: String?
         var notebookRefs: [String] = []
-        if let notebookID = vm.openCanvas?.notebookID, let notebook = vm.notebook(id: notebookID) {
+        if let notebookID = vm.canvas(of: map)?.notebookID, let notebook = vm.notebook(id: notebookID) {
             notebookTitle = NotebookTitle(notebook.title).text
             let unticked = vm.notebookChatExclusions[notebookID] ?? []
             notebookRefs = notebook.approvedSourceIDs
@@ -256,7 +256,7 @@ struct KnowledgeMapLibraryRow: View {
     private var ref: String { node.ref }
 
     var body: some View {
-        let map = vm.knowledgeMap
+        let map = vm.knowledgeMap(in: windowState)
         KnowledgeMapCardRowLabel(node: node, map: map)
             .padding(.horizontal, 6)
             .padding(.vertical, 5)
@@ -268,7 +268,7 @@ struct KnowledgeMapLibraryRow: View {
             .accessibilityIdentifier("knowledgeMap.library.row.\(ref)")
             .openHandCursor()
             .onTapGesture { popoverRef = ref }
-            .onDrag { knowledgeMapCardDragProvider(ref: ref, vm: vm) }
+            .onDrag { knowledgeMapCardDragProvider(ref: ref, vm: vm, map: map) }
             .popover(
                 isPresented: Binding(
                     get: { popoverRef == ref },
@@ -283,8 +283,8 @@ struct KnowledgeMapLibraryRow: View {
             }
             .contextMenu {
                 Button("Place on the Canvas") { map.send(.dropAtCenter(refs: [ref], regionName: nil)) }
-                Button("Open Beside") { Task { await vm.openKnowledgeMapItemBeside(ref, in: windowState) } }
-                Button("Open") { Task { await vm.openKnowledgeMapItem(ref, in: windowState) } }
+                Button("Open Beside") { vm.task(in: windowState) { await vm.openKnowledgeMapItemBeside(ref, in: windowState) } }
+                Button("Open") { vm.task(in: windowState) { await vm.openKnowledgeMapItem(ref, in: windowState) } }
             }
     }
 }
@@ -647,7 +647,7 @@ extension View {
 /// Page takes the card as it takes it from the Sources list or Pages: a
 /// source's article, a Doc's artifact, a clip's clip.
 @MainActor
-func knowledgeMapCardDragProvider(ref: String, vm: StudioViewModel) -> NSItemProvider {
+func knowledgeMapCardDragProvider(ref: String, vm: StudioViewModel, map: KnowledgeMapModel) -> NSItemProvider {
     let provider: NSItemProvider
     switch KnowledgeMap.ItemRef(ref) {
     case .some(let item) where item.kind == .source:
@@ -655,7 +655,7 @@ func knowledgeMapCardDragProvider(ref: String, vm: StudioViewModel) -> NSItemPro
     case .some(let item) where item.kind == .doc:
         provider = vm.artifacts.first(where: { $0.id == item.id }).map { studioArtifactDragProvider(for: $0) } ?? NSItemProvider()
     case .some(let item) where item.kind == .clip:
-        provider = knowledgeMapClipDragProvider(clipID: item.id, map: vm.knowledgeMap) ?? NSItemProvider()
+        provider = knowledgeMapClipDragProvider(clipID: item.id, map: map) ?? NSItemProvider()
     default:
         provider = NSItemProvider()
     }

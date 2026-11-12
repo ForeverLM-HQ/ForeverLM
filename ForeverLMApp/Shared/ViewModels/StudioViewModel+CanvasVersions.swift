@@ -11,9 +11,10 @@ import Foundation
 // `list_canvas_versions`, `save_canvas_version` and `restore_canvas_version`.
 
 extension StudioViewModel {
-    /// The layout a canvas has now: the open canvas's model, else its row.
+    /// The layout a canvas has now: the model of a window open on it, else
+    /// its row.
     func currentCanvasLayout(_ canvasID: String) -> KnowledgeMapLayout {
-        knowledgeMap.mapID == canvasID ? knowledgeMap.layout : KnowledgeMapRows.layout(mapID: canvasID)
+        knowledgeMapModel(showing: canvasID)?.layout ?? KnowledgeMapRows.layout(mapID: canvasID)
     }
 
     /// The canvas's versions on this Mac, newest first.
@@ -38,14 +39,17 @@ extension StudioViewModel {
     /// **Restore** a version, as one edit that Undo takes back. The canvas as
     /// it is now is kept first as an automatic version (unless the newest
     /// version already holds it), so a restore is undone from the same list
-    /// after Undo is gone. A canvas that is not the open one becomes it, since
-    /// Undo lives in its model. False when the canvas already held exactly
-    /// what the version holds.
+    /// after Undo is gone. A canvas no window is open on opens in this one,
+    /// since Undo lives in its model; one open in another window is restored
+    /// through that window's model, and this window stays as it is. False
+    /// when the canvas already held exactly what the version holds.
     @discardableResult
     func restoreCanvasVersion(_ version: KnowledgeMapVersion, canvasID: String) async throws -> Bool {
         let snapshot = try await storage.canvasVersionLayout(canvasID: canvasID, version: version)
-        if knowledgeMap.mapID != canvasID { showCanvas(canvasID) }
-        let model = knowledgeMap
+        let window = activeWindowState
+        let snapshotModel = knowledgeMapModel(showing: canvasID)
+        if snapshotModel == nil { showCanvas(canvasID, in: window) }
+        let model = snapshotModel ?? knowledgeMap(in: window)
         try await storage.keepCanvasVersionIfChanged(
             canvasID: canvasID,
             layout: model.layout,

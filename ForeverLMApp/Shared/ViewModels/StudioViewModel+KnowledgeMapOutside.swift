@@ -113,7 +113,10 @@ extension StudioViewModel {
     func addToCanvas(refs: [String], canvasID: String) async {
         guard listsCanvases, !isActiveLibraryReadOnly else { return }
         refreshCanvasesFromRows()
-        let isOpenCanvas = canvasID == knowledgeMap.mapID
+        // The window open on that canvas, this one before any other: its
+        // model sets the cards down, so the write is one Undo step there.
+        let open = knowledgeMapModel(showing: canvasID)
+        let isOpenCanvas = open != nil
         guard isOpenCanvas || canvases.isInUse(canvasID) else {
             showToast("That canvas is no longer in your Space")
             return
@@ -134,37 +137,39 @@ extension StudioViewModel {
             return
         }
 
-        if isOpenCanvas, knowledgeMapIsOnScreen {
-            await refreshKnowledgeMapContent()
-            // Another canvas opened while the cards were read: they go to the
-            // one asked for, written to its row as for a canvas not showing.
-            guard knowledgeMap.mapID == canvasID else {
+        if let open, knowledgeMapIsOnScreen(open) {
+            await refreshKnowledgeMapContent(for: open)
+            // The window turned to another canvas while the cards were read:
+            // they go to the one asked for, written to its row as for a
+            // canvas not showing.
+            guard isShown(open) else {
                 await addToCanvas(refs: wanted, canvasID: canvasID)
                 return
             }
-            let drawable = fresh.filter { knowledgeMap.nodesByRef[$0] != nil }
+            let drawable = fresh.filter { open.nodesByRef[$0] != nil }
             guard !drawable.isEmpty else {
                 showToast("That cannot be placed on \(name)")
                 return
             }
-            knowledgeMap.send(.dropAtCenter(refs: drawable, regionName: nil))
+            open.send(.dropAtCenter(refs: drawable, regionName: nil))
             return
         }
 
-        if isOpenCanvas {
+        if let open {
             // Not showing: the model writes it, as a drop would, so it is
             // one Undo step and its notebook frame hears of it.
             let spots = KnowledgeMapOutside.arrival(
                 of: fresh,
-                on: knowledgeMap.layout,
-                height: knowledgeMap.cardHeight(of:),
-                near: knowledgeMap.arrivalCenter()
+                on: open.layout,
+                height: open.cardHeight(of:),
+                near: open.arrivalCenter()
             )
-            knowledgeMap.place(spots)
+            open.place(spots)
         } else {
             let now = Date()
+            let heights = knowledgeMap
             let layout = KnowledgeMapRows.update(mapID: canvasID, now: now) { row in
-                let spots = KnowledgeMapOutside.arrival(of: fresh, on: row, height: knowledgeMap.cardHeight(of:))
+                let spots = KnowledgeMapOutside.arrival(of: fresh, on: row, height: heights.cardHeight(of:))
                 for spot in spots { row.place(spot.ref, x: spot.x, y: spot.y, at: now.timeIntervalSince1970) }
             }
             canvases = canvases.setting(layout, for: canvasID)
@@ -210,11 +215,13 @@ extension StudioViewModel {
     /// toast's Show.
     func showCardOnCanvas(_ ref: String, canvasID: String, in windowState: StudioWindowState?) async {
         let ref = canonicalKnowledgeMapRef(ref)
-        openCanvas(canvasID, in: windowState)
+        let window = windowState ?? activeWindowState
+        openCanvas(canvasID, in: window)
         // The canvas that just opened has no cards until the library has been
         // read for it; the focus waits for them or would find nothing.
-        await refreshKnowledgeMapContent()
-        knowledgeMap.send(.focus(refs: [ref], regionID: nil))
+        let opened = knowledgeMap(in: window)
+        await refreshKnowledgeMapContent(for: opened)
+        opened.send(.focus(refs: [ref], regionID: nil))
     }
 
     // MARK: Move to Canvas ▸
@@ -242,6 +249,8 @@ extension StudioViewModel {
             KnowledgeMapOutside.write(moved, from: source, into: &row, height: map.cardHeight(of:), at: now.timeIntervalSince1970)
         }
         canvases = canvases.setting(layout, for: canvasID)
+        // Another window open on the canvas they moved to draws them.
+        reloadKnowledgeMaps(showing: canvasID)
         // Off this canvas, in the one burst the model keeps as one Undo step.
         for id in moved.edgeIDs where map.layout.edges[id] != nil { map.deleteEdge(id) }
         for id in moved.regionIDs where map.layout.regions[id] != nil { map.deleteRegion(id) }
@@ -292,7 +301,9 @@ extension StudioViewModel {
     /// a failure is said in a toast with its reason. A toast says what is
     /// being imported meanwhile. Words pasted are written as an Idea at the
     /// middle of the view and not returned.
-    func knowledgeMapOutsideRefs(_ drop: KnowledgeMapOutsideDrop) async -> [String] {
+    func knowledgeMapOutsideRefs(_ drop: KnowledgeMapOutsideDrop, on model: KnowledgeMapModel? = nil) async -> [String] {
+        // The canvas it came onto, kept across the imports.
+        let knowledgeMap = model ?? self.knowledgeMap
         defer {
             if let folder = drop.stagingDirectory { try? FileManager.default.removeItem(at: folder) }
         }
@@ -382,13 +393,13 @@ extension StudioViewModel {
         refs.append(contentsOf: knowledgeMapRefsInLibrary(drop.cardRefs))
 
         if let text = drop.text, let idea = KnowledgeMapOutside.idea(fromPasted: text) {
-            await placePastedIdea(title: idea.title, notes: idea.notes)
+            await placePastedIdea(title: idea.title, notes: idea.notes, on: knowledgeMap)
         }
 
         // The page draws only the cards the model has read from the library,
         // and a source or picture just brought in is not among them yet.
         if !refs.isEmpty {
-            await refreshKnowledgeMapContent()
+            await refreshKnowledgeMapContent(for: knowledgeMap)
             let shown = refs.filter { knowledgeMap.nodesByRef[$0] != nil }
             if shown.count < refs.count {
                 failures.append(refs.count - shown.count == 1 ? "one item cannot be shown on the canvas" : "\(refs.count - shown.count) items cannot be shown on the canvas")
@@ -423,7 +434,7 @@ extension StudioViewModel {
     /// Words pasted: an Idea at the middle of the view, through the note a
     /// double-click writes when it is a few words, with the whole text as its
     /// note when it is more.
-    private func placePastedIdea(title: String, notes: String?) async {
+    private func placePastedIdea(title: String, notes: String?, on knowledgeMap: KnowledgeMapModel) async {
         let spots = KnowledgeMapOutside.arrival(
             of: ["new"],
             on: knowledgeMap.layout,
@@ -432,12 +443,12 @@ extension StudioViewModel {
         )
         guard let spot = spots.first else { return }
         guard let notes else {
-            await createKnowledgeMapNote(title, at: (spot.x, spot.y))
+            await createKnowledgeMapNote(title, at: (spot.x, spot.y), on: knowledgeMap)
             return
         }
         let canvas = knowledgeMap
         guard let idea = await createIdea(title: title, notes: notes) else { return }
-        await refreshKnowledgeMapContent()
+        await refreshKnowledgeMapContent(for: canvas)
         canvas.place([(ref: KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description, x: spot.x, y: spot.y)])
     }
 

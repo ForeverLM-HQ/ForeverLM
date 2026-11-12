@@ -153,12 +153,14 @@ struct KnowledgeMapViewport: Equatable {
     }
 }
 
-/// The open canvas's state on this Mac: the learner's layout (the synced
-/// row), the cards the library gives it, the lens showing, and what the
-/// learner has selected. One canvas is open at a time on a Mac, and every
-/// window showing the Canvas shows it: opening another canvas replaces the
-/// view model's model (`StudioViewModel.openCanvas`), so a lens, a selection
-/// or an undo step never crosses from one canvas to another.
+/// One window's canvas: the learner's layout (the synced row), the cards the
+/// library gives it, the lens showing, and what the learner has selected.
+/// Each window has its own (`StudioWindowState.canvasIfMade`), so two windows
+/// show two canvases, or the same one with a camera, a selection and a lens
+/// each: a write in one is read by the other from the row
+/// (`StudioViewModel.wireCanvasModel`). Opening another canvas replaces the
+/// window's model (`StudioViewModel.showCanvas`), so a lens, a selection or
+/// an undo step never crosses from one canvas to another.
 @MainActor
 @Observable
 final class KnowledgeMapModel {

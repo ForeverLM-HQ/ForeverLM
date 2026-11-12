@@ -65,9 +65,12 @@ extension StudioViewModel {
     /// drawing it, or nothing is placed on it.
     func exportCanvasImageData(canvasID: String, scale: Double, refs: [String]? = nil) async throws -> Data {
         let name = canvasDisplayName(canvasID)
-        guard knowledgeMap.mapID == canvasID else { throw CanvasExportError.notOpen(name: name) }
-        guard let exporter = knowledgeMap.imageExporter else { throw CanvasExportError.notShowing(name: name) }
-        let layout = knowledgeMap.layout
+        // A window open on the canvas draws it: this one before any other,
+        // and one whose pane is up before one whose pane is not.
+        guard let open = knowledgeMapModel(showing: canvasID) else { throw CanvasExportError.notOpen(name: name) }
+        let drawing = open.imageExporter != nil ? open : knowledgeMaps(showing: canvasID).first { $0.imageExporter != nil }
+        guard let exporter = drawing?.imageExporter else { throw CanvasExportError.notShowing(name: name) }
+        let layout = open.layout
         guard !layout.placements.isEmpty || !layout.regions.isEmpty else { throw CanvasExportError.nothingToDraw(name: name) }
         return try await exporter(scale, refs)
     }
@@ -77,8 +80,9 @@ extension StudioViewModel {
     /// is nothing to write. Waits for the cards' words when the Canvas has
     /// not loaded them yet.
     func canvasMarkdown(refs: [String]) async -> String {
-        if knowledgeMap.content.nodes.isEmpty { await refreshKnowledgeMapContent() }
         let model = knowledgeMap
+        let name = openCanvasName
+        if model.content.nodes.isEmpty { await refreshKnowledgeMapContent(for: model) }
         let body = KnowledgeMapMarkdown.render(
             layout: model.layout,
             nodes: model.nodesByRef,
@@ -86,6 +90,6 @@ extension StudioViewModel {
             cardSize: { ref in (KnowledgeMap.cardWidth, model.cardHeight(of: ref)) }
         )
         guard refs.isEmpty, !body.isEmpty else { return body }
-        return "# \(KnowledgeMapMarkdown.inline(openCanvasName))\n\n" + body
+        return "# \(KnowledgeMapMarkdown.inline(name))\n\n" + body
     }
 }

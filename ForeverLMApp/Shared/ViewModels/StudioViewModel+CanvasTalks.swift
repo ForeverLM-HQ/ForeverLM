@@ -73,7 +73,7 @@ extension StudioViewModel {
         let canvas = knowledgeMap
         do {
             let outcome = try await layOutKnowledgeMapTalk(sourceID: sourceID)
-            guard knowledgeMap === canvas else { return }
+            guard isShown(canvas) else { return }
             guard outcome.regionID != nil else {
                 // Laid out before: the papers new to the library hang under their slides.
                 canvas.send(.focus(refs: outcome.papers.isEmpty ? outcome.slides : outcome.papers, regionID: nil), in: windowState.id)
@@ -184,8 +184,8 @@ extension StudioViewModel {
             }
         }
 
-        await refreshKnowledgeMapContent()
-        guard knowledgeMap === canvas else { throw KnowledgeMapTalkError.canvasChanged }
+        await refreshKnowledgeMapContent(for: canvas)
+        guard isShown(canvas) else { throw KnowledgeMapTalkError.canvasChanged }
         let talk = slideRefs.compactMap { slide -> (slide: String, papers: [String])? in
             canvas.nodesByRef[slide.ref] == nil ? nil : (slide.ref, papersBySlide[slide.index] ?? [])
         }
@@ -235,8 +235,8 @@ extension StudioViewModel {
             showToast("Could not add \(paper.title)")
             return
         }
-        await refreshKnowledgeMapContent()
-        guard knowledgeMap === canvas else { return }
+        await refreshKnowledgeMapContent(for: canvas)
+        guard isShown(canvas) else { return }
         let paperRef = KnowledgeMap.ItemRef(kind: .source, id: sourceID).description
         // The talk's other slides on the canvas, in the order shown, so the
         // paper hangs in this slide's column above the next row of slides.

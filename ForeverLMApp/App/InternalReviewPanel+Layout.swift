@@ -451,7 +451,7 @@ extension InternalReviewPanelContent {
                 }
                 // The Ask draws on the canvas open on this Mac: not offered
                 // for another canvas's cards.
-                if context.canvasID == vm.knowledgeMap.mapID {
+                if context.canvasID == vm.knowledgeMap(in: windowState).mapID {
                     KnowledgeMapChatOffers(offersQuestionMap: context.holdsQuestion) { tool in
                         vm.startCanvasAsk(tool, from: context)
                     }

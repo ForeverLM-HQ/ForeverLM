@@ -3,8 +3,9 @@ import Observation
 
 /// The Atlas pane's state (docs/atlas-design.md): the Atlas on screen, the
 /// concept in focus and the way back to the ones before it, the level of
-/// abstraction and the view, and what ForeverLM is writing. One for the app,
-/// as the Canvas's is: a second window showing the Atlas shows this one.
+/// abstraction and the view, and what ForeverLM is writing. One for each
+/// window (`StudioWindowState.atlas`), as the Canvas's is: a second window
+/// showing the Atlas keeps its own focus, level and way back.
 @Observable @MainActor
 final class AtlasModel {
     struct Building: Equatable {

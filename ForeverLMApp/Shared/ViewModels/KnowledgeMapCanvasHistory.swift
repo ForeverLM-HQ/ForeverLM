@@ -7,7 +7,8 @@ import Observation
 // opened. A window here keeps the canvases it opened in a stack with a place
 // in it: opening one pushes it (and drops what was ahead), Back and Forward
 // move along the stack without pushing. One lives on each `StudioWindowState`,
-// never stored: a relaunch starts every window with no history.
+// beside the window's own Canvas model, never stored: a relaunch starts every
+// window with no history.
 
 /// Which way ⌘[ (back) or ⌘] (forward) walks.
 enum KnowledgeMapHistoryDirection: String, Equatable, Sendable {
@@ -91,30 +92,27 @@ final class KnowledgeMapCanvasHistory {
 
 extension StudioViewModel {
     /// ⌘[ and ⌘] over the canvases `windowState` (the window in scope when
-    /// nil) opened: shows the one before or after the canvas open now, as the
-    /// canvas open on this Mac, without pushing a step. A canvas deleted since
-    /// is skipped. Nothing happens at either end of the history.
+    /// nil) opened: shows the one before or after the canvas that window
+    /// shows now, in that window alone, without pushing a step. A canvas
+    /// deleted since is skipped. Nothing happens at either end of the history.
     func navigateCanvasHistory(_ direction: KnowledgeMapHistoryDirection, in windowState: StudioWindowState? = nil) {
         let destination = windowState ?? activeWindowState
         let history = destination.canvasHistory
+        let shown = knowledgeMap(in: destination).mapID
         // Opened some other way (an assistant, a launch), the canvas open may
         // not be where the history stands: it is placed first.
-        history.visit(knowledgeMap.mapID, from: nil)
+        history.visit(shown, from: nil)
         while let id = history.candidate(direction) {
-            guard canvasIsOpenable(id) else {
+            guard id == shown || canvases.canvas(id) != nil else {
+                // Its row is gone: nothing to show. The canvas the window
+                // shows may have no row yet, so it counts.
                 history.forget(id)
                 continue
             }
             history.step(direction)
-            showCanvas(id)
+            showCanvas(id, in: destination)
             openKnowledgeMap(in: destination)
             return
         }
-    }
-
-    /// Whether a canvas in a history can be shown: its row is still there.
-    /// The open canvas may have no row yet, so it counts.
-    private func canvasIsOpenable(_ id: String) -> Bool {
-        id == knowledgeMap.mapID || canvases.canvas(id) != nil
     }
 }

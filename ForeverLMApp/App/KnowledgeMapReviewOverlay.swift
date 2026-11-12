@@ -59,7 +59,7 @@ struct KnowledgeMapReviewLayer: View {
     @Environment(StudioWindowState.self) private var windowState
 
     var body: some View {
-        if let review = vm.knowledgeMap.memory.review, review.windowID == windowState.id {
+        if let review = vm.knowledgeMap(in: windowState).memory.review, review.windowID == windowState.id {
             KnowledgeMapReviewCardHost(review: review)
                 .id(review.id)
         }
@@ -425,7 +425,7 @@ private struct KnowledgeMapReviewCard: View {
         let title = session.sourceTitles[sourceID] ?? "Source"
         let article = vm.articlesById[vm.canonicalSourceID(sourceID)]
         return Button {
-            Task { await vm.openKnowledgeMapReviewSource(sourceID, quote: quote, in: windowState) }
+            vm.task(in: windowState) { await vm.openKnowledgeMapReviewSource(sourceID, quote: quote, in: windowState) }
         } label: {
             HStack(spacing: 8) {
                 if let article {
@@ -667,10 +667,11 @@ private struct KnowledgeMapReviewKeys: NSViewRepresentable {
 /// how its kept cards stand, and a tiny legend.
 struct KnowledgeMapMemoryToggle: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @State private var showsLegend = false
 
     var body: some View {
-        let memory = vm.knowledgeMap.memory
+        let memory = vm.knowledgeMap(in: windowState).memory
         HStack(spacing: 0) {
             Button {
                 memory.isShown.toggle()
@@ -754,18 +755,19 @@ extension View {
 
 private struct KnowledgeMapMemoryLifecycle: ViewModifier {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     func body(content: Content) -> some View {
-        let memory = vm.knowledgeMap.memory
+        let memory = vm.knowledgeMap(in: windowState).memory
         content
-            .task(id: "\(vm.knowledgeMap.contentRevision)|\(memory.isShown)|\(vm.memoryCardRevision)") {
-                await vm.refreshKnowledgeMapMemory()
+            .task(id: "\(vm.knowledgeMap(in: windowState).contentRevision)|\(memory.isShown)|\(vm.memoryCardRevision)") {
+                await vm.refreshKnowledgeMapMemory(for: vm.knowledgeMap(in: windowState))
             }
             .onChange(of: memory.escapeRequests) {
-                vm.endKnowledgeMapReview()
+                vm.inWindow(windowState) { vm.endKnowledgeMapReview() }
             }
             .onAppear {
-                vm.endKnowledgeMapReviewIfStranded()
+                vm.inWindow(windowState) { vm.endKnowledgeMapReviewIfStranded() }
             }
             .onDisappear {
                 guard memory.review != nil else { return }
@@ -773,7 +775,7 @@ private struct KnowledgeMapMemoryLifecycle: ViewModifier {
                     // A pane rebuilt in place (the Reader opening beside it)
                     // comes straight back; one that went away does not.
                     try? await Task.sleep(for: .milliseconds(600))
-                    vm.endKnowledgeMapReviewIfStranded()
+                    vm.inWindow(windowState) { vm.endKnowledgeMapReviewIfStranded() }
                 }
             }
     }

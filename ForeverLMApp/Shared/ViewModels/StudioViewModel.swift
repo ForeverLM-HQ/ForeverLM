@@ -1024,23 +1024,28 @@ class StudioViewModel {
     /// for the Docs tab's team filter. Empty in a team library.
     var artifactTeamIDs: [String: Set<String>] = [:]
 
-    /// The canvas open on this Mac: the whole library on one zoomable plane,
-    /// the learner's layout of it, and the lens a chat may show over it
-    /// (docs/knowledge-map-design.md). Replaced, never turned into another
-    /// canvas, by `showCanvas` (StudioViewModel+Canvases.swift).
-    var knowledgeMap = KnowledgeMapModel(mapID: KnowledgeMapOpenCanvas.initialID(
-        stored: KnowledgeMapOpenCanvas.storedID,
-        canvases: KnowledgeMapRows.canvases()
-    ))
+    /// The Canvas of the window in scope, else of the key window: the whole
+    /// library on one zoomable plane, the learner's layout of it, and the
+    /// lens a chat may show over it (docs/knowledge-map-design.md). Each
+    /// window has its own (`StudioWindowState.canvasIfMade`), so a canvas
+    /// opened or a view changed in one window leaves the others as they were;
+    /// a command, the voice assistant and MCP act on the key window's. A view
+    /// reads its own window's with `knowledgeMap(in:)`.
+    var knowledgeMap: KnowledgeMapModel {
+        get { knowledgeMap(in: activeWindowState) }
+        set { setKnowledgeMap(newValue, in: activeWindowState) }
+    }
 
     /// Every canvas the learner has, as the Space lists them
     /// (`KnowledgeMapCanvases`), reseeded from the rows after each act and
     /// each remote change.
     var canvases = KnowledgeMapRows.canvases()
 
-    /// The Atlas on screen, its focus, level and what is being written
-    /// (docs/atlas-design.md).
-    let atlas = AtlasModel()
+    /// The Atlas pane of the window in scope, else of the key window: the
+    /// Atlas on screen, its focus, level and what is being written
+    /// (docs/atlas-design.md). Each window has its own
+    /// (`StudioWindowState.atlas`); a view reads its own window's.
+    var atlas: AtlasModel { activeWindowState.atlas }
 
     // MARK: - Teams
 
@@ -2178,6 +2183,10 @@ class StudioViewModel {
     /// read, often from a view body, and republishing the view model for it
     /// would re-render every window on every row.
     @ObservationIgnored private var scopedWindowState: StudioWindowState?
+    /// The window a `withWindow(_:_:)` scope is running for: the same stand-in
+    /// for the key window, carried by the task, so it spans an `await` and
+    /// the tasks started inside it.
+    @TaskLocal static var taskWindowState: StudioWindowState?
 
     /// Whether `window` is the one a request, a toast or a notice stamped with
     /// `targetID` is for. Each belongs to the window it was raised in, so a
@@ -2198,6 +2207,7 @@ class StudioViewModel {
 
     var activeWindowState: StudioWindowState {
         if let scopedWindowState { return scopedWindowState }
+        if let taskWindowState = Self.taskWindowState { return taskWindowState }
         guard usesStudioWindowRegistry else { return fallbackWindowState }
         return StudioWindowRegistry.shared.activeState ?? fallbackWindowState
     }
@@ -2209,6 +2219,7 @@ class StudioViewModel {
     /// the Studio window used last, which `activeWindowState` still names.
     var chatRequestOriginWindow: StudioWindowState? {
         if let scopedWindowState { return scopedWindowState }
+        if let taskWindowState = Self.taskWindowState { return taskWindowState }
         if StudioWindowRegistry.shared.detachedWindowIsKey { return nil }
         return activeWindowState
     }
@@ -2234,6 +2245,36 @@ class StudioViewModel {
         scopedWindowState = windowState
         defer { scopedWindowState = previous }
         return try body()
+    }
+
+    /// `inWindow` for work that awaits: `windowState` stands in for the key
+    /// window for the whole of `body` and for every task started inside it,
+    /// so an act begun in a window that is not key (a drop, a pane's own
+    /// refresh) reads and writes that window's Canvas, Atlas and panes all
+    /// the way through. The scope rides the task, never the view model, so
+    /// other main-actor work running between its awaits does not see it.
+    @discardableResult
+    func withWindow<T>(_ windowState: StudioWindowState, _ body: () async throws -> T) async rethrows -> T {
+        try await Self.$taskWindowState.withValue(windowState) { try await body() }
+    }
+
+    /// Starts `work` as a task acting in `windowState` (`withWindow`): what a
+    /// view's button or drop does for work that awaits, so it stays with the
+    /// window it was made in.
+    @discardableResult
+    func task(in windowState: StudioWindowState?, _ work: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        Task { @MainActor in
+            guard let windowState else { return await work() }
+            await self.withWindow(windowState) { await work() }
+        }
+    }
+
+    /// `inWindow` for a view that may be drawn outside any Studio window (a
+    /// menu, a sheet's own host): with no window it answers for the key one.
+    @discardableResult
+    func inWindow<T>(_ windowState: StudioWindowState?, _ body: () throws -> T) rethrows -> T {
+        guard let windowState else { return try body() }
+        return try inWindow(windowState, body)
     }
 
     /// A view of this view model that answers for one window. Sidebar views
@@ -2469,7 +2510,6 @@ class StudioViewModel {
         // A plain defaults read of a small dictionary, before any window
         // registers and asks which notebook it opens in.
         notebookRecency = NotebookRecency.load(from: notebookRecencyDefaults)
-        wireCanvasModel(knowledgeMap)
     }
 
 }

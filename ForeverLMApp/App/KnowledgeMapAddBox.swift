@@ -63,7 +63,7 @@ extension StudioViewModel {
             // The view's centre is in world units; a card's spot is its corner.
             let centre = map.viewport.center
             let world = spot.world ?? (x: centre.x - KnowledgeMap.cardWidth / 2, y: centre.y - KnowledgeMap.cardHeight / 2)
-            Task { await createKnowledgeMapNote(text, at: world) }
+            Task { await createKnowledgeMapNote(text, at: world, on: map) }
         }
     }
 
@@ -99,6 +99,7 @@ extension StudioViewModel {
 /// a card or notebook drags as it does from the Library.
 struct KnowledgeMapAddResults: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     let listing: KnowledgeMapAddSearch.Listing
     /// The index into `listing.rows` ↵ takes.
@@ -111,7 +112,7 @@ struct KnowledgeMapAddResults: View {
 
     @State private var contentHeight: CGFloat = 1
 
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
+    private var map: KnowledgeMapModel { vm.knowledgeMap(in: windowState) }
 
     var body: some View {
         let rows = listing.rows
@@ -211,16 +212,18 @@ struct KnowledgeMapAddResults: View {
     /// already on the canvas, Show All and New idea do not.
     private struct DraggableRow: ViewModifier {
         @Environment(StudioViewModel.self) private var vm
+        @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
         let row: KnowledgeMapAddSearch.Row
 
         func body(content: Content) -> some View {
+            let map = vm.knowledgeMap(in: windowState)
             switch row {
             case .place(let ref):
                 content
                     .openHandCursor()
-                    .onDrag { knowledgeMapCardDragProvider(ref: ref, vm: vm) }
+                    .onDrag { knowledgeMapCardDragProvider(ref: ref, vm: vm, map: map) }
             case .notebook(let id):
-                let title = vm.knowledgeMap.content.notebooks.first(where: { $0.id == id })?.title ?? ""
+                let title = map.content.notebooks.first(where: { $0.id == id })?.title ?? ""
                 content
                     .openHandCursor()
                     .onDrag { notebookDragProvider(for: StudioNotebookTransfer(notebookID: id), title: title) }
@@ -273,7 +276,7 @@ struct KnowledgeMapAddBoxLayer: View {
     let focusPlane: () -> Void
 
     var body: some View {
-        if let request = vm.knowledgeMap.addBox, request.windowID == nil || request.windowID == windowState.id {
+        if let request = vm.knowledgeMap(in: windowState).addBox, request.windowID == nil || request.windowID == windowState.id {
             KnowledgeMapAddBox(request: request, plane: plane, toolsPill: toolsPill, focusPlane: focusPlane)
                 .id(request)
         }
@@ -286,6 +289,7 @@ struct KnowledgeMapAddBoxLayer: View {
 /// field losing the cursor) and the pane closing take it away.
 struct KnowledgeMapAddBox: View {
     @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
     static let width: CGFloat = 340
     /// The list scrolls once its rows would pass this.
@@ -304,7 +308,7 @@ struct KnowledgeMapAddBox: View {
     @State private var armed = false
     @FocusState private var fieldFocused: Bool
 
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
+    private var map: KnowledgeMapModel { vm.knowledgeMap(in: windowState) }
 
     /// Where the camera is, so a pan or a zoom takes the box away.
     private var cameraKey: [Double] {

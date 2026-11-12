@@ -52,9 +52,12 @@ extension StudioViewModel {
     /// What fails is said in the pane and in a toast.
     func presentAtlas(topic: String?, itemRefs: [String], notebookID: String?) {
         revealAtlasPane()
+        // The window it was asked for in: its Atlas pane shows it, whichever
+        // window is key by the time it is read or written.
+        let model = atlas
         Task {
             do {
-                _ = try await self.makeAtlas(topic: topic, itemRefs: itemRefs, notebookID: notebookID)
+                _ = try await self.makeAtlas(topic: topic, itemRefs: itemRefs, notebookID: notebookID, in: model)
             } catch is CancellationError {
                 // Stopped from the pane.
             } catch {
@@ -67,25 +70,27 @@ extension StudioViewModel {
     /// made for the same topic and scope, opened as it is (opening writes
     /// nothing), else built now. `rebuild` writes a matching one again.
     @discardableResult
-    func makeAtlas(topic: String?, itemRefs: [String], notebookID: String?, rebuild: Bool = false) async throws -> (atlas: Atlas, existing: Bool) {
+    func makeAtlas(topic: String?, itemRefs: [String], notebookID: String?, rebuild: Bool = false, in model: AtlasModel? = nil) async throws -> (atlas: Atlas, existing: Bool) {
+        // The Atlas pane it shows in: the window's it was asked for in.
+        let atlas = model ?? self.atlas
         guard let request = atlasRequest(topic: topic, itemRefs: itemRefs, notebookID: notebookID) else {
             throw AtlasRequestError.nothingToLayOut
         }
         let rows = try await storage.loadAtlasRows()
         let listings = rows.map(AtlasListing.init(row:))
-        atlas.setListings(listings)
+        setAtlasListings(listings)
         var previous: Atlas?
         if let match = listings.first(where: { $0.answers(topic: topic, scope: request.scope) }),
            let row = rows.first(where: { $0.id == match.id }) {
             let existing = try Atlas(row: row)
             if !rebuild {
                 atlas.show(existing)
-                await refreshAtlasMemory()
+                await refreshAtlasMemory(for: atlas)
                 return (existing, true)
             }
             previous = existing
         }
-        let task = startAtlasBuild(request, replacing: previous)
+        let task = startAtlasBuild(request, replacing: previous, in: atlas)
         let result = await withTaskCancellationHandler {
             await task.value
         } onCancel: {
@@ -105,6 +110,7 @@ extension StudioViewModel {
     /// ⋯ ▸ Rebuild: the Atlas on screen written again over the same scope,
     /// under the same id. It replaces the old one once it is written.
     func rebuildAtlas() {
+        let atlas = self.atlas
         guard let current = atlas.current else { return }
         let request = AtlasBuilder.Request(
             topic: current.topic,
@@ -116,7 +122,7 @@ extension StudioViewModel {
         Task {
             var full = request
             full.scopeSourceIDs = await AtlasBuilder.scopeSourceIDs(for: current.scope, studio: self)
-            let result = await self.startAtlasBuild(full, replacing: current).value
+            let result = await self.startAtlasBuild(full, replacing: current, in: atlas).value
             if case .failure(let error) = result, !(error is CancellationError) {
                 self.showToast("Could not rebuild the Atlas: \(error.localizedDescription)")
             }
@@ -127,8 +133,8 @@ extension StudioViewModel {
     /// with Stop; saved whole when written, nothing saved when stopped or
     /// failed. A newer build stops an older one.
     @discardableResult
-    func startAtlasBuild(_ request: AtlasBuilder.Request, replacing previous: Atlas? = nil) -> Task<Result<Atlas, Error>, Never> {
-        let model = atlas
+    func startAtlasBuild(_ request: AtlasBuilder.Request, replacing previous: Atlas? = nil, in atlasModel: AtlasModel? = nil) -> Task<Result<Atlas, Error>, Never> {
+        let model = atlasModel ?? atlas
         model.buildTask?.cancel()
         // A deepening written against the Atlas being replaced must not land
         // on the new one, whose concept ids name other concepts.
@@ -150,8 +156,13 @@ extension StudioViewModel {
                 try await self.storage.saveAtlasRow(try built.row())
                 model.finishBuilding(generation: generation, error: nil)
                 model.show(built, asNew: previous != nil)
+                // A Rebuild keeps the Atlas's id: another window showing the
+                // one it replaced shows what was written, from its root.
+                for other in self.atlasModels where other !== model && other.current?.id == built.id {
+                    other.show(built, asNew: true)
+                }
                 await self.refreshAtlasListings()
-                await self.refreshAtlasMemory()
+                await self.refreshAtlasMemory(for: model)
                 return .success(built)
             } catch {
                 if error is CancellationError || Task.isCancelled {
@@ -245,11 +256,23 @@ extension StudioViewModel {
 
     // MARK: Stored Atlases
 
+    /// Every window's Atlas pane, for what is true of the Atlases themselves
+    /// and so must reach all of them: the list of those made, one written
+    /// in more depth, one deleted.
+    var atlasModels: [AtlasModel] {
+        allWindowStates.map(\.atlas)
+    }
+
+    /// The Atlases made, in every window's title menu.
+    private func setAtlasListings(_ listings: [AtlasListing]) {
+        for model in atlasModels { model.setListings(listings) }
+    }
+
     /// The title's menu: every Atlas made, the latest first.
     func refreshAtlasListings() async {
         do {
             let rows = try await storage.loadAtlasRows()
-            atlas.setListings(rows.map(AtlasListing.init(row:)))
+            setAtlasListings(rows.map(AtlasListing.init(row:)))
         } catch {
             logger.error("Could not read the Atlases: \(error.localizedDescription)")
             showToast("Could not read your Atlases: \(error.localizedDescription)")
@@ -258,10 +281,11 @@ extension StudioViewModel {
 
     /// Opens a stored Atlas as it is: opening writes nothing.
     func openStoredAtlas(id: String) async {
+        let atlas = self.atlas
         do {
             guard let row = try await storage.loadAtlasRow(id: id) else { throw AtlasRequestError.notFound }
             atlas.show(try Atlas(row: row))
-            await refreshAtlasMemory()
+            await refreshAtlasMemory(for: atlas)
         } catch {
             showToast("Could not open the Atlas: \(error.localizedDescription)")
         }
@@ -271,7 +295,8 @@ extension StudioViewModel {
     /// again with the same topic; nothing of the learner's goes with it.
     func deleteAtlas(id: String) async throws {
         try await storage.deleteAtlasRow(id: id)
-        if atlas.current?.id == id { atlas.clear() }
+        // Gone from every window that shows it.
+        for model in atlasModels where model.current?.id == id { model.clear() }
         await refreshAtlasListings()
     }
 
@@ -308,8 +333,12 @@ extension StudioViewModel {
     /// shows it when that Atlas is on screen. Also `get_atlas` with deepen.
     @discardableResult
     func deepenAtlasConcept(atlasID: String, conceptID: String) async throws -> Atlas {
+        // The newest copy on screen, this window's before another's.
+        func shown() -> Atlas? {
+            ([atlas] + atlasModels).lazy.compactMap(\.current).first { $0.id == atlasID }
+        }
         let base: Atlas
-        if let current = atlas.current, current.id == atlasID {
+        if let current = shown() {
             base = current
         } else {
             guard let row = try await storage.loadAtlasRow(id: atlasID) else { throw AtlasRequestError.notFound }
@@ -321,7 +350,7 @@ extension StudioViewModel {
         // Onto the newest copy: another concept may have been deepened while
         // this one was written.
         var latest = base
-        if let current = atlas.current, current.id == atlasID {
+        if let current = shown() {
             latest = current
         } else if let row = try await storage.loadAtlasRow(id: atlasID) {
             latest = try Atlas(row: row)
@@ -335,15 +364,18 @@ extension StudioViewModel {
         }
         let merged = latest.adopting(conceptID, from: deepened, at: Date())
         try await storage.saveAtlasRow(try merged.row())
-        atlas.replace(merged)
-        await refreshAtlasMemory()
+        // Every window showing this Atlas shows the concept in depth.
+        let showing = atlasModels.filter { $0.current?.id == atlasID }
+        for model in showing { model.replace(merged) }
+        for model in showing { await refreshAtlasMemory(for: model) }
         return merged
     }
 
     // MARK: Memory
 
     /// How the kept cards on the Atlas's sources stand, for its dots.
-    func refreshAtlasMemory() async {
+    func refreshAtlasMemory(for model: AtlasModel? = nil) async {
+        let atlas = model ?? self.atlas
         guard let current = atlas.current else { return }
         let marks = await memoryMarks(forSourceIDs: current.evidenceSourceIDs)
         guard atlas.current?.id == current.id else { return }
@@ -353,6 +385,7 @@ extension StudioViewModel {
     /// Learn: cards drafted from the concept and its first terms, each
     /// anchored to a quote from the concept's sources, into To Check.
     func learnAtlasConcept(_ conceptID: String) async {
+        let atlas = self.atlas
         guard let current = atlas.current, let concept = current.concept(conceptID) else { return }
         let anchors = current.learnAnchors(for: conceptID)
         guard !anchors.isEmpty else {
@@ -370,7 +403,7 @@ extension StudioViewModel {
             } else {
                 showToast("No card was drafted on \(concept.name)")
             }
-            await refreshAtlasMemory()
+            await refreshAtlasMemory(for: atlas)
         } catch {
             showToast("Could not draft cards on \(concept.name): \(error.localizedDescription)")
         }
@@ -382,7 +415,7 @@ extension StudioViewModel {
     /// attached and "Explain <concept>" typed, unsent, as the Canvas's Ask in
     /// Chat opens one over what is circled.
     func requestChatAboutAtlasConcept(_ conceptID: String, in windowState: StudioWindowState) {
-        guard let current = atlas.current, let concept = current.concept(conceptID) else { return }
+        guard let current = windowState.atlas.current, let concept = current.concept(conceptID) else { return }
         let sourceIDs = current.groundingSourceIDs(of: conceptID)
         let inTopic = conceptID == current.rootID || concept.name.caseInsensitiveCompare(current.topic) == .orderedSame
             ? ""
@@ -402,13 +435,15 @@ extension StudioViewModel {
     /// the Canvas, opened beside the Atlas, through the path `apply_map_lens`
     /// takes. Nothing is placed until the learner presses Keep there.
     func layOutAtlasOnCanvas(branch conceptID: String?, in windowState: StudioWindowState) async {
-        guard let current = atlas.current else { return }
+        // The window's own Atlas, over the window's own Canvas.
+        let knowledgeMap = knowledgeMap(in: windowState)
+        guard let current = windowState.atlas.current else { return }
         guard let request = current.canvasLensRequest(branch: conceptID) else {
             showToast("No concept here has a source in your library yet, so there is nothing to place on the Canvas")
             return
         }
         if knowledgeMap.content.nodes.isEmpty {
-            await refreshKnowledgeMapContent()
+            await refreshKnowledgeMapContent(for: knowledgeMap)
         }
         if !visibleCenterTabs(in: windowState).contains(.knowledgeMap) {
             revealCenterTab(.knowledgeMap, beside: .atlas, in: windowState)

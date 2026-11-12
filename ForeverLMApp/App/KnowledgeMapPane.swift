@@ -44,7 +44,7 @@ struct KnowledgeMapPane: View {
     @State private var linkedArtifactID: String?
     @State private var isCreatingSpace = false
 
-    private var map: KnowledgeMapModel { vm.knowledgeMap }
+    private var map: KnowledgeMapModel { vm.knowledgeMap(in: windowState) }
 
     /// The narrowest the plane is drawn beside its sidebars: room for its
     /// tools, the find field and the Library button. Below it the sidebars
@@ -79,7 +79,7 @@ struct KnowledgeMapPane: View {
     /// The sidebar's lit place: where the open canvas is listed, its space
     /// when the window's Space shows it.
     private var spaceSelection: SpaceDestination {
-        guard let canvas = vm.openCanvas else { return .canvases }
+        guard let canvas = vm.canvas(of: map) else { return .canvases }
         return SpaceDestination.listing(
             canvas,
             within: SpaceDestination(key: windowState.spaceDestinationKey),
@@ -120,7 +120,7 @@ struct KnowledgeMapPane: View {
                     summariesRevision: map.summariesRevision,
                     commandCount: map.commands.count,
                     onOpen: { ref in
-                        Task { await vm.openKnowledgeMapItem(ref, in: windowState) }
+                        vm.task(in: windowState) { await vm.openKnowledgeMapItem(ref, in: windowState) }
                     },
                     onNoteRequested: { x, y in
                         noteText = ""
@@ -128,7 +128,7 @@ struct KnowledgeMapPane: View {
                         noteFocused = true
                     },
                     onDrop: { drop in
-                        Task { @MainActor in
+                        vm.task(in: windowState) {
                             // Clips are saved and files, pictures and addresses imported
                             // as they land (`knowledgeMapCards`), so the page knows each card.
                             guard let placed = await vm.knowledgeMapCards(for: drop, on: map) else { return }
@@ -137,7 +137,7 @@ struct KnowledgeMapPane: View {
                         }
                     },
                     onLinkEvidence: { idea, refs in
-                        Task { await vm.linkKnowledgeMapEvidence(ideaRef: idea, refs: refs) }
+                        vm.task(in: windowState) { await vm.linkKnowledgeMapEvidence(ideaRef: idea, refs: refs) }
                     },
                     handle: canvasHandle,
                     proposalsRevision: map.proposalsRevision, // Proposals and faces (WP-B1)
@@ -156,7 +156,7 @@ struct KnowledgeMapPane: View {
                 // a card on the trailing edge.
                 VStack(spacing: 10) {
                     topBar
-                    if let canvas = vm.openCanvas, canvas.isTrashed {
+                    if let canvas = vm.canvas(of: map), canvas.isTrashed {
                         trashBanner(canvas)
                     }
                     if let lens = map.lens {
@@ -285,22 +285,27 @@ struct KnowledgeMapPane: View {
             .knowledgeMapMemory() // Memory (WP-B2)
             .studioChromeLineHeader { header }
             .studioCenterTabCloseChrome(for: .knowledgeMap)
-            .task(id: "\(map.mapID)|\(vm.knowledgeMapContentSignature)") {
-                await vm.refreshKnowledgeMapContent()
-                Task { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
-                await vm.refreshKnowledgeMapSummaries()
+            // This window's canvas reads its own cards when its own signature
+            // moves, and writes its own summaries, faces and caption: each
+            // runs as this window (`withWindow`), key or not.
+            .task(id: "\(map.mapID)|\(vm.knowledgeMapContentSignature(for: map))") {
+                await vm.withWindow(windowState) {
+                    await vm.refreshKnowledgeMapContent(for: map)
+                    vm.task(in: windowState) { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
+                    await vm.refreshKnowledgeMapSummaries()
+                }
             }
             .task(id: "\(map.describesView)-\(map.viewport.captionKey)") {
-                await vm.refreshKnowledgeMapViewCaption()
+                await vm.withWindow(windowState) { await vm.refreshKnowledgeMapViewCaption() }
             }
             .onChange(of: map.layoutRevision) {
-                Task { await vm.refreshKnowledgeMapSummaries() }
-                Task { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
+                vm.task(in: windowState) { await vm.refreshKnowledgeMapSummaries() }
+                vm.task(in: windowState) { await vm.refreshKnowledgeMapFaces() } // Faces (WP-B1)
             }
             // Written Faces turned on, from the canvas's menu or anywhere:
             // what each source says is written now.
             .onChange(of: map.showsWrittenFaces) { _, isOn in
-                if isOn { Task { await vm.refreshKnowledgeMapFaces() } }
+                if isOn { vm.task(in: windowState) { await vm.refreshKnowledgeMapFaces() } }
             }
             .onChange(of: map.selectedRegionID) { _, id in
                 regionName = id.flatMap { map.layout.regions[$0]?.name } ?? ""
@@ -412,13 +417,13 @@ struct KnowledgeMapPane: View {
     /// Canvas. A canvas nothing is written to yet can only be named.
     private var canvasMenu: some View {
         Menu {
-            if let canvas = vm.openCanvas {
+            if let canvas = vm.canvas(of: map) {
                 SpaceCanvasMenuItems(canvas: canvas, onRename: { renamingCanvas = canvas })
             } else {
                 Button("Rename…", systemImage: "pencil") {
                     renamingCanvas = KnowledgeMapCanvas(
                         id: map.mapID,
-                        name: vm.openCanvasName,
+                        name: vm.canvasName(of: map),
                         createdAt: Date(),
                         updatedAt: Date()
                     )
@@ -438,7 +443,7 @@ struct KnowledgeMapPane: View {
                 Image(systemName: KnowledgeMap.symbolName)
                     .zoomedSystemFont(size: 12, weight: .medium)
                     .foregroundStyle(.secondary)
-                Text(vm.openCanvasName)
+                Text(vm.canvasName(of: map))
                     .zoomedSystemFont(size: 13, weight: .semibold)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -455,7 +460,7 @@ struct KnowledgeMapPane: View {
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0, opacity: 0.09))
         .fixedSize()
         .help("Canvas options")
-        .accessibilityLabel("\(vm.openCanvasName), canvas options")
+        .accessibilityLabel("\(vm.canvasName(of: map)), canvas options")
         .accessibilityIdentifier("knowledgeMap.canvasMenu")
     }
 
@@ -540,7 +545,7 @@ struct KnowledgeMapPane: View {
         case .artifact:
             guard let artifact = vm.artifacts.first(where: { $0.id == item.id }) else { return }
             if vm.activeTeamID == nil, artifact.teamID != nil {
-                Task { await vm.openTeamArtifact(artifact.id, in: windowState) }
+                vm.task(in: windowState) { await vm.openTeamArtifact(artifact.id, in: windowState) }
             } else {
                 vm.revealArtifact(artifact.id, in: windowState)
             }
@@ -1010,7 +1015,7 @@ struct KnowledgeMapPane: View {
         guard !text.isEmpty, let spot = map.pendingNote else { return }
         map.pendingNote = nil
         map.send(.tool("select"))
-        Task { await vm.createKnowledgeMapNote(text, at: spot) }
+        vm.task(in: windowState) { await vm.createKnowledgeMapNote(text, at: spot) }
     }
 
     // MARK: Inspector
@@ -1143,10 +1148,10 @@ struct KnowledgeMapPane: View {
                 .help("Lay the region's cards out freely, or as a mind map from their branches")
                 .accessibilityIdentifier("knowledgeMap.region.layout")
             }
-            if let paper = vm.knowledgeMapPaperLayout(ofRegion: id) {
+            if let paper = vm.inWindow(windowState, { vm.knowledgeMapPaperLayout(ofRegion: id) }) {
                 Picker("Show", selection: Binding(
                     get: { paper.layout },
-                    set: { chosen in Task { await vm.relayoutKnowledgeMapPaper(regionID: id, as: chosen) } }
+                    set: { chosen in vm.task(in: windowState) { await vm.relayoutKnowledgeMapPaper(regionID: id, as: chosen) } }
                 )) {
                     ForEach(KnowledgeMapPaperLayout.allCases, id: \.self) { layout in
                         Text(layout.title).tag(layout)
@@ -1211,7 +1216,7 @@ struct KnowledgeMapPane: View {
     /// **Figures Only** (and **Figures + Extended Data**) on a selected paper:
     /// one clip card per figure, in a row.
     private func layOutFigures(of sourceID: String, extended: Bool) {
-        Task { @MainActor in
+        vm.task(in: windowState) {
             do {
                 let outcome = try await vm.layOutKnowledgeMapFigures(sourceID: sourceID, includeExtended: extended)
                 if outcome.refs.isEmpty {
@@ -1230,7 +1235,7 @@ struct KnowledgeMapPane: View {
 
     /// **Lay Out Pages** on a selected paper: its pages as cards in a row.
     private func layOutPages(of sourceID: String) {
-        Task { @MainActor in
+        vm.task(in: windowState) {
             do {
                 let outcome = try await vm.layOutKnowledgeMapPages(sourceID: sourceID, pages: nil)
                 if outcome.refs.isEmpty {
@@ -1288,7 +1293,7 @@ struct KnowledgeMapPane: View {
             Divider()
             if refs.count == 1 {
                 Button("Open Beside", systemImage: "rectangle.righthalf.inset.filled") {
-                    Task { await vm.openKnowledgeMapItemBeside(refs[0], in: windowState) }
+                    vm.task(in: windowState) { await vm.openKnowledgeMapItemBeside(refs[0], in: windowState) }
                 }
                 .help("Open it beside the canvas, which stays as it is")
                 .accessibilityIdentifier("knowledgeMap.selection.openBeside")
@@ -1313,7 +1318,7 @@ struct KnowledgeMapPane: View {
             if refs.count == 1, let item = KnowledgeMap.ItemRef(refs[0]), item.kind == .source,
                vm.canLayOutKnowledgeMapTalk(item.id) {
                 Button("Lay Out the Talk") {
-                    Task { await vm.layOutKnowledgeMapTalkFromMenu(sourceID: item.id, in: windowState) }
+                    vm.task(in: windowState) { await vm.layOutKnowledgeMapTalkFromMenu(sourceID: item.id, in: windowState) }
                 }
                 .help("Its slides as a storyboard, each with the papers it cites from your library hung under it")
                 .accessibilityIdentifier("knowledgeMap.selection.layOutTalk")
@@ -1376,13 +1381,13 @@ struct KnowledgeMapPane: View {
     }
 
     private func cardsInspector(_ refs: [String]) -> some View {
-        let placed = vm.knowledgeMapPlacedRefs(among: refs)
+        let placed = vm.inWindow(windowState) { vm.knowledgeMapPlacedRefs(among: refs) }
         let pagedSource: String? = {
             guard refs.count == 1, let item = KnowledgeMap.ItemRef(refs[0]), item.kind == .source,
                   vm.knowledgeMapSourceHasPages(item.id) else { return nil }
             return item.id
         }()
-        let actions = vm.knowledgeMapCardActions(for: refs)
+        let actions = vm.inWindow(windowState) { vm.knowledgeMapCardActions(for: refs) }
         return VStack(alignment: .leading, spacing: 10) {
             // The ways in wrap onto a second line when the card is too narrow
             // for them; the ⋯ keeps the trailing corner.
@@ -1391,7 +1396,7 @@ struct KnowledgeMapPane: View {
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                     .accessibilityIdentifier("knowledgeMap.selection.ask")
                 if refs.count == 1 {
-                    Button("Open") { Task { await vm.openKnowledgeMapItem(refs[0], in: windowState) } }
+                    Button("Open") { vm.task(in: windowState) { await vm.openKnowledgeMapItem(refs[0], in: windowState) } }
                         .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4, opacity: 0.10))
                 }
                 KnowledgeMapAskSection(refs: refs) // Ask (WP-B1)
@@ -1467,7 +1472,7 @@ struct KnowledgeMapExtensionView: View {
     weak var primaryWindow: NSWindow?
 
     var body: some View {
-        let map = vm.knowledgeMap
+        let map = vm.knowledgeMap(in: windowState)
         ZStack(alignment: .top) {
             KnowledgeMapCanvasView(
                 model: map,
@@ -1478,14 +1483,14 @@ struct KnowledgeMapExtensionView: View {
                 commandCount: 0,
                 onOpen: { ref in
                     primaryWindow?.makeKeyAndOrderFront(nil)
-                    Task { await vm.openKnowledgeMapItem(ref, in: windowState) }
+                    vm.task(in: windowState) { await vm.openKnowledgeMapItem(ref, in: windowState) }
                 },
                 onNoteRequested: { x, y in
                     map.pendingNote = (x, y)
                     primaryWindow?.makeKeyAndOrderFront(nil)
                 },
                 onDrop: { drop in
-                    Task { @MainActor in
+                    vm.task(in: windowState) {
                         guard let placed = await vm.knowledgeMapCards(for: drop, on: map) else { return }
                         // Set down by this window's renderer: the point is in its
                         // view. Its cards are pushed first, so it knows a new clip.
@@ -1494,7 +1499,7 @@ struct KnowledgeMapExtensionView: View {
                     }
                 },
                 onLinkEvidence: { idea, refs in
-                    Task { await vm.linkKnowledgeMapEvidence(ideaRef: idea, refs: refs) }
+                    vm.task(in: windowState) { await vm.linkKnowledgeMapEvidence(ideaRef: idea, refs: refs) }
                 },
                 role: .extensionWindow,
                 handle: handle,
@@ -1553,7 +1558,7 @@ extension KnowledgeMapPane {
             ForEach(evidence, id: \.self) { ref in
                 HStack(alignment: .top, spacing: 6) {
                     Button {
-                        Task { await vm.openKnowledgeMapItem(ref, in: windowState) }
+                        vm.task(in: windowState) { await vm.openKnowledgeMapItem(ref, in: windowState) }
                     } label: {
                         Text(map.title(of: ref))
                             .zoomedSystemFont(size: 12)
@@ -1564,9 +1569,10 @@ extension KnowledgeMapPane {
                     .buttonStyle(.hoverWash(cornerRadius: 6, inset: -3, opacity: 0.08))
                     Button {
                         guard let item = KnowledgeMap.ItemRef(ref) else { return }
+                        let map = vm.knowledgeMap(in: windowState)
                         Task {
                             await vm.unlinkIdea(ideaID: ideaID, kind: item.kind == .doc ? .artifact : .source, targetIDs: [item.id])
-                            await vm.refreshKnowledgeMapContent()
+                            await vm.refreshKnowledgeMapContent(for: map)
                         }
                     } label: {
                         Image(systemName: "xmark")

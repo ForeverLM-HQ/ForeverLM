@@ -86,10 +86,10 @@ extension StudioViewModel {
                 if set.proposals.isEmpty {
                     self?.showToast("\(tool.title) found nothing to propose for these cards")
                 } else if !map.showProposals(set, makeIdea: { [weak self] text, spot in
-                    await self?.keepCanvasQuestion(text, at: spot)
+                    await self?.keepCanvasQuestion(text, at: spot, on: map)
                 }, writeIdea: { [weak self] text, note, spot in
                     guard let self else { return nil }
-                    if let spot { return await self.keepCanvasQuestion(text, note: note, at: spot) }
+                    if let spot { return await self.keepCanvasQuestion(text, note: note, at: spot, on: map) }
                     // A Break Down writes a dozen: the pane reads the cards
                     // once for all of them, as the Ideas list changes.
                     return await self.createCanvasIdea(title: text, note: note, refreshesContent: false)
@@ -189,9 +189,11 @@ extension StudioViewModel {
     /// A kept question becomes an Idea where its ghost was, the way the Note
     /// tool writes one (`createKnowledgeMapNote`); its ref, or nil when the
     /// Idea could not be saved (the toast says so).
-    func keepCanvasQuestion(_ text: String, note: String? = nil, at spot: (x: Double, y: Double)) async -> String? {
-        let canvas = knowledgeMap
-        guard let ref = await createCanvasIdea(title: text, note: note) else { return nil }
+    func keepCanvasQuestion(_ text: String, note: String? = nil, at spot: (x: Double, y: Double), on model: KnowledgeMapModel? = nil) async -> String? {
+        // The canvas the question was proposed on, whichever window is key
+        // by the time it is kept.
+        let canvas = model ?? knowledgeMap
+        guard let ref = await createCanvasIdea(title: text, note: note, on: canvas) else { return nil }
         canvas.place([(ref: ref, x: spot.x.rounded(), y: spot.y.rounded())])
         return ref
     }
@@ -201,9 +203,10 @@ extension StudioViewModel {
     /// together afterwards). The cards are read again before it returns unless
     /// `refreshesContent` is false, when the pane's own refresh (the Ideas
     /// list moved) does it once for several.
-    func createCanvasIdea(title: String, note: String? = nil, refreshesContent: Bool = true) async -> String? {
+    func createCanvasIdea(title: String, note: String? = nil, refreshesContent: Bool = true, on model: KnowledgeMapModel? = nil) async -> String? {
+        let canvas = model ?? knowledgeMap
         guard let idea = await createIdea(title: title, notes: note) else { return nil }
-        if refreshesContent { await refreshKnowledgeMapContent() }
+        if refreshesContent { await refreshKnowledgeMapContent(for: canvas) }
         return KnowledgeMap.ItemRef(kind: .idea, id: idea.id).description
     }
 

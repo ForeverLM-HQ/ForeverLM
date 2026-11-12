@@ -35,9 +35,74 @@ extension StudioViewModel {
         openCanvas(canvas.id, in: destinationWindowState)
     }
 
+    // MARK: Each window's Canvas
+
+    /// `window`'s Canvas model: views read their own window's through this
+    /// (a view drawn outside any Studio window has none, and reads the
+    /// window's in scope). Made the first time it is asked for, on the canvas
+    /// this Mac had open last (`KnowledgeMapOpenCanvas`), and wired then.
+    func knowledgeMap(in window: StudioWindowState?) -> KnowledgeMapModel {
+        let window = window ?? activeWindowState
+        return window.canvas {
+            let model = KnowledgeMapModel(mapID: KnowledgeMapOpenCanvas.initialID(
+                stored: KnowledgeMapOpenCanvas.storedID,
+                canvases: canvases
+            ))
+            wireCanvasModel(model, in: window)
+            return model
+        }
+    }
+
+    /// Puts `model` in `window`, wired for it.
+    func setKnowledgeMap(_ model: KnowledgeMapModel, in window: StudioWindowState) {
+        wireCanvasModel(model, in: window)
+        window.setCanvas(model)
+    }
+
+    /// Every window's Canvas model, for what must reach all of them: library
+    /// content read again, a row written from outside, a canvas deleted. A
+    /// window that never asked for a Canvas has none.
+    var knowledgeMaps: [KnowledgeMapModel] {
+        allWindowStates.compactMap(\.canvasIfMade)
+    }
+
+    /// The models showing `canvasID`: one for each window open on it.
+    func knowledgeMaps(showing canvasID: String) -> [KnowledgeMapModel] {
+        knowledgeMaps.filter { $0.mapID == canvasID }
+    }
+
+    /// Whether `model` is still some window's Canvas: work that awaited
+    /// checks this before writing to the model it started with, which the
+    /// window may have left for another canvas since.
+    func isShown(_ model: KnowledgeMapModel) -> Bool {
+        knowledgeMaps.contains { $0 === model }
+    }
+
+    /// The window whose Canvas `model` is, when it still is one's.
+    func window(showing model: KnowledgeMapModel) -> StudioWindowState? {
+        allWindowStates.first { $0.canvasIfMade === model }
+    }
+
+    /// A canvas's row was written outside its models (renamed, trashed,
+    /// filed, placed on from another canvas): every window open on it reads
+    /// the row again.
+    func reloadKnowledgeMaps(showing canvasID: String) {
+        for model in knowledgeMaps(showing: canvasID) { model.reloadLayout() }
+    }
+
     /// The canvas the Canvas pane shows, when it is listed.
     var openCanvas: KnowledgeMapCanvas? {
         canvases.canvas(knowledgeMap.mapID)
+    }
+
+    /// The canvas `map` shows, when it is listed.
+    func canvas(of map: KnowledgeMapModel) -> KnowledgeMapCanvas? {
+        canvases.canvas(map.mapID)
+    }
+
+    /// The name a Canvas pane gives the canvas `map` shows.
+    func canvasName(of map: KnowledgeMapModel) -> String {
+        canvas(of: map)?.name ?? KnowledgeMap.unnamedCanvasName
     }
 
     /// The name the Canvas pane gives the canvas it shows: its own, or the
@@ -46,16 +111,18 @@ extension StudioViewModel {
         openCanvas?.name ?? KnowledgeMap.unnamedCanvasName
     }
 
-    /// Opens a canvas in the window's Canvas pane, making it the canvas open
-    /// on this Mac (every window showing the Canvas shows it).
+    /// Opens a canvas in the window's Canvas pane. Only that window turns to
+    /// it; the others keep the canvas they show.
     func openCanvas(_ canvasID: String, in destinationWindowState: StudioWindowState? = nil) {
+        let window = destinationWindowState ?? activeWindowState
         // The window remembers it for ⌘[ and ⌘] (`navigateCanvasHistory`),
         // after the canvas open before it when that one is listed (a canvas
         // with no row yet is nothing to go back to).
-        let previous = canvases.canvas(knowledgeMap.mapID) == nil ? nil : knowledgeMap.mapID
-        (destinationWindowState ?? activeWindowState).canvasHistory.visit(canvasID, from: previous)
-        showCanvas(canvasID)
-        openKnowledgeMap(in: destinationWindowState)
+        let shown = knowledgeMap(in: window).mapID
+        let previous = canvases.canvas(shown) == nil ? nil : shown
+        window.canvasHistory.visit(canvasID, from: previous)
+        showCanvas(canvasID, in: window)
+        openKnowledgeMap(in: window)
     }
 
     /// The learner's canvases that are pinned and not in Trash, the newest
@@ -68,32 +135,44 @@ extension StudioViewModel {
         }
     }
 
-    /// Makes `canvasID` the canvas open on this Mac. Another canvas gets a
-    /// model of its own, so the last one's lens, selection, undo steps and a
-    /// review in place stay with it and end there.
-    func showCanvas(_ canvasID: String) {
+    /// Makes `canvasID` the canvas `window` shows (the window in scope when
+    /// nil), and the one a new window opens on. Another canvas gets a model
+    /// of its own, so the last one's lens, selection, undo steps and a review
+    /// in place stay with it and end there; the window's Minimap and Library
+    /// switches stay as the learner left them in it. No other window changes.
+    func showCanvas(_ canvasID: String, in window: StudioWindowState? = nil) {
+        let window = window ?? activeWindowState
         KnowledgeMapOpenCanvas.remember(canvasID)
-        guard knowledgeMap.mapID != canvasID else { return }
-        endKnowledgeMapReview()
+        let shown = knowledgeMap(in: window)
+        guard shown.mapID != canvasID else { return }
+        inWindow(window) { endKnowledgeMapReview() }
         let model = KnowledgeMapModel(mapID: canvasID)
-        wireCanvasModel(model)
-        knowledgeMap = model
+        model.showsMinimap = shown.showsMinimap
+        model.showsLibrary = shown.showsLibrary
+        setKnowledgeMap(model, in: window)
     }
 
-    /// Keeps `canvases` following the open canvas's own writes: its last
-    /// activity moves as the learner places things.
-    func wireCanvasModel(_ model: KnowledgeMapModel) {
+    /// Keeps `canvases` following a window's canvas's own writes: its last
+    /// activity moves as the learner places things, and the other windows
+    /// open on the same canvas draw what was written.
+    func wireCanvasModel(_ model: KnowledgeMapModel, in window: StudioWindowState) {
         // A command from a toolbar, the add box or an assistant runs in the
-        // window the learner is working in.
-        model.activeWindowID = { StudioWindowRegistry.shared.activeState?.id }
+        // window whose Canvas this is.
+        let windowID = window.id
+        model.activeWindowID = { windowID }
         // A paper placed for the first time shows its page, on a canvas made a
         // moment ago as on any other.
         model.pageFaceDefault = { [weak self] sourceID in self?.knowledgeMapSourceShowsPage(sourceID) == true }
-        model.onLayoutWritten = { [weak self] id, layout in
+        model.onLayoutWritten = { [weak self, weak model] id, layout in
             guard let self else { return }
             self.canvases = self.canvases.setting(layout, for: id)
             // A version is kept on its own once a burst of edits has settled.
             CanvasAutoVersions.shared.layoutWritten(canvasID: id, layout: layout, storage: self.storage)
+            // Another window open on the same canvas reads the row just
+            // written. Every write merges into the stored row
+            // (`KnowledgeMapRows.update`), so two windows never overwrite
+            // each other; a read publishes nothing when nothing differs.
+            for other in self.knowledgeMaps(showing: id) where other !== model { other.reloadLayout() }
         }
         // A source set down inside a notebook's frame joins the notebook
         // (product owner, 2026-10-09: the notebook is its frame). Only a source the
@@ -190,15 +269,19 @@ extension StudioViewModel {
         refreshCanvasesFromRows()
         let deleting = canvasIDs.filter { canvases.canvas($0)?.isTrashed == true }
         guard !deleting.isEmpty else { return }
-        // The canvas open on this Mac may be one of them (its Trash banner is
-        // showing). Left open, its next edit would write its row back, empty
-        // and unnamed: the newest canvas still in use opens instead, or a new
-        // one when none is left.
-        if deleting.contains(knowledgeMap.mapID) {
+        // A window may be open on one of them (its Trash banner is showing).
+        // Left open, its next edit would write its row back, empty and
+        // unnamed: the newest canvas still in use opens there instead, or a
+        // new one when none is left. Every window open on one turns to it.
+        let stranded = allWindowStates.filter { window in
+            window.canvasIfMade.map { deleting.contains($0.mapID) } == true
+        }
+        if !stranded.isEmpty {
             let next = canvases.all
                 .filter { !$0.isTrashed && !deleting.contains($0.id) }
                 .max { $0.updatedAt < $1.updatedAt }
-            showCanvas(next?.id ?? createCanvas().id)
+            let nextID = next?.id ?? createCanvas().id
+            for window in stranded { showCanvas(nextID, in: window) }
         }
         for id in deleting {
             KnowledgeMapRows.remove(mapID: id)
@@ -212,13 +295,14 @@ extension StudioViewModel {
         Task { [storage] in await storage.removeCanvasHistory(canvasIDs: deleting) }
     }
 
-    /// Writes one change to a canvas's row and reseeds the list from it; the
-    /// open canvas re-reads its row, so its name and Trash mark follow.
+    /// Writes one change to a canvas's row and reseeds the list from it; every
+    /// window open on the canvas re-reads its row, so its name and Trash mark
+    /// follow.
     private func writeCanvasRow(_ canvasID: String, now: Date, _ change: (inout KnowledgeMapLayout, Double) -> Void) {
         let stamp = now.timeIntervalSince1970
         let layout = KnowledgeMapRows.update(mapID: canvasID, now: now) { row in change(&row, stamp) }
         canvases = canvases.setting(layout, for: canvasID)
-        if knowledgeMap.mapID == canvasID { knowledgeMap.reloadLayout() }
+        reloadKnowledgeMaps(showing: canvasID)
     }
 
     /// The rows as stored now, before an act writes over them: a canvas

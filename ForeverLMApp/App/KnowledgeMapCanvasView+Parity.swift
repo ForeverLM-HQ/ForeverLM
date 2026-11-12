@@ -91,7 +91,7 @@ extension KnowledgeMapCanvasView.Coordinator {
             let note = body["note"] as? String ?? ""
             Task { @MainActor in
                 await actions.vm.updateIdea(ideaID: idea.id, title: title, notes: note)
-                await actions.vm.refreshKnowledgeMapContent()
+                await actions.vm.refreshKnowledgeMapContent(for: model)
             }
         case "ideaRequested":
             requestIdea(body)
@@ -104,13 +104,15 @@ extension KnowledgeMapCanvasView.Coordinator {
             guard let actions, let ref = body["ref"] as? String, let rect = body["rect"] as? [String: Any],
                   let x = KnowledgeMapModel.proposalNumber(rect["x"]), let y = KnowledgeMapModel.proposalNumber(rect["y"]),
                   let w = KnowledgeMapModel.proposalNumber(rect["w"]), let h = KnowledgeMapModel.proposalNumber(rect["h"]) else { return }
-            actions.vm.showKnowledgeMapPopup(ref, near: CGRect(x: x, y: y, width: w, height: h))
+            actions.vm.inWindow(actions.windowState) {
+                actions.vm.showKnowledgeMapPopup(ref, near: CGRect(x: x, y: y, width: w, height: h))
+            }
         case "navigate":
             guard let actions, let direction = body["direction"] as? String else { return }
-            actions.vm.navigateCanvasHistory(direction == "back" ? .back : .forward)
+            actions.vm.navigateCanvasHistory(direction == "back" ? .back : .forward, in: actions.windowState)
         case "deleteRequested":
             guard let actions, let refs = body["refs"] as? [String], !refs.isEmpty else { return }
-            Task { @MainActor in await actions.vm.deleteKnowledgeMapItems(refs) }
+            actions.vm.task(in: actions.windowState) { await actions.vm.deleteKnowledgeMapItems(refs) }
         case "chatContextRequested":
             // ⌘L, or the toolbar's Add to Chat: the cards join the chat beside the Canvas.
             guard let actions, let refs = body["refs"] as? [String], !refs.isEmpty else { return }
@@ -136,7 +138,8 @@ extension KnowledgeMapCanvasView.Coordinator {
                 parentRef: body["parentRef"] as? String,
                 after: body["after"] as? String,
                 regionID: body["regionID"] as? String,
-                copyOf: body["copyOf"] as? String
+                copyOf: body["copyOf"] as? String,
+                on: model
             ) else { return }
             // The cards and the layout go across first, so the page has the Idea.
             sync()
