@@ -312,6 +312,32 @@ struct MemoryReviewGoalTests {
         }
     }
 
+    @Test("The month the grid opens in goes unnamed when its name has no room")
+    func historyMonthLabelsLeaveNoCollision() throws {
+        var calendar = utc
+        calendar.firstWeekday = 1
+        calendar.locale = Locale(identifier: "en_US")
+        // Wednesday 2026-11-11: 24 Sunday-first weeks open on Sunday 31 May,
+        // one day of May before June's first column. Both names printed one
+        // column apart as "MayJun".
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 12)))
+        let grid = MemoryReviewHistory.grid(
+            chatDays: [],
+            answeredDays: [],
+            progress: [:],
+            weeks: MemoryReviewHistory.defaultWeeks,
+            now: now,
+            calendar: calendar
+        )
+        #expect(grid.weeks.first?.days.first?.key == "2026-05-31")
+        #expect(grid.monthLabels.map(\.title) == ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov"])
+        #expect(grid.monthLabels.first?.column == 1)
+        let columns = grid.monthLabels.map(\.column)
+        for (left, right) in zip(columns, columns.dropFirst()) {
+            #expect(right - left >= MemoryReviewHistory.labelColumns)
+        }
+    }
+
     @Test("A session id gives up the day the grid counts in")
     func historyDayKeyFromSessionID() {
         #expect(MemoryReviewSession.dayKey(fromSessionID: "memory-2026-09-17") == "2026-09-17")

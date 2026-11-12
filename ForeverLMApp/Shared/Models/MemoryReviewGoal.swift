@@ -518,6 +518,20 @@ enum MemoryReviewHistory {
             }
         }
 
-        return Grid(weeks: built, monthLabels: labels, reviewedDays: reviewed)
+        return Grid(weeks: built, monthLabels: roomyLabels(labels), reviewedDays: reviewed)
+    }
+
+    /// Columns a month's name needs before the next month's name. A name is
+    /// wider than one column, so two names a column apart print over each
+    /// other ("MayJun").
+    static let labelColumns = 3
+
+    /// Only the month the grid opens in can be that short: the window starts
+    /// on a week, not on the first of a month, so its first column can hold a
+    /// single day of the old month. That month goes unnamed and the next
+    /// one's name says where the grid is.
+    private static func roomyLabels(_ labels: [MonthLabel]) -> [MonthLabel] {
+        guard labels.count > 1, labels[1].column - labels[0].column < labelColumns else { return labels }
+        return Array(labels.dropFirst())
     }
 }
