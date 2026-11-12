@@ -2818,15 +2818,10 @@ function referenceAction(href, status, compact = false) {
     })
     return button
   }
-  if ((state === 'absent' || state === 'failed') && isSourceReference(href)) {
-    // A private address names a source by id; there is nothing to fetch and
-    // add, so the card says what the library says and offers nothing.
-    const missing = document.createElement('span')
-    missing.className = 'artifact-reference-pending'
-    missing.textContent = compact ? emDash : 'Not in this library'
-    missing.title = 'Not in this library'
-    return missing
-  }
+  // A private address names a source by id; there is nothing to fetch and
+  // add. A card whose source this Mac does not hold is still the card the
+  // writer dragged in: its title, and nothing said about any library.
+  if (isSourceReference(href)) return null
   if (state === 'absent' || state === 'failed') {
     const add = document.createElement('button')
     add.type = 'button'

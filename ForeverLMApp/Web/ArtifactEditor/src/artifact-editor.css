@@ -878,6 +878,16 @@ body.is-dragging-card * {
   -webkit-user-select: none;
 }
 
+/* Crepe draws its own drop indicator: a gray bar, fixed to the window, in the
+   gap a drag would land in. On the Mac the app takes a drop before the page
+   hears it, so the bar was never told to go: it stayed where the drag ended
+   and did not move when the page scrolled. The page's own marks above say
+   where a drop lands, so Crepe's is never shown (product owner, 2026-11-12:
+   "I don't want it at all"). It sets `display` inline, hence `!important`. */
+.milkdown-drop-indicator {
+  display: none !important;
+}
+
 .artifact-link-drop-caret {
   position: absolute;
   width: 2px;

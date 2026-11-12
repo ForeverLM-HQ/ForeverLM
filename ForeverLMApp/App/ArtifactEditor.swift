@@ -1312,7 +1312,17 @@ struct ArtifactEditor: View {
         let saved = pending.filter { $0.1.state == .inLibrary }
         let unsaved = pending.filter { $0.1.state != .inLibrary }
 
-        let articlesByID = Dictionary(vm.articles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // A source card may name a source of another library than the one
+        // open (a team's paper in a page of My Library); the open library's
+        // list does not hold it, so storage is asked for it by id.
+        var known = Dictionary(vm.articles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (_, status) in saved {
+            guard let id = status.sourceID, known[id] == nil,
+                  let article = await vm.persistedArticle(forLinkToken: id) else { continue }
+            known[id] = article
+        }
+        guard !Task.isCancelled else { return }
+        let articlesByID = known
         for batch in Self.batches(of: saved, size: 8) {
             let resolved = await withTaskGroup(of: (String, ArtifactReferenceStatus).self) { group in
                 for (href, status) in batch {

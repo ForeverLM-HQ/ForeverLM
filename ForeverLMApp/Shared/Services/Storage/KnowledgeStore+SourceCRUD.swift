@@ -308,8 +308,13 @@ extension KnowledgeStore {
         // A source card names its source by id — `foreverlm://source/<id>`, the
         // line a dropped source writes — so it is answered by id, the way a
         // chat citation is: the id itself, or a prefix only one source has.
+        // The id is the answer whichever library holds the source: a paper
+        // dragged from a team's library into a page of My Library is that
+        // paper's card, and the card never asks which library it came from
+        // (product owner, 2026-11-12: "if I drag a paper in, it should just
+        // simply drag it. It shouldn't check if it's in this library or not").
         if let token = Self.sourceAddressToken(url) {
-            return activeSourceID(matchingID: token, teamID: teamID)
+            return activeSourceID(matchingID: token)
         }
         if let id = activeSourceID(matchingAddress: url, teamID: teamID) { return id }
         let doi = PaperService.extractDOI(from: url)
@@ -365,20 +370,19 @@ extension KnowledgeStore {
         return token
     }
 
-    /// The active source with this id in one library — or, when no source has
-    /// exactly this id, the one source whose id begins with it. A chat cites a
-    /// source by the shortest prefix that names it, so a card written from a
-    /// citation may carry one; a prefix that fits two sources names neither.
-    private func activeSourceID(matchingID token: String, teamID: String?) -> String? {
+    /// The active source with this id, in whichever library holds it — or,
+    /// when no source has exactly this id, the one source whose id begins with
+    /// it. A chat cites a source by the shortest prefix that names it, so a
+    /// card written from a citation may carry one; a prefix that fits two
+    /// sources names neither.
+    private func activeSourceID(matchingID token: String) -> String? {
         var exact: String?
         try? queryBind("""
             SELECT id FROM source_projection
             WHERE status = 'active' AND id = ?1
-              AND \(Self.libraryScopeSQL(teamID: teamID, parameter: 2))
             LIMIT 1
         """, bind: { stmt in
             self.bind(stmt, 1, token)
-            if let teamID { self.bind(stmt, 2, teamID) }
         }) { stmt in
             exact = self.string(stmt, 0)
         }
@@ -388,11 +392,9 @@ extension KnowledgeStore {
         try? queryBind("""
             SELECT id FROM source_projection
             WHERE status = 'active' AND substr(id, 1, length(?1)) = ?1
-              AND \(Self.libraryScopeSQL(teamID: teamID, parameter: 2))
             LIMIT 2
         """, bind: { stmt in
             self.bind(stmt, 1, token)
-            if let teamID { self.bind(stmt, 2, teamID) }
         }) { stmt in
             if let id = self.string(stmt, 0) { prefixed.append(id) }
         }

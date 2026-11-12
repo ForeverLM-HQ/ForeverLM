@@ -51,8 +51,12 @@ struct ArtifactReferenceCardTests {
         if !other.id.hasPrefix(prefix) {
             #expect(store.activeSourceID(forReferenceURL: "foreverlm://source/\(prefix)") == saved.id)
         }
-        // A team's library holds only its own copies.
-        #expect(store.activeSourceID(forReferenceURL: "foreverlm://source/\(saved.id)", teamID: "team-1") == nil)
+        // A card names one source by id, so it is that source's card in a
+        // page of any library: a team page shows a paper of My Library, and
+        // a page of My Library shows a team's copy.
+        #expect(store.activeSourceID(forReferenceURL: "foreverlm://source/\(saved.id)", teamID: "team-1") == saved.id)
+        // A web address still asks the page's own library.
+        #expect(store.activeSourceID(forReferenceURL: "https://example.com/essays/mitochondria", teamID: "team-1") == nil)
     }
 
     @Test("Tracking parameters do not hide a saved article")
