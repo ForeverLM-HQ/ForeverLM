@@ -101,12 +101,14 @@ struct PreferenceKeyLiteralTests {
 
         var over: [String] = []
         var scanned = 0
-        let root = Self.appDirectory.path + "/"
+        // Both sides resolved: under /tmp the walker reports /private/tmp
+        // paths, and an unresolved root then cuts every name at the wrong place.
+        let root = Self.appDirectory.resolvingSymlinksInPath().path + "/"
         for directory in Self.scannedDirectories {
             let base = Self.appDirectory.appendingPathComponent(directory)
             guard let walker = FileManager.default.enumerator(at: base, includingPropertiesForKeys: nil) else { continue }
             for case let file as URL in walker where file.pathExtension == "swift" {
-                let relative = String(file.path.dropFirst(root.count))
+                let relative = String(file.resolvingSymlinksInPath().path.dropFirst(root.count))
                 if relative.hasPrefix("Shared/Preferences/") { continue }
                 guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
                 scanned += 1
