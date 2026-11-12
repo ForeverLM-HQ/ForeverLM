@@ -291,10 +291,7 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
     /// "$15 / 1M characters", "$1 / $20 per 1M tokens", "$0.15 / minute of
     /// audio" — or "Price unknown", never a guess.
     var priceLabel: String {
-        // ForeverLM's own OpenAI credits pay for it, and the learner is
-        // charged nothing, as for voice mode.
-        if speaksThroughOpenAI { return "Included" }
-        return OpenRouterAudioPrices.label(slug: id, kind: .speech) ?? OpenRouterAudioPrices.unknownPriceLabel
+        ArticleSpeechCatalog.priceLabel(forModel: id)
     }
 
     func voice(id: String) -> ArticleSpeechVoice? {
@@ -1810,9 +1807,18 @@ enum ArticleSpeechCatalog {
         return OpenRouterAudioPrices.speechUSDPerMillionCharacters(slug: modelID)
     }
 
+    /// What an OpenAI voice's card says where the others carry a price.
+    static let includedPriceLabel = "Included"
+
     /// The price line for a slug, in OpenRouter's unit, or "Price unknown".
+    /// The one place a model's price is worded: the Settings card, the
+    /// phone's list and `read_aloud.model` over MCP all read it.
     static func priceLabel(forModel modelID: String) -> String {
-        OpenRouterAudioPrices.label(slug: modelID, kind: .speech) ?? OpenRouterAudioPrices.unknownPriceLabel
+        // ForeverLM's own OpenAI credits pay for an OpenAI voice, and the
+        // learner is charged nothing, as for voice mode. OpenRouter does not
+        // list it, so its price there would read "Price unknown".
+        if modelID == openAIRealtimeModelID { return includedPriceLabel }
+        return OpenRouterAudioPrices.label(slug: modelID, kind: .speech) ?? OpenRouterAudioPrices.unknownPriceLabel
     }
 
     /// Models retired from the catalog, each for a recorded reason. A stored

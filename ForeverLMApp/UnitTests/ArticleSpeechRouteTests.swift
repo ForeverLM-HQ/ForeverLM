@@ -65,6 +65,10 @@ struct OwnOpenRouterKeyMediaRouteTests {
         #expect(openAI.defaultVoiceID == "marin")
         #expect(openAI.responseFormat == .pcm)
         #expect(openAI.priceLabel == "Included")
+        // The settings tool words the price from the slug alone, and must say
+        // the same thing as the card: not "Price unknown" for a voice the
+        // learner is never billed for.
+        #expect(ArticleSpeechCatalog.priceLabel(forModel: ArticleSpeechCatalog.openAIRealtimeModelID) == "Included")
         #expect(openAI.ratePerMillionCharacters == 0)
 
         // Even on the learner's own OpenRouter key, the request stays on the
