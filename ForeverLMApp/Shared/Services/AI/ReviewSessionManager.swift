@@ -67,6 +67,9 @@ final class ReviewSessionManager {
     /// True while `topic` is just the echoed opening message, pending the
     /// AI-suggested title (or a decision that the echo is fine as a title).
     var titleIsProvisional = false
+    /// True while a title suggestion is out, so the opening-message call and
+    /// the after-reply call never both run.
+    var titleSuggestionInFlight = false
     var errorMessage: String?
     /// The error that ended the last turn, when one did. `errorMessage` is its
     /// text for the panel; this is the typed value a caller classifies: the

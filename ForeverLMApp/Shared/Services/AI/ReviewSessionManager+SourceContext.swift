@@ -25,14 +25,25 @@ extension ReviewSessionManager {
         return ""
     }
 
-    func updateSuggestedSessionTitleIfNeeded(from assistantResponse: String) async {
+    /// Replace the echoed opening message with an AI-suggested title.
+    ///
+    /// Runs twice at most: once from the opening message alone as soon as the
+    /// chat is created (`assistantResponse` nil), so the tab names the topic
+    /// within seconds rather than showing the learner's typed words until a
+    /// reply finishes, and again after the first reply only if that early
+    /// call failed. A reply that fails or is stopped no longer leaves the
+    /// typed question as the title.
+    func updateSuggestedSessionTitleIfNeeded(from assistantResponse: String?) async {
         guard let sessionID else { return }
-        guard titleIsProvisional else { return }
+        guard titleIsProvisional, !titleSuggestionInFlight else { return }
         // Its own Background route (Settings › Background › Tasks), not the
         // chat's model: nobody waits on a title.
         guard let config = KeychainService.resolveConfig(for: .chatTitle) else { return }
         let userMessage = (chatMessages.first(where: { $0.role == .user })?.content)
             .map { AttachedImageReference.textOnly($0) }
+        let provisionalTitle = topic
+        titleSuggestionInFlight = true
+        defer { titleSuggestionInFlight = false }
         let title: String
         do {
             guard let suggested = try await AIUsageAttribution.$sessionID.withValue(sessionID, operation: {
@@ -49,13 +60,16 @@ extension ReviewSessionManager {
         }
         do {
             // The learner may have renamed the chat from the rail while this
-            // turn was streaming. Their title wins: only the echoed opening
+            // call was out. Their title wins: only the echoed opening
             // message is ever replaced by the suggestion.
             let replaced = try await storage.replaceProvisionalReviewSessionTitle(
                 sessionID: sessionID,
-                provisionalTitle: topic,
+                provisionalTitle: provisionalTitle,
                 title: title
             )
+            // The learner may have moved on to another chat meanwhile: the
+            // stored row is this chat's, the manager's topic no longer is.
+            guard self.sessionID == sessionID else { return }
             if replaced {
                 topic = title
             } else {

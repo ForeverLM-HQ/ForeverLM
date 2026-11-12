@@ -729,6 +729,11 @@ extension ReviewSessionManager {
         }
         await persistPendingUserMessage(message, contextContent: askedContext, docAnchor: docAnchor)
         markSendPreparation("message row")
+        if titleEchoesMessage {
+            // Name the chat from the opening message while the reply runs,
+            // so the tab never sits on the learner's typed words.
+            Task { await self.updateSuggestedSessionTitleIfNeeded(from: nil) }
+        }
         await generateQuestion(isFirst: false)
     }
 

@@ -734,14 +734,27 @@ enum Prompts {
 
     /// Generate a concise title for a review session from the opening exchange.
     static let reviewSessionTitle = """
-    You create concise titles for review sessions.
+    You create concise titles for chats.
 
-    Given the opening exchange, return a short title naming the actual study topic or paired topics covered.
+    Given the learner's opening message, and the assistant's reply when there is one, return a short title naming the actual topic: the subject, finding, or paired topics the chat is about.
+    Name the topic; never echo the learner's wording. Drop conversational openers and question words ("So", "what exactly", "can you explain", "tell me about").
+    The learner may misspell names; use the spelling from the reply when there is one.
     Do not return generic labels, instructions, checklist labels, source filenames, chapter numbers, or a question.
-    Prefer 2-8 words that would help someone recognize the session later.
+    Prefer 2-8 words in title case that would help someone recognize the chat later.
 
     Respond with ONLY the title text.
     """
+
+    /// The title call's user message: the opening message, the first reply,
+    /// or both. Nil when neither has text.
+    static func reviewSessionTitleUserMessage(learnerMessage: String?, assistantResponse: String?) -> String? {
+        let learner = learnerMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let reply = assistantResponse?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var parts: [String] = []
+        if !learner.isEmpty { parts.append("Learner message:\n\(learner.prefix(1_000))") }
+        if !reply.isEmpty { parts.append("Assistant response:\n\(reply.prefix(3_000))") }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+    }
 
     // MARK: - Classification & Metadata
 

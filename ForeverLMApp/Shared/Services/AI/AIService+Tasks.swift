@@ -1078,26 +1078,17 @@ extension AIService {
         return guide
     }
 
+    /// A short topic title for a chat, from the learner's opening message,
+    /// the first reply, or both. Nil when there is neither.
     func suggestReviewSessionTitle(
-        from assistantResponse: String,
+        from assistantResponse: String?,
         userMessage: String? = nil,
         config: AITaskConfig
     ) async throws -> String? {
-        let trimmed = assistantResponse.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        var userPrompt = String(trimmed.prefix(3_000))
-        if let userMessage {
-            let trimmedUser = userMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedUser.isEmpty {
-                userPrompt = """
-                Learner message:
-                \(String(trimmedUser.prefix(1_000)))
-
-                Assistant response:
-                \(userPrompt)
-                """
-            }
-        }
+        guard let userPrompt = Prompts.reviewSessionTitleUserMessage(
+            learnerMessage: userMessage,
+            assistantResponse: assistantResponse
+        ) else { return nil }
         let response = try await call(
             config: config,
             system: Prompts.reviewSessionTitle,

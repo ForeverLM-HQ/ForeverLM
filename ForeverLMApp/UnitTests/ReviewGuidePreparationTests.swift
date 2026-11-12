@@ -59,6 +59,20 @@ struct ReviewGuidePreparationTests {
         #expect(AITask.sourceDiscovery.followsChatRoute)
     }
 
+    @Test("A chat's title can be asked for from the opening message alone, before any reply")
+    func chatTitleFromOpeningMessage() {
+        let opening = Prompts.reviewSessionTitleUserMessage(
+            learnerMessage: "  So what exactly did Ada find about sodium?  ",
+            assistantResponse: nil
+        )
+        #expect(opening == "Learner message:\nSo what exactly did Ada find about sodium?")
+        let both = Prompts.reviewSessionTitleUserMessage(learnerMessage: "Why?", assistantResponse: "Because.")
+        #expect(both == "Learner message:\nWhy?\n\nAssistant response:\nBecause.")
+        #expect(Prompts.reviewSessionTitleUserMessage(learnerMessage: "", assistantResponse: "Because.") == "Assistant response:\nBecause.")
+        #expect(Prompts.reviewSessionTitleUserMessage(learnerMessage: " \n", assistantResponse: nil) == nil)
+        #expect(Prompts.reviewSessionTitle.contains("never echo the learner's wording"))
+    }
+
     @Test("An effort picked on a chat still on the Settings default is kept")
     func chatEffortSurvivesWithoutAModelPick() {
         let chatTask = AITask.chat

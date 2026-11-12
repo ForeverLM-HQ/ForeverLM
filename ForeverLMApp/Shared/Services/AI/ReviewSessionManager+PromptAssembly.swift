@@ -953,7 +953,7 @@ extension ReviewSessionManager {
     """
 
     /// Label for the session topic line. The topic itself rides in the volatile
-    /// tail because `updateSuggestedSessionTitleIfNeeded` rewrites it after the
+    /// tail because `updateSuggestedSessionTitleIfNeeded` rewrites it while the
     /// first assistant reply.
     private var sessionTopicLabel: String {
         switch sessionPromptKind {
