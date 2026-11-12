@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import Foundation
 import OSLog
 
@@ -62,6 +63,10 @@ final class UIResponsivenessMonitor {
     private let stateLock = AppLock()
     private var probeSentAt: Date?
     private var lastProbeRanAt = Date()
+    /// Whether the app was frontmost when the main thread last answered, read
+    /// there (`NSApp` belongs to the main thread). A stall in a background app
+    /// shows no beachball until the learner comes back to it.
+    private var activeAtLastProbe = true
 
     /// Capture bookkeeping. Guarded by `stateLock` because the sampler queue has
     /// to hand back the process handle while the watchdog may be terminating it.
@@ -126,7 +131,15 @@ final class UIResponsivenessMonitor {
             if currentStallStart == nil {
                 currentStallStart = outstandingSince
                 lastStallLog = now
-                logger.fault("UI_STALL_BEGIN duration=\(delay, format: .fixed(precision: 2))s threshold=\(self.stallThreshold, format: .fixed(precision: 1))s")
+                // The load and whether the app was frontmost go on the line, so a
+                // reader (`beta_stall_gate.py`, before a promotion) can tell a
+                // stall the learner saw from a Mac too busy to run anything.
+                stateLock.lock()
+                let wasActive = activeAtLastProbe
+                stateLock.unlock()
+                var load = [Double](repeating: 0, count: 3)
+                let loadRead = getloadavg(&load, 3) > 0
+                logger.fault("UI_STALL_BEGIN duration=\(delay, format: .fixed(precision: 2))s threshold=\(self.stallThreshold, format: .fixed(precision: 1))s load=\(loadRead ? load[0] : -1, format: .fixed(precision: 1)) cores=\(ProcessInfo.processInfo.activeProcessorCount) active=\(wasActive ? 1 : 0)")
                 confirmActiveCapture(stalledFor: delay)
             } else if shouldLogOngoingStall(now: now) {
                 lastStallLog = now
@@ -157,9 +170,11 @@ final class UIResponsivenessMonitor {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let ranAt = Date()
+            let active = NSApp?.isActive ?? true
             self.stateLock.lock()
             self.probeSentAt = nil
             self.lastProbeRanAt = ranAt
+            self.activeAtLastProbe = active
             self.stateLock.unlock()
         }
     }
