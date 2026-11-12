@@ -6759,14 +6759,10 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **On the iPhone, longer audio comes in without a break.** While a narration is still being made, Listen plays what there is and takes in longer audio as it arrives. Each time, the sound used to drop out for a moment; now the longer audio starts in step with what you are hearing and takes over mid-word, at any speed. When you have paused, or the audio you have is about to run out, it is swapped in as before.
-- **Each Text to Speech model keeps its own voice.** Pick a voice for a model in Settings › Voice › Text to Speech, switch to another model, and come back: the voice you chose is still that model's, where it used to fall back to the model's first voice.
-- **The OpenAI voice shows its price.** GPT Realtime 2.1 Mini's card in Text to Speech reads "$0.6 / $20 per 1M tokens · BYOK" in place of "Included": OpenAI's price, and that it runs on ForeverLM's own OpenAI key at no charge to you.
 - **On the iPhone, a narration that is still being made no longer jumps back.** Listen plays the opening while the rest is generated and swaps in longer audio as it arrives; each swap now carries on from the second you are at, where it used to go back by as long as the swap took to prepare, twice that at 2x.
-- **Ask voice to play a source.** Say "I want to listen to this article" to the assistant, in CarPlay, on the iPhone or on the Mac, and it starts that source's narration, the audio Listen plays; a paid voice's price is said first. In CarPlay, **Talk** brings the assistant back, and it returns by itself when the narration ends.
 - **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.
 - **On the iPhone, X posts are filed under X, with X's mark,** where the Library's row read "Xpost" beside a placeholder.
 - **The iPhone names the voice model from the moment you ask for audio.** A paper's narration is prepared before the first chunk is generated, and the model's name now shows through that wait too.
-- **ForeverLM is paid once, after 30 free days.** The first 30 days from your first sign-in are free (no card, nothing to click); after that, pay $19 once, no subscription, in Settings › Billing. Until then it all works: the Mac app, the web library, sync, Chat and every AI feature, on your own OpenRouter key. If the 30 days end unpaid, the Mac app and the web library lock and show only the way to pay, and AI on your own key and MCP stop; nothing is deleted, and paying brings everything back by itself. The iPhone and iPad apps stay open and show no price.
 - **CarPlay shows ForeverLM's mark while you talk to it,** in place of the coloured dot. It breathes while listening, a band of light crosses it while thinking, and it pulses while speaking.
 - **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
@@ -6779,6 +6775,25 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.214.0 (build 294) — 2026-11-12
+
+**Highlights:**
+- **Ask voice to play a source**, and each Text to Speech model keeps its own voice.
+- **30 days free, then $19 once** for the whole app.
+- **Shorter chat tabs** in the top bar, and Delete Card in card review.
+
+- **Each Text to Speech model keeps its own voice.** Pick a voice for a model in Settings › Voice › Text to Speech, switch to another model, and come back: the voice you chose is still that model's, where it used to fall back to the model's first voice.
+- **The OpenAI voice shows its price.** GPT Realtime 2.1 Mini's card in Text to Speech reads "$0.6 / $20 per 1M tokens · BYOK" in place of "Included": OpenAI's price, and that it runs on ForeverLM's own OpenAI key at no charge to you.
+- **Ask voice to play a source.** Say "I want to listen to this article" to the assistant, in CarPlay, on the iPhone or on the Mac, and it starts that source's narration, the audio Listen plays; a paid voice's price is said first. In CarPlay, **Talk** brings the assistant back, and it returns by itself when the narration ends.
+- **ForeverLM is paid once, after 30 free days.** The first 30 days from your first sign-in are free (no card, nothing to click); after that, pay $19 once, no subscription, in Settings › Billing. Until then it all works: the Mac app, the web library, sync, Chat and every AI feature, on your own OpenRouter key. If the 30 days end unpaid, the Mac app and the web library lock and show only the way to pay, and AI on your own key and MCP stop; nothing is deleted, and paying brings everything back by itself. The iPhone and iPad apps stay open and show no price.
+- **A long chat title takes less room in the top bar:** a tab shows about two words, and its tooltip the whole title.
+- **Scrolling up through a reply while it streams no longer jumps you back** to the bottom.
+- **Delete Card in card review**, with Undo.
+- **A bookmarked X post brings its thread**, and a refetch never cuts a long post to its first 280 characters.
+- **HeyGen's voice plays at its own speed** in Listen, not at half speed an octave low.
+- **The app opens no network port on Wi-Fi:** every local listener binds to this Mac alone.
+- **The top bar is 2 points taller in a window**, matching full screen.
 
 ## 0.213.0 (build 293) — 2026-11-11
 
