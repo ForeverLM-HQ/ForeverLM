@@ -61,6 +61,12 @@ final class ReviewSessionManager {
     /// would recognise — "Downloading <video title>". Nil for the sub-second
     /// steps the generic "Getting your sources ready" line covers.
     var sendPreparationDetail: String?
+    /// When the chat's working line went up, for the clock beside "Thinking".
+    /// Kept here rather than in the chat view: closing the chat's tab
+    /// leaves the turn running (`StudioAssistantSessionStore`), and a view
+    /// rebuilt on the way back restarted the clock at zero, which read as
+    /// the turn having stopped and started over. Written by the chat panel.
+    var workingLineStartedAt: Date?
     /// Messages waiting for the running turn to finish, oldest first.
     var queuedFollowUps: [QueuedFollowUp] = []
     var topic = ""

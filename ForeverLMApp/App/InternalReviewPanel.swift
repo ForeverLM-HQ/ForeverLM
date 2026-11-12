@@ -215,8 +215,12 @@ struct InternalReviewPanelContent: View {
 
     @State var transcriptViewportHeight: CGFloat = 0
     /// When the current turn was sent, for the working indicator's clock. Nil
-    /// whenever no turn is in flight.
-    @State var turnStartedAt: Date?
+    /// whenever no turn is in flight. Held by the manager, which outlives
+    /// this view, so closing the chat's tab and coming back keeps counting.
+    var turnStartedAt: Date? {
+        get { manager.workingLineStartedAt }
+        nonmutating set { manager.workingLineStartedAt = newValue }
+    }
     /// Current pane width, used only to derive a responsive reading measure.
     /// The geometry callback publishes this one lightweight scalar.
     @State var chatPanelWidth: CGFloat = 0
