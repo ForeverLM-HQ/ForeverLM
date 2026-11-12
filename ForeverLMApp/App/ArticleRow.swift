@@ -398,11 +398,20 @@ struct ArticleRow: View {
         }
     }
 
+    @ViewBuilder
     private var compactGlyph: some View {
-        Image(systemName: article.sourceType.symbolName)
-            .zoomedSystemFont(size: 13)
-            .foregroundStyle(.secondary)
-            .frame(width: 22, height: 22)
+        if let brandIconAsset = article.brandIconAsset {
+            Image(brandIconAsset)
+                .resizable()
+                .renderingMode(.original)
+                .scaledToFit()
+                .frame(width: 22, height: 22)
+        } else {
+            Image(systemName: article.sourceType.symbolName)
+                .zoomedSystemFont(size: 13)
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+        }
     }
 
     private var fullContent: some View {
@@ -800,12 +809,13 @@ struct ArticleRow: View {
                 .fill(article.sourceType.tintColor, style: FillStyle(eoFill: true))
                 .frame(width: 18, height: 18)
                 .frame(width: 36, height: 36)
-        } else if ZoomRecordingService.isZoomRecordingURL(article.url) {
-            Image("ZoomIcon")
+        } else if let brandIconAsset = article.brandIconAsset {
+            // The logo fills the slot a cover would, so it lines up with the
+            // pictures in the rows above and below.
+            Image(brandIconAsset)
                 .resizable()
                 .renderingMode(.original)
                 .scaledToFit()
-                .frame(width: 20, height: 20)
                 .frame(width: 36, height: 36)
         } else {
             Image(systemName: article.sourceType.symbolName)

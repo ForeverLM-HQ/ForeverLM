@@ -88,6 +88,12 @@ struct SourceThumbnail: View {
                 .frame(width: size * 0.40, height: size * 0.40)
                 .frame(width: size, height: size)
                 .background(source.sourceType.tintColor.opacity(0.10))
+        } else if let brandIconAsset = source.brandIconAsset {
+            Image(brandIconAsset)
+                .resizable()
+                .renderingMode(.original)
+                .scaledToFit()
+                .frame(width: size, height: size)
         } else {
             Image(systemName: source.sourceType.symbolName)
                 .zoomedSystemFont(size: max(12, size * 0.42))
@@ -95,6 +101,25 @@ struct SourceThumbnail: View {
                 .frame(width: size, height: size)
                 .background(source.sourceType.tintColor.opacity(0.10))
         }
+    }
+}
+
+extension StudioArticle {
+    /// The brand logo a source's icon draws in place of its kind's glyph, when
+    /// the brand says where the source came from better than the glyph does.
+    /// A meeting filed under Zoom (a transcript Zoom saved to Documents/Zoom,
+    /// or one the Zoom plugin pushed) and a Zoom recording link added as a
+    /// source both wear Zoom's mark, where the generic meeting glyph said less
+    /// than the "Zoom" the row already prints (product owner, 2026-11-11:
+    /// "give these Zoom meetings like a Zoom icon").
+    var brandIconAsset: String? {
+        if sourceType == .meeting, MeetingProvider.forOrigin(discoveryOrigin) == .zoom {
+            return MeetingProvider.zoom.iconAsset
+        }
+        if ZoomRecordingService.isZoomRecordingURL(url) {
+            return MeetingProvider.zoom.iconAsset
+        }
+        return nil
     }
 }
 
