@@ -5,9 +5,9 @@ import AppKit
 // MARK: - Home's To Read list
 
 /// What the learner saved and has not finished, under Home's composer: a
-/// quiet head, then one row a source with its kind's glyph, its title and
-/// where and when it was saved, newest first, as the suggestions' rows are
-/// drawn (monochrome, no card). A row opens the source in the Reader; the
+/// quiet head, then one row a source with its thumbnail, its title and
+/// where and when it was saved, newest first, with no card around a row.
+/// A row opens the source in the Reader; the
 /// foot opens the Library on Recent, every kind newest added first.
 struct HomeToReadList: View {
     let sources: [StudioArticle]
@@ -59,10 +59,11 @@ private struct HomeToReadRow: View {
     var body: some View {
         Button(action: open) {
             HStack(spacing: 10) {
-                Image(systemName: source.sourceType.symbolName)
-                    .zoomedSystemFont(size: 12, weight: .regular)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
+                // The source's own picture, as the Library's rows show it
+                // (product owner, 2026-11-11: "It would be nice to have these
+                // things also at the thumbnails"); its kind's glyph where it
+                // has none.
+                SourceThumbnail(source: source, size: 28)
                 Text(source.title.isEmpty ? source.url : source.title)
                     .font(.system(size: 13))
                     .foregroundStyle(isHovered ? Color.primary : Color.secondary)
@@ -76,7 +77,7 @@ private struct HomeToReadRow: View {
                     .layoutPriority(-1)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.vertical, 5)
             .background(
                 Color.primary.opacity(isHovered ? 0.05 : 0),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
