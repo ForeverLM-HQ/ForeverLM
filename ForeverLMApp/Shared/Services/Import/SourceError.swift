@@ -135,7 +135,15 @@ enum SourceError: LocalizedError, Equatable {
     case paperMetadataExtractionFailed
     case paperIngestionFailed(String)
     case aiCreditsRequired
+    /// A page was read and held no article text.
     case insufficientContent
+    /// archive.ph had no snapshot of the page, or one too short to use. Only
+    /// the archive route (`fetch_source_from_archive`) says this; an ordinary
+    /// fetch never asks archive.ph, so its empty page is `insufficientContent`.
+    case noArchiveSnapshot
+    /// The address answered with a PDF file, not a web page. Ingestion
+    /// downloads it as the source's document instead of reading it as a page.
+    case linkIsPDF
     case unsupportedBookFormat
     case bookChapterBoundaryMismatch(String)
     case kindleConversionToolMissing
@@ -147,7 +155,9 @@ enum SourceError: LocalizedError, Equatable {
         case .invalidURL: return "Invalid source URL"
         case .fetchFailed: return "Failed to fetch source content"
         case .accessDenied: return "Access denied (paywall or bot protection)"
-        case .insufficientContent: return "No archive.ph snapshot found or content too short"
+        case .insufficientContent: return "The page had no article text to read"
+        case .noArchiveSnapshot: return "No archive.ph snapshot found, or the snapshot was too short to use"
+        case .linkIsPDF: return "This link opens a PDF, not a web page"
         case .httpError(404): return "Article not found (404) — the URL may be incorrect or the article may have been retracted"
         case .httpError(let code): return "HTTP error \(code)"
         case .decodingFailed: return "Failed to decode source content"

@@ -406,7 +406,7 @@ actor SourceService {
         let text = extractTextFromHTML(html)
         let wordCount = text.split(separator: " ").count
         guard wordCount >= 200 else {
-            throw SourceError.insufficientContent
+            throw SourceError.noArchiveSnapshot
         }
 
         cache[urlString] = text
@@ -1195,7 +1195,7 @@ actor SourceService {
             }
         }
 
-        guard let rawHTML = await fetchPageHTML(
+        guard let rawHTML = try await fetchPageHTML(
             url: url,
             preferAuthenticatedBrowser: preferAuthenticatedBrowser
         ) else {
@@ -1452,7 +1452,7 @@ actor SourceService {
     /// Returns the archived path, or nil when the page could not be archived.
     func refreshArchivedArticleHTML(url urlString: String, sourceId: String) async throws -> String? {
         guard let url = URL(string: urlString) else { throw SourceError.invalidURL }
-        guard let rawHTML = await fetchPageHTML(url: url) else { throw SourceError.fetchFailed }
+        guard let rawHTML = try await fetchPageHTML(url: url) else { throw SourceError.fetchFailed }
 
         let decodedHTML = rawHTML.repairingUTF8Mojibake()
         let pageMetadata = PaperService.extractWebArticleMetadata(from: decodedHTML)
@@ -1474,10 +1474,15 @@ actor SourceService {
     /// Fetch a page as HTML, falling back to a real browser for JS-heavy or
     /// bot-protected sites. Shared by first ingestion and the archive refresh so
     /// both see the same page a person would.
+    ///
+    /// Throws `linkIsPDF` when the address serves a PDF file, and
+    /// `accessDenied` when the site refused the request (401/403) and the
+    /// browser could not read the page either. Without those, both arrive
+    /// downstream as a page with no text in it, which says nothing about why.
     private func fetchPageHTML(
         url: URL,
         preferAuthenticatedBrowser: Bool = false
-    ) async -> String? {
+    ) async throws -> String? {
         #if os(macOS)
         if preferAuthenticatedBrowser {
             do {
@@ -1500,17 +1505,23 @@ actor SourceService {
                         forHTTPHeaderField: "Accept")
 
         var fetchedHTML: String?
-        do {
-            let (data, response) = try await session.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse,
-               httpResponse.statusCode == 200,
+        var refused = false
+        // A failed request falls through to the browser below.
+        let plainFetch = try? await session.data(for: request)
+        if let data = plainFetch?.0, let httpResponse = plainFetch?.1 as? HTTPURLResponse {
+            // A `/download` address, or a landing page that redirects to the
+            // file, answers with a PDF. In a browser that is a PDF viewer with
+            // no text in its markup, so reading it as a page finds nothing.
+            if (200...299).contains(httpResponse.statusCode), Self.looksLikePDFData(data) {
+                throw SourceError.linkIsPDF
+            }
+            refused = [401, 403].contains(httpResponse.statusCode)
+            if httpResponse.statusCode == 200,
                !data.isEmpty,
                let candidate = String(data: data, encoding: .utf8),
                !candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 fetchedHTML = candidate
             }
-        } catch {
-            // Fall through to WebView
         }
 
         #if os(macOS)
@@ -1533,10 +1544,17 @@ actor SourceService {
             logger.error("Reading the page in a browser failed: \(error.localizedDescription, privacy: .public)")
             renderedHTML = nil
         }
-        return Self.fullerPageHTML(fetched: fetchedHTML, rendered: renderedHTML)
+        let page = Self.fullerPageHTML(fetched: fetchedHTML, rendered: renderedHTML)
         #else
-        return fetchedHTML
+        let page = fetchedHTML
         #endif
+        // A bot wall the browser shows as text is judged downstream
+        // (`SourceDiscovery.isSecurityVerificationContent`); one that leaves
+        // nothing readable is the site's refusal, and is reported as that.
+        if refused, page.map({ Self.readableWordCount(ofHTML: $0) == 0 }) ?? true {
+            throw SourceError.accessDenied
+        }
+        return page
     }
 
     /// Below this many readable words, a page fetched over plain HTTP is
