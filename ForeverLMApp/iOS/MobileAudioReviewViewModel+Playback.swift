@@ -94,7 +94,26 @@ extension MobileAudioReviewViewModel {
             }.value
             let composition = try await compositionLoad
             let savedPosition = await savedPositionLoad
-            let playerItem = await MobileLoudnessAudioMix.playerItem(for: composition.asset)
+            var playerItem = await MobileLoudnessAudioMix.playerItem(for: composition.asset)
+
+            // Audio that replaces what is sounding takes over in step with it,
+            // so the listener hears no break. Anything else (paused, run dry,
+            // the listener moved meanwhile) takes the ordinary swap below.
+            var tookOverInStep = false
+            if continuesInPlace, currentItem?.id == item.id, isPlaying {
+                tookOverInStep = await handOverInStep(to: playerItem) { [weak self] in
+                    self?.currentItem?.id == item.id
+                }
+                if !tookOverInStep {
+                    // Closed, or another source started, while it was tried.
+                    guard currentItem?.id == item.id else { return }
+                    if !isPlaying, !openingPlaybackRanDry {
+                        keepPausedAfterHandover = true
+                    }
+                    // The first item belonged to the player that was given up.
+                    playerItem = await MobileLoudnessAudioMix.playerItem(for: composition.asset)
+                }
+            }
 
             removeEndObserver()
             endObserver = NotificationCenter.default.addObserver(
@@ -135,15 +154,17 @@ extension MobileAudioReviewViewModel {
             duration = composition.duration
             currentTime = resumeTime
             lastPlaybackPositionSaveAt = nil
-            player.replaceCurrentItem(with: playerItem)
-            if resumeTime > 0 {
-                await player.seek(
-                    to: CMTime(seconds: resumeTime, preferredTimescale: 600),
-                    toleranceBefore: .zero,
-                    toleranceAfter: .zero
-                )
+            if !tookOverInStep {
+                player.replaceCurrentItem(with: playerItem)
+                if resumeTime > 0 {
+                    await player.seek(
+                        to: CMTime(seconds: resumeTime, preferredTimescale: 600),
+                        toleranceBefore: .zero,
+                        toleranceAfter: .zero
+                    )
+                }
+                player.playImmediately(atRate: speed)
             }
-            player.playImmediately(atRate: speed)
             isPlaying = true
             if keepPausedAfterHandover {
                 togglePlayback()
@@ -471,6 +492,23 @@ extension MobileAudioReviewViewModel {
         }
     }
 
+    /// Starts `playerItem` on a second player in step with the one that is
+    /// sounding and makes it the player, so audio that replaces what is
+    /// playing goes in without a break. False when it did not take over: the
+    /// player is as it was, and `playerItem` must not be used again.
+    private func handOverInStep(
+        to playerItem: AVPlayerItem,
+        stillWanted: @MainActor () -> Bool
+    ) async -> Bool {
+        await MobileGaplessPlayerHandover.run(
+            from: player,
+            to: playerItem,
+            rate: speed,
+            stillWanted: stillWanted,
+            adopt: { incoming in self.adoptPlayer(incoming) }
+        )
+    }
+
     /// The second the listener is at, for audio about to replace what is
     /// playing: the player's own clock, clamped to the new audio. `currentTime`
     /// is only the periodic observer's last tick, up to half a second old.
@@ -586,11 +624,30 @@ extension MobileAudioReviewViewModel {
             guard openingPlaybackSourceID == item.id, currentItem?.id == item.id else { return false }
             guard composition.duration > duration + 0.05 else { return true }
 
-            let playerItem = await MobileLoudnessAudioMix.playerItem(for: composition.asset)
+            var playerItem = await MobileLoudnessAudioMix.playerItem(for: composition.asset)
             // The same two questions again: the listener kept listening while
             // the item was made, and something longer may have gone in.
             guard openingPlaybackSourceID == item.id, currentItem?.id == item.id else { return false }
             guard composition.duration > duration + 0.05 else { return true }
+
+            // While the prefix is sounding, the longer one takes over in step
+            // with it, so the listener hears no break.
+            var tookOverInStep = false
+            if isPlaying, !openingPlaybackRanDry {
+                let longerDuration = composition.duration
+                tookOverInStep = await handOverInStep(to: playerItem) { [weak self] in
+                    guard let self else { return false }
+                    return self.openingPlaybackSourceID == item.id
+                        && self.currentItem?.id == item.id
+                        && longerDuration > self.duration + 0.05
+                }
+                if !tookOverInStep {
+                    // The first item belonged to the player that was given up.
+                    playerItem = await MobileLoudnessAudioMix.playerItem(for: composition.asset)
+                    guard openingPlaybackSourceID == item.id, currentItem?.id == item.id else { return false }
+                    guard composition.duration > duration + 0.05 else { return true }
+                }
+            }
             // Read at the swap, not before the item was made: a second noted
             // earlier moves the listener back by as long as that took.
             let resumeTime = handoverSecond(into: composition.duration)
@@ -600,16 +657,20 @@ extension MobileAudioReviewViewModel {
             currentItem = item
             duration = composition.duration
             currentTime = resumeTime
-            player.replaceCurrentItem(with: playerItem)
-            if resumeTime > 0 {
-                await player.seek(
-                    to: CMTime(seconds: resumeTime, preferredTimescale: 600),
-                    toleranceBefore: .zero,
-                    toleranceAfter: .zero
-                )
+            if !tookOverInStep {
+                player.replaceCurrentItem(with: playerItem)
+                if resumeTime > 0 {
+                    await player.seek(
+                        to: CMTime(seconds: resumeTime, preferredTimescale: 600),
+                        toleranceBefore: .zero,
+                        toleranceAfter: .zero
+                    )
+                }
             }
             if shouldPlay {
-                player.playImmediately(atRate: speed)
+                if !tookOverInStep {
+                    player.playImmediately(atRate: speed)
+                }
                 isPlaying = true
                 if openingPlaybackRanDry {
                     textToSpeechPreparationDetail = "Playing · generating remaining audio…"
@@ -1005,5 +1066,202 @@ extension MobileAudioReviewViewModel {
     static func formatTime(_ seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "--:--" }
         return MediaClock.reading(seconds)
+    }
+}
+
+// MARK: - Gapless handover
+
+/// Hands playback from the player that is sounding to a second player that
+/// holds longer audio of the same narration, with no break in the sound.
+///
+/// Replacing a player's item is a dropout: the player stops, loads the new
+/// item, seeks and starts again. Here the new item is loaded, sought and
+/// prerolled on its own silent player while the first keeps playing, and is
+/// then started on the host clock at the exact instant the first reaches the
+/// chosen second (`setRate(_:time:atHostTime:)`).
+///
+/// That start is exact at 1x only. At any other speed the player lands ahead
+/// or behind by a share of the lead it was given (measured on a Mac: a third
+/// of a second ahead at 2x with a 0.4 s lead). So the two clocks are compared
+/// while the new player is still silent, and it is anchored again to the
+/// first player's timebase, with the error that anchoring itself leaves taken
+/// off, until they agree. Both then play the same words in step, the volume
+/// moves from one to the other mid-word, and the first is let go.
+@MainActor
+enum MobileGaplessPlayerHandover {
+    nonisolated private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "AudioHandover")
+
+    /// Wall-clock seconds the incoming player is given to seek and preroll
+    /// before the outgoing one reaches the handover second. The second try is
+    /// for a phone too busy to make the first.
+    nonisolated static let leadSeconds: [Double] = [0.4, 1.0]
+    /// The incoming player must be started at least this far ahead of the
+    /// handover instant.
+    nonisolated static let minimumStartMargin = 0.05
+    /// The two players are in step when their clocks differ by less than this
+    /// many wall-clock seconds: too short to hear as a repeat or a skip.
+    nonisolated static let inStepTolerance = 0.006
+    /// Further apart than this (wall-clock seconds) is not a start error: the
+    /// listener moved the outgoing player meanwhile.
+    nonisolated static let movedApart = 1.0
+    /// How far ahead a silent, running player is anchored again, and how many
+    /// times before the handover is given up.
+    nonisolated static let correctionLead = 0.1
+    nonisolated static let maximumCorrections = 4
+    /// Wall-clock seconds the outgoing audio must still have after the
+    /// handover second: the corrections and the volume move happen in it.
+    nonisolated static let settleSeconds = 1.5
+
+    /// True when `incoming` took over and `adopt` was called with its player.
+    /// False leaves `outgoing` exactly as it was; `item` was then given to a
+    /// player that is discarded and must not be played again.
+    ///
+    /// `stillWanted` is asked once, at the handover instant, with nothing
+    /// awaited between its answer and `adopt`.
+    static func run(
+        from outgoing: AVPlayer,
+        to item: AVPlayerItem,
+        rate: Float,
+        stillWanted: @MainActor () -> Bool,
+        adopt: @MainActor (AVPlayer) -> Void
+    ) async -> Bool {
+        guard rate > 0, isSounding(outgoing, at: rate),
+              let outgoingItem = outgoing.currentItem else { return false }
+        let volume = outgoing.volume
+
+        let incoming = AVPlayer(playerItem: item)
+        // Required by `setRate(_:time:atHostTime:)`. The audio is local files.
+        incoming.automaticallyWaitsToMinimizeStalling = false
+        incoming.volume = 0
+        var handedOver = false
+        defer {
+            if !handedOver {
+                incoming.pause()
+                incoming.replaceCurrentItem(with: nil)
+            }
+        }
+        guard await becomesReady(item) else { return false }
+
+        for lead in leadSeconds {
+            guard isSounding(outgoing, at: rate), outgoing.currentItem === outgoingItem,
+                  let timebase = outgoingItem.timebase,
+                  let target = handoverSecond(
+                      outgoingSecond: outgoing.currentTime().seconds,
+                      lead: lead,
+                      rate: Double(rate),
+                      outgoingDuration: outgoingItem.duration.seconds,
+                      incomingDuration: item.duration.seconds
+                  ) else { return false }
+            let targetTime = CMTime(seconds: target, preferredTimescale: 48_000)
+            guard await incoming.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero),
+                  await incoming.preroll(atRate: rate) else { return false }
+            guard isSounding(outgoing, at: rate), outgoing.currentItem === outgoingItem else { return false }
+
+            // The host-clock instant at which the outgoing audio reaches the
+            // target, from its own timebase rather than from arithmetic here.
+            let hostClock = CMClockGetHostTimeClock()
+            let hostTime = CMSyncConvertTime(targetTime, from: timebase, to: hostClock)
+            let wait = CMTimeSubtract(hostTime, CMClockGetTime(hostClock)).seconds
+            guard wait.isFinite else { return false }
+            // Seeking took longer than the lead: try once more, further ahead.
+            guard wait > minimumStartMargin else { continue }
+
+            incoming.setRate(rate, time: targetTime, atHostTime: hostTime)
+            try? await Task.sleep(nanoseconds: UInt64((wait + 0.05) * 1_000_000_000))
+            var incomingTimebase: CMTimebase?
+            for _ in 0..<40 {
+                if isSounding(incoming, at: rate), let running = item.timebase, CMTimebaseGetRate(running) > 0 {
+                    incomingTimebase = running
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 10_000_000)
+            }
+            guard let incomingTimebase else { return false }
+
+            // Bring the silent player in step. `bias` is the error an anchor
+            // of this lead leaves at this speed, learned from the last one.
+            var apart = secondsApart(incomingTimebase, timebase, on: hostClock)
+            var bias = 0.0
+            var corrections = 0
+            while abs(apart) > inStepTolerance * Double(rate) {
+                guard apart.isFinite, abs(apart) < movedApart * Double(rate),
+                      corrections < maximumCorrections,
+                      isSounding(outgoing, at: rate), outgoing.currentItem === outgoingItem else {
+                    logger.notice("Handover given up: \(apart * 1000, privacy: .public) ms apart after \(corrections, privacy: .public) corrections")
+                    return false
+                }
+                if corrections > 0 {
+                    bias += apart
+                }
+                corrections += 1
+                let anchorHost = CMTimeAdd(
+                    CMClockGetTime(hostClock),
+                    CMTime(seconds: correctionLead, preferredTimescale: 1_000_000_000)
+                )
+                let anchorTime = CMTimeSubtract(
+                    CMSyncConvertTime(anchorHost, from: hostClock, to: timebase),
+                    CMTime(seconds: bias, preferredTimescale: 1_000_000_000)
+                )
+                incoming.setRate(rate, time: anchorTime, atHostTime: anchorHost)
+                try? await Task.sleep(nanoseconds: UInt64((correctionLead + 0.1) * 1_000_000_000))
+                apart = secondsApart(incomingTimebase, timebase, on: hostClock)
+            }
+
+            // Nothing awaits from here to the end of the handover.
+            guard isSounding(incoming, at: rate), isSounding(outgoing, at: rate),
+                  outgoing.currentItem === outgoingItem, stillWanted() else { return false }
+
+            incoming.volume = volume
+            outgoing.volume = 0
+            handedOver = true
+            adopt(incoming)
+            outgoing.pause()
+            outgoing.replaceCurrentItem(with: nil)
+            outgoing.volume = volume
+            logger.info("Handed over near \(target, privacy: .public) s, \(apart * 1000, privacy: .public) ms apart after \(corrections, privacy: .public) corrections")
+            return true
+        }
+        return false
+    }
+
+    /// The second at which the incoming audio starts in step, or nil when
+    /// there is no room for it: the outgoing audio must still be sounding for
+    /// `settleSeconds` past that second, and the incoming audio must hold it.
+    nonisolated static func handoverSecond(
+        outgoingSecond: Double,
+        lead: Double,
+        rate: Double,
+        outgoingDuration: Double,
+        incomingDuration: Double
+    ) -> Double? {
+        guard outgoingSecond.isFinite, outgoingDuration.isFinite, incomingDuration.isFinite,
+              outgoingSecond >= 0, lead > 0, rate > 0 else { return nil }
+        let target = outgoingSecond + lead * rate
+        guard target + settleSeconds * rate < outgoingDuration, target < incomingDuration else { return nil }
+        return target
+    }
+
+    /// How far `first` is ahead of `second`, in their own (media) seconds,
+    /// read off both timebases at one host-clock instant.
+    private static func secondsApart(_ first: CMTimebase, _ second: CMTimebase, on hostClock: CMClock) -> Double {
+        let now = CMClockGetTime(hostClock)
+        return CMSyncConvertTime(now, from: hostClock, to: first).seconds
+            - CMSyncConvertTime(now, from: hostClock, to: second).seconds
+    }
+
+    private static func isSounding(_ player: AVPlayer, at rate: Float) -> Bool {
+        player.rate == rate && player.timeControlStatus == .playing
+    }
+
+    /// A composition of local files is ready within a few run-loop turns.
+    private static func becomesReady(_ item: AVPlayerItem) async -> Bool {
+        for _ in 0..<200 {
+            switch item.status {
+            case .readyToPlay: return true
+            case .failed: return false
+            default: try? await Task.sleep(nanoseconds: 10_000_000)
+            }
+        }
+        return false
     }
 }

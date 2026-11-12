@@ -167,6 +167,20 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         registerAudioSessionPreemptionIfNeeded()
         return player
     }()
+
+    /// Makes `incoming` the player. A longer narration takes over from the one
+    /// that is playing by starting on a second player in step with the first
+    /// (`MobileGaplessPlayerHandover`), so the player's identity changes at
+    /// that moment and the clock observer moves with it.
+    func adoptPlayer(_ incoming: AVPlayer) {
+        if let outgoing = initializedPlayer, let timeObserver {
+            outgoing.removeTimeObserver(timeObserver)
+        }
+        timeObserver = nil
+        initializedPlayer = incoming
+        player = incoming
+        installTimeObserver(for: incoming)
+    }
     lazy var voice: MobileVoiceCommandService = {
         let voice = MobileVoiceCommandService()
         voice.onTranscript = { [weak self] text in
@@ -217,9 +231,10 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// a longer contiguous prefix or the final composition arrives.
     var openingPlaybackRanDry = false
     /// The longest prefix generated so far that is not in the player yet.
-    /// Swapping the player's item is audible (a short dropout), and a paper
-    /// arrives as dozens of pieces, so while sound is playing a longer prefix
-    /// waits here until the playhead nears the end of the one it has.
+    /// A paper arrives as dozens of pieces and each swap assembles the whole
+    /// prefix again, so while sound is playing a longer prefix waits here
+    /// until the playhead nears the end of the one it has. The swap itself
+    /// makes no break in the sound (`MobileGaplessPlayerHandover`).
     var deferredOpeningExtension: MobileAudioItem?
     /// How many seconds of listening must be left in the playing prefix for a
     /// longer one to wait. Long enough to assemble and install the next one.
