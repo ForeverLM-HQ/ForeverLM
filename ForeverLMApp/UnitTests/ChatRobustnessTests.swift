@@ -458,6 +458,43 @@ struct ChatRobustnessTests {
         #expect(again == expected)
     }
 
+    @Test("A cited title the reply wrote as part of its sentence stays in the sentence, with the chip after it")
+    @MainActor
+    func citedTitleWrittenIntoTheSentenceKeepsItsWords() async throws {
+        let webView = try await Self.loadedRenderer()
+        // The title after a comma, the title as what the sentence names, the
+        // title as a sentence's subject, and a citation placed after its claim.
+        let markdown = """
+        The first piece is by **Ada Vance**, [Data Gaps](foreverlm://source/gaps-1). \
+        The second piece is [Seven Ways](foreverlm://source/ways-2). \
+        [Seven Ways](foreverlm://source/ways-2) argues that the rate can change. \
+        Complex I pumps protons [Data Gaps](foreverlm://source/gaps-1).
+        """
+        let encodedMarkdown = try #require(String(data: JSONEncoder().encode(markdown), encoding: .utf8))
+        let encodedCards = """
+        {"gaps-1":{"sourceID":"gaps-1","title":"Data Gaps","subtitle":"Article","kind":"article","glyph":"A","thumbnailURL":null},\
+        "ways-2":{"sourceID":"ways-2","title":"Seven Ways","subtitle":"Article","kind":"article","glyph":"A","thumbnailURL":null}}
+        """
+        // The paragraph as read, each chip in brackets and no word joiners.
+        let readScript = """
+        (() => {
+          const paragraph = document.querySelector('p').cloneNode(true);
+          for (const chip of paragraph.querySelectorAll('.source-citation-marker')) chip.textContent = '[' + chip.textContent + ']';
+          return paragraph.textContent.split(String.fromCharCode(0x2060)).join('');
+        })();
+        """
+        let expected = "The first piece is by Ada Vance, Data Gaps.[1] The second piece is Seven Ways.[2] "
+            + "Seven Ways[2] argues that the rate can change. Complex I pumps protons.[1]"
+
+        // Drawn as chips before any card is known, then with the cards, then redecorated.
+        _ = try await webView.evaluateJavaScript("window.setMarkdown(\(encodedMarkdown));")
+        #expect(try await webView.evaluateJavaScript(readScript) as? String == expected)
+        _ = try await webView.evaluateJavaScript("window.setSourceCards(\(encodedCards));")
+        #expect(try await webView.evaluateJavaScript(readScript) as? String == expected)
+        _ = try await webView.evaluateJavaScript("window.setSourceCards(\(encodedCards));")
+        #expect(try await webView.evaluateJavaScript(readScript) as? String == expected)
+    }
+
     @Test("A citation that turns out invalid gives back the space its chip was glued by")
     @MainActor
     func invalidCitationKeepsItsSpace() async throws {

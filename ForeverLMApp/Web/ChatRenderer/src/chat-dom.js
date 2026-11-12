@@ -406,6 +406,69 @@ function moveCitationAfterPunctuation(link) {
   if (!glued) link.parentNode?.insertBefore(link.ownerDocument.createTextNode(WORD_JOINER), link);
 }
 
+/// The words in a block before a link, back to the citation before it, without
+/// the space they end in. Null when the link directly follows another
+/// citation: it is then the second of a pair, and neither is part of a sentence.
+function wordsBefore(link) {
+  let text = "";
+  for (let node = link.previousSibling; node && text.length < 80; node = node.previousSibling) {
+    if (node.nodeType === Node.ELEMENT_NODE && node.tagName === "A") {
+      return text.trim() === "" ? null : text.replace(/\s+$/, "");
+    }
+    if (node.nodeType === Node.ELEMENT_NODE && node.tagName === "BR") break;
+    text = String(node.textContent ?? "") + text;
+  }
+  return text.replaceAll(WORD_JOINER, "").replace(/\s+$/, "");
+}
+
+const ENDS_A_SENTENCE = /[.!?…]["'”’)\]]*$/;
+const OPENS_A_PHRASE = new RegExp(`[,:;(\\[“‘${EM_DASH}${String.fromCharCode(0x2013)}]$`);
+const CLOSES_A_PHRASE = /^\s*(?:[.,;:!?)\]]|$)/;
+const CARRIES_ON = /^(?:\s+\p{Ll}|['’]s(?![\p{L}\p{N}]))/u;
+/// English words no claim ends on: after one of these, the linked title is the
+/// thing the sentence names ("The second piece is [Title].", "as argued in
+/// [Title]"). A reply in another language gets the two shapes above only.
+const LEADS_INTO_A_TITLE = new Set([
+  "a", "an", "the", "is", "are", "was", "were", "be", "by", "in", "of", "from", "to", "and", "or",
+  "as", "than", "see", "called", "titled", "entitled", "named", "with", "for", "on", "at", "about",
+  "like", "per", "via", "into", "his", "her", "their", "its", "my", "your", "our", "read",
+  "reading", "versus", "vs", "cf",
+]);
+
+/// Whether the reply wrote a citation's title as words of its sentence, which
+/// it is told not to do and does anyway: "The second piece is [Title].",
+/// "written by one author, [Title].", "[Title] argues that ...". A chip in place
+/// of those words leaves a sentence with a hole in it ("The second piece is.
+/// 9", "one author,. 8": product owner, 2026-11-12: "the interpunction is weird
+/// when sources / references are inserted"). Three shapes say so: the title
+/// stands between an opening comma, colon or bracket and the punctuation that
+/// closes the phrase; it follows a word no claim ends on; or it opens a
+/// sentence that carries on in lower case after it. Anything else is a
+/// citation placed after its claim, where the title was only ever the link's
+/// label.
+function titleBelongsToSentence(link) {
+  const before = wordsBefore(link);
+  if (before === null) return false;
+  const after = link.nextSibling ? String(link.nextSibling.textContent ?? "") : "";
+  if (before === "" || ENDS_A_SENTENCE.test(before)) return CARRIES_ON.test(after);
+  if (OPENS_A_PHRASE.test(before)) return CLOSES_A_PHRASE.test(after);
+  const lastWord = before.match(/([\p{L}'’]+)$/u)?.[1].toLowerCase();
+  return lastWord !== undefined && LEADS_INTO_A_TITLE.has(lastWord);
+}
+
+/// Before a link is drawn as a citation chip: when its title is part of the
+/// sentence (`titleBelongsToSentence`), the title stays in the sentence as
+/// plain words and the chip follows it. Decided once per link, while the link
+/// still holds the words the reply wrote; a redecoration finds the decision on
+/// the link and leaves it.
+export function keepTitleWrittenIntoSentence(link) {
+  if (link.dataset.sourceWords) return;
+  const words = String(link.textContent ?? "").trim();
+  const keep = words !== "" && titleBelongsToSentence(link);
+  link.dataset.sourceWords = keep ? "kept" : "dropped";
+  if (keep) link.parentNode?.insertBefore(link.ownerDocument.createTextNode(words), link);
+}
+
 /// The place a citation points at, spelled for a hover line ("At 12:34",
 /// "Page 26"), a marker ("3 · 12:34", "3 · p. 26") or a card's subtitle
 /// ("From 12:34", "Page 26"). A moment wins when a link somehow carries both.
@@ -636,6 +699,16 @@ export function renderPendingBlockSourceLink(link) {
 
 export function renderInvalidSourceLink(link) {
   const wasEntry = link.dataset.sourceMode === "entry";
+  // The title already stands in the sentence as words: only the chip goes,
+  // with the joiner that tied it to them.
+  if (link.dataset.sourceWords === "kept") {
+    const glue = link.previousSibling;
+    if (glue?.nodeType === Node.TEXT_NODE && String(glue.nodeValue ?? "").endsWith(WORD_JOINER)) {
+      glue.nodeValue = String(glue.nodeValue).slice(0, -WORD_JOINER.length);
+    }
+    link.remove();
+    return;
+  }
   const replacement = link.ownerDocument.createElement("span");
   replacement.className = "source-invalid-link";
   replacement.textContent = "Unavailable source";

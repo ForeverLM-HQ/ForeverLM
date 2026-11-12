@@ -21,6 +21,7 @@ import {
   installJoinerFreeCopy,
   isSourceEntryLink,
   isStandaloneSourceLink,
+  keepTitleWrittenIntoSentence,
   markSourceEntryLists,
   passageFromLink,
   removeLeakedCodeFenceLabels,
@@ -548,6 +549,7 @@ export function createChatRenderer({
         }
         // The marker's own chip, drawn below once every citation is counted,
         // so the line it sits in is already its final height.
+        keepTitleWrittenIntoSentence(link);
         const number = registerCitation(
           token,
           token,
@@ -565,6 +567,8 @@ export function createChatRenderer({
       const isEntry = existingMode === "entry" || (!existingMode && isSourceEntryLink(link));
       const canRenderBlock = existingMode === "block"
         || (!existingMode && isStandaloneSourceLink(link) && !blockSourceIDs.has(card.sourceID));
+      // Read while the link still holds the words the reply wrote.
+      if (!existingMode && !isEntry && !canRenderBlock) keepTitleWrittenIntoSentence(link);
       link.textContent = "";
       link.classList.remove("source-pending-link", "source-block-pending", "source-citation-marker");
       link.removeAttribute("aria-disabled");
