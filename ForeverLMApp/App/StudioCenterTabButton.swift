@@ -19,6 +19,9 @@ struct StudioCenterTabButton: View {
     let onSplitRight: () -> Void
     let onClose: () -> Void
     var onRename: (() -> Void)? = nil
+    /// The most of the title this tab shows: `maxTextWidth`, or less where
+    /// the pane's strip would not fit otherwise (`StudioCenterTabStripFit`).
+    var titleCap: CGFloat = StudioCenterTabButton.maxTextWidth
 
     @State private var hovering = false
     @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = 12
@@ -39,14 +42,14 @@ struct StudioCenterTabButton: View {
     /// shows its × in its icon's place instead, as Safari's tabs do, so
     /// neither the strip nor the title moves.
     private var tabWidth: CGFloat {
-        min(fullTextWidth, Self.maxTextWidth) + tabTextSize + 24 + (isActive ? Self.closeSize + 4 : 0)
+        min(fullTextWidth, titleCap) + tabTextSize + 24 + (isActive ? Self.closeSize + 4 : 0)
     }
 
     /// An inactive tab under the pointer, whose × stands where its icon was.
     private var closeTakesIconPlace: Bool { !isActive && hovering }
 
     /// The most of a title a tab shows; a longer one runs off the edge.
-    private static let maxTextWidth: CGFloat = 150
+    static let maxTextWidth: CGFloat = 150
 
     private var fullTextWidth: CGFloat {
         let font = NSFont.systemFont(ofSize: tabTextSize, weight: isActive ? .semibold : .medium)
@@ -87,10 +90,10 @@ struct StudioCenterTabButton: View {
                     // The title is laid out whole and cut at the cap, with a
                     // soft fade instead of an ellipsis; short titles hug their text.
                     .fixedSize(horizontal: true, vertical: false)
-                    .frame(width: min(fullTextWidth, Self.maxTextWidth), alignment: .leading)
+                    .frame(width: min(fullTextWidth, titleCap), alignment: .leading)
                     .clipped()
                     .mask(alignment: .leading) {
-                        if fullTextWidth > Self.maxTextWidth {
+                        if fullTextWidth > titleCap {
                             LinearGradient(
                                 stops: [
                                     .init(color: .black, location: 0.85),
