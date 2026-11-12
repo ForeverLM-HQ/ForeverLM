@@ -813,13 +813,20 @@ class StudioViewModel {
     var bookImportsPending = 0
     /// The last book import in line; the next one starts when it ends.
     @ObservationIgnored var bookImportTail: Task<Void, Never>?
-    var showBookImportError = false
+    var showBookImportError = false {
+        didSet { if showBookImportError { bookImportAlertWindowID = activeWindowState.id } }
+    }
+    /// The window that shows a book import's alert: the one that was key
+    /// when it was raised.
+    @ObservationIgnored var bookImportAlertWindowID: UUID?
     /// Said after a book import that succeeded with parts missing, such as a
     /// damaged EPUB whose lost chapters the learner should replace, or a book
     /// the source classifier reads as a paper.
     var bookImportNotice: String?
     var bookImportNoticeTitle = "Book Imported With Parts Missing"
-    var showBookImportNotice = false
+    var showBookImportNotice = false {
+        didSet { if showBookImportNotice { bookImportAlertWindowID = activeWindowState.id } }
+    }
     /// What each book added on this Mac is doing while it reads as one
     /// entry, by book id, for its row: its details, a scan's text, its
     /// chapters (`finishBookImport`). Absent once the book is finished.
@@ -912,9 +919,13 @@ class StudioViewModel {
             resetDisplayLimits()
         }
     }
-    var meetingListOrder: MeetingListOrder = MeetingListOrder(rawValue: Preferences.value(Prefs.Studio.meetingListOrder) ?? "") ?? .bySeries {
-        didSet {
-            Preferences.set(meetingListOrder.rawValue, for: Prefs.Studio.meetingListOrder)
+    /// By series or by date, in the window in scope (`StudioSidebarStore`):
+    /// one window's Meetings list re-ordered leaves another's as it was.
+    var meetingListOrder: MeetingListOrder {
+        get { sidebarStore.meetingListOrder }
+        set {
+            guard newValue != sidebarStore.meetingListOrder else { return }
+            sidebarStore.meetingListOrder = newValue
             resetDisplayLimits()
         }
     }

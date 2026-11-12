@@ -208,6 +208,8 @@ private extension View {
 
 /// Extracted alerts (group 2).
 struct SidebarAlertsGroup2: ViewModifier {
+    /// The window these alerts are in. Absent outside a Studio window.
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     var vm: StudioViewModel
     @Binding var showPDFURLAlert: Bool
     @Binding var pdfURLText: String
@@ -312,12 +314,18 @@ struct SidebarAlertsGroup2: ViewModifier {
                     Text("Existing categories: \(vm.allBookKinds.joined(separator: ", "))")
                 }
             }
-            .alert("Book Import Error", isPresented: $bindableVM.showBookImportError) {
+            .alert("Book Import Error", isPresented: Binding(
+                get: { vm.showBookImportError && vm.isRequestTarget(vm.bookImportAlertWindowID, windowState) },
+                set: { vm.showBookImportError = $0 }
+            )) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(vm.errorMessage ?? "An unknown error occurred during book import.")
             }
-            .alert(vm.bookImportNoticeTitle, isPresented: $bindableVM.showBookImportNotice) {
+            .alert(vm.bookImportNoticeTitle, isPresented: Binding(
+                get: { vm.showBookImportNotice && vm.isRequestTarget(vm.bookImportAlertWindowID, windowState) },
+                set: { vm.showBookImportNotice = $0 }
+            )) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(vm.bookImportNotice ?? "")

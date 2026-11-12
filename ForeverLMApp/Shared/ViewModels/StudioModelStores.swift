@@ -186,6 +186,15 @@ final class StudioSidebarStore {
     /// (`StudioViewModel.recentlyAddedSources`) — in place of `sidebarTab`'s
     /// list. Picking a kind's tab turns it off. Remembered on this Mac, so a
     /// Library left on Recent opens on it again.
+    /// Whether this window's Meetings list is by series or by date. The
+    /// window's own, like its tab; remembered on this Mac as what a new
+    /// window opens with.
+    var meetingListOrder: MeetingListOrder = MeetingListOrder(rawValue: Preferences.value(Prefs.Studio.meetingListOrder) ?? "") ?? .bySeries {
+        didSet {
+            guard meetingListOrder != oldValue else { return }
+            Preferences.set(meetingListOrder.rawValue, for: Prefs.Studio.meetingListOrder)
+        }
+    }
     var showsRecent: Bool = Preferences.value(Prefs.Studio.libraryShowsRecent) ?? false {
         didSet {
             guard showsRecent != oldValue else { return }

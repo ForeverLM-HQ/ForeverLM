@@ -87,7 +87,7 @@ struct StudioNavigationRail: View {
     static let maxRailWidth: CGFloat = 720
 
     /// Persisted rail width; the user drags the trailing edge to resize.
-    @AppStorage(Prefs.Rail.width, default: Double(Self.defaultRailWidth)) private var storedRailWidth: Double
+    @WindowStorage(Prefs.Rail.width) private var storedRailWidth
     /// Live width while the trailing edge is being dragged; nil when idle.
     @State private var draggedRailWidth: CGFloat?
     @State private var dragStartRailWidth: CGFloat?
@@ -96,7 +96,7 @@ struct StudioNavigationRail: View {
 
     private var railWidth: CGFloat {
         if isCompact { return Self.compactRailWidth }
-        return draggedRailWidth ?? Self.resolvedRailWidth(goldenDefault: goldenWidth)
+        return draggedRailWidth ?? Self.resolvedRailWidth(dragged: storedRailWidth.map { CGFloat($0) }, goldenDefault: goldenWidth)
     }
 
     /// The rail inside a notebook window: an icon strip, so the notebook's
@@ -115,17 +115,13 @@ struct StudioNavigationRail: View {
     }
 
 
-    /// A width the learner dragged themselves, or nil while the rail has never
-    /// been resized. Absent means the golden width is free to follow the
-    /// window; a stored value is a deliberate override and outranks it.
-    private static var draggedWidthPreference: CGFloat? {
-        Preferences.value(Prefs.Rail.width).map { CGFloat($0) }
-    }
-
-    /// The width this rail opens at: the learner's own if they ever dragged it,
-    /// otherwise the golden width for this window.
-    static func resolvedRailWidth(goldenDefault: CGFloat?) -> CGFloat {
-        clampedRailWidth(draggedWidthPreference ?? goldenDefault ?? defaultRailWidth)
+    /// The width this rail opens at: the one the learner dragged in this
+    /// window (`storedRailWidth`) if they ever did, otherwise the golden
+    /// width for this window. No dragged width means the golden width is free
+    /// to follow the window; a dragged one is a deliberate override and
+    /// outranks it.
+    static func resolvedRailWidth(dragged: CGFloat?, goldenDefault: CGFloat?) -> CGFloat {
+        clampedRailWidth(dragged ?? goldenDefault ?? defaultRailWidth)
     }
 
     private var activeSessionIDs: Set<String> {
@@ -778,7 +774,7 @@ struct StudioNavigationRail: View {
                 // Double-click clears the override rather than writing the
                 // fallback width, so the rail goes back to tracking the
                 // window's golden ratio instead of freezing at 360.
-                Preferences.reset(Prefs.Rail.width)
+                storedRailWidth = nil
             }
             .gesture(
                 // Global space: the handle moves with the rail's edge while

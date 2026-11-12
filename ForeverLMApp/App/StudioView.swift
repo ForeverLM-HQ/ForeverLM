@@ -26,7 +26,7 @@ struct StudioView: View {
     /// notebook's Sources column alike (`SourceDetailsEditRequest`).
     @State private var editingSourceDetailsID: String?
     @State private var handledCreditsEmptyEpisode = false
-    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
+    @WindowStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     /// The bout whose write-up sheet this window shows (`requestBoutWriteUp`).
     @State private var writeUpBoutID: String?
     /// The bout waiting for its goal in this window's start sheet

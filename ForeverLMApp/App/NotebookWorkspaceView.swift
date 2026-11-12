@@ -212,7 +212,7 @@ struct NotebookWorkspaceView: View {
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     @Environment(\.studioPanelTrailingOverflow) private var outerTrailingOverflow
     @Environment(\.openWindow) private var openWindow
-    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
+    @WindowStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     /// Observed so Atlas of This Notebook comes and goes with the beta
     /// sign-up (`BetaFeatures`).
     @PreferenceStorage(Prefs.Lifecycle.betaReleases) private var signedUpForBetas

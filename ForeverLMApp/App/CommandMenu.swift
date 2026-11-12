@@ -112,7 +112,7 @@ struct ShellCommandHost: ViewModifier {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
-    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
+    @WindowStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     /// Reopens the chat and the source a place in the window's history showed.
     let reopen: (StudioWindowPlace) -> Void
 

@@ -105,7 +105,7 @@ struct InternalReviewPanelContent: View {
     @Environment(StudioWindowState.self) var windowState: StudioWindowState?
     @Environment(\.openWindow) var openWindow
     @Environment(\.studioTitlebarBandHeight) var titlebarBandHeight
-    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) var uiZoomStep
+    @WindowStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) var uiZoomStep
     let dragVisibility = StudioDragVisibility.shared
     /// The daily time budget, which is also the day's goal; the idle screen's
     /// Memory check row says how long the review is planned to take, and the

@@ -91,6 +91,37 @@ enum ChatZoom {
 }
 
 #if os(macOS)
+extension UIZoom {
+    /// The Studio window a zoom shortcut or the View menu's Zoom items act on:
+    /// the key one. None while a window that is no Studio window (a popped-out
+    /// Reader) is key.
+    @MainActor private static var keyStudioWindow: StudioWindowState? {
+        let registry = StudioWindowRegistry.shared
+        return registry.detachedWindowIsKey ? nil : registry.activeState
+    }
+
+    /// The zoom step Command-plus, Command-minus and Command-0 change: the key
+    /// Studio window's own (`@WindowStorage`), so zooming one window leaves
+    /// the others at their size (product owner, 2026-11-12: "Those two
+    /// windows have to be independent"). `preference` is the app's stored
+    /// step: what a window that has not been zoomed opens with, and the size
+    /// of the windows that are no Studio window.
+    @MainActor static func keyWindowStep(preference: Binding<Int>) -> Binding<Int> {
+        let name = Prefs.Studio.zoomStep.name
+        return Binding(
+            get: {
+                guard let window = keyStudioWindow else { return preference.wrappedValue }
+                let stored = window.viewChoiceObject(named: name) { UserDefaults.standard.object(forKey: name) }
+                return stored as? Int ?? defaultStep
+            },
+            set: { step in
+                keyStudioWindow?.setViewChoice(step, named: name)
+                preference.wrappedValue = step
+            }
+        )
+    }
+}
+
 private enum UIZoomKeyboardAction {
     case zoomIn
     case zoomOut
@@ -376,7 +407,7 @@ private struct AppUIZoomModifier: ViewModifier {
             .environment(\.uiZoomScale, UIZoom.scale(for: step))
             #if os(macOS)
             .background {
-                UIZoomShortcutMonitor(uiZoomStep: $step)
+                UIZoomShortcutMonitor(uiZoomStep: UIZoom.keyWindowStep(preference: $step))
                     .frame(width: 0, height: 0)
             }
             #endif
@@ -964,17 +995,19 @@ struct ForeverLMApp: App {
                 Divider()
 
                 Button("Zoom In") {
-                    uiZoomStep = min(uiZoomStep + 1, UIZoom.maxStep)
+                    let step = UIZoom.keyWindowStep(preference: $uiZoomStep)
+                    step.wrappedValue = min(step.wrappedValue + 1, UIZoom.maxStep)
                 }
                 .shellShortcut(.zoomIn)
 
                 Button("Zoom Out") {
-                    uiZoomStep = max(uiZoomStep - 1, UIZoom.minStep)
+                    let step = UIZoom.keyWindowStep(preference: $uiZoomStep)
+                    step.wrappedValue = max(step.wrappedValue - 1, UIZoom.minStep)
                 }
                 .shellShortcut(.zoomOut)
 
                 Button("Reset Zoom") {
-                    uiZoomStep = UIZoom.defaultStep
+                    UIZoom.keyWindowStep(preference: $uiZoomStep).wrappedValue = UIZoom.defaultStep
                     // The chats of the front window come back with it; a chat
                     // pinched larger in a window on the other display stays.
                     ChatZoomShortcutRouter.shared.resetAll(in: NSApp.keyWindow)
