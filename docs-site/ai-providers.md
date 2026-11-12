@@ -11,6 +11,17 @@ Every text model, whether Anthropic, OpenAI, Google, Meta, xAI or the long tail,
 
 You can also skip the built-in AI entirely and drive ForeverLM from Claude, Codex, Gemini, or Grok, [connected over MCP](/setup-mcp). Connecting an assistant is free, and ForeverLM charges nothing per MCP tool call: your assistant's subscription covers the thinking. Sources, Schedule, and semantic search work either way. Most people mix the two.
 
+## Use your OpenAI or Anthropic API credits
+
+If you already have API credits with OpenAI or Anthropic, they can pay for those labs' models through OpenRouter's own-key setting (BYOK, bring your own key). The setup guide's **Connect OpenRouter** page links to the same steps:
+
+1. On OpenRouter, open [Settings → Integrations](https://openrouter.ai/settings/integrations).
+2. Add your OpenAI or Anthropic API key under that company's name.
+3. Choose **Never use shared capacity**, so a call your key cannot serve fails instead of billing your OpenRouter credits.
+4. In ForeverLM, pick their models: in the setup guide under **Choose my own**, or later in **Settings → Chat** and **Settings → Background**.
+
+ForeverLM sends Claude and GPT models to Anthropic's and OpenAI's own endpoints when it runs on your key, since another host (Bedrock, Vertex, Azure) never uses your provider key. A task you set to **Cheapest host**, or a model held to a region, names its own hosts instead. OpenRouter's [BYOK fee](https://openrouter.ai/docs/guides/overview/auth/byok) applies only above a large monthly allowance. AI Usage marks each model whose calls ran on your provider key with a **BYOK** capsule.
+
 ## Chat and reviews (text models)
 
 In-app Chat and reviews use the Default Model chosen in **Settings → Chat** (or in the **Set up ForeverLM** guide). Until you choose one it is Anthropic's Claude Sonnet 5. Background tasks (like paper metadata extraction) run on the two Background models in **Settings → Background**: **Text-only**, and **Multimodal** for the work that looks at a figure or a slide. Any one task can have a model of its own on the **Tasks** tab; until you give it one it follows the Background model of its kind. The chat can change them too (`set_ai_task_settings`).
@@ -46,7 +57,7 @@ On the iPhone, the composer's microphone and spoken reviews use Apple's on-devic
 
 ## Voice mode
 
-[Voice mode](/voice-mode) (talking about a source, the voice assistant, CarPlay) is the one feature that does not go through OpenRouter: it runs on OpenAI's realtime voice model (gpt-realtime-2.1), which OpenRouter does not serve, and ForeverLM pays for it from its own OpenAI account. Your key is not used and nothing is billed to you. AI Usage lists each conversation with a **BYOK** capsule, since it runs on its own OpenAI key rather than through OpenRouter.
+[Voice mode](/voice-mode) (talking about a source, the voice assistant, CarPlay) is the one feature that does not go through OpenRouter: it runs on OpenAI's realtime voice model (gpt-realtime-2.1), which OpenRouter does not serve, and ForeverLM pays for it from its own OpenAI account, so it needs no key and nothing is billed to you. To run it on your own OpenAI key instead, see [Your own OpenAI key](/voice-mode#your-own-openai-key). AI Usage lists each conversation with a **BYOK** capsule, since it runs on its own OpenAI key rather than through OpenRouter.
 
 ## Semantic search
 

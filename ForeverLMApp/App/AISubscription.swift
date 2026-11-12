@@ -45,14 +45,17 @@ enum AISubscription: String, CaseIterable, Identifiable, Hashable {
     /// Where the connector goes in that app; the card adds the address.
     var connectorSteps: [String] {
         switch self {
-        // Claude's dialog detects no sign-in on the address and offers
-        // "None"; left there, the connector never signs in, so the step
-        // names the two choices Settings › MCP's prompt and setup-mcp.md do.
+        // Claude's dialog asks how to sign in and which OAuth client to use.
+        // The gateway answers MCP discovery before sign-in, so Claude may
+        // detect "No sign-in"; and it registers clients by Dynamic Client
+        // Registration only, so Claude's recommended "published identity"
+        // does not connect. The step names the two answers that work, in
+        // Claude's own words (claude.com/docs/connectors/custom/add-unlisted).
         case .claude:
             return [
                 "In Claude, open Customize › Connectors and choose Add custom connector",
                 "Name it ForeverLM, paste the address below, and choose Continue",
-                "Under Authentication choose Always required, and under OAuth client choose No client ID",
+                "Under Authentication choose Sign in now, and under OAuth client choose Register automatically",
                 "Choose Add, then Connect, and sign in with the same Apple Account as here",
             ]
         case .chatGPT:

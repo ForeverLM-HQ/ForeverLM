@@ -346,7 +346,7 @@ struct WelcomeStory: View {
             promise(
                 icon: Self.yourAIIcon,
                 title: "You’re in charge of your AI.",
-                text: "Pick the models on your OpenRouter API key, at cost, or free ones. It works with the AI app you already pay for, too."
+                text: "Pick the models on your OpenRouter API key, at cost, or free ones. Your OpenAI and Anthropic API credits can pay for theirs, and it works with the AI app you already pay for."
             )
             VStack(alignment: .leading, spacing: 12) {
                 promise(

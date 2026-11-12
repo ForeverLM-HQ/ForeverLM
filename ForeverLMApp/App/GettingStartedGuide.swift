@@ -109,10 +109,12 @@ struct GettingStartedGuide: View {
         }
         .onChange(of: account.ownKey != nil) { wasConnected, isConnected in
             // The key arriving is the answer: show it a moment, then the next page.
-            guard isConnected, !wasConnected, step == .enhancements, aiPage == .key else { return }
+            // Only from the key page itself: a learner reading the credits
+            // page is left there, and its Continue goes on.
+            guard isConnected, !wasConnected, step == .enhancements, aiPage == .key, page == nil else { return }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(900))
-                guard step == .enhancements, aiPage == .key, canContinue else { return }
+                guard step == .enhancements, aiPage == .key, page == nil, canContinue else { return }
                 withAnimation(.easeInOut(duration: 0.2)) { aiPage = .models }
             }
         }
@@ -244,6 +246,7 @@ struct GettingStartedGuide: View {
             case .storage, .planner, .memory, .ideas, .artifacts, .assistants: EmptyView()
             }
         case .addToFullDiskAccess: addToFullDiskAccessPage
+        case .providerCredits: providerCreditsPage
         case .readLaterImport: readLaterPage
         case .papers(let route): paperRoutePage(route)
         case .moreSource(let source): moreSourcePage(source)
@@ -1010,9 +1013,12 @@ struct GettingStartedGuide: View {
             // so "works inside the AI app you already use" is seen, not read.
             if !paysForAISubscription, let url = WelcomeClipPlayer.url(named: Self.connectorClip) {
                 VStack(spacing: 8) {
+                    // 320 wide keeps the clip and its caption above the
+                    // footer in the 640-point sheet; at 440 the clip ran
+                    // under the footer and the caption was out of sight.
                     WelcomeClipPlayer(url: url)
                         .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                        .frame(maxWidth: 440)
+                        .frame(maxWidth: 320)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -1283,7 +1289,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "key.fill",
                 title: "Connect OpenRouter",
-                detail: "ForeverLM's AI runs on your own OpenRouter account, at OpenRouter's cost. Free models cost nothing."
+                detail: "ForeverLM's AI runs on your own OpenRouter account, which reaches every major AI model at cost. Free models cost nothing."
             )
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
@@ -1351,8 +1357,53 @@ struct GettingStartedGuide: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // Shown connected or not: the credits are set up on OpenRouter's
+            // site, before or after this key.
+            secondaryAction("Have OpenAI or Anthropic API credits? Use them through OpenRouter") {
+                show(.providerCredits)
+            }
         }
     }
+
+    // MARK: OpenAI and Anthropic credits
+
+    /// The product owner, 2026-11-11: onboarding should make it "super clear
+    /// that someone can use their OpenAI and Anthropic API credits as well,
+    /// and tell them how to set that in OpenRouter and how to put BYOK".
+    /// OpenRouter runs those labs' models on the learner's own provider key,
+    /// and ForeverLM sends them to the lab's own endpoint
+    /// (`AIService.pinLabModelToItsOwnEndpoint`), where that key applies.
+    /// Voice mode is the one feature outside OpenRouter, so the page says it
+    /// needs no key and where an own OpenAI key for it goes.
+    private var providerCreditsPage: some View {
+        VStack(spacing: 24) {
+            stepHeading(
+                icon: "creditcard",
+                title: "Use your OpenAI or Anthropic credits",
+                detail: "OpenRouter can run OpenAI and Anthropic models on your own API key, so credits you already have pay for them."
+            )
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(Self.providerCreditSteps.enumerated()), id: \.offset) { index, text in
+                    instruction("\(index + 1)", text)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .setupCard()
+            primaryAction("Open OpenRouter Integrations") { open(Self.openRouterIntegrationsURL) }
+            pageNote("Voice mode doesn't go through OpenRouter and needs no key. To run it on your own OpenAI key, add the key later under the OpenRouter button at the bottom left, in Voice mode.")
+        }
+    }
+
+    /// OpenRouter's own-key (BYOK) setup, in its own words
+    /// (openrouter.ai/docs/guides/overview/auth/byok).
+    static let providerCreditSteps = [
+        "On OpenRouter, open Settings › Integrations",
+        "Add your OpenAI or Anthropic API key under that company's name",
+        "Choose Never use shared capacity, so those models never bill your OpenRouter credits",
+        "Then pick their models here: under Choose my own on the next page, or later in Settings",
+    ]
+
+    static let openRouterIntegrationsURL = URL(string: "https://openrouter.ai/settings/integrations")!
 
     private func saveOwnKey() {
         let key = ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1434,7 +1485,12 @@ struct GettingStartedGuide: View {
         // The key page leads to the models page; the models page says
         // background work draws on what they chose.
         if step == .enhancements, aiPage == .key {
-            withAnimation(.easeInOut(duration: 0.2)) { aiPage = .models }
+            // From the credits page too: the models page is the step's next
+            // question, not a page over that one.
+            withAnimation(.easeInOut(duration: 0.2)) {
+                pages = []
+                aiPage = .models
+            }
             return
         }
         if let nextPage {
@@ -1590,9 +1646,18 @@ struct GettingStartedGuide: View {
             vm.startPodcastAutoSync()
         }
         guard let next = nextIncompleteStep else {
+            let isFirstFinish = !isCompleted
             isCompleted = true
             isDismissed = false
             arrivalSuggestionsArmed = true
+            // The Studio appears with suggestions for what to do first
+            // (product owner, 2026-09-22), and they live on the Reader's idle
+            // page. A first window opens on the Space, with the Reader behind
+            // it, so the first finish brings the Reader forward; a guide
+            // reopened later leaves the window as the learner had it.
+            if isFirstFinish {
+                vm.revealCenterTab(.reader, beside: .reader)
+            }
             isPresented = false
             return
         }

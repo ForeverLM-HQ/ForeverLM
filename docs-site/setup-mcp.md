@@ -20,7 +20,7 @@ Always-on MCP keeps a revocable iCloud session and an account-scoped cache of sy
 ## Official extensions
 
 - **Claude:** ForeverLM works today as a [custom Claude connector](#claude-custom-connector) on web, desktop, and mobile, and as a [Claude Code plugin](#claude-code-plugin) from its public marketplace. It is **not** in the [Claude Directory](https://claude.ai/directory) or the Claude plugin directory yet; both submissions are in progress. Use the setups below until the listings exist.
-- **ChatGPT and Codex:** OpenAI rejected version 1.0.2 on October 23, 2026 because its reviewers could not complete sign-in. The dedicated no-Apple reviewer flow now passes end to end; resubmission is waiting on OpenAI to restore the existing MCP app binding in its migrated portal. OpenAI has not issued a public ForeverLM listing URL. The plugin will appear in the [ChatGPT Plugins Directory](https://chatgpt.com/plugins) only after approval and ForeverLM's separate publish action.
+- **ChatGPT and Codex:** ForeverLM was resubmitted to OpenAI on November 8, 2026 and is in review. OpenAI has not issued a public ForeverLM listing URL. The plugin will appear in the [ChatGPT Plugins Directory](https://chatgpt.com/plugins) only after approval and ForeverLM's separate publish action.
 - **Grok:** ForeverLM works today as a [custom Grok connector](#grok-custom-connector) on web, iOS, and Android. It is **not** listed in the [Grok connector catalog](https://grok.com/connectors) yet. Use the custom setup below until a catalog tile exists.
 
 Until the ChatGPT plugin is public, use the custom setup below. ForeverLM will replace that primary action with OpenAI's canonical listing link after publication; no draft or guessed link is used.
@@ -34,8 +34,8 @@ ForeverLM is not in the Claude Directory. Add it as a custom connector instead:
 1. In Web Studio, choose **MCP** in Chat and authorize always-on iCloud access. **MCP ✓** confirms it is ready.
 2. In Claude on the web, open **Customize → Connectors** (Settings → Connectors redirects there).
 3. Choose **Add custom connector**, name it **ForeverLM**, and enter this MCP URL: `https://plugin.foreverlm.com/mcp`. Choose **Continue**.
-4. Under **Authentication**, choose **Always required**. Claude's probe labels the server **None · Detected** because the gateway answers MCP discovery before sign-in; every data-bearing tool still needs your account, so keep sign-in required.
-5. Under **OAuth client**, choose **No client ID — register one automatically**. ForeverLM registers Claude through Dynamic Client Registration.
+4. Under **Authentication**, choose **Sign in now**. If Claude marks another option **Detected**, change it anyway: the gateway answers MCP discovery before sign-in, but every data-bearing tool needs your account.
+5. Under **OAuth client**, choose **Register automatically**. ForeverLM registers Claude through Dynamic Client Registration; it does not read Claude's published identity, so **Use Claude's published identity** does not connect.
 6. Choose **Add**, open the new **ForeverLM** entry, choose **Connect**, and complete Sign in with Apple.
 7. Ask Claude to check the ForeverLM connection.
 

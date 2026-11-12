@@ -25,10 +25,14 @@ struct GettingStartedModelsPage: View {
 
     var body: some View {
         VStack(spacing: 24) {
+            // "We chose these" names the recommended set, so it goes once the
+            // learner is choosing their own.
             SetupStepHeading(
                 icon: "sparkles",
                 title: "Pick your models",
-                detail: "We chose these for you. Change them any time in Settings."
+                detail: choosingMyself
+                    ? "One for chat, one for the work ForeverLM does on its own. Change them any time in Settings."
+                    : "We chose these for you. Change them any time in Settings."
             )
 
             if choosingMyself {

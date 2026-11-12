@@ -478,7 +478,7 @@ struct MCPSettingsDetailView: View {
             ForeverLM is not in the Claude Directory yet, so add it as a custom connector:
             1. On the web, open https://claude.ai/settings/connectors (Customize → Connectors) and choose Add custom connector.
             2. Name it ForeverLM, enter "\(Self.publicMCPURL)", and choose Continue.
-            3. Under Authentication choose Always required; under OAuth client choose No client ID — register one automatically.
+            3. Under Authentication choose Sign in now, even if another option is marked Detected; under OAuth client choose Register automatically (ForeverLM does not read Claude's published identity).
             4. Choose Add, open the ForeverLM entry, choose Connect, and complete Sign in with Apple. It then works in Claude Desktop and mobile too.
             5. Verify the connection with get_mcp_status.
             """

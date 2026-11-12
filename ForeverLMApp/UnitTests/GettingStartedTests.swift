@@ -100,6 +100,27 @@ struct GettingStartedTests {
         }
     }
 
+    @Test("Claude's connector step names the sign-in and OAuth answers that connect")
+    func claudeConnectorStepsNameTheAnswersThatWork() {
+        let steps = AISubscription.claude.connectorSteps.joined(separator: "\n")
+        // The gateway registers clients by Dynamic Client Registration only,
+        // so Claude's "published identity" would not connect.
+        #expect(steps.contains("Sign in now"))
+        #expect(steps.contains("Register automatically"))
+        #expect(!steps.contains("published identity"))
+    }
+
+    @Test("The credits page walks through OpenRouter's own-key setting")
+    func providerCreditStepsFollowOpenRouter() {
+        let steps = GettingStartedGuide.providerCreditSteps
+        #expect(steps.count == 4)
+        #expect(steps[0].contains("Settings › Integrations"))
+        #expect(steps.contains { $0.contains("OpenAI or Anthropic API key") })
+        // Without it, a call the key cannot serve bills OpenRouter credits.
+        #expect(steps.contains { $0.contains("Never use shared capacity") })
+        #expect(GettingStartedGuide.openRouterIntegrationsURL.host == "openrouter.ai")
+    }
+
     @Test("The connector plan knows each AI app by the name it registered")
     func connectedAssistantNames() {
         #expect(AISubscription.matching(clientName: "Claude") == .claude)
