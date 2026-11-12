@@ -3251,6 +3251,201 @@ const referenceCardsPlugin = $prose(() => new Plugin({
   },
 }))
 
+// ─── Dragging a card ───────────────────────────────────────────────────────
+// A card on a line of its own is moved by its picture or by the library's line
+// under its title: the two parts of a card that are not the writer's text, so
+// a press on them was already not a place for the caret. The drag is the
+// pointer's own, not the browser's drag and drop: the web view's native drags
+// belong to sources arriving from the app, and a pointer drag shows the same
+// thing in every host. While the card is held a line marks the gap between two
+// blocks it would go to; letting go moves the paragraph there as one edit, and
+// Escape, or letting go where it already is, leaves the page alone. Cards in a
+// list stay with their item, and a touch scrolls the page as it always did.
+const cardDragSlop = 4
+const cardDragScrollEdge = 48
+let cardDrag = null
+
+/// The top-level card a press on one of its grips would move, or null.
+function cardGrippedAt(view, target) {
+  if (!(target instanceof Element)) return null
+  const grip = target.closest('.artifact-reference-thumbnail, .artifact-reference-meta')
+  const card = grip?.closest('p.artifact-reference')
+  return card && card.parentElement === view.dom ? card : null
+}
+
+/// The index of the top-level block drawn by `element`, or -1.
+function topLevelIndexOf(view, element) {
+  let found = -1
+  view.state.doc.forEach((_node, offset, index) => {
+    if (found < 0 && view.nodeDOM(offset) === element) found = index
+  })
+  return found
+}
+
+/// Where the held card would go for a pointer at height `y`: the gap before
+/// the first block whose middle is below the pointer, with the line to draw
+/// there. `index` is null where letting go would change nothing.
+function cardDropGap(view, fromIndex, y) {
+  const rects = []
+  view.state.doc.forEach((_node, offset) => {
+    const dom = view.nodeDOM(offset)
+    rects.push(dom instanceof Element ? dom.getBoundingClientRect() : null)
+  })
+  let index = rects.length
+  for (let at = 0; at < rects.length; at += 1) {
+    const rect = rects[at]
+    if (rect && y < (rect.top + rect.bottom) / 2) {
+      index = at
+      break
+    }
+  }
+  const own = rects[fromIndex]
+  if (!own) return { index: null, own: null }
+  if (index === fromIndex || index === fromIndex + 1) return { index: null, own }
+  const before = rects[index - 1]
+  const after = rects[index]
+  const top = before && after ? (before.bottom + after.top) / 2 : after ? after.top - 4 : before.bottom + 4
+  return { index, own, top }
+}
+
+function drawCardDrag(view) {
+  if (!cardDrag) return
+  const gap = cardDropGap(view, cardDrag.fromIndex, cardDrag.y)
+  cardDrag.toIndex = gap.index
+  const layer = ensureSelectionDropLayer()
+  const marks = []
+  if (gap.own) {
+    const held = document.createElement('div')
+    held.className = 'artifact-selection-drop-box artifact-card-drag-held'
+    held.style.left = `${gap.own.left}px`
+    held.style.top = `${gap.own.top}px`
+    held.style.width = `${gap.own.width}px`
+    held.style.height = `${gap.own.height}px`
+    marks.push(held)
+    if (gap.index != null) {
+      const line = document.createElement('div')
+      line.className = 'artifact-card-drop-line'
+      line.style.left = `${gap.own.left}px`
+      line.style.top = `${gap.top}px`
+      line.style.width = `${gap.own.width}px`
+      marks.push(line)
+    }
+  }
+  layer.replaceChildren(...marks)
+  layer.hidden = false
+}
+
+/// Near the top or bottom of the pane the page scrolls under the held card,
+/// faster the closer the pointer is to the edge.
+function scrollUnderCardDrag() {
+  if (!cardDrag?.moved) return
+  const view = activeEditorView()
+  const scroller = document.scrollingElement
+  if (view && scroller) {
+    const fromTop = cardDrag.y
+    const fromBottom = window.innerHeight - cardDrag.y
+    const step = fromTop < cardDragScrollEdge ? -Math.ceil((cardDragScrollEdge - fromTop) / 4)
+      : fromBottom < cardDragScrollEdge ? Math.ceil((cardDragScrollEdge - fromBottom) / 4)
+        : 0
+    if (step !== 0) {
+      const before = scroller.scrollTop
+      scroller.scrollTop = before + step
+      if (scroller.scrollTop !== before) drawCardDrag(view)
+    }
+  }
+  cardDrag.frame = requestAnimationFrame(scrollUnderCardDrag)
+}
+
+function endCardDrag() {
+  if (!cardDrag) return
+  if (cardDrag.frame != null) cancelAnimationFrame(cardDrag.frame)
+  const moved = cardDrag.moved
+  cardDrag = null
+  document.body.classList.remove('is-dragging-card')
+  if (moved) endSourceDropPreview()
+}
+
+/// Move the top-level block at `fromIndex` into the gap before `toIndex`, as
+/// one edit. The caret lands at the end of the moved block.
+function moveTopLevelBlock(view, fromIndex, toIndex) {
+  const { doc } = view.state
+  if (fromIndex < 0 || fromIndex >= doc.childCount || toIndex < 0 || toIndex > doc.childCount) return false
+  if (toIndex === fromIndex || toIndex === fromIndex + 1) return false
+  const node = doc.child(fromIndex)
+  let from = 0
+  for (let index = 0; index < fromIndex; index += 1) from += doc.child(index).nodeSize
+  let to = 0
+  for (let index = 0; index < toIndex; index += 1) to += doc.child(index).nodeSize
+  const tr = view.state.tr.delete(from, from + node.nodeSize)
+  const at = tr.mapping.map(to, -1)
+  tr.insert(at, node)
+  tr.setSelection(TextSelection.create(tr.doc, at + node.nodeSize - 1))
+  userHasInteracted = true
+  hasUserChanges = true
+  view.dispatch(tr)
+  view.focus()
+  requestAnimationFrame(publishSelection)
+  return true
+}
+
+document.addEventListener('pointerdown', (event) => {
+  if (cardDrag || event.button !== 0 || event.pointerType === 'touch' || !isEditable) return
+  const view = activeEditorView()
+  const card = view ? cardGrippedAt(view, event.target) : null
+  if (!card) return
+  const fromIndex = topLevelIndexOf(view, card)
+  if (fromIndex < 0) return
+  cardDrag = { pointerId: event.pointerId, fromIndex, toIndex: null, startX: event.clientX, startY: event.clientY, y: event.clientY, moved: false, frame: null, doc: view.state.doc }
+}, true)
+
+// A press on a grip starts no selection and takes no focus from the prose.
+document.addEventListener('mousedown', (event) => {
+  if (event.button !== 0 || !isEditable) return
+  const view = activeEditorView()
+  if (view && cardGrippedAt(view, event.target)) event.preventDefault()
+}, true)
+
+document.addEventListener('pointermove', (event) => {
+  if (!cardDrag || event.pointerId !== cardDrag.pointerId) return
+  const view = activeEditorView()
+  // The page changed under the held card (a sync, an AI edit): the block it
+  // named may be another one now, so the drag is let go rather than guessed.
+  if (!view || view.state.doc !== cardDrag.doc) {
+    endCardDrag()
+    return
+  }
+  cardDrag.y = event.clientY
+  if (!cardDrag.moved) {
+    if (Math.hypot(event.clientX - cardDrag.startX, event.clientY - cardDrag.startY) < cardDragSlop) return
+    cardDrag.moved = true
+    document.body.classList.add('is-dragging-card')
+    cardDrag.frame = requestAnimationFrame(scrollUnderCardDrag)
+  }
+  event.preventDefault()
+  drawCardDrag(view)
+}, true)
+
+document.addEventListener('pointerup', (event) => {
+  if (!cardDrag || event.pointerId !== cardDrag.pointerId) return
+  const { moved, fromIndex, toIndex, doc } = cardDrag
+  endCardDrag()
+  const view = activeEditorView()
+  if (moved && toIndex != null && view && view.state.doc === doc) moveTopLevelBlock(view, fromIndex, toIndex)
+}, true)
+
+document.addEventListener('pointercancel', (event) => {
+  if (cardDrag && event.pointerId === cardDrag.pointerId) endCardDrag()
+}, true)
+
+window.addEventListener('blur', endCardDrag)
+
+document.addEventListener('keydown', (event) => {
+  if (!cardDrag?.moved || event.key !== 'Escape') return
+  event.preventDefault()
+  event.stopPropagation()
+  endCardDrag()
+}, true)
+
 // ─── The notes graph ───────────────────────────────────────────────────────
 // Roam Research's way of taking notes, in Docs (docs/notes-graph-design.md):
 // any block can be referenced from anywhere (`((id))`) or embedded

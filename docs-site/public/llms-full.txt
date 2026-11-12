@@ -1155,7 +1155,9 @@ its PDF is named after â€” and the Markdown stays an ordinary `[Title](https://â
 link, so a report an assistant writes with `create_doc` gets the cards for free.
 Each card carries the source's picture: the same cover the library shows for a
 source you have, and for one you don't, the page's own preview image or the
-site's icon.
+site's icon. To move a card, drag it by its picture or by the line under its
+title: a line shows where it will go, between any two blocks of the page, and
+Escape puts it back. A card inside a list stays with its item.
 
 A link cited inside a sentence stays in the prose, with nothing drawn beside
 the paragraph. A citation is a footnote (see [Footnotes](#footnotes)): rest the
@@ -1197,6 +1199,7 @@ or `/visualize the cell cycle` asks for one of the two by name.
 | **Highlight** | Draws attention to a note, in a colour you can change from the block's handle |
 | **Math** | A block of LaTeX |
 | **Files**, **Pages**, **Chats**, **Notebooks**, **Ideas** (Mentioned) | Writes an `@` whose list shows only that kind: a file already in this Page, another Page, a chat, a notebook or an Idea. A row shows only when there is something of its kind to mention |
+| **Sources** (Mentioned) | On the Mac: opens a search of your library. Choose one or more sources and press **Insert**, and each is written as a card on a line of its own. The `@` list ends with the same row, which searches for the words you typed after the `@` |
 | **Chat**, **Find sources** (More) | Opens Chat about the Page, or asks Chat to find sources for it |
 | **Text**, **Footnote** (More) | A plain paragraph; a numbered note at the caret, as below |
 | **Today**, **Tomorrow**, **Yesterday**, **Block Reference**, **Embed Block** (More) | On the Mac: a link to that day's daily note, and the notes graph's `((` and `{{embed}}` |
@@ -6758,6 +6761,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Drag the cards in a Page to reorder them.** A source or link on a line of its own is drawn as a card; drag one by its picture or by the line under its title and a line shows where it will land, between any two blocks. Escape puts it back, and one Undo reverses the move. Before, reordering meant cutting the line and pasting it.
+- **Search your library from a Page and insert a source.** Type `/sources`, or pick **Sources** at the end of the `@` list, to open a search of your library; the sources you choose are written into the Page as cards, where the only way before was to drag one in.
 - **On the iPhone, longer audio comes in without a break.** While a narration is still being made, Listen plays what there is and takes in longer audio as it arrives. Each time, the sound used to drop out for a moment; now the longer audio starts in step with what you are hearing and takes over mid-word, at any speed. When you have paused, or the audio you have is about to run out, it is swapped in as before.
 - **On the iPhone, a narration that is still being made no longer jumps back.** Listen plays the opening while the rest is generated and swaps in longer audio as it arrives; each swap now carries on from the second you are at, where it used to go back by as long as the swap took to prepare, twice that at 2x.
 - **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.

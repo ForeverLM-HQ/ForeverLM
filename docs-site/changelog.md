@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Drag the cards in a Page to reorder them.** A source or link on a line of its own is drawn as a card; drag one by its picture or by the line under its title and a line shows where it will land, between any two blocks. Escape puts it back, and one Undo reverses the move. Before, reordering meant cutting the line and pasting it.
 - **Search your library from a Page and insert a source.** Type `/sources`, or pick **Sources** at the end of the `@` list, to open a search of your library; the sources you choose are written into the Page as cards, where the only way before was to drag one in.
 - **On the iPhone, longer audio comes in without a break.** While a narration is still being made, Listen plays what there is and takes in longer audio as it arrives. Each time, the sound used to drop out for a moment; now the longer audio starts in step with what you are hearing and takes over mid-word, at any speed. When you have paused, or the audio you have is about to run out, it is swapped in as before.
 - **On the iPhone, a narration that is still being made no longer jumps back.** Listen plays the opening while the rest is generated and swaps in longer audio as it arrives; each swap now carries on from the second you are at, where it used to go back by as long as the swap took to prepare, twice that at 2x.

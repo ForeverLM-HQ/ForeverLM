@@ -742,7 +742,9 @@ its PDF is named after â€” and the Markdown stays an ordinary `[Title](https://â
 link, so a report an assistant writes with `create_doc` gets the cards for free.
 Each card carries the source's picture: the same cover the library shows for a
 source you have, and for one you don't, the page's own preview image or the
-site's icon.
+site's icon. To move a card, drag it by its picture or by the line under its
+title: a line shows where it will go, between any two blocks of the page, and
+Escape puts it back. A card inside a list stays with its item.
 
 A link cited inside a sentence stays in the prose, with nothing drawn beside
 the paragraph. A citation is a footnote (see [Footnotes](#footnotes)): rest the
