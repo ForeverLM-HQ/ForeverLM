@@ -6990,6 +6990,7 @@
 				20C55A8B385A493093121226 /* Enforce AI Model Routing */,
 				C0AD9FE03B41B68F4A13D1DE /* Enforce Preference Keys */,
 				29FA951C093DE6A534F31936 /* Enforce Lock Safety */,
+				0C16B6FAA0FBF9E6BB8D6E3A /* Enforce Main Thread Never Waits */,
 				D50B66BA3832969767BB86F0 /* Sources */,
 				D393DA05571CD525FAB4135D /* Resources */,
 				2A7560604CA959C2E8B5C60D /* Frameworks */,
@@ -7142,6 +7143,7 @@
 				3C679FF515079EA2E96F1427 /* Enforce AI Model Routing */,
 				00A4DC110FC84CABC4E18A78 /* Enforce Preference Keys */,
 				3C783F475EFA1A5487590219 /* Enforce Lock Safety */,
+				7B0D061CCE756309D908E957 /* Enforce Main Thread Never Waits */,
 				8521701ED0C83A106FBCCD5D /* Sources */,
 				8FD2A83958F9BFB0C06AE83C /* Resources */,
 				18B7A568B73D44DCF290ECA4 /* Frameworks */,
@@ -7309,6 +7311,25 @@
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"${SRCROOT}/scripts/check_preference_keys.sh\"";
 		};
+		0C16B6FAA0FBF9E6BB8D6E3A /* Enforce Main Thread Never Waits */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Enforce Main Thread Never Waits";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "xcrun python3 \"${SRCROOT}/scripts/check_main_thread_blocking.py\"";
+		};
 		20C55A8B385A493093121226 /* Enforce AI Model Routing */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -7403,6 +7424,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "xcrun python3 \"${SRCROOT}/scripts/check_lock_reentry.py\"";
+		};
+		7B0D061CCE756309D908E957 /* Enforce Main Thread Never Waits */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Enforce Main Thread Never Waits";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "xcrun python3 \"${SRCROOT}/scripts/check_main_thread_blocking.py\"";
 		};
 		A4E6AD960DBBC0AF7CED967C /* Generate Secrets */ = {
 			isa = PBXShellScriptBuildPhase;

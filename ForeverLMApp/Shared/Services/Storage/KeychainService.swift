@@ -956,7 +956,7 @@ enum KeychainService {
             finished.signal()
         }
 
-        guard finished.wait(timeout: .now() + promptableVaultReadTimeout) == .success else {
+        guard finished.wait(timeout: .now() + promptableVaultReadTimeout) == .success else { // main-thread-check: allow bounded at 1.5 s, under the beachball's 2 s; only a fresh profile with no vault that inherits an unsettled retired file vault gets here, once
             promptableVaultReadLock.lock()
             promptableVaultReadAbandoned = true
             promptableVaultReadLock.unlock()

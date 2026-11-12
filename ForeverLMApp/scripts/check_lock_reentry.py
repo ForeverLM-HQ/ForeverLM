@@ -31,138 +31,39 @@ lock cannot be held there.
 
 Runs in a few seconds; skipped when no Swift file changed since the last pass.
 """
-import bisect
 import os
 import re
 import sys
 from collections import defaultdict
 
-ROOT = os.environ.get('SRCROOT') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DIRS = ['App', 'Shared', 'MCP', 'iOS', 'iOSShare', 'iOSWidget']
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from swift_scan import SwiftTree, Stamp, default_root, swift_files  # noqa: E402
+
+ROOT = default_root(__file__)
 REPORT = '--report' in sys.argv
-STAMP_DIR = os.environ.get('DERIVED_FILE_DIR') or os.environ.get('TMPDIR') or '/tmp'
-STAMP = os.path.join(STAMP_DIR, 'check_lock_reentry.stamp')
 
 # ---------------------------------------------------------------- sources
 
-files = []
-for d in DIRS:
-    for dp, dn, fn in os.walk(os.path.join(ROOT, d)):
-        dn[:] = [x for x in dn if not x.endswith(('Resources', '.icon'))]
-        files += [os.path.join(dp, f) for f in fn if f.endswith('.swift')]
-files.sort()
+files = swift_files(ROOT)
+stamp = Stamp('check_lock_reentry', files, __file__)
+if not REPORT and stamp.fresh():
+    sys.exit(0)
 
-newest = max((os.stat(p).st_mtime for p in files), default=0)
-fingerprint = f"{len(files)} {newest} {os.stat(__file__).st_mtime}"
-if not REPORT:
-    try:
-        if open(STAMP).read() == fingerprint:
-            sys.exit(0)
-    except OSError:
-        pass
-
-TOK = re.compile(r'//|/\*|#*"""|#*"')
-NESTED_COMMENT = re.compile(r'/\*|\*/')
-
-
-def blank(seg):
-    return '\n'.join(' ' * len(part) for part in seg.split('\n'))
-
-
-def strip(src):
-    """Blank comments and string literals, keeping offsets and newlines."""
-    out, i, last, n = [], 0, 0, len(src)
-    while True:
-        m = TOK.search(src, i)
-        if not m:
-            break
-        t, a = m.group(0), m.start()
-        if t == '//':
-            e = src.find('\n', a)
-            e = n if e < 0 else e
-        elif t == '/*':
-            depth, k, e = 0, a, n
-            while True:
-                mm = NESTED_COMMENT.search(src, k)
-                if not mm:
-                    break
-                depth += 1 if mm.group(0) == '/*' else -1
-                k = mm.end()
-                if depth == 0:
-                    e = k
-                    break
-        else:
-            hashes = t[:len(t) - len(t.lstrip('#'))]
-            q = t[len(hashes):]
-            close = q + hashes
-            k = m.end()
-            while k < n:
-                c = src[k]
-                if c == '\\' and not hashes:
-                    if src.startswith('\\(', k):  # interpolation: skip to its closing paren
-                        d, j = 0, k + 1
-                        while j < n:
-                            if src[j] == '(':
-                                d += 1
-                            elif src[j] == ')':
-                                d -= 1
-                                if d == 0:
-                                    break
-                            elif src[j] == '"':
-                                j2 = src.find('"', j + 1)
-                                j = j2 if j2 > 0 else j
-                            j += 1
-                        k = j + 1
-                        continue
-                    k += 2
-                    continue
-                if src.startswith(close, k):
-                    k += len(close)
-                    break
-                if q == '"' and c == '\n':
-                    break
-                k += 1
-            e = k
-        out.append(src[last:a])
-        out.append(blank(src[a:e]))
-        last = i = e
-        if i >= n:
-            break
-    out.append(src[last:])
-    return ''.join(out)
-
+tree = SwiftTree(ROOT, files)
+texts, braces, raw = tree.texts, tree.braces, tree.raw
+funcs, by_name = tree.funcs, tree.by_name
+line_of, scope_end, resolve = tree.line_of, tree.scope_end, tree.resolve
+deferred_spans, references = tree.deferred_spans, tree.references
 
 LOCK_DECL = re.compile(r'\b(?:let|var)\s+(\w+)\s*(?::\s*[\w<>.,\s\[\]]+)?=\s*(AppLock|NSLock|NSRecursiveLock|OSAllocatedUnfairLock|Mutex|NSCondition)\b')
 NSLOCK_CTOR = re.compile(r'\bNSLock\s*\(\s*\)')
-DECL = re.compile(r'\bfunc\s+([A-Za-z_]\w*)\s*(?:<[^>{]*>)?\s*\(|\bvar\s+([A-Za-z_]\w*)\s*:\s*[^={\n]+\{|\b(init)[?!]?\s*\(|\bsubscript\s*\(')
-SIGNATURE_BREAK = re.compile(r'\n\s*(?:func|var|let|case|static|private|public|internal|fileprivate|@|\}|init|subscript|associatedtype|typealias|mutating|nonisolated|override|final|class)\b')
-DEFERRED = re.compile(r'\bTask(?:\.detached)?\s*(?:\([^)]*\))?\s*\{|\.async(?:After)?\s*(?:\([^)]*\))?\s*\{|scheduledTimer\([^{]*\{|\.addOperation\s*\{')
-LOCALS = re.compile(r'\b_\s+([a-z_]\w*)\s*:|[(,]\s*[a-z_]\w*\s+([a-z_]\w*)\s*:|\b(?:let|var)\s+([a-z_]\w*)|\bfor\s+(?:case\s+let\s+)?\(?([a-z_]\w*)|[{,(]\s*([a-z_]\w*)\s*(?:,\s*([a-z_]\w*)\s*)?\)?\s+in\b')
-PARAM = re.compile(r'[(,]\s*([a-z_]\w*)\s*:\s*(?:inout\s+)?[@A-Z(\[]')
 SLOW = re.compile(r'\b(Preferences\.(?:set|reset|value)\b|UserDefaults\b[\w.]*\.(?:set|removeObject|synchronize)\b|DispatchQueue\.main\.sync|\.wait\(|URLSession\b|Data\(contentsOf|String\(contentsOf|\.write\(to:|FileManager\.default\.\w+|NotificationCenter\.default\.post|sqlite3_\w+|evaluateJavaScript|MainActor\.assumeIsolated|Thread\.sleep|usleep|\bawait\b)')
 
-raw, texts, braces, newlines = {}, {}, {}, {}
 lock_decl, lock_files = {}, defaultdict(set)
 for p in files:
-    src = open(p, encoding='utf-8', errors='replace').read()
-    raw[p] = src.split('\n')
-    s = strip(src)
-    texts[p] = s
-    stack, pairs = [], {}
-    for m in re.finditer(r'[{}]', s):
-        if m.group(0) == '{':
-            stack.append(m.start())
-        elif stack:
-            pairs[stack.pop()] = m.start()
-    braces[p] = pairs
-    newlines[p] = [m.start() for m in re.finditer('\n', s)]
-    for m in LOCK_DECL.finditer(s):
+    for m in LOCK_DECL.finditer(texts[p]):
         lock_decl[(p, m.group(1))] = m.group(2)
         lock_files[m.group(1)].add(p)
-
-
-def line_of(p, idx):
-    return bisect.bisect_left(newlines[p], idx) + 1
 
 
 def lock_key(p, name):
@@ -172,18 +73,6 @@ def lock_key(p, name):
     if owners and len(owners) == 1:
         return (next(iter(owners)), name)
     return None
-
-
-def scope_end(s, a, hi):
-    d = 0
-    for bm in re.finditer(r'[{}]', s[a:hi]):
-        if bm.group(0) == '{':
-            d += 1
-        else:
-            if d == 0:
-                return a + bm.start()
-            d -= 1
-    return hi
 
 
 def regions(p, lo, hi):
@@ -219,107 +108,6 @@ def regions(p, lo, hi):
             continue
         um = re.compile(r'\b' + name + r'\s*\.\s*unlock\(\)').search(s, a, end)
         out.append((k, a, um.start() if um else end))
-    return out
-
-
-# ---------------------------------------------------------------- declarations
-
-funcs = []
-for p in files:
-    s, pairs = texts[p], braces[p]
-    for m in DECL.finditer(s):
-        name = m.group(1) or m.group(2) or m.group(3) or 'subscript'
-        kind = 'var' if m.group(2) else 'func'
-        k = m.end()
-        if m.group(2) is None:
-            d = 1
-            while k < len(s) and d:
-                if s[k] == '(':
-                    d += 1
-                elif s[k] == ')':
-                    d -= 1
-                k += 1
-            b = s.find('{', k)
-            if b < 0:
-                continue
-            between = s[k:b]
-            if SIGNATURE_BREAK.search(between) or '=' in between.replace('==', ''):
-                continue
-        else:
-            b = m.end() - 1
-        e = pairs.get(b)
-        if e is None:
-            continue
-        funcs.append(dict(name=name, kind=kind, file=p, decl=m.start(), start=b, end=e, line=line_of(p, m.start())))
-
-by_name = defaultdict(list)
-for i, f in enumerate(funcs):
-    by_name[f['name']].append(i)
-
-
-def resolve(name, p, called):
-    cands = [i for i in by_name.get(name, ()) if called or funcs[i]['kind'] == 'var']
-    same = [i for i in cands if funcs[i]['file'] == p]
-    if same:
-        return same
-    return cands if 0 < len(cands) <= 2 else []
-
-
-def locals_in(p, decl, a, e):
-    s = texts[p]
-    found = set()
-    for m in LOCALS.finditer(s, decl, e):
-        found.update(g for g in m.groups() if g)
-    for m in PARAM.finditer(s, decl, s.find('{', decl)):
-        found.add(m.group(1))
-    return found
-
-
-def deferred_spans(p, a, e):
-    s, spans = texts[p], []
-    for dm in DEFERRED.finditer(s, a, e):
-        b = s.find('{', dm.end() - 1)
-        if 0 <= b < e:
-            spans.append((b, braces[p].get(b, b)))
-    return spans
-
-
-IDENT = re.compile(r'(?<![\w$])([a-z_]\w*)\b')
-OWN_QUALIFIER = re.compile(r'\b(self|Self|[A-Z]\w*)\s*$')
-
-
-def references(p, a, e, decl):
-    """Our own functions and computed properties that s[a:e] calls or reads,
-    as (name, called) pairs."""
-    s = texts[p]
-    hits = [m for m in IDENT.finditer(s, a, e) if m.group(1) in by_name]
-    if not hits:
-        return set()
-    skip = deferred_spans(p, a, e)
-    local = None
-    out = set()
-    for m in hits:
-        if skip and any(x <= m.start() <= y for x, y in skip):
-            continue
-        k = m.start() - 1
-        while k >= 0 and s[k] in ' \t\n':
-            k -= 1
-        on_self = False
-        if k >= 0 and s[k] == '.':
-            q = OWN_QUALIFIER.search(s, max(0, k - 40), k)
-            if not q:
-                continue  # a member of some other value
-            on_self = q.group(1) in ('self', 'Self')
-        tail = s[m.end():m.end() + 3].lstrip()
-        called = tail.startswith('(')
-        if not called and tail.startswith(':') and not tail.startswith('::'):
-            continue  # an argument label or a declaration
-        if not called and not on_self:
-            if local is None:
-                local = locals_in(p, decl, a, e)
-            if m.group(1) in local:
-                continue
-        out.add((m.group(1), called))
     return out
 
 
@@ -361,11 +149,10 @@ errors, edges, slow, seen = [], defaultdict(set), [], set()
 
 
 def waived(p, ln):
-    return 'lock-check: allow' in raw[p][ln - 1] if 0 < ln <= len(raw[p]) else False
+    return tree.waived(p, ln, 'lock-check: allow')
 
 
-def rel(p):
-    return os.path.relpath(p, ROOT)
+rel = tree.rel
 
 
 for p in files:
@@ -434,8 +221,4 @@ if REPORT:
         print("  " + x)
 if errors:
     sys.exit(1)
-try:
-    os.makedirs(STAMP_DIR, exist_ok=True)
-    open(STAMP, 'w').write(fingerprint)
-except OSError:
-    pass
+stamp.write()
