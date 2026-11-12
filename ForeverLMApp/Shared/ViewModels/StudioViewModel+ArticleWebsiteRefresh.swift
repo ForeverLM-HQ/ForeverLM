@@ -158,16 +158,6 @@ extension StudioViewModel {
         return .replace
     }
 
-    /// A failure's reason in words a toast or an assistant can pass on.
-    nonisolated static func articleWebsiteRefreshFailureReason(_ error: Error) -> String {
-        // `insufficientContent` is worded for the archive.ph route; from a
-        // website it means the page had no article text in it.
-        if case SourceError.insufficientContent = error {
-            return "the page held no article text"
-        }
-        return error.localizedDescription
-    }
-
     /// The Refresh from Website menu item and its
     /// `foreverlm://source/<id>?action=refresh-from-website` link.
     func refreshArticleFromWebsite(_ articleId: String) async {
@@ -203,7 +193,7 @@ extension StudioViewModel {
         do {
             capture = try await work.capture(initial.url, articleId)
         } catch {
-            return .failed(.capture, reason: Self.articleWebsiteRefreshFailureReason(error))
+            return .failed(.capture, reason: error.localizedDescription)
         }
 
         // Until the capture has passed every check below, nothing may write:
@@ -226,7 +216,7 @@ extension StudioViewModel {
             )
         } catch {
             await sourceService.discardStagedArticleRefresh(capture)
-            return .failed(.cleanup, reason: Self.articleWebsiteRefreshFailureReason(error))
+            return .failed(.cleanup, reason: error.localizedDescription)
         }
 
         let saved: ArticleRefreshSavedCopy

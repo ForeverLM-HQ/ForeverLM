@@ -538,41 +538,52 @@ extension StudioViewModel {
     /// marks the source errored. True when the address was a PDF and the fetch is done.
     private func downloadDirectPDFContent(articleId: String, idx: Int) async -> Bool {
         // PDF URLs must never be web-scraped — they need to be downloaded as binary files.
-        // A course handout/assignment is a document, not an academic paper: preserve its
-        // source type and skip the paper-metadata AI pipeline.
-        if PaperService.isDirectPDFURL(articles[idx].url) && articles[idx].url.hasPrefix("http") {
-            isFetchingContent = true
-            articles[idx].state = .fetching
-            let downloaded: Bool
-            if articles[idx].sourceType == .paper {
-                downloaded = await downloadPaperPDF(for: articleId).success
-            } else {
-                downloaded = await downloadDocumentPDF(for: articleId)
-            }
-            if downloaded {
-                isFetchingContent = false
-                return true
-            }
-            if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
-                articles[idx2].state = .error
-                articles[idx2].errorMessage = "PDF download failed. Try attaching the file manually."
-                if articles[idx2].sourceType == .paper {
-                    PaperIngestionDiagnostics.recordFailure(
-                        sourceID: articleId,
-                        title: articles[idx2].title,
-                        message: articles[idx2].errorMessage ?? "PDF download failed."
-                    )
-                }
-                do {
-                    try await storage.saveSource(articles[idx2])
-                } catch {
-                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-            isFetchingContent = false
-            return true
+        guard PaperService.isDirectPDFURL(articles[idx].url) && articles[idx].url.hasPrefix("http") else {
+            return false
         }
-        return false
+        await downloadPDFContent(articleId: articleId)
+        return true
+    }
+
+    /// Downloads a source's address as its PDF and ends the fetch; on failure
+    /// marks the source errored. A course handout/assignment is a document, not
+    /// an academic paper: it keeps its source type and skips the paper-metadata
+    /// AI pipeline. Reached from a `.pdf`-shaped address, and from a web fetch
+    /// that found its address serves a PDF (`SourceError.linkIsPDF`).
+    private func downloadPDFContent(articleId: String) async {
+        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else {
+            isFetchingContent = false
+            return
+        }
+        isFetchingContent = true
+        articles[idx].state = .fetching
+        let downloaded: Bool
+        if articles[idx].sourceType == .paper {
+            downloaded = await downloadPaperPDF(for: articleId).success
+        } else {
+            downloaded = await downloadDocumentPDF(for: articleId)
+        }
+        if downloaded {
+            isFetchingContent = false
+            return
+        }
+        if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
+            articles[idx2].state = .error
+            articles[idx2].errorMessage = "PDF download failed. Try attaching the file manually."
+            if articles[idx2].sourceType == .paper {
+                PaperIngestionDiagnostics.recordFailure(
+                    sourceID: articleId,
+                    title: articles[idx2].title,
+                    message: articles[idx2].errorMessage ?? "PDF download failed."
+                )
+            }
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        isFetchingContent = false
     }
 
     /// The text and page metadata a web fetch produced for one source.
@@ -676,6 +687,12 @@ extension StudioViewModel {
                 isFetchingContent = false
                 return false
             }
+        } catch SourceError.linkIsPDF {
+            // The address looked like a page but serves a PDF (a `/download`
+            // link, a landing page that redirects to the file): keep the file
+            // as the source's document, as a `.pdf` address is kept.
+            await downloadPDFContent(articleId: articleId)
+            return false
         } catch {
             if await recoverFromWebFetchFailure(error, articleId: articleId, idx: idx) == false { return false }
         }

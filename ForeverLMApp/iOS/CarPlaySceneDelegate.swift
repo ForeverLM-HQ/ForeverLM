@@ -82,24 +82,25 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func makeVoiceTemplate() -> CPVoiceControlTemplate {
         // CarPlay owns this layout, but CPVoiceControlState accepts animated
-        // images. Keep active conversation states wordless and use the same
-        // fluid-orb language as the phone and Mac surfaces.
+        // images. Keep active conversation states wordless and show the
+        // ForeverLM mark, not an anonymous orb (product owner, 2026-11-11: "is
+        // it possible to have the foreverlm logo and not the dot").
         let listening = CPVoiceControlState(
             identifier: "listening",
             titleVariants: nil,
-            image: CarPlayVoiceOrbRenderer.image(for: .listening),
+            image: CarPlayVoiceMarkRenderer.image(for: .listening),
             repeats: true
         )
         let thinking = CPVoiceControlState(
             identifier: "thinking",
             titleVariants: nil,
-            image: CarPlayVoiceOrbRenderer.image(for: .thinking),
+            image: CarPlayVoiceMarkRenderer.image(for: .thinking),
             repeats: true
         )
         let speaking = CPVoiceControlState(
             identifier: "speaking",
             titleVariants: nil,
-            image: CarPlayVoiceOrbRenderer.image(for: .speaking),
+            image: CarPlayVoiceMarkRenderer.image(for: .speaking),
             repeats: true
         )
         let unavailable = CPVoiceControlState(
@@ -177,152 +178,111 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
 }
 
-/// Produces small, bounded animations for the system-owned CarPlay voice
-/// template. Frames are generated only when CarPlay connects; playback itself
-/// is handled by CarPlay and does not add a display-link or polling loop.
-private enum CarPlayVoiceOrbRenderer {
+/// The ForeverLM mark for the system-owned CarPlay voice template, moving a
+/// little differently in each state so a glance tells listening from thinking
+/// from speaking: listening breathes slowly, thinking runs a band of light
+/// across the loops, speaking pulses. It draws the shipped `BrandMark` artwork
+/// and never a new mark (the brand rule in `ForeverLMMark`); only its size and
+/// the light on it move. Frames are made once when CarPlay connects and CarPlay
+/// plays them, so there is no display link or polling loop.
+private enum CarPlayVoiceMarkRenderer {
     enum Activity {
         case listening
         case thinking
         case speaking
     }
 
+    /// `CPVoiceControlState` images may be at most 150 by 150 points.
+    private static let canvas = CGSize(width: 150, height: 150)
+    /// The mark's width at rest: the speaking pulse grows it 6%, which still
+    /// clears the canvas edge.
+    private static let restingWidth: CGFloat = 136
+    private static let frameCount = 16
+
     static func image(for activity: Activity) -> UIImage? {
-        let frameCount = 16
-        let size = CGSize(width: 132, height: 132)
+        guard let mark = UIImage(named: "BrandMark") else { return nil }
         let format = UIGraphicsImageRendererFormat()
         format.opaque = false
         format.scale = 2
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
         let frames = (0..<frameCount).map { index in
             renderer.image { rendererContext in
                 draw(
+                    mark,
                     activity: activity,
-                    phase: CGFloat(index) / CGFloat(frameCount) * .pi * 2,
-                    in: rendererContext.cgContext,
-                    size: size
+                    progress: CGFloat(index) / CGFloat(frameCount),
+                    in: rendererContext.cgContext
                 )
             }
         }
-
         return UIImage.animatedImage(with: frames, duration: duration(for: activity))
     }
 
+    /// One cycle each, inside CarPlay's 0.3 to 5 second bounds.
     private static func duration(for activity: Activity) -> TimeInterval {
         switch activity {
-        case .listening: return 2.2
-        case .thinking: return 1.55
-        case .speaking: return 0.95
+        case .listening: return 2.4
+        case .thinking: return 1.6
+        case .speaking: return 0.9
         }
     }
 
+    /// `progress` runs from 0 up to (not including) 1 over one cycle.
     private static func draw(
+        _ mark: UIImage,
         activity: Activity,
-        phase: CGFloat,
-        in context: CGContext,
-        size: CGSize
+        progress: CGFloat,
+        in context: CGContext
     ) {
-        let palette = colors(for: activity)
-        let pulse: CGFloat
+        let angle = progress * 2 * .pi
+        let scale: CGFloat
         switch activity {
-        case .listening: pulse = sin(phase) * 2.2
-        case .thinking: pulse = sin(phase * 2) * 2.8
-        case .speaking: pulse = sin(phase * 2) * 4.2
+        case .listening: scale = 1 + sin(angle) * 0.025
+        case .thinking: scale = 1
+        // Two beats a cycle, from rest up to 6% larger and back.
+        case .speaking: scale = 1 + (1 - cos(angle * 2)) / 2 * 0.06
         }
 
-        let sphereRect = CGRect(
-            x: 14 - pulse * 0.35,
-            y: 14 + pulse * 0.28,
-            width: 104 + pulse * 0.70,
-            height: 104 - pulse * 0.56
+        let width = restingWidth * scale
+        let height = width * mark.size.height / mark.size.width
+        let markRect = CGRect(
+            x: (canvas.width - width) / 2,
+            y: (canvas.height - height) / 2,
+            width: width,
+            height: height
         )
+        mark.draw(in: markRect)
 
-        context.saveGState()
-        context.setShadow(offset: CGSize(width: 0, height: 5), blur: 11, color: palette[0].withAlphaComponent(0.34).cgColor)
-        context.setFillColor(palette[0].cgColor)
-        context.fillEllipse(in: sphereRect)
-        context.restoreGState()
-
-        context.saveGState()
-        context.addEllipse(in: sphereRect)
-        context.clip()
-
-        guard let baseGradient = CGGradient(
-            colorsSpace: CGColorSpaceCreateDeviceRGB(),
-            colors: palette.map(\.cgColor) as CFArray,
-            locations: [0, 0.46, 1]
-        ) else {
-            context.restoreGState()
-            return
+        if activity == .thinking {
+            drawSweep(across: markRect, progress: progress, in: context)
         }
+    }
+
+    /// A soft band of light crossing the mark from left to right. It starts
+    /// wholly left of the mark and ends wholly right of it, so the loop has no
+    /// visible seam. `.sourceAtop` lays the light on the artwork's own pixels
+    /// only, so the silhouette never changes.
+    private static func drawSweep(across markRect: CGRect, progress: CGFloat, in context: CGContext) {
+        let band = markRect.width * 0.38
+        let leadingEdge = markRect.minX - band + (markRect.width + band) * progress
+        guard let light = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: [
+                UIColor(white: 1, alpha: 0).cgColor,
+                UIColor(white: 1, alpha: 0.55).cgColor,
+                UIColor(white: 1, alpha: 0).cgColor,
+            ] as CFArray,
+            locations: [0, 0.5, 1]
+        ) else { return }
+
+        context.saveGState()
+        context.setBlendMode(.sourceAtop)
         context.drawLinearGradient(
-            baseGradient,
-            start: CGPoint(x: sphereRect.minX, y: sphereRect.minY),
-            end: CGPoint(x: sphereRect.maxX, y: sphereRect.maxY),
+            light,
+            start: CGPoint(x: leadingEdge, y: markRect.midY),
+            end: CGPoint(x: leadingEdge + band, y: markRect.midY),
             options: []
         )
-
-        let bloomCenter = CGPoint(
-            x: sphereRect.midX + cos(phase) * 24,
-            y: sphereRect.midY + sin(phase * 0.82) * 22
-        )
-        if let bloom = CGGradient(
-            colorsSpace: CGColorSpaceCreateDeviceRGB(),
-            colors: [palette[2].withAlphaComponent(0.85).cgColor, UIColor.clear.cgColor] as CFArray,
-            locations: [0, 1]
-        ) {
-            context.drawRadialGradient(
-                bloom,
-                startCenter: bloomCenter,
-                startRadius: 0,
-                endCenter: bloomCenter,
-                endRadius: 58,
-                options: [.drawsAfterEndLocation]
-            )
-        }
-
-        let highlightCenter = CGPoint(x: sphereRect.minX + 32, y: sphereRect.minY + 27)
-        if let highlight = CGGradient(
-            colorsSpace: CGColorSpaceCreateDeviceRGB(),
-            colors: [UIColor.white.withAlphaComponent(0.52).cgColor, UIColor.clear.cgColor] as CFArray,
-            locations: [0, 1]
-        ) {
-            context.drawRadialGradient(
-                highlight,
-                startCenter: highlightCenter,
-                startRadius: 0,
-                endCenter: highlightCenter,
-                endRadius: 48,
-                options: []
-            )
-        }
-
         context.restoreGState()
-        context.setStrokeColor(UIColor.white.withAlphaComponent(0.24).cgColor)
-        context.setLineWidth(1.2)
-        context.strokeEllipse(in: sphereRect.insetBy(dx: 0.6, dy: 0.6))
-    }
-
-    private static func colors(for activity: Activity) -> [UIColor] {
-        switch activity {
-        case .listening:
-            return [
-                UIColor(red: 0.12, green: 0.48, blue: 1, alpha: 1),
-                UIColor(red: 0.12, green: 0.85, blue: 0.92, alpha: 1),
-                UIColor(red: 0.48, green: 0.30, blue: 1, alpha: 1),
-            ]
-        case .thinking:
-            return [
-                UIColor(red: 0.27, green: 0.20, blue: 0.78, alpha: 1),
-                UIColor(red: 0.62, green: 0.25, blue: 0.95, alpha: 1),
-                UIColor(red: 0.20, green: 0.70, blue: 1, alpha: 1),
-            ]
-        case .speaking:
-            return [
-                UIColor(red: 0.95, green: 0.20, blue: 0.40, alpha: 1),
-                UIColor(red: 0.58, green: 0.24, blue: 0.92, alpha: 1),
-                UIColor(red: 1, green: 0.58, blue: 0.18, alpha: 1),
-            ]
-        }
     }
 }

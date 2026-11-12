@@ -139,12 +139,15 @@ struct ArticleWebsiteRefreshTests {
         #expect(ArticleWebsiteRefreshOutcome.notInLibrary.toast == nil)
     }
 
-    @Test("A page with no text says so rather than naming archive.ph")
+    @Test("A page with no text says so; only the archive route names archive.ph")
     func emptyPageReason() {
-        #expect(StudioViewModel.articleWebsiteRefreshFailureReason(SourceError.insufficientContent)
-            == "the page held no article text")
-        #expect(StudioViewModel.articleWebsiteRefreshFailureReason(SourceError.fetchFailed)
-            == SourceError.fetchFailed.localizedDescription)
+        let emptyPage = SourceError.insufficientContent.localizedDescription
+        #expect(emptyPage == "The page had no article text to read")
+        #expect(!emptyPage.contains("archive"))
+        #expect(SourceError.noArchiveSnapshot.localizedDescription.contains("archive.ph"))
+        #expect(SourceError.linkIsPDF.localizedDescription == "This link opens a PDF, not a web page")
+        #expect(ArticleWebsiteRefreshOutcome.failed(.capture, reason: emptyPage).toast
+            == "Couldn’t refresh article: The page had no article text to read")
     }
 }
 

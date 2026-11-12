@@ -5,8 +5,8 @@ import SwiftUI
 /// An AI app the learner may already pay for. Setup asks (product owner, 2026-09-23)
 /// instead of telling everyone about Claude and ChatGPT, so the AI step can say
 /// what that subscription covers and the last step shows the one connector
-/// setup that fits. The steps follow docs-site/setup-mcp.md and Settings ›
-/// External AI Assistants.
+/// setup that fits. The steps follow docs-site/setup-mcp.md and the setup
+/// prompts in Settings › MCP (`MCPSettingsDetailView`).
 enum AISubscription: String, CaseIterable, Identifiable, Hashable {
     case claude
     case chatGPT = "chatgpt"
@@ -45,29 +45,35 @@ enum AISubscription: String, CaseIterable, Identifiable, Hashable {
     /// Where the connector goes in that app; the card adds the address.
     var connectorSteps: [String] {
         switch self {
+        // Claude's dialog detects no sign-in on the address and offers
+        // "None"; left there, the connector never signs in, so the step
+        // names the two choices Settings › MCP's prompt and setup-mcp.md do.
         case .claude:
             return [
-                "In Claude, open Customize › Connectors",
-                "Choose Add custom connector, name it ForeverLM, and paste the address below",
-                "Choose Connect and sign in with the same Apple Account as here",
+                "In Claude, open Customize › Connectors and choose Add custom connector",
+                "Name it ForeverLM, paste the address below, and choose Continue",
+                "Under Authentication choose Always required, and under OAuth client choose No client ID",
+                "Choose Add, then Connect, and sign in with the same Apple Account as here",
             ]
         case .chatGPT:
             return [
                 "In ChatGPT, open Settings › Apps › Advanced Settings and turn on developer mode",
                 "Back in Settings › Apps, choose Create, name it ForeverLM, and paste the address below",
                 "Choose OAuth and sign in with the same Apple Account as here",
+                "In a new chat, turn on ForeverLM from the tools menu",
             ]
         case .grok:
             return [
                 "On grok.com, open Connectors and choose New Connector, then Custom",
                 "Name it ForeverLM and paste the address below",
                 "Sign in with the same Apple Account as here",
+                "In a Grok chat, turn on ForeverLM under Plugins",
             ]
         case .gemini:
             return [
-                "In Gemini, open Settings & help › Connected Apps",
-                "Add a custom app named ForeverLM with the address below",
-                "Sign in with the same Apple Account as here",
+                "In Gemini on the web, open Settings & help › Connected Apps",
+                "Under Custom apps for Spark, choose Add a custom app and paste the address below",
+                "Leave the OAuth fields blank, choose Next, and sign in with the same Apple Account as here",
             ]
         case .other:
             return [
