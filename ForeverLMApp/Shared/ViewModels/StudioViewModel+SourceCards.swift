@@ -65,7 +65,7 @@ extension StudioViewModel {
     }
 
     /// The Library in `windowState` on Recent, every kind newest added
-    /// first: Home's "Everything you've added" under its To Read list.
+    /// first: the See all in the head of Home's To read list.
     func openLibraryRecent(in windowState: StudioWindowState) {
         windowState.sidebarStore.showsRecent = true
         windowState.sidebarStore.recentDisplayLimit = 60

@@ -7,8 +7,11 @@ import AppKit
 /// What the learner saved and has not finished, under Home's composer: a
 /// quiet head, then one row a source with its thumbnail, its title and
 /// where and when it was saved, newest first, with no card around a row.
-/// A row opens the source in the Reader; the
-/// foot opens the Library on Recent, every kind newest added first.
+/// A row opens the source in the Reader. The head's See all, there only
+/// while more wait than the rows show, opens the Library on Recent, every
+/// kind newest added first. It names no count: a backlog of four figures
+/// under a short list read as a weight, not a way in (product owner,
+/// 2026-11-11: "I think this all 1,709 in the library looks weird").
 struct HomeToReadList: View {
     let sources: [StudioArticle]
     /// Everything waiting, of which `sources` is the newest.
@@ -19,35 +22,47 @@ struct HomeToReadList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("To read")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 10)
-                .padding(.bottom, 4)
-                .accessibilityAddTraits(.isHeader)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("To read")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                if let showAll, totalCount > sources.count {
+                    HomeToReadSeeAll(action: showAll)
+                }
+            }
+            // The rows' own inset, so See all ends where their dates do.
+            .padding(.horizontal, 10)
+            .padding(.bottom, 4)
             ForEach(sources) { source in
                 HomeToReadRow(source: source) { open(source.id) }
-            }
-            if let showAll {
-                Button(action: showAll) {
-                    Text(totalCount > sources.count
-                         ? "All \(totalCount) in the Library"
-                         : "Everything you've added")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 10)
-                        .padding(.vertical, 6)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.hoverWash)
-                .help("Open the Library on Recent: every source, newest added first")
-                .accessibilityIdentifier("home.toRead.showAll")
             }
         }
         .padding(.horizontal, StudioDesign.Spacing.small)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("To read")
         .accessibilityIdentifier("home.toRead")
+    }
+}
+
+/// The head's way into the Library: quiet text, brighter under the pointer
+/// as the rows are.
+private struct HomeToReadSeeAll: View {
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Text("See all")
+                .font(.system(size: 11))
+                .foregroundStyle(isHovered ? Color.primary : Color.secondary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help("Open the Library on Recent: everything you've added, newest first")
+        .accessibilityIdentifier("home.toRead.showAll")
     }
 }
 
