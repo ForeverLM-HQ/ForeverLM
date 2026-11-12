@@ -347,6 +347,17 @@ extension MCPDataStore {
                 write: { MacAccountUser.setShowsCompCrown(try AppSettingEntry.bool($0, "account.show_comp_crown")) }
             ),
             AppSettingEntry(
+                id: "papers.read_unlinked_references_with_ai",
+                pane: "Background › Papers",
+                title: "Find unlinked references with AI",
+                detail: "Whether, when a paper is added, the references its free read left without a link are read once by the Paper Reference Extraction model, which says what each entry's title, authors and year are so the catalogs can be searched again. A link is still taken only from a Crossref or OpenAlex record the entry prints. One small request for a paper that has such entries, on the Background model, counted against the daily background limit. On unless the learner turned it off. Find Cited Papers reads a paper's list on request whatever this says.",
+                reach: .account,
+                kind: .boolean,
+                preferenceKeys: [Prefs.Discovery.paperReferenceModelReading.name],
+                read: { PaperReferenceModelReading.isEnabled },
+                write: { PaperReferenceModelReading.setEnabled(try AppSettingEntry.bool($0, "papers.read_unlinked_references_with_ai")) }
+            ),
+            AppSettingEntry(
                 id: "mcp.show_status_light",
                 pane: "MCP",
                 title: "Show the MCP status light in the account button",

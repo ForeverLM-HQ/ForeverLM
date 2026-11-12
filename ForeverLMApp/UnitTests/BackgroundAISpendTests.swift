@@ -24,6 +24,8 @@ struct BackgroundAISpendTests {
         #expect(AIUsageTaskNeed.of(taskKey: "notebook_cover") == .optional)
         #expect(AIUsageTaskNeed.of(taskKey: "card_drafting") == .optional)
         #expect(AIUsageTaskNeed.of(taskKey: "notebook_naming") == .optional)
+        // Read for a paper as it is added: its Activity row has a switch.
+        #expect(AIUsageTaskNeed.of(taskKey: "paper_reference_extraction") == .optional)
         // Written ahead of time, and only then: its Activity row has a switch.
         #expect(AIUsageTaskNeed.of(taskKey: "realtime_review_preparation") == .optional)
         #expect(AIUsageTaskNeed.of(taskKey: "chat_title") == .needed)

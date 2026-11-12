@@ -2351,13 +2351,17 @@ class StudioViewModel {
         )
         self.articleChromeRefilterService = ArticleChromeRefilterService(storage: storageService)
         self.registeredPaperTitleCheckService = RegisteredPaperTitleCheckService(storage: storageService)
-        self.paperReferenceLinkService = PaperReferenceLinkService(storage: storageService)
+        let backgroundBudget = BackgroundAIBudget(storage: storageService)
+        self.paperReferenceLinkService = PaperReferenceLinkService(
+            storage: storageService,
+            readEntries: PaperReferenceModelReading.reader(aiService: ai, budget: backgroundBudget)
+        )
         self.youTubeTranscriptCheckService = YouTubeTranscriptCheckService(storage: storageService)
         self.sourceListenableContentPreparationService = SourceListenableContentPreparationService(
             storage: storageService,
             aiService: ai
         )
-        self.backgroundAIBudget = BackgroundAIBudget(storage: storageService)
+        self.backgroundAIBudget = backgroundBudget
         self.sourceReviewGuidePreparationService = SourceReviewGuidePreparationService(
             storage: storageService,
             aiService: ai

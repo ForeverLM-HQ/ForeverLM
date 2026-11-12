@@ -1146,3 +1146,123 @@ struct PaperReferenceAuthorYearStyleTests {
         #expect(!PDFReferenceEntries.authorYearCitation(second, names: "Elm 2000a"))
     }
 }
+
+@Suite("Paper reference lists: the model step at ingest")
+struct PaperReferenceModelStepTests {
+    private typealias Record = SlideCitationService.ResolvedPaper
+    private typealias Reading = SlideCitationService.ExtractedCitation
+
+    private func reference(_ ordinal: Int, _ text: String) -> PaperReference {
+        PaperReferenceLinkService.initialReference(
+            for: PaperReferenceParser.Entry(ordinal: ordinal, label: "\(ordinal)", text: text), sourceID: "paper", now: Date()
+        )
+    }
+
+    /// Crossref answering by what the search holds; OpenAlex with nothing unless given.
+    private func catalogs(
+        crossref: @escaping @Sendable (String) -> [Record],
+        openAlex: @escaping @Sendable (String) -> [Record] = { _ in [] }
+    ) -> PaperReferenceCatalogs {
+        PaperReferenceCatalogs(
+            recordForDOI: { _ in .answered(nil) },
+            crossrefCandidates: { .answered(crossref($0)) },
+            openAlexCandidates: { .answered(openAlex($0)) }
+        )
+    }
+
+    private let glued = "Flach,P.A.&Kull,M.Precision-recall-gaincurves:PRanalysisdone right. Neural Inf. Process. Syst. 838,846(2015)."
+    private let curves = Record(
+        doi: "10.5555/prg.2015", title: "Precision-Recall-Gain Curves: PR Analysis Done Right",
+        journal: "Advances in Neural Information Processing Systems", year: "2015", authors: "Flach; Kull"
+    )
+    private let cleanReading = Reading(
+        title: "Precision-recall-gain curves: PR analysis done right", authors: "Flach, P.A.; Kull, M.",
+        year: "2015", journal: "Neural Inf. Process. Syst.", doi: nil, url: nil
+    )
+
+    @Test("The model's reading is a search: an entry read with no spaces takes the record it prints")
+    func readingFindsTheSearch() async {
+        let book = reference(4, "Gorse SJ (1981) The mismeasure of moss. W. W. Norden")
+        let record = curves
+        let linked = await PaperReferenceLinkService.linked(
+            [reference(3, glued), book],
+            readAs: [cleanReading],
+            // Crossref finds it by the clean title, which the entry's own run-together words never matched.
+            catalogs: catalogs(crossref: { $0.contains("Precision-recall-gain curves") ? [record] : [] })
+        )
+        #expect(linked.map(\.ordinal) == [3])
+        #expect(linked.first?.url == "https://doi.org/10.5555/prg.2015")
+        #expect(linked.first?.origin == .catalog)
+        #expect(linked.first?.catalogCheckedAt != nil)
+        #expect(linked.first?.text == glued, "the entry stays as the paper prints it")
+    }
+
+    @Test("A reading never links by itself: a record the entry does not print is refused, as is a DOI the model gives")
+    func readingIsNeverALink() async {
+        let other = Record(doi: "10.5555/other", title: "A different paper about something else entirely", journal: "J", year: "2015", authors: "Flach")
+        let invented = Reading(
+            title: "Precision-recall-gain curves: PR analysis done right", authors: "Flach", year: "2015",
+            journal: nil, doi: "10.9999/made-up", url: "https://example.com/made-up"
+        )
+        let linked = await PaperReferenceLinkService.linked(
+            [reference(3, glued)], readAs: [invented], catalogs: catalogs(crossref: { _ in [other] })
+        )
+        #expect(linked.isEmpty)
+    }
+
+    @Test("OpenAlex is asked by the title when Crossref held nothing the entry prints")
+    func openAlexSecond() async {
+        let record = curves
+        let linked = await PaperReferenceLinkService.linked(
+            [reference(3, glued)], readAs: [cleanReading],
+            catalogs: catalogs(crossref: { _ in [] }, openAlex: { $0 == "Precision-recall-gain curves: PR analysis done right" ? [record] : [] })
+        )
+        #expect(linked.first?.doi == "10.5555/prg.2015")
+    }
+
+    @Test("Of two papers a line ran together, the entry keeps the one it opens with")
+    func mergedEntryKeepsItsLead() async {
+        let merged = reference(9, "Kong J, Ha D, Lee J et al. Network-based machine learning approach to predict immunotherapy response in cancer patients. Nat Commun 2022;13:3703. Koster J, Rahmann S. Snakemake, a scalable bioinformatics workflow engine. Bioinformatics 2012;28:2520–2.")
+        let network = Record(doi: "10.1038/s41467-022-31535-6", title: "Network-based machine learning approach to predict immunotherapy response in cancer patients", journal: "Nature Communications", year: "2022", authors: "Kong; Ha; Lee")
+        let snakemake = Record(doi: "10.1093/bioinformatics/bts480", title: "Snakemake, a scalable bioinformatics workflow engine", journal: "Bioinformatics", year: "2012", authors: "Köster; Rahmann")
+        let linked = await PaperReferenceLinkService.linked(
+            [merged],
+            // The model lists the second paper first.
+            readAs: [
+                Reading(title: "Snakemake, a scalable bioinformatics workflow engine", authors: "Koster J; Rahmann S", year: "2012", journal: "Bioinformatics", doi: nil, url: nil),
+                Reading(title: "Network-based machine learning approach to predict immunotherapy response in cancer patients", authors: "Kong J", year: "2022", journal: "Nat Commun", doi: nil, url: nil),
+            ],
+            catalogs: catalogs(crossref: { $0.contains("Snakemake") ? [snakemake] : [network] })
+        )
+        #expect(linked.map(\.doi) == ["10.1038/s41467-022-31535-6"])
+    }
+
+    @Test("A reading is searched by its authors, title, venue, volume, pages and year, and not at all when it names too little")
+    func catalogQuery() {
+        #expect(PaperReferenceLinkService.catalogQuery(for: cleanReading)
+            == "Flach, P.A.; Kull, M. Precision-recall-gain curves: PR analysis done right Neural Inf. Process. Syst. 2015")
+        let titleless = Reading(title: nil, authors: "Sturm, G.", year: "2023", journal: "Commun. Biol.", doi: nil, url: nil, volume: "6", pages: "22")
+        #expect(PaperReferenceLinkService.catalogQuery(for: titleless) == "Sturm, G. Commun. Biol. 6 22 2023")
+        #expect(PaperReferenceLinkService.catalogQuery(for: Reading(title: nil, authors: "Sturm, G.", year: nil, journal: nil, doi: nil, url: nil)) == nil)
+        #expect(PaperReferenceLinkService.catalogQuery(for: Reading(title: " ", authors: nil, year: "2023", journal: "Cell", doi: nil, url: nil)) == nil)
+    }
+
+    @Test("Entries go to the model one a line, in requests that end between entries; linked and assistant entries are not sent")
+    func chunksAndWhoIsAsked() {
+        // Longer than one request holds, so it gets its own.
+        let long = String(repeating: "word ", count: 2_500)
+        let references = [
+            reference(1, "First entry\nbroken over a line"), reference(2, "Second entry"),
+            reference(3, long), reference(4, "Fourth entry"),
+        ]
+        let chunks = PaperReferenceLinkService.modelChunks(of: references)
+        #expect(chunks == ["First entry broken over a line\nSecond entry", long, "Fourth entry"])
+
+        var linked = reference(5, "Lee K. Title. Cell 2019; 5: 1. doi:10.1016/j.cell.2019.01.001")
+        #expect(!PaperReferenceLinkService.needsModel(linked))
+        linked = reference(6, "Lee K. A title with no link printed. Cell 2019; 5: 1.")
+        #expect(PaperReferenceLinkService.needsModel(linked))
+        linked.origin = .agent
+        #expect(!PaperReferenceLinkService.needsModel(linked))
+    }
+}

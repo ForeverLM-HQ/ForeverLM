@@ -182,7 +182,7 @@ extension AITask {
              .cardAnswerCheck,
              // Asked for from a source's menu or an MCP tool.
              .paperFigureUnderstanding, .lecturePaperDiscovery, .meetingPaperDiscovery,
-             .paperReferenceExtraction, .articleLinkDiscovery, .slideCitationExtraction:
+             .articleLinkDiscovery, .slideCitationExtraction:
             return .requested
         case .embedding, .sourceClassification, .paperMetadata, .articleMetadata,
              .articleChromeFiltering, .bookAuthor, .bookChapterSplitting, .scannedPageProofreading,
@@ -205,7 +205,11 @@ extension AITask {
              .transcriptFormatting, .podcastSpeakerIdentification, .podcastYouTubeMatching,
              .journalArticleMatching, .paperNarrationPreparation, .paperTextToSpeechPreparation,
              .automaticAudioFiltering, .meetingActionItems, .sourceIdeaExtraction, .cardDrafting,
-             .notebookNaming, .mapSummaries:
+             .notebookNaming, .mapSummaries,
+             // Runs when a paper is added, for the references the free read left
+             // without a link, as well as from Find Cited Papers: its Activity
+             // row has a switch (`PaperReferenceModelReading`).
+             .paperReferenceExtraction:
             return .optional
         }
     }

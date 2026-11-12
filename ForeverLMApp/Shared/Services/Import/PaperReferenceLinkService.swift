@@ -172,8 +172,17 @@ enum ReferenceCatalogClient {
 /// Free and deterministic apart from the catalogs: the entries come from the PDF's own text
 /// (`PaperReferenceParser`), an entry's printed DOI or address is its link, and one that prints
 /// none is looked up in Crossref and OpenAlex and takes a record only when the entry prints it
-/// (`PaperReferenceCatalogMatch`). No model is asked, so this runs unattended at ingest without
-/// spending anything of the learner's, and it never decides what an entry is by guessing.
+/// (`PaperReferenceCatalogMatch`). It never decides what an entry is by guessing.
+///
+/// One model step follows a paper's first list (product owner, 2026-11-11, asked whether a
+/// model should read what the free pass leaves unlinked: "Yes, add it"): the entries still
+/// without a link are read once by the Paper Reference Extraction model, which only says what
+/// each entry's title, authors and year are, through a line the PDF read with no spaces or
+/// two entries run together. The catalogs are then searched by those words and a record is
+/// taken by the same rule as before, against the entry as the paper prints it, so the model
+/// finds a search and never a link. It is the learner's to turn off
+/// (`PaperReferenceModelReading`), stops at the daily background limit, and is not run for
+/// lists a new parser version reads again: that is a whole library at once.
 ///
 /// Durable and resumable: the list is stored before any catalog is asked, each answer is stored
 /// as it comes, and a catalog that does not answer leaves its entries to be asked again at the
@@ -202,6 +211,9 @@ actor PaperReferenceLinkService {
     }
 
     typealias TextReader = @Sendable (StudioArticle) async -> String?
+    /// The model's reading of entries left without a link, one entry a line: nil when the
+    /// model may not be asked now (switched off, no model chosen, the daily limit reached).
+    typealias EntryReader = @Sendable (StudioArticle, String) async throws -> [SlideCitationService.ExtractedCitation]?
 
     /// Entries asked at once. The pacers hold the rate; this holds the load.
     static let concurrentLookups = 3
@@ -209,17 +221,20 @@ actor PaperReferenceLinkService {
     private let storage: StorageService
     private let catalogs: PaperReferenceCatalogs
     private let readText: TextReader
+    private let readEntries: EntryReader?
     private var isDraining = false
     private static let running = RunningSources()
 
     init(
         storage: StorageService,
         catalogs: PaperReferenceCatalogs = .live,
-        readText: @escaping TextReader = PaperReferenceLinkService.pdfText
+        readText: @escaping TextReader = PaperReferenceLinkService.pdfText,
+        readEntries: EntryReader? = nil
     ) {
         self.storage = storage
         self.catalogs = catalogs
         self.readText = readText
+        self.readEntries = readEntries
     }
 
     /// One paper at a time anywhere in the process: the app's drain and an assistant's
@@ -253,6 +268,8 @@ actor PaperReferenceLinkService {
         let pdfPath = article.localFilePath.map { StorageService.relativeSourcePath($0) }
 
         var readCount = 0
+        // A paper's first list: none was stored before this read.
+        let hadNoList = (state?.entryCount ?? 0) == 0
         let readByOlderParser = state.map {
             $0.parserVersion < PaperReferenceParser.version && ($0.authoredBy ?? "app") == "app"
         } ?? false
@@ -275,6 +292,9 @@ actor PaperReferenceLinkService {
         }
 
         let unanswered = try await askCatalogs(sourceID: sourceID)
+        if hadNoList, readCount > 0 {
+            await askModel(about: article)
+        }
         try await storage.finishPaperReferenceRead(
             sourceID: sourceID,
             pdfPath: pdfPath,
@@ -319,6 +339,125 @@ actor PaperReferenceLinkService {
             }
         }
         return unanswered + max(0, pending.count - index)
+    }
+
+    // MARK: The model step
+
+    /// The most text one request carries, and the most requests one paper gets: a list the
+    /// catalogs were down for is hundreds of entries, and they are asked again for free.
+    static let modelChunkCharacters = 12_000
+    static let maximumModelChunks = 3
+
+    /// Reads the entries still without a link with the model and links what the catalogs then
+    /// vouch for. A failure costs only those links: it is logged and the paper's list stands.
+    private func askModel(about article: StudioArticle) async {
+        guard let readEntries else { return }
+        do {
+            var unlinked = try await storage.loadPaperReferences(sourceID: article.id).filter(Self.needsModel)
+            guard !unlinked.isEmpty else { return }
+            for chunk in Self.modelChunks(of: unlinked).prefix(Self.maximumModelChunks) {
+                guard !Task.isCancelled, let citations = try await readEntries(article, chunk) else { return }
+                let linked = await Self.linked(unlinked, readAs: citations, catalogs: catalogs)
+                for reference in linked {
+                    try await storage.savePaperReference(reference)
+                }
+                let done = Set(linked.map(\.ordinal))
+                unlinked.removeAll { done.contains($0.ordinal) }
+                referenceLinkLogger.info(
+                    "The model read \(citations.count) entry(ies) of \(article.id, privacy: .public); \(linked.count) linked"
+                )
+            }
+        } catch {
+            referenceLinkLogger.error(
+                "The model step for \(article.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    /// Whether the model is asked about the entry: it names no paper, and no assistant wrote it.
+    static func needsModel(_ reference: PaperReference) -> Bool {
+        !reference.isLinked && reference.origin != .agent
+    }
+
+    /// The entries' text, one a line, in requests of at most `modelChunkCharacters`.
+    static func modelChunks(of references: [PaperReference]) -> [String] {
+        var chunks: [String] = []
+        var current = ""
+        for reference in references {
+            let line = reference.text.split(whereSeparator: \.isNewline).joined(separator: " ")
+            if !current.isEmpty, current.count + line.count + 1 > modelChunkCharacters {
+                chunks.append(current)
+                current = ""
+            }
+            current += current.isEmpty ? line : "\n" + line
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+
+    /// What the catalogs are searched for from the model's reading of an entry: its first
+    /// authors, title, venue, volume, pages and year. Nil for a reading that names too little
+    /// to search by: no title, and no author beside a venue or a year.
+    static func catalogQuery(for citation: SlideCitationService.ExtractedCitation) -> String? {
+        func clean(_ value: String?) -> String? { PaperReferenceSummary.nonBlank(value) }
+        let title = clean(citation.title)
+        let authors = clean(citation.authors).map { String($0.prefix(80)) }
+        let journal = clean(citation.journal)
+        let year = clean(citation.year)
+        guard title != nil || (authors != nil && (journal != nil || year != nil)) else { return nil }
+        let parts = [authors, title, journal, clean(citation.volume), clean(citation.pages), year].compactMap { $0 }
+        return String(parts.joined(separator: " ").prefix(400))
+    }
+
+    /// Pure apart from the catalogs: the entries of `unlinked` that gain a link from the
+    /// model's readings. Each reading is only a search. A record it finds is taken by an entry
+    /// that prints it (`PaperReferenceCatalogMatch.accepted`, against the entry's own words)
+    /// and opens with its first author, so of two papers a line ran together the entry keeps
+    /// the one it is labelled by.
+    static func linked(
+        _ unlinked: [PaperReference],
+        readAs citations: [SlideCitationService.ExtractedCitation],
+        catalogs: PaperReferenceCatalogs
+    ) async -> [PaperReference] {
+        var open = unlinked
+        var linked: [PaperReference] = []
+        func take(_ pool: [SlideCitationService.ResolvedPaper]) -> Bool {
+            var took = false
+            for index in open.indices.reversed() {
+                guard let record = PaperReferenceCatalogMatch.accepted(entry: open[index].text, among: pool),
+                      opens(open[index].text, withFirstAuthorOf: record) else { continue }
+                var reference = open.remove(at: index)
+                let now = Date()
+                apply(record, to: &reference)
+                reference.catalogCheckedAt = now
+                reference.updatedAt = now
+                linked.append(reference)
+                took = true
+            }
+            return took
+        }
+        for citation in citations {
+            guard !open.isEmpty, !Task.isCancelled else { break }
+            guard let query = catalogQuery(for: citation) else { continue }
+            if case .answered(let pool) = await catalogs.crossrefCandidates(query), take(pool) { continue }
+            if let title = PaperReferenceSummary.nonBlank(citation.title),
+               case .answered(let more) = await catalogs.openAlexCandidates(title) {
+                _ = take(more)
+            }
+        }
+        return linked.sorted { $0.ordinal < $1.ordinal }
+    }
+
+    /// Whether the entry opens with the record's first author: the surname stands in its
+    /// first words. A record that names no authors is not held to it.
+    static func opens(_ entry: String, withFirstAuthorOf record: SlideCitationService.ResolvedPaper) -> Bool {
+        guard let surname = SlideCitationService.firstAuthorSurname(record.authors) else { return true }
+        func letters(_ value: some StringProtocol) -> String {
+            String(value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).filter(\.isLetter))
+        }
+        let key = letters(surname)
+        guard key.count >= 2 else { return false }
+        return letters(entry.prefix(120)).contains(key)
     }
 
     // MARK: Pure steps
@@ -484,6 +623,47 @@ actor PaperReferenceLinkService {
         } catch {
             referenceLinkLogger.error("Could not count the paper reference queue: \(error.localizedDescription, privacy: .public)")
             return 0
+        }
+    }
+}
+
+
+// MARK: - The model step's switch and its live reader
+
+/// Whether a model reads the references the free pass leaves without a link, when a paper is
+/// added, and the call that does it.
+enum PaperReferenceModelReading {
+    static var isEnabled: Bool {
+        #if os(macOS)
+        Preferences.value(Prefs.Discovery.paperReferenceModelReading)
+        #else
+        false
+        #endif
+    }
+
+    #if os(macOS)
+    static func setEnabled(_ enabled: Bool) {
+        Preferences.set(enabled, for: Prefs.Discovery.paperReferenceModelReading)
+    }
+    #endif
+
+    /// The reader the app's link service runs: on the Paper Reference Extraction task's own
+    /// model and its backups, charged to the paper, and nil (nothing asked) while the switch is
+    /// off, no model is chosen, or the daily background limit is reached.
+    static func reader(aiService: AIService, budget: BackgroundAIBudget) -> PaperReferenceLinkService.EntryReader {
+        { article, entries in
+            guard isEnabled,
+                  let config = KeychainService.resolveConfig(for: .paperReferenceExtraction),
+                  await budget.check().allowsBackgroundSpend else { return nil }
+            return try await AIUsageAttribution.withSource(AIUsageSource(source: article)) {
+                try await AIBackgroundRetry.run(config: config) { candidate in
+                    try await aiService.extractPaperReferences(
+                        paperTitle: article.title,
+                        content: entries,
+                        config: candidate
+                    )
+                }
+            }
         }
     }
 }

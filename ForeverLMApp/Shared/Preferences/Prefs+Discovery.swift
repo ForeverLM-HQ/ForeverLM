@@ -11,6 +11,10 @@ extension Prefs {
         static let youtubeLikedTranscriptFormattingEnabled = AccountKey<Bool?>("youtube.likedTranscriptFormattingEnabled")
         static let applePodcastDiscoveryScope = AccountKey<String?>("studio.applePodcastDiscoveryScope")
         static let youtubeFallbackShows = AccountKey<[String]?>("podcasts.youtubeFallbackShows")
+        /// Whether a model reads the references the free pass left without a link
+        /// when a paper is added (`PaperReferenceModelReading`). A spending
+        /// decision, so it follows the account.
+        static let paperReferenceModelReading = AccountKey<Bool>("papers.references.modelReading", default: true)
         /// Shows whose episodes are never imported. This one has to sync or it
         /// does not work: both Macs read the same Apple Podcasts library, so a
         /// block held on one of them is undone by the other importing the same
@@ -43,6 +47,7 @@ extension Prefs {
             youtubeLikedTranscriptFormattingEnabled.erased,
             applePodcastDiscoveryScope.erased,
             youtubeFallbackShows.erased,
+            paperReferenceModelReading.erased,
             blockedPodcastShows.erased,
             followedPodcastShows.erased,
             preferredBrowser.erased,

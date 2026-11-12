@@ -73,6 +73,7 @@ struct ChatModelsSettingsDetailView: View {
                     SettingsThinkFirstSection()
                 case .background:
                     SettingsMemoryReviewSection()
+                    SettingsPapersSection()
                 }
             }
             .padding(24)

@@ -1010,6 +1010,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `studio.sourceTabIconSize` | string | account | `set_app_setting` sources.tab_icon_size | The source tabs' icon size. |
 | `studio.assistantIntegrationsEnabled` | bool | account | `set_app_setting` mcp.assistant_integrations_enabled | Whether assistants may reach ForeverLM over MCP (AssistantIntegrationSettings.enabledKey); true when absent. |
 | `studio.showMCPStatusLight` | bool | account | `set_app_setting` mcp.show_status_light | Whether the account button carries the MCP status light; true when absent. |
+| `papers.references.modelReading` | bool | account | `set_app_setting` papers.read_unlinked_references_with_ai | Whether a model reads the references a new paper's free read left without a link; true when absent. |
 | `updates.betaReleases` | bool | account | `set_app_setting` updates.beta_releases | Signed up for beta releases (BetaReleases): the Macs get builds from the appcast's beta channel as well as production ones; false when absent. |
 | `studio.integrationTabUnpinDefaultsApplied` | array | account | `set_app_setting` window.integration_tab_unpin_applied | Which integration tabs Studio's one-time unpin has run for (strings). |
 | `studio.integrationTabsUnpinnedByDefault` | array | account | `set_source_settings` pinned (derived) | Which unpinned integration tabs Studio unpinned itself, not the learner (strings). |

@@ -543,10 +543,31 @@ struct SettingsRow<Control: View>: View {
     }
 }
 
+/// Settings › Background › Papers: what background work does for a paper as it is added.
+struct SettingsPapersSection: View {
+    @PreferenceStorage(Prefs.Discovery.paperReferenceModelReading)
+    private var readsReferencesWithModel: Bool
+
+    var body: some View {
+        SettingsSection(title: "Papers") {
+            SettingsCard {
+                SettingsRow("Find unlinked references with AI", detail: "When a paper is added. Uses AI, within your daily background limit.") {
+                    Toggle("Find unlinked references with AI", isOn: $readsReferencesWithModel)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.papers.readReferencesWithModel")
+                }
+                .settingsFocusRow(.papersReadReferences)
+            }
+        }
+    }
+}
+
 /// One setting a learner can be sent to by name, from outside Settings (AI
 /// Usage › Activity's Turn off…). The pane scrolls to the row and washes it.
 enum SettingsRowID: String {
     case memoryDraftCards
+    case papersReadReferences
     case imagesQuizPictures
     case imagesNotebookCovers
     case driveTranscribeRecordings
@@ -555,7 +576,7 @@ enum SettingsRowID: String {
     /// The Settings pane the row is in; nil for a row on a plugin's page.
     var pane: SettingsPane? {
         switch self {
-        case .memoryDraftCards: .aiBackgroundModels
+        case .memoryDraftCards, .papersReadReferences: .aiBackgroundModels
         case .imagesQuizPictures, .imagesNotebookCovers: .aiImages
         case .driveTranscribeRecordings, .youTubeFormatTranscripts: nil
         }

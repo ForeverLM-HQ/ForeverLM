@@ -637,6 +637,8 @@ struct AIActivitySettingsSection: View {
             return (.imagesNotebookCovers, "Settings › Images › Notebooks › Draw notebook covers")
         case "course_quiz_picture", "course_quiz_icon":
             return (.imagesQuizPictures, "Settings › Images › Course quizzes › Draw pictures for new quizzes")
+        case "paper_reference_extraction":
+            return (.papersReadReferences, "Settings › Background › Papers › Find unlinked references with AI")
         case "transcript_formatting":
             return (.youTubeFormatTranscripts, "Plugins › YouTube › Format new transcripts automatically")
         default:

@@ -1173,6 +1173,12 @@
       ]
     },
     {
+      "name": "papers.references.modelReading",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
       "name": "pendingMigrationV1Done",
       "reason": "one-shot marker",
       "scope": "device",
