@@ -479,49 +479,39 @@ actor PDFReferenceEntries {
             return numbered.offset
         }
         guard let authorYear else { return nil }
-        // The entry's label as the stored list gives it ("Belsky 2022"), read from the words
-        // the column goes on with. Exactly one column may answer to the citation.
-        let labelled: [(offset: Int, label: String, opens: Bool)] = columns.compactMap { column in
+        // The entry's label ("Belsky 2022"), read from the words the column goes on with.
+        // Exactly one column may answer to the citation.
+        let labelled = columns.compactMap { column -> (offset: Int, label: String)? in
             let length = min(700, text.length - column.offset)
             guard length > 0 else { return nil }
             let lines = text.substring(with: NSRange(location: column.offset, length: length))
                 .components(separatedBy: .newlines)
                 .map { ReferenceEntryShape.unglued($0.trimmingCharacters(in: .whitespaces)) }
-            guard let label = PaperReferenceParser.authorYearLabel(of: lines.joined(separator: " ")) else { return nil }
-            return (column.offset, label, ReferenceEntryShape.opensWithAuthor(lines.first ?? ""))
+            guard let label = ReferenceEntryShape.authorYearLabel(of: lines.joined(separator: " ")) else { return nil }
+            return (offset: column.offset, label: label)
         }
+        // No column answering means nothing is shown, even where only one opens an entry of
+        // that year: a citation's surname can be unreadable where it is cited (set on the page
+        // before its year), and the year alone was seen naming another paper's entry.
         let named = labelled.filter { authorYearCitation(authorYear, names: $0.label) }
-        if named.count == 1 { return named[0].offset }
-        guard named.isEmpty else { return nil }
-        // The citation's surname may not be readable where it is cited: set on the line or
-        // the column before its year, with a running head read in between. The band still
-        // names the line, so the one column whose line opens an entry of that year is it.
-        let dated = labelled.filter { candidate in
-            candidate.opens && authorYearCitation(authorYear, names: candidate.label, bySurname: false)
-        }
-        return dated.count == 1 ? dated[0].offset : nil
+        return named.count == 1 ? named[0].offset : nil
     }
 
     /// Whether an entry labelled "Sittig 2016" is the paper the citation names: the same year
     /// (and year letter, when the citation prints one) and the same surname, give or take one
     /// letter of a surname of five or more: a PDF's text may drop one of a ligature's letters
-    /// where the paper is cited ("Sitig et al, 2016"). `bySurname` false compares the year alone.
-    nonisolated static func authorYearCitation(
-        _ citation: PaperCitationMarker.AuthorYear,
-        names label: String,
-        bySurname: Bool = true
-    ) -> Bool {
-        if citation.matches(label: label) { return true }
+    /// where the paper is cited ("Sitig et al, 2016").
+    nonisolated static func authorYearCitation(_ citation: PaperCitationMarker.AuthorYear, names label: String) -> Bool {
         guard let space = label.lastIndex(of: " ") else { return false }
         let tail = label[label.index(after: space)...]
         guard tail.prefix(4) == citation.year else { return false }
         if let suffix = citation.suffix, tail.dropFirst(4) != suffix { return false }
-        guard bySurname else { return true }
         func letters(_ value: some StringProtocol) -> [Character] {
             Array(value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).filter(\.isLetter))
         }
         let printed = letters(label[..<space])
         let cited = letters(citation.surname)
+        if printed == cited, !printed.isEmpty { return true }
         guard min(printed.count, cited.count) >= 5, abs(printed.count - cited.count) <= 1 else { return false }
         // One letter dropped, added or changed.
         let (short, long) = printed.count <= cited.count ? (printed, cited) : (cited, printed)
@@ -1320,6 +1310,18 @@ enum ReferenceEntryShape {
     static let initialsFirstStart: NSRegularExpression? = try? NSRegularExpression(
         pattern: #"^\p{Lu}\.(?:\s?-?\p{Lu}\.)*\s?(?:(?:de|van|von|der|den|la|le|del|di|da|du)\s)*\p{Lu}[\p{L}'\x{2019}\-]+(?:,|\s+(?:and|&)\s|\s+et\s+al\.)"#
     )
+
+    /// "Belsky 2022" (or "Egenvall 2000b") for an entry that opens with its first author's
+    /// surname: that surname, with any particles before it, and the first year the entry
+    /// prints. The citation card's own reading, which the iPhone compiles; the stored list's
+    /// labels are `PaperReferenceParser.authorYearLabel`'s, which reads more styles.
+    static func authorYearLabel(of text: String) -> String? {
+        guard let surname = text.range(
+            of: #"^(?:(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du)\s)*\p{Lu}[\p{L}'\x{2019}\x{2010}\x{2011}\-]+"#,
+            options: .regularExpression
+        ), let year = text.range(of: #"\b(?:1[5-9]|20)\d{2}[a-z]?\b"#, options: .regularExpression) else { return nil }
+        return "\(text[surname]) \(text[year])"
+    }
 
     static func opensWithAuthor(_ line: String) -> Bool {
         let line = unglued(line)

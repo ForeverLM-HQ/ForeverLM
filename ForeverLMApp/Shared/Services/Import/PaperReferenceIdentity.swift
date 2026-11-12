@@ -181,8 +181,9 @@ enum PaperReferenceCatalogMatch {
 
 // MARK: - Citation markers
 
-/// A citation as the text of a paper prints it, read into the entries it names.
-enum PaperCitationMarker {
+/// A citation by number, read into the entries it names. The author-year half is declared
+/// beside the citation card's reader (`ReferenceCitation.swift`), which the iPhone compiles too.
+extension PaperCitationMarker {
 
     /// The numbers a numbered marker names, in order, with ranges expanded: "5", "5–7" (5, 6, 7),
     /// "5,7", "[12]", "(3)", and the superscript digits a PDF carries ("⁵⁻⁷"). A range names every
@@ -230,66 +231,18 @@ enum PaperCitationMarker {
         }
         return folded
     }
+}
 
-    /// One author-year citation: the first author's surname and the year, with the letter that
-    /// tells two papers of one author and year apart ("2019a").
-    struct AuthorYear: Equatable, Sendable {
-        let surname: String
-        let year: String
-        let suffix: String?
-
-        /// Whether the entry label ("Smith 2019", "Smith 2019a") is this citation's paper.
-        func matches(label: String) -> Bool {
-            guard let space = label.lastIndex(of: " ") else { return false }
-            let labelSurname = String(label[..<space])
-            let tail = String(label[label.index(after: space)...])
-            let labelYear = String(tail.prefix(4))
-            let labelSuffix = tail.count > 4 ? String(tail.dropFirst(4)) : nil
-            guard labelYear == year, SlideCitationService.surnamesMatch(labelSurname, surname) else { return false }
-            guard let suffix else { return true }
-            return labelSuffix == suffix
-        }
-    }
-
-    private static let authorYearExpression: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"(\p{Lu}[\p{L}'\x{2019}\-]+)(?:\s+(?:et\s+al\.?|and\s+\p{Lu}[\p{L}'\x{2019}\-]+|&\s*\p{Lu}[\p{L}'\x{2019}\-]+))?,?\s*\(?((?:1[5-9]|20)\d{2})([a-z])?\)?"#
-    )
-
-    private static let followingYearExpression: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"^\s*[,;]\s*((?:1[5-9]|20)\d{2})([a-z])?"#
-    )
-
-    /// The author-year citations in a marker: "Smith et al., 2019", "Smith and Jones (2019)",
-    /// "(Smith 2019; Lee 2020a)", and "Smith 2018, 2019" for two papers of one author.
-    static func authorYear(in marker: String) -> [AuthorYear] {
-        guard let expression = authorYearExpression, let following = followingYearExpression else { return [] }
-        var citations: [AuthorYear] = []
-        let range = NSRange(marker.startIndex..., in: marker)
-        for match in expression.matches(in: marker, range: range) {
-            guard let surnameRange = Range(match.range(at: 1), in: marker),
-                  let yearRange = Range(match.range(at: 2), in: marker) else { continue }
-            let surname = String(marker[surnameRange])
-            let suffixRange = Range(match.range(at: 3), in: marker)
-            citations.append(AuthorYear(
-                surname: surname,
-                year: String(marker[yearRange]),
-                suffix: suffixRange.map { String(marker[$0]) }
-            ))
-            // "Smith 2018, 2019": the later years share the surname.
-            guard let whole = Range(match.range, in: marker) else { continue }
-            var rest = String(marker[whole.upperBound...])
-            while let more = following.firstMatch(in: rest, range: NSRange(rest.startIndex..., in: rest)),
-                  let moreYear = Range(more.range(at: 1), in: rest),
-                  let consumed = Range(more.range, in: rest) {
-                let moreSuffix = Range(more.range(at: 2), in: rest)
-                citations.append(AuthorYear(
-                    surname: surname,
-                    year: String(rest[moreYear]),
-                    suffix: moreSuffix.map { String(rest[$0]) }
-                ))
-                rest = String(rest[consumed.upperBound...])
-            }
-        }
-        return citations
+extension PaperCitationMarker.AuthorYear {
+    /// Whether the entry label ("Smith 2019", "Smith 2019a") is this citation's paper.
+    func matches(label: String) -> Bool {
+        guard let space = label.lastIndex(of: " ") else { return false }
+        let labelSurname = String(label[..<space])
+        let tail = String(label[label.index(after: space)...])
+        let labelYear = String(tail.prefix(4))
+        let labelSuffix = tail.count > 4 ? String(tail.dropFirst(4)) : nil
+        guard labelYear == year, SlideCitationService.surnamesMatch(labelSurname, surname) else { return false }
+        guard let suffix else { return true }
+        return labelSuffix == suffix
     }
 }
