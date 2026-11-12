@@ -37,6 +37,42 @@ struct URLNormalizerTests {
         #expect(WorkKey.normalizeRemote("url:" + path) == nil)
     }
 
+    @Test("A remembered key is the key the rules give, every time it is asked")
+    func rememberedKeysMatchTheRules() {
+        let inputs = [
+            "/Users/someone/Library/Mobile Documents/iCloud~com~foreverlm/Documents/ForeverLM/Papers/X.pdf",
+            "/Users/other/Library/Application Support/ForeverLM/Content/Books/Y.epub",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ&utm_source=feed",
+            "https://youtu.be/dQw4w9WgXcQ",
+            "https://arxiv.org/pdf/2503.09427v2",
+            "  https://www.example.com/page/?ref=x#top  ",
+            "Papers/X.pdf",
+            "not a url",
+        ]
+        for input in inputs {
+            let rules = URLNormalizer.normalize(input, localPath: StorageService.relativeSourcePath)
+            #expect(URLNormalizer.normalize(input) == rules, Comment(rawValue: input))
+            #expect(URLNormalizer.normalize(input) == rules, "asked again: \(input)")
+        }
+    }
+
+    @Test("The remembered keys start over when full instead of growing without end")
+    func rememberedKeysAreBounded() {
+        let memo = MacNormalizedKeys()
+        for index in 0..<MacNormalizedKeys.capacity {
+            memo.remember("k\(index)", for: "u\(index)")
+        }
+        #expect(memo.count == MacNormalizedKeys.capacity)
+        #expect(memo.key(for: "u7") == "k7")
+        memo.remember("next", for: "one more")
+        #expect(memo.count == 1)
+        #expect(memo.key(for: "one more") == "next")
+        #expect(memo.key(for: "u7") == nil)
+
+        memo.remember("long", for: String(repeating: "a", count: MacNormalizedKeys.longestKeptInput + 1))
+        #expect(memo.count == 1, "a very long string is worked out each time, not kept")
+    }
+
     // MARK: - Stored paths (the roots and patterns are resolved once per process)
 
     @Test func contentRootsAreStableAcrossReads() {
