@@ -43,9 +43,11 @@ enum MobileRealtimeAssistant {
     /// Talk button, or one that ended): the assistant opens on it.
     static func brief(
         setting: RealtimeVoiceAssistant.Setting,
-        returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil
+        returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil,
+        voiceChangedTo newVoice: String? = nil
     ) async -> RealtimeVoiceBrief {
         let toolbox = Toolbox()
+        toolbox.setting = setting
         let now = Date()
         async let plan = toolbox.planText()
         async let calendar = toolbox.calendarText(days: 7, now: now)
@@ -66,7 +68,11 @@ enum MobileRealtimeAssistant {
         return RealtimeVoiceBrief(
             title: RealtimeVoiceAssistant.title,
             instructions: RealtimeVoiceAssistant.instructions(sections: sections, setting: setting, now: now),
-            kickoff: RealtimeVoiceAssistant.kickoff(setting: setting, returningFrom: narration),
+            kickoff: RealtimeVoiceAssistant.kickoff(
+                setting: setting,
+                returningFrom: narration,
+                voiceChangedTo: newVoice
+            ),
             toolbox: toolbox,
             source: nil
         )
@@ -87,6 +93,8 @@ enum MobileRealtimeAssistant {
     final class Toolbox: RealtimeVoiceToolbox, @unchecked Sendable {
         private let opened = RealtimeVoiceOpenedSources()
         private let catalog = MobileCloudSourceCatalog.shared
+        /// Where the conversation runs, for the one a voice change starts.
+        var setting: RealtimeVoiceAssistant.Setting = .phone
 
         var toolDefinitions: [[String: Any]] {
             let query = ["type": "string", "description": "A few words: title words, an author, a topic."]
@@ -129,6 +137,7 @@ enum MobileRealtimeAssistant {
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
                 RealtimeVoiceListen.toolDefinition,
+                RealtimeVoiceChange.toolDefinition,
             ] + RealtimeVoiceReach.toolDefinitions
         }
 
@@ -157,6 +166,8 @@ enum MobileRealtimeAssistant {
                     (arguments["source_id"] as? String) ?? "",
                     costConfirmed: (arguments["confirm_cost"] as? Bool) ?? false
                 )
+            case RealtimeVoiceChange.toolName:
+                return await changeVoice(arguments["voice"] as? String)
             case "list_meetings":
                 return await MobileVoiceMac.call("list_meeting_groups", [:])
             case "get_meeting_series":
@@ -222,10 +233,46 @@ enum MobileRealtimeAssistant {
             await MobileAudioReviewViewModel.shared.voiceListenAnswer(sourceID: sourceID, costConfirmed: costConfirmed)
         }
 
+        // MARK: A different voice
+
+        /// The voice the next conversation opens in, once this one has ended.
+        private var pendingVoice: String?
+
+        /// Saves the pick where Settings saves it, the account row first: the
+        /// next conversation reads that row, so a pick that did not reach it
+        /// would start the new conversation in the old voice.
+        private func changeVoice(_ requested: String?) async -> String {
+            let current = RealtimeVoiceDefaults.resolvedVoice(MobileRealtimeVoicePick.lastSeen)
+            let answer = RealtimeVoiceChange.pick(requested: requested, current: current)
+            guard case .changing(let voice) = answer else { return RealtimeVoiceChange.output(answer) }
+            do {
+                try await MobileModelPreferenceStore.shared.set(voice, for: Prefs.ReadAloud.voiceModeVoice)
+            } catch {
+                MobileRealtimeAssistant.logger.error("Saving the voice picked by voice failed: \(error.localizedDescription, privacy: .public)")
+                return RealtimeVoiceChange.output(.refused("The new voice could not be saved to the learner's account: \(error.localizedDescription) Nothing changed."))
+            }
+            MobileRealtimeVoicePick.remember(voice)
+            listenLock.withLock { pendingVoice = voice }
+            return RealtimeVoiceChange.output(answer)
+        }
+
         func conversationEnded() async {
-            let sourceID = listenLock.withLock { () -> String? in
-                defer { pendingListenSourceID = nil }
-                return pendingListenSourceID
+            let (sourceID, voice) = listenLock.withLock { () -> (String?, String?) in
+                defer {
+                    pendingListenSourceID = nil
+                    pendingVoice = nil
+                }
+                return (pendingListenSourceID, pendingVoice)
+            }
+            if let voice, sourceID == nil {
+                let setting = setting
+                // Not awaited: the ended conversation still has what was said
+                // to hand over, and the next one starts after it has.
+                Task { @MainActor in
+                    try? await Task.sleep(for: RealtimeVoiceChange.restartDelay)
+                    guard !MobileRealtimeVoice.controller.isActive else { return }
+                    await MobileRealtimeVoice.startAssistant(setting: setting, voiceChangedTo: voice)
+                }
             }
             guard let sourceID else { return }
             // Not awaited: a narration that has to be made runs for minutes,

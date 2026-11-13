@@ -28,7 +28,13 @@ enum MacRealtimeAssistant {
     /// `continuing` is a typed chat carried on out loud
     /// (`RealtimeVoiceChatContinuation`): the assistant also knows the chat so
     /// far and opens by picking it up.
-    static func brief(continuing chat: RealtimeVoiceChatContinuation.Chat? = nil) async -> RealtimeVoiceBrief {
+    ///
+    /// `voiceChangedTo` is the voice the learner just asked for by voice
+    /// (`RealtimeVoiceChange`): the conversation opens by letting them hear it.
+    static func brief(
+        continuing chat: RealtimeVoiceChatContinuation.Chat? = nil,
+        voiceChangedTo newVoice: String? = nil
+    ) async -> RealtimeVoiceBrief {
         let toolbox = Toolbox()
         async let plan = toolbox.mcp("get_plan", [:])
         async let calendar = toolbox.mcp("get_calendar_events", ["days": 7])
@@ -49,7 +55,7 @@ enum MacRealtimeAssistant {
             kickoff = RealtimeVoiceChatContinuation.kickoff(hasMessages: !chat.turns.isEmpty)
         } else {
             instructions = RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac)
-            kickoff = RealtimeVoiceAssistant.kickoff(setting: .mac)
+            kickoff = RealtimeVoiceAssistant.kickoff(setting: .mac, voiceChangedTo: newVoice)
         }
         return RealtimeVoiceBrief(
             title: chat.map { $0.title.isEmpty ? RealtimeVoiceAssistant.title : $0.title } ?? RealtimeVoiceAssistant.title,
@@ -106,6 +112,7 @@ enum MacRealtimeAssistant {
                 RealtimeVoiceAssistant.function("get_goals", "The learner's goals and notebooks."),
                 RealtimeVoiceAssistant.function("get_recent_work", "What the learner did today and yesterday, and their latest chats."),
                 RealtimeVoiceListen.toolDefinition,
+                RealtimeVoiceChange.toolDefinition,
             ] + RealtimeVoiceReach.toolDefinitions
         }
 
@@ -131,6 +138,8 @@ enum MacRealtimeAssistant {
                 return await recentText()
             case RealtimeVoiceListen.toolName:
                 return await listenToSource((arguments["source_id"] as? String) ?? "")
+            case RealtimeVoiceChange.toolName:
+                return changeVoice(arguments["voice"] as? String)
             case "list_meetings":
                 return await mcp("list_meeting_groups", [:])
             case "get_meeting_series":
@@ -198,10 +207,39 @@ enum MacRealtimeAssistant {
             return RealtimeVoiceListen.output(.starting(title: article.title, isMade: isMade))
         }
 
+        // MARK: A different voice
+
+        /// The voice the next conversation opens in, once this one has ended.
+        private var pendingVoice: String?
+
+        /// Saves the pick where Settings › Voice saves it; it syncs to the
+        /// iPhone and the car from there.
+        private func changeVoice(_ requested: String?) -> String {
+            let current = RealtimeVoiceDefaults.resolvedVoice(Preferences.value(Prefs.ReadAloud.voiceModeVoice))
+            let answer = RealtimeVoiceChange.pick(requested: requested, current: current)
+            if case .changing(let voice) = answer {
+                Preferences.set(voice, for: Prefs.ReadAloud.voiceModeVoice)
+                listenLock.withLock { pendingVoice = voice }
+            }
+            return RealtimeVoiceChange.output(answer)
+        }
+
         func conversationEnded() async {
-            let article = listenLock.withLock { () -> StudioArticle? in
-                defer { pendingListen = nil }
-                return pendingListen
+            let (article, voice) = listenLock.withLock { () -> (StudioArticle?, String?) in
+                defer {
+                    pendingListen = nil
+                    pendingVoice = nil
+                }
+                return (pendingListen, pendingVoice)
+            }
+            if let voice, article == nil {
+                // Not awaited: the ended conversation still has what was said
+                // to hand over, and the next one starts after it has.
+                Task { @MainActor in
+                    try? await Task.sleep(for: RealtimeVoiceChange.restartDelay)
+                    guard !MacRealtimeVoice.controller.isActive else { return }
+                    MacRealtimeVoice.startAssistant(voiceChangedTo: voice)
+                }
             }
             guard let article else { return }
             await MainActor.run {

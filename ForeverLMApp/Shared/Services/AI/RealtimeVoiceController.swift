@@ -724,6 +724,11 @@ final class RealtimeVoiceController: ObservableObject {
             if name == RealtimeVoiceListen.toolName, RealtimeVoiceListen.isStarting(output) {
                 endsAfterToolReply = true
             }
+            // A new voice is a new conversation: this one ends on the
+            // sentence that says so.
+            if name == RealtimeVoiceChange.toolName, RealtimeVoiceChange.isChanging(output) {
+                endsAfterToolReply = true
+            }
         } else {
             output = #"{"error":"Unknown tool."}"#
         }

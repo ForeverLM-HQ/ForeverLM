@@ -439,7 +439,42 @@ struct MobileTextToSpeechSettingsView: View {
     }
 }
 
+/// Before the first narration made on this phone: who reads it. One
+/// question and one button; the same model and voice rows Settings has.
+struct MobileListenVoiceChoiceSheet: View {
+    let request: MobileVoiceChoiceRequest
+
+    @EnvironmentObject private var vm: MobileAudioReviewViewModel
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    MobileTextToSpeechSettingsControls(showsOnlyVoice: true)
+                } header: {
+                    Text("Who should read to you?")
+                } footer: {
+                    Text("This voice reads everything you listen to. You can change it any time in Settings › Text to Speech.")
+                }
+            }
+            .navigationTitle("Choose a Voice")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Listen") {
+                        vm.confirmVoiceChoice(request)
+                    }
+                    .accessibilityIdentifier("listen.voiceChoice.listen")
+                }
+            }
+        }
+    }
+}
+
 private struct MobileTextToSpeechSettingsControls: View {
+    /// The first narration's sheet asks one thing; the cost and book
+    /// switches stay in Settings.
+    var showsOnlyVoice = false
     @ObservedObject private var textToSpeech = ArticleSpeechPreferences.shared
     @AppStorage(Prefs.Mobile.automaticallyContinuesBooks)
     private var automaticallyContinuesBooks: Bool
@@ -513,15 +548,17 @@ private struct MobileTextToSpeechSettingsControls: View {
                 .foregroundStyle(.red)
         }
 
-        Toggle("Confirm cost for this model", isOn: confirmsSelectedModelCostBinding)
-            .accessibilityIdentifier("settings.confirmReadAloudCost")
+        if !showsOnlyVoice {
+            Toggle("Confirm cost for this model", isOn: confirmsSelectedModelCostBinding)
+                .accessibilityIdentifier("settings.confirmReadAloudCost")
 
-        Toggle("Automatically continue books", isOn: $automaticallyContinuesBooks)
-            .accessibilityHint("Generates missing audio for the next chapter, then starts it.")
-            .accessibilityIdentifier("settings.automaticallyContinueBooks")
-            .onChange(of: automaticallyContinuesBooks) { _, _ in
-                hasChosenBookContinuation = true
-            }
+            Toggle("Automatically continue books", isOn: $automaticallyContinuesBooks)
+                .accessibilityHint("Generates missing audio for the next chapter, then starts it.")
+                .accessibilityIdentifier("settings.automaticallyContinueBooks")
+                .onChange(of: automaticallyContinuesBooks) { _, _ in
+                    hasChosenBookContinuation = true
+                }
+        }
 
         if let preferenceSyncError {
             Text(preferenceSyncError)

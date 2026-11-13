@@ -23,6 +23,8 @@ Playback controls include:
 - Speed selection from 0.75x to 2x
 - Stop
 
+The first time the iPhone has to make audio, and you have not picked a voice on any device or listened to anything yet, it stops to ask **Who should read to you?**: pick the model and the voice (each voice has a preview), then tap **Listen** and what you asked for goes ahead. After that it never asks again; change the voice in **Settings** -> **Text to Speech**.
+
 On the iPhone the player is one row above whatever you are reading: tap its title for the full player, which has the scrubber, both skips, speeds up to 3x, and a **sleep timer** (the moon beside the speed). The timer pauses playback after 5, 10, 15, 30, 45 or 60 minutes, or at the end of the chapter or source that is playing, in which case a book does not run on into its next chapter. The button shows the time left, and the place you had reached is kept for next time.
 
 ## Text-to-speech models

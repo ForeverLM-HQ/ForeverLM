@@ -75,7 +75,10 @@ enum MacRealtimeVoice {
 
     /// The personal assistant (`MacRealtimeAssistant`): the learner's plans,
     /// calendar, goals and recent work, and any source opened by voice.
-    static func startAssistant() {
+    ///
+    /// `voiceChangedTo` is the voice just asked for by voice
+    /// (`RealtimeVoiceChange`), which the new conversation opens in.
+    static func startAssistant(voiceChangedTo newVoice: String? = nil) {
         Task {
             if controller.isActive {
                 isReplacing = true
@@ -87,7 +90,7 @@ enum MacRealtimeVoice {
             currentChatWriter = nil
             MacRealtimeVoicePanel.shared.show()
             await controller.start(title: RealtimeVoiceAssistant.title, status: "Getting your day together…") {
-                await MacRealtimeAssistant.brief()
+                await MacRealtimeAssistant.brief(voiceChangedTo: newVoice)
             }
         }
     }

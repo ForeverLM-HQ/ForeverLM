@@ -8,6 +8,7 @@ extension Prefs {
     enum Mobile {
         static let automaticallyContinuesBooks = DeviceKey<Bool>("ios.listen.automaticallyContinuesBooks", default: false, reason: "iPhone-local: whether this phone plays the next chapter of a book")
         static let hasAskedToAutomaticallyContinueBooks = DeviceKey<Bool>("ios.listen.hasAskedToAutomaticallyContinueBooks", default: false, reason: "iPhone-local: one-shot marker that this phone asked about continuing books")
+        static let hasOfferedVoiceChoice = DeviceKey<Bool>("ios.listen.hasOfferedVoiceChoice", default: false, reason: "iPhone-local: one-shot marker that this phone offered the choice of a voice before its first narration")
         static let playbackSpeed = DeviceKey<Float?>("ios.listen.playbackSpeed", reason: "iPhone-local: this phone's listening speed")
         static let lastOpenedNotebookID = DeviceKey<String?>("ios.notebooks.lastOpenedNotebookID", reason: "iPhone-local: the notebook this phone reopens")
         static let retiredLastOpenedNotebookID = DeviceKey<String?>("ios.notebooks.lastOpenedProjectID", reason: "iPhone-local: the notebook this phone reopened, under the name before notebooks; read once and cleared")
@@ -28,6 +29,7 @@ extension Prefs {
         static let all: [AnyPreferenceKey] = [
             automaticallyContinuesBooks.erased,
             hasAskedToAutomaticallyContinueBooks.erased,
+            hasOfferedVoiceChoice.erased,
             playbackSpeed.erased,
             lastOpenedNotebookID.erased,
             retiredLastOpenedNotebookID.erased,

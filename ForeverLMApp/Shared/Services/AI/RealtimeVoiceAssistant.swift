@@ -155,7 +155,17 @@ enum RealtimeVoiceAssistant {
         let outcome: Outcome
     }
 
-    static func kickoff(setting: Setting, returningFrom narration: NarrationReturn? = nil) -> String {
+    /// `voiceChangedTo` is the voice the learner just asked for by voice
+    /// (`RealtimeVoiceChange`): this conversation is the new one, and it
+    /// opens by letting them hear it.
+    static func kickoff(
+        setting: Setting,
+        returningFrom narration: NarrationReturn? = nil,
+        voiceChangedTo newVoice: String? = nil
+    ) -> String {
+        if let newVoice {
+            return "(The learner asked you for a different voice, and you now speak in the voice called \(RealtimeVoiceDefaults.voiceLabel(newVoice)), in a new conversation. In one short sentence, say this is the new voice and ask how it sounds; say they can ask for another. Then listen.)"
+        }
         if let narration {
             let place = setting == .car ? " in the car" : ""
             let named = "\u{201C}\(narration.title)\u{201D} (source_id \(narration.sourceID))"
@@ -530,6 +540,89 @@ enum RealtimeVoiceListen {
     static func ownAudioRefusal(kind: String) -> String {
         "This \(kind) is its own recording, and ForeverLM only reads text sources aloud. Offer to talk about it instead."
     }
+}
+
+/// Changing voice by voice: the learner asks for a different voice and the
+/// assistant switches to it (product owner, 2026-11-13: "Can I be like, please
+/// use a different voice? And then it will be like, okay, sure, I'm changing
+/// my voice now. And then start a new session"). OpenAI holds a session's
+/// voice once it has spoken, so the switch is a new conversation: the tool
+/// saves the pick (the same one Settings writes), its answer says changing,
+/// the assistant says so in a sentence, the controller ends the conversation
+/// when that sentence has played, and `RealtimeVoiceToolbox.conversationEnded`
+/// starts the next one, which opens in the new voice.
+enum RealtimeVoiceChange {
+    static let toolName = "change_voice"
+
+    static var toolDefinition: [String: Any] {
+        let names = RealtimeVoiceDefaults.voices.map(RealtimeVoiceDefaults.voiceLabel).joined(separator: ", ")
+        return RealtimeVoiceAssistant.function(
+            toolName,
+            "Changes the voice you speak in, when the learner asks for a different voice. The voices are \(names). Pass the one they name; when they name none, leave voice out and the next one is taken. When the answer says changing, say in one short sentence that you are switching voices: this conversation then ends and a new one starts in the new voice.",
+            properties: [
+                "voice": [
+                    "type": "string",
+                    "enum": RealtimeVoiceDefaults.voices,
+                    "description": "The voice the learner named, in lower case. Leave out when they named none.",
+                ] as [String: Any],
+            ]
+        )
+    }
+
+    enum Answer: Equatable, Sendable {
+        /// The pick is saved; the next conversation speaks in it.
+        case changing(to: String)
+        /// Nothing changed, and why, as the model says it.
+        case refused(String)
+    }
+
+    /// The voice to switch to: the one named, or with none named the one
+    /// after the current voice in OpenAI's list, coming round at its end.
+    static func pick(requested: String?, current: String) -> Answer {
+        let named = (requested ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let voices = RealtimeVoiceDefaults.voices
+        if named.isEmpty {
+            let index = voices.firstIndex(of: current) ?? -1
+            return .changing(to: voices[(index + 1) % voices.count])
+        }
+        guard voices.contains(named) else {
+            let names = voices.map(RealtimeVoiceDefaults.voiceLabel).joined(separator: ", ")
+            return .refused("There is no voice called \(named). The voices are \(names).")
+        }
+        guard named != current else {
+            return .refused("You are already speaking as \(RealtimeVoiceDefaults.voiceLabel(named)). Ask which other voice they would like, or leave voice out for the next one.")
+        }
+        return .changing(to: named)
+    }
+
+    /// The answer as the realtime model reads it.
+    static func output(_ answer: Answer) -> String {
+        let payload: [String: Any]
+        switch answer {
+        case .changing(let voice):
+            payload = [
+                "changing": true,
+                "voice": RealtimeVoiceDefaults.voiceLabel(voice),
+                "note": "Say in one short sentence that you are switching to this voice. This conversation ends when you have said it, and a new one starts in the new voice.",
+            ]
+        case .refused(let reason):
+            payload = ["changing": false, "error": reason]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? #"{"error":"The voice could not be changed."}"#
+    }
+
+    /// Whether a tool answer says the voice is changing, which is when the
+    /// conversation ends after the reply to it.
+    static func isChanging(_ output: String) -> Bool {
+        guard let payload = (try? JSONSerialization.jsonObject(with: Data(output.utf8))) as? [String: Any],
+              let changing = payload["changing"] as? NSNumber else { return false }
+        return changing.boolValue
+    }
+
+    /// How long the next conversation waits after the old one ends, so the
+    /// ended one has handed over what was said and its screen has gone.
+    static let restartDelay: Duration = .milliseconds(600)
 }
 
 /// The assistant's reach past its own picture, the same by name on the Mac

@@ -102,6 +102,8 @@ Every conversation is saved as a voice chat: a source conversation with that sou
 
 Pick the voice ForeverLM speaks in from ten: Marin (the default), Cedar, Alloy, Ash, Ballad, Coral, Echo, Sage, Shimmer and Verse. On the Mac it is **Settings** -> **Voice** -> **Voice mode**; on the iPhone, **Settings** -> **Voice Mode**. One pick serves the Mac, the iPhone and CarPlay, and your next conversation speaks in it; a conversation under way keeps its voice. A chat can set it too (`voice_mode.voice`). Every voice costs the same: nothing, to you.
 
+You can also just ask: "use a different voice", or "switch to Cedar". Talking to ForeverLM as your assistant (on the Mac, the iPhone or in the car), it says it is switching, the conversation ends, and a new one starts in the new voice and asks how it sounds. A conversation cannot change its voice part-way, which is why it starts over; the pick is saved exactly as the one in Settings is. With no voice named it takes the next one in the list, so you can keep asking until you like what you hear. A conversation about one source, a card review and Gym Mode keep their voice; change it in Settings or from the assistant first.
+
 ## Usage
 
 Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **BYOK** capsule, because it runs on its own OpenAI key rather than through OpenRouter: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you. With your own OpenAI key, the Mac lists each reply as your key's, at OpenAI's list price; the iPhone's Usage does not show those, and OpenAI's own usage page has them all.

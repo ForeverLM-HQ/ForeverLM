@@ -654,6 +654,7 @@ extension MobileAudioReviewViewModel {
         if allSources.isEmpty && items.isEmpty {
             await load()
         }
+        if await offersVoiceChoice(before: .audiobook(bookID: bookID)) { return }
         // The quote prices the selected model from OpenRouter's speech list.
         await OpenRouterAudioDirectory.prepare(.speech)
         let modelID: String

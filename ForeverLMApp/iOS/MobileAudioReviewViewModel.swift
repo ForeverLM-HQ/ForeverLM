@@ -154,6 +154,10 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// clears it.
     @Published var pendingDeepLink: MobileDeepLink?
     @Published var bookContinuationOffer: MobileBookContinuationOffer?
+    /// The first narration on this phone, waiting while the learner picks a
+    /// voice, and the one to go ahead with once the sheet has gone.
+    @Published var voiceChoiceRequest: MobileVoiceChoiceRequest?
+    var voiceChoiceContinuation: MobileVoiceChoiceRequest?
     /// Listen's sleep timer, while one is set.
     @Published var sleepTimer: MobileSleepTimer?
     @Published var lastDrivingBenchmark: MobileDrivingVoiceBenchmark?

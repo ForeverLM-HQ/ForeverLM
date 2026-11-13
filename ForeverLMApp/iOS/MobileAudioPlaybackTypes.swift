@@ -67,6 +67,30 @@ enum MobileAudioPlaybackSpeed {
     }
 }
 
+/// What the learner asked for when Listen stopped to offer a voice: the first
+/// narration made on this phone waits for them to pick who reads it (product
+/// owner, 2026-11-13: "First time someone does audio, they can choose the
+/// voice"), and then goes ahead.
+enum MobileVoiceChoiceRequest: Identifiable, Equatable {
+    case listen(sourceID: String)
+    case audiobook(bookID: String)
+
+    var id: String {
+        switch self {
+        case .listen(let sourceID): return "listen-\(sourceID)"
+        case .audiobook(let bookID): return "audiobook-\(bookID)"
+        }
+    }
+
+    /// Whether a narration about to be made is this phone's first: nothing
+    /// offered before, no model picked here or on the Mac, and no narration
+    /// in the library yet. Someone who already listens is not asked.
+    static func isFirstNarration(hasOffered: Bool, storedModel: String?, narrationCount: Int) -> Bool {
+        guard !hasOffered, narrationCount == 0 else { return false }
+        return (storedModel ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 /// Listen's sleep timer: playback pauses when it runs out, at the place it
 /// had reached, so the next Listen carries on from there (product owner,
 /// 2026-11-13: "add a sleep timer for when i listen to a book or paper").

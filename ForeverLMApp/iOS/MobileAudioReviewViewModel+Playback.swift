@@ -391,6 +391,8 @@ extension MobileAudioReviewViewModel {
             return
         }
 
+        if await offersVoiceChoice(before: .listen(sourceID: sourceID)) { return }
+
         do {
             _ = try await prepareSourceAudio(
                 sourceID: sourceID,
@@ -400,6 +402,46 @@ extension MobileAudioReviewViewModel {
             if let message = textToSpeechFailureMessage(error, sourceID: sourceID) {
                 errorMessage = message
             }
+        }
+    }
+
+    // MARK: - The first narration's voice
+
+    /// True when the request was put aside for the voice sheet. The account's
+    /// pick is read first, so a voice chosen on the Mac counts as chosen.
+    func offersVoiceChoice(before request: MobileVoiceChoiceRequest) async -> Bool {
+        guard !Preferences.value(Prefs.Mobile.hasOfferedVoiceChoice) else { return false }
+        try? await ArticleSpeechPreferences.shared.refreshFromAccount()
+        guard MobileVoiceChoiceRequest.isFirstNarration(
+            hasOffered: false,
+            storedModel: Preferences.value(Prefs.Mobile.readAloudModel),
+            narrationCount: items.count
+        ) else {
+            Preferences.set(true, for: Prefs.Mobile.hasOfferedVoiceChoice)
+            return false
+        }
+        voiceChoiceRequest = request
+        return true
+    }
+
+    /// The sheet's Listen: the choice is made, and what was asked for goes
+    /// ahead once the sheet has gone (`continueAfterVoiceChoice`).
+    func confirmVoiceChoice(_ request: MobileVoiceChoiceRequest) {
+        Preferences.set(true, for: Prefs.Mobile.hasOfferedVoiceChoice)
+        voiceChoiceContinuation = request
+        voiceChoiceRequest = nil
+    }
+
+    /// Run when the voice sheet has left the screen. A sheet swiped away
+    /// leaves nothing to continue, and the next Listen offers again.
+    func continueAfterVoiceChoice() async {
+        guard let request = voiceChoiceContinuation else { return }
+        voiceChoiceContinuation = nil
+        switch request {
+        case .listen(let sourceID):
+            await toggleTextToSpeech(sourceID: sourceID)
+        case .audiobook(let bookID):
+            await requestAudiobook(bookID: bookID)
         }
     }
 

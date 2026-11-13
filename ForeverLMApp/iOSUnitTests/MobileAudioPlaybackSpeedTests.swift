@@ -38,6 +38,29 @@ final class MobileAudioPlaybackSpeedTests: XCTestCase {
     }
 }
 
+/// The voice is offered once, before the first narration made on a phone.
+final class MobileVoiceChoiceRequestTests: XCTestCase {
+    func testSomeoneNewToListeningIsOfferedAVoice() {
+        XCTAssertTrue(MobileVoiceChoiceRequest.isFirstNarration(hasOffered: false, storedModel: nil, narrationCount: 0))
+        XCTAssertTrue(MobileVoiceChoiceRequest.isFirstNarration(hasOffered: false, storedModel: "  ", narrationCount: 0))
+    }
+
+    func testSomeoneWhoAlreadyListensIsNot() {
+        // Offered before, a model picked here or on the Mac, or narrations
+        // already in the library.
+        XCTAssertFalse(MobileVoiceChoiceRequest.isFirstNarration(hasOffered: true, storedModel: nil, narrationCount: 0))
+        XCTAssertFalse(MobileVoiceChoiceRequest.isFirstNarration(hasOffered: false, storedModel: "a/model", narrationCount: 0))
+        XCTAssertFalse(MobileVoiceChoiceRequest.isFirstNarration(hasOffered: false, storedModel: nil, narrationCount: 3))
+    }
+
+    func testEachRequestIsItsOwnSheet() {
+        XCTAssertNotEqual(
+            MobileVoiceChoiceRequest.listen(sourceID: "x").id,
+            MobileVoiceChoiceRequest.audiobook(bookID: "x").id
+        )
+    }
+}
+
 /// Listen's sleep timer: when it is due, and what it shows while it runs.
 final class MobileSleepTimerTests: XCTestCase {
     private let now = Date(timeIntervalSinceReferenceDate: 1_000_000)

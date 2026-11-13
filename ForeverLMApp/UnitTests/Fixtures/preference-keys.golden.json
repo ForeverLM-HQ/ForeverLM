@@ -623,6 +623,12 @@
       "synced": false
     },
     {
+      "name": "ios.listen.hasOfferedVoiceChoice",
+      "reason": "iPhone-local: one-shot marker that this phone offered the choice of a voice before its first narration",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "ios.listen.playbackSpeed",
       "reason": "iPhone-local: this phone's listening speed",
       "scope": "device",

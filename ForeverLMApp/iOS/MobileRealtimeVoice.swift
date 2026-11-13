@@ -70,7 +70,8 @@ enum MobileRealtimeVoice {
     /// the learner comes back from: the assistant opens on it.
     static func startAssistant(
         setting: RealtimeVoiceAssistant.Setting,
-        returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil
+        returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil,
+        voiceChangedTo newVoice: String? = nil
     ) async {
         await prepareToTalk(inCar: setting == .car)
         currentSource = nil
@@ -79,7 +80,11 @@ enum MobileRealtimeVoice {
             title: RealtimeVoiceAssistant.title,
             status: "Getting your day together…"
         ) {
-            await MobileRealtimeAssistant.brief(setting: setting, returningFrom: narration)
+            await MobileRealtimeAssistant.brief(
+                setting: setting,
+                returningFrom: narration,
+                voiceChangedTo: newVoice
+            )
         }
     }
 

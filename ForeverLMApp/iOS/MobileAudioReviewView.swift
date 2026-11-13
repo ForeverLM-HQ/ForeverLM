@@ -115,6 +115,15 @@ struct MobileAudioReviewView: View {
         .task(id: isVoiceCoverPresented) {
             await presentVoiceCoverWhenRefused()
         }
+        // The first narration on this phone waits for a voice; what was asked
+        // for goes ahead when the sheet has gone, so its own price question
+        // never meets a sheet that is still leaving.
+        .sheet(item: $vm.voiceChoiceRequest, onDismiss: {
+            Task { await vm.continueAfterVoiceChoice() }
+        }) { request in
+            MobileListenVoiceChoiceSheet(request: request)
+                .environmentObject(vm)
+        }
         .alert(item: $vm.textToSpeechCostConfirmation) { confirmation in
             Alert(
                 title: Text(confirmation.title),

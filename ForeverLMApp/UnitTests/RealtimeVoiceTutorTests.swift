@@ -661,6 +661,44 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceAssistant.kickoff(setting: .car, returningFrom: nil) == RealtimeVoiceAssistant.kickoff(setting: .car))
     }
 
+    @Test("Asked for a different voice, voice saves the pick and starts over in it")
+    func changeVoice() {
+        // The assistant has the tool, everywhere it runs.
+        let macTools = Set(MacRealtimeAssistant.Toolbox().toolDefinitions.compactMap { $0["name"] as? String })
+        #expect(macTools.contains(RealtimeVoiceChange.toolName))
+
+        // A voice that is named is taken; none named takes the next one, and
+        // the last comes round to the first.
+        #expect(RealtimeVoiceChange.pick(requested: "Cedar ", current: "marin") == .changing(to: "cedar"))
+        #expect(RealtimeVoiceChange.pick(requested: nil, current: "marin") == .changing(to: "cedar"))
+        #expect(RealtimeVoiceChange.pick(requested: "", current: "verse") == .changing(to: "marin"))
+        // The voice it already has, and one OpenAI's realtime models do not
+        // speak in, change nothing.
+        guard case .refused(let same) = RealtimeVoiceChange.pick(requested: "marin", current: "marin"),
+              case .refused(let unknown) = RealtimeVoiceChange.pick(requested: "nova", current: "marin") else {
+            Issue.record("A voice that cannot be switched to was accepted.")
+            return
+        }
+        #expect(same.contains("already speaking as Marin"))
+        #expect(unknown.contains("Cedar"))
+
+        // Only an answer that says changing ends the conversation.
+        let changing = RealtimeVoiceChange.output(.changing(to: "cedar"))
+        #expect(RealtimeVoiceChange.isChanging(changing))
+        #expect(changing.contains("Cedar"))
+        #expect(!RealtimeVoiceChange.isChanging(RealtimeVoiceChange.output(.refused(same))))
+        #expect(!RealtimeVoiceChange.isChanging(#"{"error":"Unknown tool."}"#))
+        #expect(!RealtimeVoiceListen.isStarting(changing))
+
+        // The new conversation opens on the new voice, whatever else it could open on.
+        for setting in [RealtimeVoiceAssistant.Setting.mac, .phone, .car] {
+            let kickoff = RealtimeVoiceAssistant.kickoff(setting: setting, voiceChangedTo: "cedar")
+            #expect(kickoff.contains("Cedar"))
+            #expect(kickoff.contains("how it sounds"))
+        }
+        #expect(RealtimeVoiceAssistant.kickoff(setting: .phone, voiceChangedTo: nil) == RealtimeVoiceAssistant.kickoff(setting: .phone))
+    }
+
     @Test("The assistant knows the learner's picture and how to talk in the car")
     func assistantInstructions() {
         let sections = [
