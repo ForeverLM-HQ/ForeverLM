@@ -158,6 +158,10 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// voice, and the one to go ahead with once the sheet has gone.
     @Published var voiceChoiceRequest: MobileVoiceChoiceRequest?
     var voiceChoiceContinuation: MobileVoiceChoiceRequest?
+    /// The first voice conversation, waiting while the learner picks its
+    /// voice, and the one to start once the sheet has gone.
+    @Published var voiceModeVoiceChoice: MobileVoiceModeVoiceChoice?
+    var voiceModeStartAfterChoice: (@MainActor () async -> Void)?
     /// Listen's sleep timer, while one is set.
     @Published var sleepTimer: MobileSleepTimer?
     @Published var lastDrivingBenchmark: MobileDrivingVoiceBenchmark?

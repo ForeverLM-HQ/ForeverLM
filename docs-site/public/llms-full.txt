@@ -2573,6 +2573,8 @@ Every conversation is saved as a voice chat: a source conversation with that sou
 
 Pick the voice ForeverLM speaks in from ten: Marin (the default), Cedar, Alloy, Ash, Ballad, Coral, Echo, Sage, Shimmer and Verse. On the Mac it is **Settings** -> **Voice** -> **Voice mode**; on the iPhone, **Settings** -> **Voice Mode**. One pick serves the Mac, the iPhone and CarPlay, and your next conversation speaks in it; a conversation under way keeps its voice. A chat can set it too (`voice_mode.voice`). Every voice costs the same: nothing, to you.
 
+The first time you start a voice conversation on the iPhone, and no voice has been picked on any of your devices, it asks **Which voice should ForeverLM speak in?** before it starts; pick one and tap **Start Talking**. It asks once, and never in the car.
+
 You can also just ask: "use a different voice", or "switch to Cedar". Talking to ForeverLM as your assistant (on the Mac, the iPhone or in the car), it says it is switching, the conversation ends, and a new one starts in the new voice and asks how it sounds. A conversation cannot change its voice part-way, which is why it starts over; the pick is saved exactly as the one in Settings is. With no voice named it takes the next one in the list, so you can keep asking until you like what you hear. A conversation about one source, a card review and Gym Mode keep their voice; change it in Settings or from the assistant first.
 
 ## Usage
@@ -6773,6 +6775,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
 - **Change voice mode's voice by asking.** Tell ForeverLM's assistant "use a different voice" or "switch to Cedar", on the Mac, the iPhone or in the car: it says it is switching, and a new conversation starts in the new voice and asks how it sounds. Name no voice and it takes the next one. The pick is the same one **Settings** holds.
 - **The iPhone asks who should read to you, once.** Before the first audio it has to make for someone who has never picked a voice or listened to anything, Listen (and Generate Audiobook) shows the model and voice to choose from, then carries on.
 - **A sleep timer on the iPhone.** The full player has a moon beside the speed: pause after 5, 10, 15, 30, 45 or 60 minutes, or at the end of the chapter (or source) that is playing, in which case a book does not run on into its next chapter. The button shows the time left, and the place you had reached is kept.

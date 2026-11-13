@@ -124,6 +124,13 @@ struct MobileAudioReviewView: View {
             MobileListenVoiceChoiceSheet(request: request)
                 .environmentObject(vm)
         }
+        // The same for the first voice conversation: it starts when its voice
+        // sheet has gone, which is when the voice cover can be presented.
+        .sheet(item: $vm.voiceModeVoiceChoice, onDismiss: {
+            Task { await MobileRealtimeVoice.continueAfterVoiceChoice() }
+        }) { choice in
+            MobileVoiceModeVoiceChoiceSheet(choice: choice)
+        }
         .alert(item: $vm.textToSpeechCostConfirmation) { confirmation in
             Alert(
                 title: Text(confirmation.title),

@@ -439,6 +439,71 @@ struct MobileTextToSpeechSettingsView: View {
     }
 }
 
+/// Before the first voice conversation on this phone: the voice ForeverLM
+/// speaks in. One question and one button. The realtime voices have no
+/// samples to play, so the sheet says how to change it by ear afterwards.
+struct MobileVoiceModeVoiceChoiceSheet: View {
+    let choice: MobileVoiceModeVoiceChoice
+
+    @State private var voice = RealtimeVoiceDefaults.voice
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Picker("Voice", selection: $voice) {
+                        ForEach(RealtimeVoiceDefaults.voices, id: \.self) { id in
+                            Text(RealtimeVoiceDefaults.voiceLabel(id)).tag(id)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                    .accessibilityIdentifier("voiceMode.voiceChoice.voice")
+                    if let saveError {
+                        Text(saveError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("Which voice should ForeverLM speak in?")
+                } footer: {
+                    Text("To hear another, say \u{201C}use a different voice\u{201D} while you talk, or change it in Settings › Voice Mode.")
+                }
+            }
+            .navigationTitle("Choose a Voice")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Start Talking") {
+                        save()
+                    }
+                    .disabled(isSaving)
+                    .accessibilityIdentifier("voiceMode.voiceChoice.start")
+                }
+            }
+        }
+    }
+
+    /// The pick goes to the account row the conversation reads; one that did
+    /// not get there is said, and nothing starts in a voice nobody chose.
+    private func save() {
+        isSaving = true
+        let picked = voice
+        Task {
+            do {
+                try await MobileModelPreferenceStore.shared.set(picked, for: Prefs.ReadAloud.voiceModeVoice)
+                MobileRealtimeVoicePick.remember(picked)
+                MobileRealtimeVoice.confirmVoiceChoice(choice)
+            } catch {
+                saveError = error.localizedDescription
+                isSaving = false
+            }
+        }
+    }
+}
+
 /// Before the first narration made on this phone: who reads it. One
 /// question and one button; the same model and voice rows Settings has.
 struct MobileListenVoiceChoiceSheet: View {

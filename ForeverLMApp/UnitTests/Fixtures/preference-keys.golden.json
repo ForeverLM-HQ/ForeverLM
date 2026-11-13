@@ -701,6 +701,12 @@
       "synced": false
     },
     {
+      "name": "ios.voiceMode.hasOfferedVoiceChoice",
+      "reason": "iPhone-local: one-shot marker that this phone offered the choice of a voice before its first voice conversation",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "journals.notifyOnMatch.v1",
       "reason": "device-local like the journal feeds it announces; a banner is about the Mac that found the article",
       "scope": "device",

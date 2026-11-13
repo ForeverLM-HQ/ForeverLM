@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
 - **Change voice mode's voice by asking.** Tell ForeverLM's assistant "use a different voice" or "switch to Cedar", on the Mac, the iPhone or in the car: it says it is switching, and a new conversation starts in the new voice and asks how it sounds. Name no voice and it takes the next one. The pick is the same one **Settings** holds.
 - **The iPhone asks who should read to you, once.** Before the first audio it has to make for someone who has never picked a voice or listened to anything, Listen (and Generate Audiobook) shows the model and voice to choose from, then carries on.
 - **A sleep timer on the iPhone.** The full player has a moon beside the speed: pause after 5, 10, 15, 30, 45 or 60 minutes, or at the end of the chapter (or source) that is playing, in which case a book does not run on into its next chapter. The button shows the time left, and the place you had reached is kept.

@@ -91,6 +91,23 @@ enum MobileVoiceChoiceRequest: Identifiable, Equatable {
     }
 }
 
+/// The first voice conversation on this phone, put aside while the learner
+/// picks the voice it speaks in (product owner, 2026-11-13: "add the voice
+/// choice for voice mode's first conversation"). `start` is the conversation
+/// that was asked for.
+struct MobileVoiceModeVoiceChoice: Identifiable {
+    let id = UUID()
+    let start: @MainActor () async -> Void
+
+    /// Whether a conversation about to start is the first a voice is offered
+    /// for: nothing offered on this phone before, and no voice picked on the
+    /// account from any device.
+    static func isFirstConversation(hasOffered: Bool, storedVoice: String?) -> Bool {
+        guard !hasOffered else { return false }
+        return (storedVoice ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 /// Listen's sleep timer: playback pauses when it runs out, at the place it
 /// had reached, so the next Listen carries on from there (product owner,
 /// 2026-11-13: "add a sleep timer for when i listen to a book or paper").

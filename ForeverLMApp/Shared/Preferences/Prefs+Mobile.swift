@@ -20,6 +20,7 @@ extension Prefs {
         static let spacePagesExpanded = DeviceKey<String>("ios.space.pagesExpanded.v1", default: "", reason: "iPhone-local: which pages' subpages this phone's Space shows")
         static let spaceRecents = DeviceKey<[Any]?>("ios.space.recents.v1", coding: .array, reason: "iPhone-local: this phone's Space Recents")
         static let spaceSort = DeviceKey<String?>("ios.space.sort", reason: "iPhone-local: the sort in this phone's Space")
+        static let hasOfferedVoiceModeVoiceChoice = DeviceKey<Bool>("ios.voiceMode.hasOfferedVoiceChoice", default: false, reason: "iPhone-local: one-shot marker that this phone offered the choice of a voice before its first voice conversation")
         static let reviewGrader = DeviceKey<String?>("foreverlm.grader.v1", reason: "which grader this phone's review uses")
         static let todayWidgetSnapshot = DeviceKey<Data?>("widget.today.snapshot", reason: "the Today widget's snapshot, kept in the app group's suite on this phone")
         static let readingChatSpeakReplies = DeviceKey<Bool>("ios.readingChat.speakReplies", default: false, reason: "iPhone-local: whether this phone reads a reading chat's replies aloud")
@@ -41,6 +42,7 @@ extension Prefs {
             spacePagesExpanded.erased,
             spaceRecents.erased,
             spaceSort.erased,
+            hasOfferedVoiceModeVoiceChoice.erased,
             reviewGrader.erased,
             todayWidgetSnapshot.erased,
             readingChatSpeakReplies.erased,

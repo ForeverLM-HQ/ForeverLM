@@ -38,11 +38,46 @@ enum MobileRealtimeVoice {
     /// started there that fails is the returning assistant's to say.
     static var isCarConnected = false
 
+    /// True when the start was put aside for the voice sheet: the first
+    /// conversation started on the phone's own screen, by someone who has
+    /// not picked a voice on any device. Never in the car, where nothing may
+    /// be asked on a screen.
+    private static func offersVoiceChoice(then start: @escaping @MainActor () async -> Void) async -> Bool {
+        guard !isCarConnected, !controller.isActive,
+              !Preferences.value(Prefs.Mobile.hasOfferedVoiceModeVoiceChoice) else { return false }
+        let stored = await MobileRealtimeVoicePick.read()
+        guard MobileVoiceModeVoiceChoice.isFirstConversation(hasOffered: false, storedVoice: stored) else {
+            Preferences.set(true, for: Prefs.Mobile.hasOfferedVoiceModeVoiceChoice)
+            return false
+        }
+        MobileAudioReviewViewModel.shared.voiceModeVoiceChoice = MobileVoiceModeVoiceChoice(start: start)
+        return true
+    }
+
+    /// The sheet's Start Talking: the voice is picked and saved, and the
+    /// conversation that was asked for starts once the sheet has gone.
+    static func confirmVoiceChoice(_ choice: MobileVoiceModeVoiceChoice) {
+        Preferences.set(true, for: Prefs.Mobile.hasOfferedVoiceModeVoiceChoice)
+        let player = MobileAudioReviewViewModel.shared
+        player.voiceModeStartAfterChoice = choice.start
+        player.voiceModeVoiceChoice = nil
+    }
+
+    /// Run when the voice sheet has left the screen. One swiped away starts
+    /// nothing, and the next conversation offers again.
+    static func continueAfterVoiceChoice() async {
+        let player = MobileAudioReviewViewModel.shared
+        guard let start = player.voiceModeStartAfterChoice else { return }
+        player.voiceModeStartAfterChoice = nil
+        await start()
+    }
+
     static func start(
         source: MobileCloudSource,
         notebook: MobileCloudNotebook?,
         opening: RealtimeVoiceOpening
     ) async {
+        if await offersVoiceChoice(then: { await start(source: source, notebook: notebook, opening: opening) }) { return }
         await prepareToTalk()
         currentSource = source
         currentNotebookID = notebook?.id
@@ -73,6 +108,8 @@ enum MobileRealtimeVoice {
         returningFrom narration: RealtimeVoiceAssistant.NarrationReturn? = nil,
         voiceChangedTo newVoice: String? = nil
     ) async {
+        if setting == .phone, narration == nil, newVoice == nil,
+           await offersVoiceChoice(then: { await startAssistant(setting: setting) }) { return }
         await prepareToTalk(inCar: setting == .car)
         currentSource = nil
         currentNotebookID = nil
@@ -92,6 +129,7 @@ enum MobileRealtimeVoice {
     /// graded out loud (`MobileRealtimeCardReview`). The chat is filed in the
     /// notebook the review is narrowed to.
     static func startCardReview(scope: MemoryReviewScope, scopeTitle: String) async {
+        if await offersVoiceChoice(then: { await startCardReview(scope: scope, scopeTitle: scopeTitle) }) { return }
         await prepareToTalk()
         currentSource = nil
         if case .notebook(let notebookID) = scope {

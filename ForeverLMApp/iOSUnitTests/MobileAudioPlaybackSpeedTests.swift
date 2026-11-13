@@ -53,6 +53,13 @@ final class MobileVoiceChoiceRequestTests: XCTestCase {
         XCTAssertFalse(MobileVoiceChoiceRequest.isFirstNarration(hasOffered: false, storedModel: nil, narrationCount: 3))
     }
 
+    func testVoiceModeOffersAVoiceUntilOneIsPickedAnywhere() {
+        XCTAssertTrue(MobileVoiceModeVoiceChoice.isFirstConversation(hasOffered: false, storedVoice: nil))
+        XCTAssertTrue(MobileVoiceModeVoiceChoice.isFirstConversation(hasOffered: false, storedVoice: " "))
+        XCTAssertFalse(MobileVoiceModeVoiceChoice.isFirstConversation(hasOffered: false, storedVoice: "cedar"))
+        XCTAssertFalse(MobileVoiceModeVoiceChoice.isFirstConversation(hasOffered: true, storedVoice: nil))
+    }
+
     func testEachRequestIsItsOwnSheet() {
         XCTAssertNotEqual(
             MobileVoiceChoiceRequest.listen(sourceID: "x").id,
