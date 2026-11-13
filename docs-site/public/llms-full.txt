@@ -1126,10 +1126,14 @@ title: a short list of your pages and notebooks appears at the caret, narrowing 
 you type; Return writes the one you pick as a link with its title. The **Link**
 field (the link button on the bar over selected words) takes a title as readily as a web
 address, so selecting a few words and typing a page's name there links them to
-that page. Pasting a web address over selected words links them to it. On the Mac you can also drag a page from the Pages list, or a notebook's row
-from the navigation rail, onto the page: a caret follows the pointer and the
-drop writes the link where the caret was. Hover a link to open the page or the
-notebook it points at. In Markdown the link is `[Title](foreverlm://doc/<id>)` or
+that page. Pasting a web address over selected words links them to it. A line
+that is only a link to a page or a notebook shows as its card, like a source's:
+a small tile, the title, and under it what it is and the notebook a page is
+filed in; press the card to open it. On the Mac you can also drag a page from
+the Pages list, or a notebook's row from the navigation rail, onto the page: a
+line follows the pointer between the paragraphs, and the drop writes the page's
+card there (an empty line under the pointer takes it). Hover a link in a
+sentence to open the page or the notebook it points at. In Markdown the link is `[Title](foreverlm://doc/<id>)` or
 `[Title](foreverlm://notebook/<id>)`, which the page tools can write too. On a
 published Page, a link to a Page that is itself published becomes a link to its
 web page; a link to a Page that is not published shows as plain text. The **Notebooks** checklist in the ⋯ menu above a
@@ -6778,6 +6782,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.218.0 (build 298) — 2026-11-12
+
+**Highlights:**
+- **A page you link to in a Page shows as its card,** and a page dragged onto a Page lands as one.
+- **Source cards in a Page lose their blue check;** press the card to open it.
+
+- **A page you link to in a Page shows as its card.** A line that is only a link to another page is now drawn like a source's card: a small page tile, the title, and under it **Page** with the notebook it is filed in. A press anywhere on it opens the page. Dragging a page onto a Page now lands it as that card on a line of its own, with a line showing where it will go, instead of a blue link pushed into the sentence beside it. Links to notebooks, Ideas and chats work the same way; a link inside a sentence or a list stays a link.
+- **Press a source card in a Page and it opens, with no blue check on it.** A card whose source is in your library used to carry a filled blue check at its edge, every one of them; it is gone, and a card the library does not hold still offers Add to Library.
+- **A book's card in a Page shows the book's cover,** as the Books list does, where it showed a page of the book's first chapter.
+- **A paper whose title the PDF ran together gets its spaces back.** A title read as "EngineeredMetal-OrganicFrameworks…" now takes the DOI's registered title, and the paper details ask the model to restore the spaces when there is no DOI.
+- **Switching between Articles and Papers no longer beachballs.** The app's own freeze sampler was holding the app for seconds; it now waits for a real stall and stops itself if it would freeze the app.
 
 ## 0.217.0 (build 297) — 2026-11-12
 

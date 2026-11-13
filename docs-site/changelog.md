@@ -6,7 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **A page you link to in a Page shows as its card.** A line that is only a link to another page is now drawn like a source's card: a small page tile, the title, and under it **Page** with the notebook it is filed in. A press anywhere on it opens the page. Dragging a page onto a Page now lands it as that card on a line of its own, with a line showing where it will go, instead of a blue link pushed into the sentence beside it. Links to notebooks, Ideas and chats work the same way; a link inside a sentence or a list stays a link.
 - **On the iPhone, longer audio comes in without a break.** While a narration is still being made, Listen plays what there is and takes in longer audio as it arrives. Each time, the sound used to drop out for a moment; now the longer audio starts in step with what you are hearing and takes over mid-word, at any speed. When you have paused, or the audio you have is about to run out, it is swapped in as before.
 - **On the iPhone, a narration that is still being made no longer jumps back.** Listen plays the opening while the rest is generated and swaps in longer audio as it arrives; each swap now carries on from the second you are at, where it used to go back by as long as the swap took to prepare, twice that at 2x.
 - **The iPhone says when your library is still arriving.** After a fresh install the Library listed whatever had synced so far with nothing to say more was on its way: 64 papers of a thousand, for the minutes the first sync takes. It now shows **Syncing your library** with a running count of sources on every screen, a note under the Library's types that their counts are still growing, and the first-sync welcome on Home until sources show. If iCloud stops answering part-way, it says the sync is paused and will be tried again.
@@ -24,6 +23,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.218.0 (build 298) — 2026-11-12
+
+**Highlights:**
+- **A page you link to in a Page shows as its card,** and a page dragged onto a Page lands as one.
+- **Source cards in a Page lose their blue check;** press the card to open it.
+
+- **A page you link to in a Page shows as its card.** A line that is only a link to another page is now drawn like a source's card: a small page tile, the title, and under it **Page** with the notebook it is filed in. A press anywhere on it opens the page. Dragging a page onto a Page now lands it as that card on a line of its own, with a line showing where it will go, instead of a blue link pushed into the sentence beside it. Links to notebooks, Ideas and chats work the same way; a link inside a sentence or a list stays a link.
+- **Press a source card in a Page and it opens, with no blue check on it.** A card whose source is in your library used to carry a filled blue check at its edge, every one of them; it is gone, and a card the library does not hold still offers Add to Library.
+- **A book's card in a Page shows the book's cover,** as the Books list does, where it showed a page of the book's first chapter.
+- **A paper whose title the PDF ran together gets its spaces back.** A title read as "EngineeredMetal-OrganicFrameworks…" now takes the DOI's registered title, and the paper details ask the model to restore the spaces when there is no DOI.
+- **Switching between Articles and Papers no longer beachballs.** The app's own freeze sampler was holding the app for seconds; it now waits for a real stall and stops itself if it would freeze the app.
 
 ## 0.217.0 (build 297) — 2026-11-12
 
