@@ -75,10 +75,6 @@ extension MobileAudioReviewViewModel {
         publishSyncStatus(.arrival(arrival, sourceCount: allSources.count))
     }
 
-    func dismissInitialSyncScreen() {
-        hasDismissedInitialSyncScreen = true
-    }
-
     /// One writer for both projections of sync state, so the compact line and
     /// the structured status can never disagree about whether a sync is running.
     private func publishSyncStatus(_ status: MobileCatalogSyncStatus?) {
@@ -536,13 +532,12 @@ extension MobileAudioReviewViewModel {
         return await task.value
     }
 
-    /// True while the library's first arrival is under way (or its round
-    /// failed short of the end) and the full-screen readout is not showing:
-    /// either sources are already on screen behind it, or the learner left it.
-    /// Ordinary delta syncs stay silent — this is the multi-minute pass only.
+    /// True while the library's first arrival is under way, or its round
+    /// failed short of the end: the shell's sync row shows on every screen,
+    /// Home included, which is there from the first moment. Ordinary delta
+    /// syncs stay silent; this is the multi-minute pass only.
     var showsShellSyncStatus: Bool {
-        (isInitialCatalogSync || isInitialNarrationScan)
-            && (!allSources.isEmpty || hasDismissedInitialSyncScreen)
+        isInitialCatalogSync || isInitialNarrationScan
     }
 
     /// Deals today's cards again from the catalog. Local only: it runs before

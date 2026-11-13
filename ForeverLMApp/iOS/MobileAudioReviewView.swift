@@ -35,8 +35,6 @@ struct MobileAudioReviewView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
-    /// True on iPad, where the first-sync welcome gets the large-title treatment.
-    private var isRegularWidth: Bool { horizontalSizeClass == .regular }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -172,16 +170,13 @@ struct MobileAudioReviewView: View {
 
     @ViewBuilder
     private var homeRoot: some View {
-        Group {
-            // The library's first arrival outlasts the load, which only reads
-            // the replica: the welcome stays until sources show or the learner
-            // moves on, never an empty Home that looks like an empty library.
-            if (vm.isLoading || vm.isInitialCatalogSync) && vm.allSources.isEmpty && !vm.hasDismissedInitialSyncScreen {
-                loadingState
-            } else {
-                MobileNotebookHomeView { route in open(route) }
-            }
-        }
+        // Home is there at once. The library's first arrival is a background
+        // pass and never a screen in the way (product owner, 2026-11-13: "the
+        // app shouldn't show a blocking, syncing your sources when someone
+        // opens it; perhaps that should happen in the background"): the
+        // shell's sync row, above the player on every screen, says how far it
+        // is, and the Library says its counts are still growing.
+        MobileNotebookHomeView { route in open(route) }
         // No navigation bar: Home draws ChatGPT's own, a round menu button that opens the drawer
         // holding Settings and every other place (`MobileHomeDashboard`).
         .navigationTitle("")
@@ -292,158 +287,6 @@ struct MobileAudioReviewView: View {
             guard !Task.isCancelled, isVoiceCoverPresented else { return }
             showsVoiceCover = true
         }
-    }
-
-    // MARK: - First sync
-
-    private var loadingState: some View {
-        // The first sync is a background pass, not a doorway: an invitation to
-        // start using ForeverLM while the library fills in behind. The sync
-        // readout is a small card, and the shell's sync row carries the same
-        // numbers once the learner leaves.
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-
-            // Gated on the pass itself, not on progress numbers: the walk's
-            // first stretches can page through thousands of records this
-            // catalog doesn't collect before the first checkpoint lands.
-            if vm.isInitialCatalogSync {
-                // Sized to the canvas: on a phone this fills the screen at the
-                // ordinary type sizes, but on an iPad the same cluster sat as a
-                // small island in a field of black. Regular width gets the
-                // large-title treatment — bigger glyph, bigger type, a wider
-                // measure — so the welcome reads as the page, not a dialog on it.
-                VStack(spacing: isRegularWidth ? MobileDesign.Spacing.xLarge : MobileDesign.Spacing.large) {
-                    Image(systemName: "icloud.and.arrow.down")
-                        .font(.system(size: isRegularWidth ? 72 : 44, weight: .light))
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-
-                    VStack(spacing: isRegularWidth ? MobileDesign.Spacing.medium : MobileDesign.Spacing.small) {
-                        Text("Get started while iCloud syncs")
-                            .font(isRegularWidth ? .largeTitle.weight(.bold) : .title2.weight(.bold))
-                            .multilineTextAlignment(.center)
-                        Text("Your library fills in from iCloud while you work.")
-                            .font(isRegularWidth ? .title3 : .body)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: initialSyncMeasure)
-
-                    Button {
-                        vm.dismissInitialSyncScreen()
-                    } label: {
-                        Text("Get Started")
-                            .font(isRegularWidth ? .title3.weight(.semibold) : .headline)
-                            .frame(minWidth: isRegularWidth ? 260 : 200)
-                            .padding(.vertical, isRegularWidth ? MobileDesign.Spacing.small : 0)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .accessibilityIdentifier("voice.dismissSyncScreen")
-                }
-                .padding(.horizontal, MobileDesign.Spacing.xLarge)
-
-                Spacer().frame(height: isRegularWidth ? 48 : MobileDesign.Spacing.xxLarge)
-
-                initialSyncCard
-                    .padding(.horizontal, MobileDesign.Spacing.xLarge)
-            } else if let status = vm.syncStatus {
-                syncStatusView(status)
-            } else {
-                ProgressView()
-                Text("Syncing your sources…")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, MobileDesign.Spacing.medium)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// How wide the welcome and its card may run. A phone gets a paragraph
-    /// measure; an iPad gets the readable-content width so the type above can
-    /// grow without wrapping into a tall column.
-    private var initialSyncMeasure: CGFloat {
-        isRegularWidth ? 600 : 440
-    }
-
-    /// The sync readout as a quiet card under the welcome: the step, the live
-    /// count, a real bar when there is one, and the one caveat that matters
-    /// (a lock mid-pass stops it) — never the headline.
-    private var initialSyncCard: some View {
-        HStack(alignment: .top, spacing: MobileDesign.Spacing.medium) {
-            if let status = vm.syncStatus, status.fractionComplete == nil, status.isRunning {
-                ProgressView()
-                    .controlSize(isRegularWidth ? .regular : .small)
-                    .padding(.top, 2)
-            } else {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(isRegularWidth ? .body : .subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-                    .accessibilityHidden(true)
-            }
-            VStack(alignment: .leading, spacing: isRegularWidth ? MobileDesign.Spacing.small : MobileDesign.Spacing.xSmall) {
-                Text(vm.syncStatus?.stepText ?? "Syncing your library")
-                    .font(isRegularWidth ? .body.weight(.semibold) : .subheadline.weight(.semibold))
-                    .contentTransition(.identity)
-                Text(vm.syncStatus?.detailText ?? "Connecting to iCloud…")
-                    .font(isRegularWidth ? .subheadline : .footnote)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .accessibilityIdentifier("voice.syncProgress")
-                if let fraction = vm.syncStatus?.fractionComplete {
-                    ProgressView(value: fraction)
-                        .progressViewStyle(.linear)
-                        .accessibilityIdentifier("voice.syncProgressBar")
-                }
-                Text("Keep ForeverLM open until it finishes. If it is interrupted, it picks up where it left off.")
-                    .font(isRegularWidth ? .footnote : .caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 2)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(isRegularWidth ? MobileDesign.Spacing.xLarge : MobileDesign.Spacing.large)
-        .mobileFloatingSurface(cornerRadius: MobileDesign.Radius.card)
-        .frame(maxWidth: initialSyncMeasure)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// A determinate bar once the current phase can honestly estimate a
-    /// fraction (a prior full walk's total, or a known download count);
-    /// an indeterminate spinner otherwise — never a bar that fills on guesswork.
-    private func syncStatusView(_ status: MobileCatalogSyncStatus) -> some View {
-        VStack(spacing: 10) {
-            if let fraction = status.fractionComplete {
-                ProgressView(value: fraction)
-                    .progressViewStyle(.linear)
-                    .frame(width: 220)
-                    .accessibilityIdentifier("voice.syncProgressBar")
-            } else if status.isRunning {
-                ProgressView()
-            } else {
-                Image(systemName: "icloud.slash")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-            Text(status.stepText)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .contentTransition(.identity)
-            Text(status.detailText)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .contentTransition(.numericText())
-                .accessibilityIdentifier("voice.syncProgress")
-        }
-        .animation(.default, value: status.phase)
     }
 }
 

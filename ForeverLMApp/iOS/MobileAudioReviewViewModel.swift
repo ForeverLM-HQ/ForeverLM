@@ -87,8 +87,8 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     @Published var syncProgressText: String?
     /// True from the first word that the library is arriving on this phone for
     /// the first time until it is whole (`handleLibraryArrival`) — what gates
-    /// the first-sync welcome, the shell's sync row and the Library's note
-    /// that its counts are still growing.
+    /// the shell's sync row and the Library's note that its counts are still
+    /// growing.
     @Published var isInitialCatalogSync = false
     /// Where that arrival stands, as the session last said.
     var libraryArrival = MobileLibraryArrival.settled
@@ -96,11 +96,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// pass) is still running. Keeps the shell's sync row up after CloudKit
     /// finishes, now with that scan's own count in it.
     @Published var isInitialNarrationScan = false
-    /// Set when the learner leaves the first-sync screen rather than waiting it
-    /// out. The pass keeps running; only the full-screen readout stands down,
-    /// and `MobileCompactPlaybackBar` picks the same progress up from there —
-    /// which is why this lives here and not in one screen's `@State`.
-    @Published var hasDismissedInitialSyncScreen = false
     @Published var sourceSyncDiagnostic: MobileSourceSyncDiagnostic?
     @Published var activeVoiceSourceID: String?
     /// Title of the source whose narration audio is being generated right now —
