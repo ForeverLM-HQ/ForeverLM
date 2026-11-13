@@ -199,6 +199,18 @@ struct MobileCompactPlaybackBar: View {
                 syncRow(vm.syncStatus)
             }
 
+            // A whole book being generated runs for a long while and is paid
+            // for, so how far it is, and its Stop, stay in reach on every screen.
+            if let audiobook = vm.audiobookGeneration {
+                MobileAudiobookProgressLine(run: audiobook, showsBookTitle: true)
+                    .padding(.horizontal, MobileDesign.Spacing.large)
+                    .padding(.vertical, MobileDesign.Spacing.small)
+                    .mobileFloatingSurface(cornerRadius: MobileDesign.Radius.card)
+                    .padding(.horizontal, MobileDesign.Spacing.medium)
+                    .padding(.bottom, MobileDesign.Spacing.small)
+                    .accessibilityIdentifier("listen.audiobook")
+            }
+
             if let item = vm.currentItem {
                 playbackBar(
                     item,
@@ -225,6 +237,7 @@ struct MobileCompactPlaybackBar: View {
                 get: {
                     MobileAsyncAlert.resolve(
                         textToSpeechCostPending: vm.textToSpeechCostConfirmation != nil,
+                        audiobookPending: vm.audiobookConfirmation != nil,
                         bookContinuationPending: vm.bookContinuationOffer != nil
                     ) == .bookContinuation
                 },
@@ -244,6 +257,34 @@ struct MobileCompactPlaybackBar: View {
             }
         } message: { offer in
             Text("ForeverLM can generate and play \(offer.nextTitle) when each chapter ends. Missing audio is billed to your OpenRouter key.")
+        }
+        // Generate Audiobook's one price question, in the same queue: it
+        // follows a tap, but the price is read first, so it lands when that
+        // read does.
+        .alert(
+            vm.audiobookConfirmation?.confirmationTitle ?? "",
+            isPresented: Binding(
+                get: {
+                    MobileAsyncAlert.resolve(
+                        textToSpeechCostPending: vm.textToSpeechCostConfirmation != nil,
+                        audiobookPending: vm.audiobookConfirmation != nil
+                    ) == .audiobook
+                },
+                set: { isPresented in
+                    guard !isPresented, let plan = vm.audiobookConfirmation else { return }
+                    vm.resolveAudiobookConfirmation(plan, approved: false)
+                }
+            ),
+            presenting: vm.audiobookConfirmation
+        ) { plan in
+            Button("Generate") {
+                vm.resolveAudiobookConfirmation(plan, approved: true)
+            }
+            Button("Cancel", role: .cancel) {
+                vm.resolveAudiobookConfirmation(plan, approved: false)
+            }
+        } message: { plan in
+            Text(plan.confirmationMessage)
         }
     }
 
@@ -358,7 +399,7 @@ struct MobileCompactPlaybackBar: View {
         _ item: MobileAudioItem,
         showsGenerationProgress: Bool
     ) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             if showsGenerationProgress {
                 let progress = vm.textToSpeechGenerationProgress(sourceID: item.id)
                 let download = vm.narrationDownloadProgress(sourceID: item.id)
@@ -380,68 +421,79 @@ struct MobileCompactPlaybackBar: View {
                 }
             }
 
-            Button {
-                presentedItem = item
-            } label: {
-                HStack(spacing: MobileDesign.Spacing.medium) {
-                    if let source = vm.allSources.first(where: { $0.id == item.id }) {
-                        MobileSourceRowThumbnail(source: source, isActive: true)
+            // One row, the way a mini-player sits under a reading app: what is
+            // playing, back 15 seconds, pause, and close. The bar rides over
+            // every screen, so each line it takes is a line off the page being
+            // read (product owner, 2026-11-13: "this player at the bottom of
+            // the screen is in the way"). Skipping ahead, scrubbing and the
+            // speed are a tap away in the full player.
+            HStack(spacing: MobileDesign.Spacing.small) {
+                Button {
+                    presentedItem = item
+                } label: {
+                    HStack(spacing: MobileDesign.Spacing.medium) {
+                        if let source = vm.allSources.first(where: { $0.id == item.id }) {
+                            MobileSourceRowThumbnail(source: source, isActive: true)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                            Text(vm.playerDetailText)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        Text(vm.playerDetailText)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open player for \(item.title)")
-            .accessibilityIdentifier("listen.openPlayer")
-
-            ProgressView(value: vm.progress)
-                .tint(.accentColor)
-
-            HStack(spacing: 14) {
-                Spacer(minLength: 0)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open player for \(item.title)")
+                .accessibilityIdentifier("listen.openPlayer")
 
                 Button { vm.skip(seconds: -15) } label: {
                     Image(systemName: "gobackward.15")
+                        .frame(
+                            width: MobileDesign.Metrics.minimumTouchTarget,
+                            height: MobileDesign.Metrics.minimumTouchTarget
+                        )
+                        .contentShape(Rectangle())
                 }
                 .disabled(!vm.canSeek)
                 .accessibilityLabel("Back 15 seconds")
 
                 Button { vm.togglePlayback() } label: {
                     Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.body.weight(.semibold))
-                        .frame(width: 28, height: 28)
+                        .font(.title3.weight(.semibold))
+                        .frame(
+                            width: MobileDesign.Metrics.minimumTouchTarget,
+                            height: MobileDesign.Metrics.minimumTouchTarget
+                        )
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel(vm.isPlaying ? "Pause" : "Play")
                 .accessibilityIdentifier("listen.togglePlayback")
-
-                Button { vm.skip(seconds: 15) } label: {
-                    Image(systemName: "goforward.15")
-                }
-                .disabled(!vm.canSeek)
-                .accessibilityLabel("Forward 15 seconds")
 
                 if vm.canDismissPlayback {
                     Button {
                         vm.dismissPlayback()
                     } label: {
                         Image(systemName: "xmark")
-                            .frame(width: 28, height: 28)
+                            .frame(
+                                width: MobileDesign.Metrics.minimumTouchTarget,
+                                height: MobileDesign.Metrics.minimumTouchTarget
+                            )
+                            .contentShape(Rectangle())
                     }
+                    .foregroundStyle(.secondary)
                     .accessibilityLabel("Close player")
                     .accessibilityIdentifier("listen.closePlayer")
                 }
-
-                Spacer(minLength: 0)
             }
+
+            ProgressView(value: vm.progress)
+                .tint(.accentColor)
         }
         .padding(.horizontal, MobileDesign.Spacing.large)
         .padding(.vertical, MobileDesign.Spacing.small)
@@ -1575,6 +1627,14 @@ struct MobileSourceGroupScreen: View {
     let group: MobileSourceGroup
 
     @State private var query = ""
+    @State private var resumeChapter: MobileCloudSource?
+    @EnvironmentObject private var vm: MobileAudioReviewViewModel
+
+    /// A book's chapters are led by the book's own audio: carry on listening,
+    /// and make every chapter's audio in one go.
+    private var isBook: Bool {
+        group.sources.first?.sourceType == "book"
+    }
 
     private var isSearching: Bool {
         !MobileSourceListSearch.terms(in: query).isEmpty
@@ -1582,6 +1642,9 @@ struct MobileSourceGroupScreen: View {
 
     var body: some View {
         List {
+            if isBook, !isSearching {
+                MobileAudiobookSection(bookID: group.id, resumeChapter: resumeChapter)
+            }
             if group.sections.isEmpty {
                 let shown = MobileSourceListSearch.filter(group.sources, query: query)
                 if isSearching, shown.isEmpty {
@@ -1619,6 +1682,140 @@ struct MobileSourceGroupScreen: View {
         .navigationTitle(group.title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search \(group.title)")
+        // Read again when playback moves on or stops, which is when the
+        // chapter to carry on from changes.
+        .task(id: vm.currentItem?.id) {
+            guard isBook else { return }
+            resumeChapter = await vm.lastListenedChapter(bookID: group.id)
+        }
+    }
+}
+
+/// The head of a book's chapter list: Continue Listening, at the chapter the
+/// listener was last in, and Generate Audiobook, which makes every chapter's
+/// audio in one go after one price question (product owner, 2026-11-13: "make
+/// an audiobook out of a book ... have it all just be generated"). While the
+/// book generates, the row is its progress and its Stop. A book with all its
+/// audio and no place to go back to shows nothing here.
+struct MobileAudiobookSection: View {
+    let bookID: String
+
+    /// The chapter the listener was last in (`lastListenedChapter`), read by
+    /// the screen: this section draws nothing for a finished book that has
+    /// no such chapter, and a view that draws nothing runs no task.
+    let resumeChapter: MobileCloudSource?
+
+    @EnvironmentObject private var vm: MobileAudioReviewViewModel
+    @State private var isAsking = false
+
+    var body: some View {
+        let coverage = vm.audiobookCoverage(bookID: bookID)
+        let run = vm.audiobookGeneration.flatMap { $0.bookID == bookID ? $0 : nil }
+        let showsResume = resumeChapter != nil && vm.currentItem?.id != resumeChapter?.id
+        if showsResume || run != nil || coverage.ready < coverage.total {
+            Section {
+                if showsResume, let resumeChapter {
+                    Button {
+                        Task { await vm.toggleTextToSpeech(sourceID: resumeChapter.id) }
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Continue Listening")
+                                Text(resumeChapter.title)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        } icon: {
+                            Image(systemName: "play.fill")
+                        }
+                    }
+                    .accessibilityIdentifier("book.continueListening")
+                }
+                if let run {
+                    MobileAudiobookProgressLine(run: run, showsBookTitle: false)
+                } else if coverage.ready < coverage.total {
+                    Button {
+                        isAsking = true
+                        Task {
+                            await vm.requestAudiobook(bookID: bookID)
+                            isAsking = false
+                        }
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Generate Audiobook")
+                                Text(coverageText(coverage))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "headphones")
+                        }
+                    }
+                    .disabled(isAsking)
+                    .accessibilityIdentifier("book.generateAudiobook")
+                }
+            }
+        }
+    }
+
+    private func coverageText(_ coverage: (ready: Int, total: Int)) -> String {
+        if coverage.ready == 0 {
+            return "All \(coverage.total) chapters, one after another"
+        }
+        return "\(coverage.ready) of \(coverage.total) chapters have audio"
+    }
+}
+
+/// A whole book's generation on one line: how many chapters have audio, the
+/// one being made, and Stop.
+struct MobileAudiobookProgressLine: View {
+    let run: MobileAudiobookGeneration
+    /// On the shell's bar the line has to say which book; under the book's
+    /// own title it does not.
+    let showsBookTitle: Bool
+
+    @EnvironmentObject private var vm: MobileAudioReviewViewModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
+                Circle()
+                    .trim(from: 0, to: run.fractionCompleted)
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 16, height: 16)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(showsBookTitle ? "Audiobook · \(run.title)" : "Generating Audiobook")
+                    .font(.subheadline.weight(.semibold))
+                Text(run.statusLabel)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+
+            Button {
+                vm.stopAudiobookGeneration()
+            } label: {
+                Image(systemName: "stop.circle.fill")
+                    .font(.title3)
+                    .symbolRenderingMode(.hierarchical)
+                    .frame(minWidth: 44, minHeight: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Stop generating the audiobook")
+            .accessibilityIdentifier("listen.stopAudiobook")
+        }
     }
 }
 
@@ -1893,6 +2090,7 @@ struct MobileBrowserSourceLink: View {
                     guard !confirmsDelete else { return false }
                     return MobileAsyncAlert.resolve(
                         textToSpeechCostPending: vm.textToSpeechCostConfirmation != nil,
+                        audiobookPending: vm.audiobookConfirmation != nil,
                         bookContinuationPending: vm.bookContinuationOffer != nil,
                         offlineFailureSourceID: offline.surfacedFailureSourceID
                     ) == .offlineSaveFailure(sourceID: source.id)

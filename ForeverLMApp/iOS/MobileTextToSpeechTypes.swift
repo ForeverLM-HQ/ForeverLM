@@ -238,6 +238,184 @@ struct MobileTextToSpeechCostConfirmation: Identifiable, Equatable {
     }
 }
 
+/// What generating the rest of a book takes: the chapters that still need
+/// audio, in the order they will be made, and one price for all of them. The
+/// phone's `ArticleSpeechService.AudiobookPlan`: asked once for the book, so
+/// the answer is one question rather than one per chapter.
+struct MobileAudiobookPlan: Identifiable, Equatable {
+    let id = UUID()
+    let bookID: String
+    let title: String
+    /// Chapters with no audio yet, in the order they will be generated.
+    let chapterIDs: [String]
+    /// Chapters already narrated, so a mostly-done book can say so.
+    let readyChapterCount: Int
+    let estimate: ArticleSpeechCostEstimate
+    let modelName: String
+
+    /// Whether generating this costs anything. A model priced at exactly
+    /// nothing still generates; it only needs no answer first. An unknown
+    /// price is asked about.
+    var isBillable: Bool { (estimate.usd ?? 1) > 0 }
+
+    /// The chapters a whole-book generation still has to make, in the order
+    /// it makes them: reading order, starting after the chapter being listened
+    /// to when it is one of the book's, so what the listener reaches next is
+    /// ready first, and coming round to the chapters before it at the end. A
+    /// chapter already being generated (a Listen tapped on it) is left to that
+    /// generation, and one whose text has not arrived cannot be narrated yet.
+    static func pendingChapters(
+        _ chapters: [MobileCloudSource],
+        hasAudio: (MobileCloudSource) -> Bool,
+        isPreparing: (MobileCloudSource) -> Bool,
+        listeningTo playingSourceID: String?
+    ) -> [MobileCloudSource] {
+        let current = chapters.filter { !$0.isArchived }
+        var ordered = current
+        if let playingSourceID, let index = current.firstIndex(where: { $0.id == playingSourceID }) {
+            ordered = Array(current[(index + 1)...]) + Array(current[...index])
+        }
+        return ordered.filter { $0.state == "ready" && !hasAudio($0) && !isPreparing($0) }
+    }
+
+    /// nil when no chapter of the book is waiting for audio.
+    ///
+    /// Priced without preparing any narration: a chapter's listenable length
+    /// when the Mac measured one, else its word count at the fallback ratio. A
+    /// chapter with neither is counted but not priced, which understates the
+    /// book rather than inventing a number for it.
+    static func plan(
+        bookID: String,
+        title: String,
+        chapters: [MobileCloudSource],
+        hasAudio: (MobileCloudSource) -> Bool,
+        isPreparing: (MobileCloudSource) -> Bool,
+        listeningTo playingSourceID: String?,
+        provider: String,
+        modelID: String
+    ) -> MobileAudiobookPlan? {
+        let pending = pendingChapters(
+            chapters,
+            hasAudio: hasAudio,
+            isPreparing: isPreparing,
+            listeningTo: playingSourceID
+        )
+        guard !pending.isEmpty else { return nil }
+        let characters = pending.reduce(0) { total, chapter in
+            if let listenable = chapter.listenableCharacterCount, listenable > 0 {
+                return total + listenable
+            }
+            guard let words = chapter.wordCount, words > 0 else { return total }
+            return total + Int((Double(words) * ArticleSpeechCostEstimate.fallbackCharactersPerWord).rounded())
+        }
+        return MobileAudiobookPlan(
+            bookID: bookID,
+            title: title,
+            chapterIDs: pending.map(\.id),
+            readyChapterCount: chapters.filter { !$0.isArchived && hasAudio($0) }.count,
+            estimate: ArticleSpeechCostEstimate(
+                characters: characters,
+                sourceCount: pending.count,
+                provider: provider,
+                model: modelID
+            ),
+            modelName: ArticleSpeechCatalog.model(id: modelID)?.name ?? modelID
+        )
+    }
+
+    var confirmationTitle: String {
+        "Generate the audiobook for \u{201C}\(title)\u{201D}?"
+    }
+
+    /// "12 chapters · 240,000 characters · about 5 hr · $3.60", then what is
+    /// already narrated. Money in the phone's house unit, as the chapter
+    /// confirmation writes it.
+    var confirmationMessage: String {
+        let count = estimate.sourceCount
+        var summary = [
+            "\(count.formatted()) \(count == 1 ? "chapter" : "chapters")",
+            "\(estimate.characters.formatted()) characters",
+            estimate.durationLabel,
+        ]
+        if let usd = estimate.usd, usd > 0 {
+            summary.append(MobileCostFormat.money(microUSD: Int((usd * 1_000_000).rounded())))
+        }
+        var lines = [modelName, summary.joined(separator: " · ")]
+        if readyChapterCount > 0 {
+            let noun = readyChapterCount == 1 ? "chapter is" : "chapters are"
+            lines.append("\(readyChapterCount.formatted()) \(noun) already narrated, and not charged again.")
+        }
+        if estimate.usd == nil {
+            lines.append("An estimate is unavailable. The exact charge will appear in Usage.")
+        }
+        lines.append("Chapters are generated one after another. Stopping keeps every finished chapter.")
+        return lines.joined(separator: "\n")
+    }
+}
+
+/// A whole book's audio being generated, chapter after chapter.
+struct MobileAudiobookGeneration: Equatable {
+    let runID: UUID
+    let bookID: String
+    let title: String
+    /// Chapters of the book that have audio now, whoever made it.
+    var readyChapters: Int
+    var totalChapters: Int
+    var currentChapterID: String?
+    var currentChapterTitle: String?
+    /// The chapter in hand stopped for a reason that mends itself (the phone
+    /// was locked, the network went away). Its own resume finishes it, and the
+    /// book carries on from there.
+    var isWaitingToResume = false
+    /// Chapters this run could not narrate, left for the report at its end.
+    var setAsideChapterIDs: [String] = []
+
+    var fractionCompleted: Double {
+        guard totalChapters > 0 else { return 0 }
+        return min(max(Double(readyChapters) / Double(totalChapters), 0), 1)
+    }
+
+    /// "3 of 12 chapters · 4. The human side"
+    var statusLabel: String {
+        var parts = ["\(readyChapters) of \(totalChapters) chapters"]
+        if isWaitingToResume {
+            parts.insert("Waiting to resume", at: 0)
+        } else if let currentChapterTitle {
+            parts.append(currentChapterTitle)
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// How far the shell's bar (the player, a session banner) rises so that it
+/// sits above a screen's own bottom toolbar instead of on top of it.
+///
+/// The bar is a safe-area inset on the shell's NavigationStack, and the stack
+/// does not hand that inset on to the screens it shows, so a screen's bottom
+/// toolbar (the Reader's Listen, Voice and Ask) is drawn at the bottom of the
+/// window, under the bar. A screen reports where its safe area ends and where
+/// the screen itself ends; one that reaches under the bar and whose safe area
+/// ends above the bar's bottom has a toolbar there, and the bar rises by that
+/// much. Where the system does hand the inset on, the screen ends at the bar's
+/// top and nothing rises.
+enum MobileShellBarLift {
+    struct Screen: Equatable {
+        /// Bottom of the screen's safe area, in window coordinates.
+        let safeBottom: CGFloat
+        /// Bottom of the screen itself, ignoring its safe area.
+        let fullBottom: CGFloat
+    }
+
+    /// `barTop` and `barBottom` are the bar's edges where it rests, unlifted.
+    static func lift(barTop: CGFloat, barBottom: CGFloat, screens: [Screen]) -> CGFloat {
+        guard barBottom - barTop >= 1 else { return 0 }
+        return screens.reduce(0) { lift, screen in
+            guard screen.fullBottom > barTop + 1, screen.safeBottom > 0 else { return lift }
+            return max(lift, barBottom - screen.safeBottom)
+        }
+    }
+}
+
 struct MobilePreparedTextToSpeechNarration {
     let text: String
     let sourceContentSignature: String?

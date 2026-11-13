@@ -614,3 +614,198 @@ extension MobileAudioReviewViewModel {
         }
     }
 }
+
+// MARK: - A whole book
+
+extension MobileAudioReviewViewModel {
+    /// The chapters still in a book, in reading order.
+    func bookChapters(bookID: String) -> [MobileCloudSource] {
+        allSources
+            .filter { $0.sourceType == "book" && $0.parentGroup == bookID && !$0.isArchived }
+            .sorted(by: MobileSourceGrouping.memberOrder)
+    }
+
+    /// How much of a book has audio: the chapters with it, and all of them.
+    func audiobookCoverage(bookID: String) -> (ready: Int, total: Int) {
+        let chapters = bookChapters(bookID: bookID)
+        return (chapters.filter { hasSyncedTextToSpeechAudio(sourceID: $0.id) }.count, chapters.count)
+    }
+
+    private func pendingAudiobookChapters(bookID: String) -> [MobileCloudSource] {
+        MobileAudiobookPlan.pendingChapters(
+            bookChapters(bookID: bookID),
+            hasAudio: { hasSyncedTextToSpeechAudio(sourceID: $0.id) },
+            isPreparing: { isPreparingAudio(sourceID: $0.id) },
+            listeningTo: currentItem?.id
+        )
+    }
+
+    /// Generate Audiobook: prices every chapter of the book that has no audio
+    /// yet and asks once for all of them (`audiobookConfirmation`); a voice
+    /// that costs nothing starts without a question, as on the Mac.
+    func requestAudiobook(bookID: String) async {
+        errorMessage = nil
+        if let running = audiobookGeneration {
+            if running.bookID != bookID {
+                errorMessage = "The audiobook for \(running.title) is still generating. Stop it, or wait for it to finish."
+            }
+            return
+        }
+        if allSources.isEmpty && items.isEmpty {
+            await load()
+        }
+        // The quote prices the selected model from OpenRouter's speech list.
+        await OpenRouterAudioDirectory.prepare(.speech)
+        let modelID: String
+        do {
+            modelID = try CloudArticleTTS.currentSelection().model
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+        guard audiobookGeneration == nil,
+              let plan = MobileAudiobookPlan.plan(
+                bookID: bookID,
+                title: collections.booksByID[bookID]?.title ?? bookID,
+                chapters: bookChapters(bookID: bookID),
+                hasAudio: { hasSyncedTextToSpeechAudio(sourceID: $0.id) },
+                isPreparing: { isPreparingAudio(sourceID: $0.id) },
+                listeningTo: currentItem?.id,
+                provider: ArticleSpeechCatalog.provider,
+                modelID: modelID
+              ) else { return }
+        if plan.isBillable {
+            audiobookConfirmation = plan
+        } else {
+            startAudiobookGeneration(plan)
+        }
+    }
+
+    func resolveAudiobookConfirmation(_ plan: MobileAudiobookPlan, approved: Bool) {
+        if audiobookConfirmation?.id == plan.id {
+            audiobookConfirmation = nil
+        }
+        if approved {
+            startAudiobookGeneration(plan)
+        }
+    }
+
+    private func startAudiobookGeneration(_ plan: MobileAudiobookPlan) {
+        guard audiobookGeneration == nil else { return }
+        let coverage = audiobookCoverage(bookID: plan.bookID)
+        let run = MobileAudiobookGeneration(
+            runID: UUID(),
+            bookID: plan.bookID,
+            title: plan.title,
+            readyChapters: coverage.ready,
+            totalChapters: coverage.total
+        )
+        audiobookGeneration = run
+        runAudiobookGeneration(runID: run.runID)
+    }
+
+    private func runAudiobookGeneration(runID: UUID) {
+        audiobookGenerationTask = Task { [weak self] in
+            await self?.generateAudiobookChapters(runID: runID)
+        }
+    }
+
+    /// One chapter after another, generate-only: the player is never claimed,
+    /// and each chapter's row and the book's own line show how far it is. The
+    /// list of what is left is read again before every chapter, so a chapter
+    /// the Mac narrated meanwhile, or one a Listen is already making, is not
+    /// made twice.
+    private func generateAudiobookChapters(runID: UUID) async {
+        var failuresInARow = 0
+        var lastFailure: (chapterTitle: String, message: String?)?
+        while let run = audiobookGeneration, run.runID == runID, failuresInARow < 2 {
+            let coverage = audiobookCoverage(bookID: run.bookID)
+            audiobookGeneration?.readyChapters = coverage.ready
+            audiobookGeneration?.totalChapters = coverage.total
+            let pending = pendingAudiobookChapters(bookID: run.bookID)
+                .filter { !run.setAsideChapterIDs.contains($0.id) }
+            guard let chapter = pending.first else { break }
+            audiobookGeneration?.currentChapterID = chapter.id
+            audiobookGeneration?.currentChapterTitle = chapter.title
+            do {
+                _ = try await prepareSourceAudio(sourceID: chapter.id)
+                failuresInARow = 0
+            } catch {
+                // Stopped from the book's own Stop: the run is gone.
+                guard audiobookGeneration?.runID == runID else { return }
+                // Stopped on the chapter's own button: that ends the book too,
+                // or the next chapter would start under the finger.
+                if listenerStoppedTextToSpeechSourceIDs.contains(chapter.id) {
+                    audiobookGeneration = nil
+                    return
+                }
+                // An interruption that mends itself. The chapter's own resume
+                // finishes it and calls this run back.
+                if pendingTextToSpeechResumes[chapter.id] != nil {
+                    audiobookGeneration?.isWaitingToResume = true
+                    return
+                }
+                audiobookGeneration?.setAsideChapterIDs.append(chapter.id)
+                failuresInARow += 1
+                lastFailure = (chapter.title, textToSpeechFailureMessage(error, sourceID: chapter.id))
+            }
+        }
+        guard let run = audiobookGeneration, run.runID == runID else { return }
+        audiobookGeneration = nil
+        guard let lastFailure else { return }
+        let reason = lastFailure.message.map { ": \($0)" } ?? "."
+        if failuresInARow >= 2 {
+            // Two chapters in a row is the account or the network, not the
+            // chapters; the rest would only fail the same way.
+            errorMessage = "The audiobook for \(run.title) stopped at \(lastFailure.chapterTitle)\(reason)"
+        } else {
+            let count = run.setAsideChapterIDs.count
+            errorMessage = count == 1
+                ? "\(lastFailure.chapterTitle) could not be narrated\(reason)"
+                : "\(count) chapters of \(run.title) could not be narrated\(reason)"
+        }
+    }
+
+    /// Called when the interrupted generations have had their resume: a book
+    /// that was waiting on one of them picks up where it stopped.
+    func resumeAudiobookGenerationIfWaiting() {
+        guard let run = audiobookGeneration, run.isWaitingToResume else { return }
+        if let chapterID = run.currentChapterID, pendingTextToSpeechResumes[chapterID] != nil { return }
+        audiobookGeneration?.isWaitingToResume = false
+        runAudiobookGeneration(runID: run.runID)
+    }
+
+    /// Stops the book where it is. Every finished chapter stays, and so do the
+    /// pieces of the one in hand, so generating again costs nothing for them.
+    func stopAudiobookGeneration() {
+        guard let run = audiobookGeneration else { return }
+        audiobookGeneration = nil
+        if let chapterID = run.currentChapterID {
+            pendingTextToSpeechResumes[chapterID] = nil
+            stopTextToSpeechGeneration(sourceID: chapterID)
+        }
+        audiobookGenerationTask?.cancel()
+        audiobookGenerationTask = nil
+    }
+
+    /// The chapter of a book the listener was last in: the one whose saved
+    /// position is newest. A finished chapter keeps no position, so this is
+    /// nil for a book never started and for one stopped exactly at a
+    /// chapter's end.
+    func lastListenedChapter(bookID: String) async -> MobileCloudSource? {
+        let chapters = bookChapters(bookID: bookID).filter { hasSyncedTextToSpeechAudio(sourceID: $0.id) }
+        let ids = chapters.map(\.id)
+        let newestID = await Task.detached(priority: .userInitiated) { () -> String? in
+            var newest: (id: String, updatedAt: Date)?
+            for id in ids {
+                guard let position = SyncedArticleAudioStore.loadLocalPlaybackPosition(sourceID: id),
+                      position.globalTime > 0 else { continue }
+                if newest.map({ position.updatedAt > $0.updatedAt }) ?? true {
+                    newest = (id, position.updatedAt)
+                }
+            }
+            return newest?.id
+        }.value
+        return chapters.first { $0.id == newestID }
+    }
+}

@@ -197,6 +197,22 @@ final class MobileAsyncAlertTests: XCTestCase {
             .textToSpeechCost
         )
         XCTAssertEqual(
+            MobileAsyncAlert.resolve(audiobookPending: true),
+            .audiobook
+        )
+        XCTAssertEqual(
+            MobileAsyncAlert.resolve(textToSpeechCostPending: true, audiobookPending: true),
+            .textToSpeechCost
+        )
+        XCTAssertEqual(
+            MobileAsyncAlert.resolve(
+                audiobookPending: true,
+                bookContinuationPending: true,
+                offlineFailureSourceID: "source-a"
+            ),
+            .audiobook
+        )
+        XCTAssertEqual(
             MobileAsyncAlert.resolve(bookContinuationPending: true),
             .bookContinuation
         )

@@ -27,6 +27,9 @@ import Foundation
 enum MobileAsyncAlert: Equatable {
     /// A text-to-speech waiting for the learner to approve what it will cost.
     case textToSpeechCost
+    /// A whole book's audio waiting for the learner to approve its price. It
+    /// follows a tap, but the price is read first, so it lands on its own time.
+    case audiobook
     /// The offer to keep playing through a finished book.
     case bookContinuation
     /// A failed offline save, reported on the row it belongs to.
@@ -41,10 +44,12 @@ enum MobileAsyncAlert: Equatable {
     /// safe because nothing outranks an alert that a caller cannot observe.
     static func resolve(
         textToSpeechCostPending: Bool = false,
+        audiobookPending: Bool = false,
         bookContinuationPending: Bool = false,
         offlineFailureSourceID: String? = nil
     ) -> MobileAsyncAlert? {
         if textToSpeechCostPending { return .textToSpeechCost }
+        if audiobookPending { return .audiobook }
         if bookContinuationPending { return .bookContinuation }
         if let sourceID = offlineFailureSourceID { return .offlineSaveFailure(sourceID: sourceID) }
         return nil

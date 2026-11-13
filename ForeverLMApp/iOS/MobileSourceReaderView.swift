@@ -580,6 +580,23 @@ struct MobileSourceReaderView: View {
     /// the user's tap to the gesture recognizer.
     private var listenToolbarControl: some View {
         Menu {
+            // In a book: every chapter's audio in one go, from the chapter
+            // being read, with one price question for the book.
+            if let bookID = readingBookID {
+                if audio.audiobookGeneration?.bookID == bookID {
+                    Button {
+                        audio.stopAudiobookGeneration()
+                    } label: {
+                        Label("Stop Generating Audiobook", systemImage: "stop.circle")
+                    }
+                } else if !audio.bookChapters(bookID: bookID).allSatisfy({ audio.hasSyncedTextToSpeechAudio(sourceID: $0.id) }) {
+                    Button {
+                        Task { await audio.requestAudiobook(bookID: bookID) }
+                    } label: {
+                        Label("Generate Audiobook", systemImage: "books.vertical")
+                    }
+                }
+            }
             Button {
                 showsTextToSpeechSettings = true
             } label: {
@@ -599,8 +616,17 @@ struct MobileSourceReaderView: View {
         }
             .disabled(isListenControlDisabled)
             .accessibilityLabel(listenControlTitle)
-            .accessibilityHint("Touch and hold to choose the Text to Speech model and voice")
+            .accessibilityHint(readingBookID == nil
+                ? "Touch and hold to choose the Text to Speech model and voice"
+                : "Touch and hold to generate the whole audiobook, or to choose the Text to Speech model and voice")
             .accessibilityIdentifier("reader.listen")
+    }
+
+    /// The book the chapter on screen belongs to.
+    private var readingBookID: String? {
+        guard readingSource.sourceType == "book",
+              let bookID = readingSource.parentGroup, !bookID.isEmpty else { return nil }
+        return bookID
     }
 
     private var listenToolbarLabel: some View {

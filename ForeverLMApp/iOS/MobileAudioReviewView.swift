@@ -26,6 +26,12 @@ struct MobileAudioReviewView: View {
     /// Where the bar under the stack starts on screen, for the stack's screens to end above it
     /// (`MobileShellBarClearance`).
     @State private var bottomBarTop: CGFloat?
+    /// The bar's height, and where its bottom rests before any lift.
+    @State private var bottomBarHeight: CGFloat = 0
+    @State private var bottomBarRestingBottom: CGFloat = 0
+    /// Where each screen on the stack ends, to keep the bar off a screen's own
+    /// bottom toolbar (`MobileShellBarLift`).
+    @State private var screenBottoms = MobileShellScreenBottoms()
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
@@ -42,6 +48,7 @@ struct MobileAudioReviewView: View {
                 }
         }
         .environment(\.mobileShellBarTop, bottomBarTop)
+        .environment(screenBottoms)
         // The Space's screens push on this stack, and read the notebooks for a row's notebook and a
         // page's `[[` and `@`.
         .environment(MobileSpaceStore.shared)
@@ -86,6 +93,15 @@ struct MobileAudioReviewView: View {
                 MobileCompactPlaybackBar()
             }
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { bottomBarTop = $0 }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bottomBarHeight = $0 }
+            // The Reader's Listen, Voice and Ask are a bottom toolbar, drawn
+            // at the bottom of the window, where this bar sat on top of them:
+            // with something playing, the next chapter's Listen could not be
+            // reached. The bar rises to sit above such a toolbar. Measured
+            // outside the padding, so the resting place does not move with it.
+            .padding(.bottom, bottomBarLift)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { bottomBarRestingBottom = $0 }
+            .animation(.default, value: bottomBarLift)
         }
         .fullScreenCover(isPresented: voiceCoverBinding) {
             MobileVoiceSessionCover(isEnding: $isEndingVoiceSession)
@@ -126,6 +142,14 @@ struct MobileAudioReviewView: View {
                 follow(link)
             }
         }
+    }
+
+    private var bottomBarLift: CGFloat {
+        MobileShellBarLift.lift(
+            barTop: bottomBarRestingBottom - bottomBarHeight,
+            barBottom: bottomBarRestingBottom,
+            screens: screenBottoms.visible
+        )
     }
 
     // MARK: - Home
@@ -431,8 +455,15 @@ extension EnvironmentValues {
 /// the bar, the overlap is zero and nothing is added.
 struct MobileShellBarClearance: ViewModifier {
     @Environment(\.mobileShellBarTop) private var barTop
+    @Environment(MobileShellScreenBottoms.self) private var screenBottoms: MobileShellScreenBottoms?
     /// The bottom of the safe area the stack gave this screen, on screen.
     @State private var safeBottom: CGFloat = 0
+    /// The same without the keyboard, and the bottom of the screen itself:
+    /// what the shell's bar needs to stay off this screen's bottom toolbar.
+    @State private var barSafeBottom: CGFloat = 0
+    @State private var fullBottom: CGFloat = 0
+    @State private var screenID = UUID()
+    @State private var isOnScreen = false
 
     func body(content: Content) -> some View {
         ZStack {
@@ -444,7 +475,60 @@ struct MobileShellBarClearance: ViewModifier {
                 .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { safeBottom = $0 }
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+            Color.clear
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
+                    barSafeBottom = $0
+                    report()
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            Color.clear
+                .ignoresSafeArea(edges: .bottom)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
+                    fullBottom = $0
+                    report()
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
+        // Only the screens on show count: a screen under a pushed one keeps
+        // its last measurements, and would hold the bar where it left it.
+        .onAppear {
+            isOnScreen = true
+            report()
+        }
+        .onDisappear {
+            isOnScreen = false
+            screenBottoms?.remove(screenID)
+        }
+    }
+
+    private func report() {
+        guard isOnScreen else { return }
+        screenBottoms?.set(
+            MobileShellBarLift.Screen(safeBottom: barSafeBottom, fullBottom: fullBottom),
+            for: screenID
+        )
+    }
+}
+
+/// Where each screen on show in the shell's stack ends, as
+/// `MobileShellBarClearance` measures it.
+@MainActor
+@Observable
+final class MobileShellScreenBottoms {
+    private var screens: [UUID: MobileShellBarLift.Screen] = [:]
+
+    var visible: [MobileShellBarLift.Screen] { Array(screens.values) }
+
+    func set(_ screen: MobileShellBarLift.Screen, for id: UUID) {
+        guard screens[id] != screen else { return }
+        screens[id] = screen
+    }
+
+    func remove(_ id: UUID) {
+        screens[id] = nil
     }
 }
 

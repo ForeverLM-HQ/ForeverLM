@@ -122,6 +122,11 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     @Published var textToSpeechModelNames: [String: String] = [:]
     @Published var automaticAudioProgress: SourceAudioAutomation.GenerationProgress?
     @Published var textToSpeechCostConfirmation: MobileTextToSpeechCostConfirmation?
+    /// A whole book's audio being generated chapter after chapter
+    /// (Generate Audiobook), and the price question that comes before it.
+    @Published var audiobookGeneration: MobileAudiobookGeneration?
+    @Published var audiobookConfirmation: MobileAudiobookPlan?
+    var audiobookGenerationTask: Task<Void, Never>?
     /// The narration voice mode started (`listen_to_source`), until the next
     /// conversation takes the audio back.
     @Published var voiceListen: MobileVoiceListen?

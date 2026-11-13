@@ -611,6 +611,8 @@ extension MobileAudioReviewViewModel {
         // pass already running and returns, so without draining, the second
         // source would wait for the next foreground to be picked up.
         while await resumeOnePassOfInterruptedTextToSpeechGeneration() {}
+        // A whole book that was waiting on one of those chapters carries on.
+        resumeAudiobookGenerationIfWaiting()
     }
 
     /// One pass over the pending set. Returns whether it consumed anything —
