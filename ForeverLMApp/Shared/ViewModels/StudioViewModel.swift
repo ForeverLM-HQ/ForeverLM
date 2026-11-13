@@ -246,6 +246,10 @@ class StudioViewModel {
     /// search-count path, so it must be cheap on repeat evaluation.
     @ObservationIgnored var allBookGroupNamesCacheKey: BookGroupNamesCacheKey?
     @ObservationIgnored var allBookGroupNamesCache: [String]?
+    /// Hidden-item counts per tab, memoized on everything they read
+    /// (`memoizedHiddenItemCounts`).
+    @ObservationIgnored var hiddenItemCountsCacheKey: HiddenItemCountsCacheKey?
+    @ObservationIgnored var hiddenItemCountsCache: [StudioSidebarTab: (groups: Int, items: Int)] = [:]
     /// Deduplicates automatic read writes while a reader's final scroll event is
     /// still being persisted. The status itself remains observed through `articles`.
     @ObservationIgnored var automaticReadCompletionInFlightIDs: Set<String> = []

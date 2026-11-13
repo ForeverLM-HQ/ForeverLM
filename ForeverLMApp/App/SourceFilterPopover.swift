@@ -246,9 +246,17 @@ struct HiddenItemsModel {
     }
 
     /// Hidden groups and lone items for `tab`, counted the way the footer
-    /// reads them out.
+    /// reads them out. Read from bodies: the footer's, and every tab's context
+    /// menu in the tab bar, which SwiftUI builds while the bar's body runs. So
+    /// it is memoized (`StudioViewModel.memoizedHiddenItemCounts`); counting
+    /// afresh walked the library once per tab on every redraw of the bar.
     @MainActor
     static func footerCounts(for tab: StudioSidebarTab, vm: StudioViewModel) -> (groups: Int, items: Int) {
+        vm.memoizedHiddenItemCounts(for: tab) { countHidden(in: tab, vm: vm) }
+    }
+
+    @MainActor
+    private static func countHidden(in tab: StudioSidebarTab, vm: StudioViewModel) -> (groups: Int, items: Int) {
         let shown = RecordingFilter(tab: tab, vm: vm)
         switch tab {
         case .podcasts:

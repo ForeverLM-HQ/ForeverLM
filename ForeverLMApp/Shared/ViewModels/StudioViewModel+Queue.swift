@@ -2162,11 +2162,72 @@ extension StudioViewModel {
     }
 
     var hiddenBookChapterArticles: [StudioArticle] {
-        hiddenSourceArticles(for: .books)
+        // Each book is asked once. Asking per chapter walked a hidden book's
+        // chapters again for every one of them, quadratic in its length.
+        var bookIsHidden: [String: Bool] = [:]
+        return hiddenSourceArticles(for: .books)
             .filter { article in
                 guard let groupName = article.parentGroup else { return true }
-                return !isBookHidden(groupName)
+                if let known = bookIsHidden[groupName] { return !known }
+                let hidden = isBookHidden(groupName)
+                bookIsHidden[groupName] = hidden
+                return !hidden
             }
+    }
+
+    /// Everything `HiddenItemsModel.footerCounts` reads, outside Screen record
+    /// mode. The article list counts by `articlesRevision`: a source's hidden
+    /// flag, type, group and show are all presentation.
+    struct HiddenItemCountsCacheKey: Equatable {
+        let articlesRevision: Int
+        let hiddenPodcastShows: Set<String>
+        let hiddenPodcastEpisodeIDs: Set<String>
+        let visiblePodcastEpisodeOverrideIDs: Set<String>
+        let blockedPodcastShowsVersion: Int
+        let hiddenYouTubeChannels: Set<String>
+        let visibleYouTubeVideoOverrideIDs: Set<String>
+        let pendingDeletionKeys: [UUID: String]
+        let pendingDeletionSourceIDs: [UUID: Set<String>]
+        let sourceIDsBeingRemoved: Set<String>
+        let meetingMetadata: [String: MeetingMetadata]
+        let videoPlaylistMetadata: [String: VideoPlaylistMetadata]
+    }
+
+    /// `tab`'s hidden-item counts, counted once per change to what they read.
+    /// The tab bar asks for every tab's on each redraw, and switching tabs
+    /// redraws it: counting afresh walked the library once per tab, a Library
+    /// switch from Articles to Papers among the work behind a beachball
+    /// (product owner, 2026-11-12). The key is built on every call, so a view
+    /// served from the memo stays subscribed to all of its inputs. Screen
+    /// record mode narrows the counts by what the take may show, which the key
+    /// does not carry, so they are counted afresh there.
+    func memoizedHiddenItemCounts(
+        for tab: StudioSidebarTab,
+        count: () -> (groups: Int, items: Int)
+    ) -> (groups: Int, items: Int) {
+        guard !isScreenRecordModeActive else { return count() }
+        let key = HiddenItemCountsCacheKey(
+            articlesRevision: articlesRevision,
+            hiddenPodcastShows: hiddenPodcastShows,
+            hiddenPodcastEpisodeIDs: hiddenPodcastEpisodeIDs,
+            visiblePodcastEpisodeOverrideIDs: visiblePodcastEpisodeOverrideIDs,
+            blockedPodcastShowsVersion: blockedPodcastShowsVersion,
+            hiddenYouTubeChannels: hiddenYouTubeChannels,
+            visibleYouTubeVideoOverrideIDs: visibleYouTubeVideoOverrideIDs,
+            pendingDeletionKeys: pendingDeletionKeys,
+            pendingDeletionSourceIDs: pendingDeletionSourceIDs,
+            sourceIDsBeingRemoved: sourceIDsBeingRemoved,
+            meetingMetadata: meetingMetadata,
+            videoPlaylistMetadata: videoPlaylistMetadata
+        )
+        if hiddenItemCountsCacheKey != key {
+            hiddenItemCountsCacheKey = key
+            hiddenItemCountsCache = [:]
+        }
+        if let cached = hiddenItemCountsCache[tab] { return cached }
+        let counts = count()
+        hiddenItemCountsCache[tab] = counts
+        return counts
     }
 
     var hasHiddenBookItems: Bool {

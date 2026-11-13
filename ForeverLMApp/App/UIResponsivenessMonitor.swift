@@ -19,16 +19,21 @@ import OSLog
 /// main thread under a lock, so what is measured is the main thread's latency and
 /// nothing else.
 ///
-/// **The sample always started after the stall ended.** Capture was triggered only
-/// once the stall had already run a full second, and `/usr/bin/sample` needs ~45ms
-/// to attach and then records for a second. A 1–1.5s beachball — which is what
-/// this app actually produces — was over before the first sample was taken. Every
-/// one of twenty such reports showed an idle main thread
-/// parked in `mach_msg`, which reads exactly like "no stall found". Capture
-/// starts speculatively at `suspicionThreshold`, so the sampler is attached and
-/// recording while the main thread is still wedged; if the stall never reaches
-/// `stallThreshold` the sample is killed and its file deleted, so the speculation
-/// costs nothing but a short-lived process.
+/// **The sampler can freeze the app it samples.** `/usr/bin/sample` suspends the
+/// whole process for each snapshot. Usually that costs a millisecond. On
+/// 2026-11-12 (build 297) one run took 5.6 s to collect 45 snapshots, and nothing
+/// in the app ran in between, this monitor included: a hitch on switching the
+/// Library from Articles to Papers became a 5.3 s beachball (product owner,
+/// 2026-11-12: "I got a beach ball. And I was shifting from articles to papers").
+/// Three more of that day's nine kept samples held 2, 6 and 30 snapshots, the
+/// monitor silent for 5-6.5 s around each, two of them seconds after launch. The
+/// sampler used to start speculatively at 0.3 s, so any hitch could become one of
+/// these. Now it starts only once a stall is real (`stallThreshold`), never in the
+/// first `launchGrace` after launch, and never again in a launch once a capture
+/// has stopped this monitor's own checks for `samplerFreezeLimit`. A stall over
+/// within a second of starting is then over before the sampler attaches, and its
+/// sample shows an idle main thread; a missing diagnosis is the price, where a
+/// frozen app was the learner's.
 final class UIResponsivenessMonitor {
     static let shared = UIResponsivenessMonitor()
 
@@ -42,14 +47,14 @@ final class UIResponsivenessMonitor {
     private let queue = DispatchQueue(label: "com.foreverlm.ui-responsiveness-monitor", qos: .userInitiated)
     private let sampleQueue = DispatchQueue(label: "com.foreverlm.ui-responsiveness-sampler", qos: .utility)
     private let checkInterval: TimeInterval = 0.1
-    /// When to start recording. Well below the stall threshold on purpose — the
-    /// sampler has to already be attached when the interesting second happens.
-    private let suspicionThreshold: TimeInterval = 0.3
-    /// When a delay becomes a stall worth keeping and reporting.
+    /// When a delay becomes a stall worth reporting and sampling.
     private let stallThreshold: TimeInterval = 1.0
-    /// Minimum gap between speculative capture attempts, most of which are
-    /// discarded.
-    private let speculativeCooldown: TimeInterval = 5.0
+    /// No sampling this soon after the monitor starts: the two launch-time
+    /// captures of 2026-11-12 froze the app for 5 s each.
+    private let launchGrace: TimeInterval = 30.0
+    /// Two checks this far apart while the sampler runs mean it suspended the
+    /// process, this monitor's queue with it, for that long.
+    private let samplerFreezeLimit: TimeInterval = 1.0
     /// Minimum gap between samples that are actually retained.
     private let retainedSampleCooldown: TimeInterval = 30.0
     private let sampleDuration = 2
@@ -69,17 +74,20 @@ final class UIResponsivenessMonitor {
     private var activeAtLastProbe = true
 
     /// Capture bookkeeping. Guarded by `stateLock` because the sampler queue has
-    /// to hand back the process handle while the watchdog may be terminating it.
+    /// to hand back the process handle while the watchdog may be stopping it.
     private final class StallCapture {
         let url: URL
         var process: Process?
-        var confirmed = false
-        var discarded = false
+        var stopped = false
         init(url: URL) { self.url = url }
     }
     private var activeCapture: StallCapture?
-    private var lastCaptureStartedAt: Date?
     private var lastRetainedSampleAt: Date?
+    /// Set once a capture froze the process; nothing more is sampled until the
+    /// app is launched again.
+    private var samplingOff = false
+    private var startedAt = Date()
+    private var lastCheckAt: Date?
 
     private var isRunning = false
     private var currentStallStart: Date?
@@ -91,6 +99,7 @@ final class UIResponsivenessMonitor {
         queue.async { [weak self] in
             guard let self, !self.isRunning else { return }
             self.isRunning = true
+            self.startedAt = Date()
             self.stateLock.lock()
             self.lastProbeRanAt = Date()
             self.probeSentAt = nil
@@ -113,19 +122,22 @@ final class UIResponsivenessMonitor {
 
     private func checkMainThread() {
         let now = Date()
+        let sinceLastCheck = lastCheckAt.map { now.timeIntervalSince($0) } ?? 0
+        lastCheckAt = now
 
         stateLock.lock()
         let outstandingSince = probeSentAt
         let lastRan = lastProbeRanAt
+        let capture = activeCapture
         stateLock.unlock()
+
+        if let capture, sinceLastCheck >= samplerFreezeLimit {
+            stopSamplingForThisLaunch(capture, monitorSilentFor: sinceLastCheck)
+        }
 
         // No probe outstanding means the main thread answered the last one; there
         // is nothing in flight to be late.
         let delay = outstandingSince.map { now.timeIntervalSince($0) } ?? 0
-
-        if delay >= suspicionThreshold {
-            beginCaptureIfNeeded(now: now)
-        }
 
         if delay >= stallThreshold, let outstandingSince {
             if currentStallStart == nil {
@@ -140,7 +152,7 @@ final class UIResponsivenessMonitor {
                 var load = [Double](repeating: 0, count: 3)
                 let loadRead = getloadavg(&load, 3) > 0
                 logger.fault("UI_STALL_BEGIN duration=\(delay, format: .fixed(precision: 2))s threshold=\(self.stallThreshold, format: .fixed(precision: 1))s load=\(loadRead ? load[0] : -1, format: .fixed(precision: 1)) cores=\(ProcessInfo.processInfo.activeProcessorCount) active=\(wasActive ? 1 : 0)")
-                confirmActiveCapture(stalledFor: delay)
+                beginCapture(now: now, stalledFor: delay)
             } else if shouldLogOngoingStall(now: now) {
                 lastStallLog = now
                 logger.error("UI_STALL_ONGOING duration=\(delay, format: .fixed(precision: 2))s")
@@ -153,8 +165,6 @@ final class UIResponsivenessMonitor {
                 currentStallStart = nil
                 lastStallLog = nil
             }
-            // A capture that never grew into a real stall is noise; drop it.
-            discardUnconfirmedCapture()
             sendProbe()
         }
     }
@@ -186,20 +196,29 @@ final class UIResponsivenessMonitor {
 
     // MARK: - Process sampling
 
-    /// Start recording on suspicion, before the delay is known to be a stall.
-    private func beginCaptureIfNeeded(now: Date) {
+    /// Start the sampler on a stall that is already real, unless sampling is off
+    /// for one of the reasons in the type's comment. The stall is logged either way.
+    private func beginCapture(now: Date, stalledFor duration: TimeInterval) {
         stateLock.lock()
         let alreadyCapturing = activeCapture != nil
         stateLock.unlock()
-        guard !alreadyCapturing else { return }
 
-        if let lastCaptureStartedAt, now.timeIntervalSince(lastCaptureStartedAt) < speculativeCooldown {
+        let skipReason: String?
+        if samplingOff {
+            skipReason = "sampler_froze_app"
+        } else if now.timeIntervalSince(startedAt) < launchGrace {
+            skipReason = "launch"
+        } else if alreadyCapturing {
+            skipReason = "capturing"
+        } else if let lastRetainedSampleAt, now.timeIntervalSince(lastRetainedSampleAt) < retainedSampleCooldown {
+            skipReason = "cooldown"
+        } else {
+            skipReason = nil
+        }
+        if let skipReason {
+            logger.error("UI_STALL_NOT_SAMPLED stalledFor=\(duration, format: .fixed(precision: 2))s reason=\(skipReason, privacy: .public)")
             return
         }
-        if let lastRetainedSampleAt, now.timeIntervalSince(lastRetainedSampleAt) < retainedSampleCooldown {
-            return
-        }
-        lastCaptureStartedAt = now
 
         let directory: URL
         do {
@@ -239,10 +258,10 @@ final class UIResponsivenessMonitor {
         process.standardOutput = Pipe()
 
         stateLock.lock()
-        let alreadyDiscarded = capture.discarded
-        if !alreadyDiscarded { capture.process = process }
+        let alreadyStopped = capture.stopped
+        if !alreadyStopped { capture.process = process }
         stateLock.unlock()
-        guard !alreadyDiscarded else {
+        guard !alreadyStopped else {
             finishCapture(capture, terminationStatus: nil, errorPipe: nil)
             return
         }
@@ -259,15 +278,8 @@ final class UIResponsivenessMonitor {
 
     private func finishCapture(_ capture: StallCapture, terminationStatus: Int32?, errorPipe: Pipe?) {
         stateLock.lock()
-        let confirmed = capture.confirmed
         if activeCapture === capture { activeCapture = nil }
         stateLock.unlock()
-
-        guard confirmed else {
-            // Speculative capture of a delay that resolved on its own.
-            try? FileManager.default.removeItem(at: capture.url)
-            return
-        }
 
         if terminationStatus == 0 {
             queue.async { [weak self] in self?.lastRetainedSampleAt = Date() }
@@ -282,32 +294,17 @@ final class UIResponsivenessMonitor {
         }
     }
 
-    /// The delay became a real stall: keep whatever the sampler has recorded.
-    private func confirmActiveCapture(stalledFor duration: TimeInterval) {
+    /// This monitor's checks stopped for `silence` while the sampler ran: the
+    /// sampler suspended the process. Interrupt it, which makes `sample` stop
+    /// and write what it has, and sample nothing more until the next launch.
+    private func stopSamplingForThisLaunch(_ capture: StallCapture, monitorSilentFor silence: TimeInterval) {
+        samplingOff = true
+        logger.fault("UI_STALL_SAMPLER_FROZE_APP silent=\(silence, format: .fixed(precision: 2))s; no more samples until relaunch")
         stateLock.lock()
-        activeCapture?.confirmed = true
-        let hasCapture = activeCapture != nil
+        capture.stopped = true
+        let process = capture.process
         stateLock.unlock()
-        if !hasCapture {
-            logger.error("UI_STALL_NOT_SAMPLED stalledFor=\(duration, format: .fixed(precision: 2))s reason=cooldown")
-        }
-    }
-
-    /// The main thread recovered before the stall threshold. Stop the sampler and
-    /// throw the partial report away.
-    private func discardUnconfirmedCapture() {
-        stateLock.lock()
-        let capture = activeCapture
-        var processToTerminate: Process?
-        if let capture, !capture.confirmed {
-            capture.discarded = true
-            processToTerminate = capture.process
-            activeCapture = nil
-        }
-        stateLock.unlock()
-
-        guard let processToTerminate else { return }
-        if processToTerminate.isRunning { processToTerminate.terminate() }
+        if let process, process.isRunning { process.interrupt() }
     }
 
     /// Samples are diagnostic snapshots, not user data. Keeping them forever
