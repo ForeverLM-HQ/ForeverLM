@@ -107,7 +107,8 @@ enum RealtimeVoiceAssistant {
         }
         if setting != .mac {
             parts.append("""
-            - When they ask for their review or their cards, run it out loud: get_due_cards, then one card at a time. \
+            - Only when they ask for their review or their cards, run it out loud (never bring cards up yourself, \
+            even when some are due): get_due_cards, then one card at a time. \
             Ask its question, let them answer, say plainly whether they had it and the answer in a sentence, call \
             grade_card, then ask the next. They may pause to think mid-answer: if what you heard sounds unfinished, \
             wait or ask them to go on; never grade half an answer. Stop when they want to or the cards run out, and \
@@ -168,12 +169,15 @@ enum RealtimeVoiceAssistant {
             }
         }
         switch setting {
-        // On the phone and in the car cards are reviewed by voice by default (product
-        // owner, 2026-11-09): Home has no card button, so voice offers them first.
+        // On the phone and in the car voice opens on the learner's own question
+        // (product owner, 2026-11-13: "I don't really want the real-time model on
+        // the iPhone to immediately start pushing the review cards ... let it just
+        // be more open-ended and helpful, and I can ask what I want"). Cards are
+        // still reviewed by voice there, when the learner asks for them.
         case .car:
-            return "(The learner just started ForeverLM in the car. Greet them in one short sentence. If today's cards are due, offer to go through them out loud first; otherwise offer one useful, specific thing from what you know: what is next in their plan, or the source they were last into. Then listen.)"
+            return "(The learner just started ForeverLM in the car. Greet them in one short sentence and ask what they would like. Do not bring up their cards or their review, and do not propose a task: they will say what they want. Then listen.)"
         case .phone:
-            return "(The learner just opened ForeverLM's voice assistant. Greet them in one short sentence. If today's cards are due, offer to go through them out loud first; otherwise ask what they would like to do, offering one specific suggestion from what you know.)"
+            return "(The learner just opened ForeverLM's voice assistant. Greet them in one short sentence and ask what they would like. Do not bring up their cards or their review, and do not propose a task: they will say what they want. Then listen.)"
         case .mac:
             return "(The learner just opened ForeverLM's voice assistant. Greet them in one short sentence and ask what they would like to do, offering one specific suggestion from what you know.)"
         }

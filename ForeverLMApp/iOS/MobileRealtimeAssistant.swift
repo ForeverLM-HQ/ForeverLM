@@ -54,14 +54,14 @@ enum MobileRealtimeAssistant {
         async let recent = toolbox.recentText(now: now)
         async let cards = dueCardsText()
         let sections = await [
-            // First, so voice offers the review when cards wait (Home has no
-            // card button: cards are voice by default).
-            RealtimeVoiceAssistant.Section(title: "Today's cards", text: cards),
             RealtimeVoiceAssistant.Section(title: "Quarter plan", text: plan ?? ""),
             RealtimeVoiceAssistant.Section(title: "Calendar this week", text: calendar),
             RealtimeVoiceAssistant.Section(title: "Schedule", text: schedule),
             RealtimeVoiceAssistant.Section(title: "Goals and notebooks", text: goals),
             RealtimeVoiceAssistant.Section(title: "Recent work", text: recent),
+            // Last, and only so it can answer "how many cards do I have?":
+            // voice never opens on the cards.
+            RealtimeVoiceAssistant.Section(title: "Today's cards", text: cards),
         ]
         return RealtimeVoiceBrief(
             title: RealtimeVoiceAssistant.title,

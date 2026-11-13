@@ -676,6 +676,13 @@ struct RealtimeVoiceTutorTests {
         // Card review runs where its tools are: the iPhone and the car.
         #expect(car.contains("get_due_cards"))
         #expect(!RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac).contains("get_due_cards"))
+        // Voice opens on the learner's own question: it never offers the cards first.
+        for setting in [RealtimeVoiceAssistant.Setting.car, .phone] {
+            let kickoff = RealtimeVoiceAssistant.kickoff(setting: setting)
+            #expect(kickoff.contains("Do not bring up their cards"))
+            #expect(!kickoff.contains("offer to go through them"))
+        }
+        #expect(car.contains("never bring cards up yourself"))
         #expect(RealtimeVoiceExchange.assistantChatTitle(firstQuestion: nil) == "Voice chat")
         let long = RealtimeVoiceExchange.assistantChatTitle(firstQuestion: String(repeating: "word ", count: 30))
         #expect(long.hasSuffix("…"))
