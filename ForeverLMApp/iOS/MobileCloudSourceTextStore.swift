@@ -105,7 +105,7 @@ enum MobileCloudSourceTextError: LocalizedError {
         case .missingRecord:
             return "This source has not synced to iCloud yet."
         case .missingSourceText:
-            return "This source does not have synced readable text yet."
+            return "This source has no readable text here yet. ForeverLM on your Mac fetches and prepares it, then it arrives through iCloud."
         case .sourceStillProcessing:
             return "This source is still preparing readable text."
         }

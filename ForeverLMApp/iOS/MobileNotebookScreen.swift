@@ -1424,8 +1424,13 @@ struct MobileNotebookAddSourcesSheet: View {
         } header: {
             Text(reading.links.count == 1 ? "Link" : "Links")
         } footer: {
-            if reading.leftOut > 0 {
-                Text("Only the first \(MobileNotebookPastedLinks.limit) links are added.")
+            // A link added here is a title until a Mac has fetched it; said
+            // where it is added, so an empty source is not a surprise.
+            VStack(alignment: .leading, spacing: MobileDesign.Spacing.xSmall) {
+                if reading.leftOut > 0 {
+                    Text("Only the first \(MobileNotebookPastedLinks.limit) links are added.")
+                }
+                Text("ForeverLM on your Mac fetches the text the next time it runs.")
             }
         }
     }

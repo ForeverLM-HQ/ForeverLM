@@ -2291,21 +2291,29 @@ struct MobileBrowserSourceRow: View {
 /// The empty Sources list, saying where a library comes from. The phone only
 /// shows what a Mac syncs through iCloud, and a Mac can keep everything to
 /// itself (Settings › iCloud › Storage), so "No Sources" alone read as a
-/// broken app (product owner, 2026-09-22).
+/// broken app (product owner, 2026-09-22). It says first that a Mac is
+/// needed, for someone who has only the phone (product owner, 2026-11-13:
+/// "Please just say that it needs the Mac"), and where to get it.
 private struct MobileEmptyLibraryView: View {
+    private static let macAppURL = URL(string: "https://foreverlm.com")!
+
     var body: some View {
         if FileManager.default.ubiquityIdentityToken == nil {
             ContentUnavailableView {
                 Label("Not Signed In to iCloud", systemImage: "icloud.slash")
             } description: {
-                Text("Your library reaches this iPhone through iCloud. Sign in under Settings › your name, with the same Apple Account as your Mac.")
+                Text("ForeverLM on the iPhone needs ForeverLM on your Mac, which adds your sources and sends them here through iCloud. Sign in to iCloud under Settings › your name, with the same Apple Account as your Mac.")
+            } actions: {
+                Link("Get ForeverLM for Mac", destination: Self.macAppURL)
             }
             .accessibilityIdentifier("sources.emptyNoICloud")
         } else {
             ContentUnavailableView {
                 Label("No Sources", systemImage: "books.vertical")
             } description: {
-                Text("Your library syncs here from ForeverLM on your Mac, through iCloud. If your Mac keeps everything on that Mac, nothing arrives: choose Sync with iCloud in its Settings › Data & Privacy.")
+                Text("ForeverLM on the iPhone needs ForeverLM on your Mac, which adds your sources and sends them here through iCloud. If your Mac keeps everything on that Mac, nothing arrives: choose Sync with iCloud in its Settings › Data & Privacy.")
+            } actions: {
+                Link("Get ForeverLM for Mac", destination: Self.macAppURL)
             }
             .accessibilityIdentifier("sources.empty")
         }

@@ -241,6 +241,17 @@ struct MobileAccountWall: View {
                 } else {
                     MobileSignInGate(onSignedIn: onSignedIn)
                         .frame(maxWidth: 320)
+
+                    // Said before anything else: the phone alone has no
+                    // library. A Mac adds the sources and prepares their
+                    // text (product owner, 2026-11-13: "Please just say that
+                    // it needs the Mac").
+                    Text("ForeverLM on the iPhone works with ForeverLM on your Mac. The Mac adds your sources; you read, listen, talk and review them here.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 320)
+                        .accessibilityIdentifier("account.wall.needsMac")
                 }
             }
         }

@@ -7,6 +7,8 @@ title: iCloud Storage & Privacy
 
 ForeverLM keeps your whole library on your Mac and syncs it through your own iCloud account to your iPhone, iPad and the web library. ForeverLM servers do not store your library.
 
+The iPhone and iPad app works with the Mac app and needs it: the Mac adds your sources and prepares their text, and the phone reads, listens, talks and reviews what arrives through iCloud. You can add a link, a PDF or scanned pages from the phone, but ForeverLM on your Mac is what fetches and prepares them, the next time it runs.
+
 ## Your library syncs with iCloud
 
 Every library syncs with iCloud; there is no setting to turn it off. The first step of setup explains it, and **Settings → Data & Privacy → iCloud** shows how sync is doing.
