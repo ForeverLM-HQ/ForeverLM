@@ -1323,6 +1323,8 @@ struct ArtifactEditor: View {
         }
         guard !Task.isCancelled else { return }
         let articlesByID = known
+        // A chapter's card wears its book's cover, as the Books list does.
+        let coverPaths = vm.bookCoverPaths
         for batch in Self.batches(of: saved, size: 8) {
             let resolved = await withTaskGroup(of: (String, ArtifactReferenceStatus).self) { group in
                 for (href, status) in batch {
@@ -1332,7 +1334,10 @@ struct ArtifactEditor: View {
                             decorated.kind = article.sourceType.rawValue
                             decorated.title = article.title
                             decorated.detail = ReferenceCardArtwork.libraryDetail(for: article)
-                            decorated.thumbnailURL = await ReferenceCardArtwork.libraryThumbnailURL(for: article)
+                            decorated.thumbnailURL = await ReferenceCardArtwork.libraryThumbnailURL(
+                                for: article,
+                                bookCoverPath: ReferenceCardArtwork.bookCoverPath(for: article, coverPaths: coverPaths)
+                            )
                         } else {
                             decorated.kind = "page"
                         }

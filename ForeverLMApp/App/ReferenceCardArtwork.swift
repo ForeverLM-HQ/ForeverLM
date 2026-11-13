@@ -6,8 +6,8 @@ import Foundation
 /// A card stands for a source, and every other surface that stands for a source
 /// — the sidebar row, the References shelf, a chat citation — shows its picture,
 /// so the card does too. A source in the library shows the library's own
-/// artwork through `SourceArtwork`: a paper's first page, a chapter's cover, a
-/// podcast's art, a YouTube still. A reference the library does not hold has no
+/// artwork through `SourceArtwork`: a paper's first page, a chapter's book
+/// cover, a podcast's art, a YouTube still. A reference the library does not hold has no
 /// file to draw from, so it gets a link preview: the page's `og:image` when the
 /// page declares one, otherwise the site's own icon, small in the tile, so a
 /// nature.com card and a cellarity.com card still tell apart at a glance.
@@ -21,11 +21,32 @@ enum ReferenceCardArtwork {
     /// embedded string being long enough to matter across a doc of 150 cards.
     static let maxPixelSize: CGFloat = 80
 
+    /// The cover a card draws for a book chapter, which is the book's own:
+    /// `coverPaths` is `StudioViewModel.bookCoverPaths`, keyed by book id. A
+    /// chapter's file is the book's PDF or one XHTML page, so the chapter alone
+    /// draws a page of text or a figure from inside it. A book dropped on a page
+    /// is a card on its first chapter, which is how "How Life Works" came to
+    /// wear its first page in place of its cover (product owner, 2026-11-12:
+    /// "The How Life Works book doesn't properly show its cover"). Nil for
+    /// anything that is not a chapter, or a book with no cover.
+    static func bookCoverPath(for article: StudioArticle, coverPaths: [String: String]) -> String? {
+        guard article.sourceType == .book, let bookID = article.parentGroup else { return nil }
+        return coverPaths[bookID]
+    }
+
     /// The library's picture for a saved source, as the editor can show it: a
     /// small JPEG data URL rendered off-main from the file that backs the source,
     /// or the remote artwork address when the source has no file of its own.
-    /// Nil is a source with no picture at all; the tile then draws its glyph.
-    static func libraryThumbnailURL(for article: StudioArticle) async -> String? {
+    /// `bookCoverPath` is the book's cover for a chapter (`bookCoverPath(for:coverPaths:)`),
+    /// drawn in place of the chapter's own file; a cover that will not render
+    /// leaves the chapter's. Nil is a source with no picture at all; the tile
+    /// then draws its glyph.
+    static func libraryThumbnailURL(for article: StudioArticle, bookCoverPath: String? = nil) async -> String? {
+        if let bookCoverPath,
+           let image = await SourceArtwork.thumbnail(for: .file(bookCoverPath), maxPixelSize: maxPixelSize),
+           let dataURL = SourceArtwork.jpegDataURL(from: image) {
+            return dataURL
+        }
         let path = await Task.detached(priority: .utility) {
             SourceArtwork.filePath(for: article)
         }.value

@@ -449,6 +449,24 @@ struct ArtifactFootnoteCardSummaryTests {
         #expect(StudioArticle.displayDomain("file:///Users/learner/Books") == nil)
     }
 
+    @Test("A book chapter's card draws its book's cover, not a page of the chapter")
+    func chapterCardWearsBookCover() {
+        let coverPaths = ["book-1": "/Users/learner/Books/LifeWorks/cover.jpg"]
+        var chapter = StudioArticle(url: "/Users/learner/Books/LifeWorks/LifeWorks.pdf", title: "How Life Works", sourceType: .book)
+        chapter.parentGroup = "book-1"
+        #expect(ReferenceCardArtwork.bookCoverPath(for: chapter, coverPaths: coverPaths) == "/Users/learner/Books/LifeWorks/cover.jpg")
+
+        // A book without a cover keeps the chapter's own picture.
+        chapter.parentGroup = "book-2"
+        #expect(ReferenceCardArtwork.bookCoverPath(for: chapter, coverPaths: coverPaths) == nil)
+
+        // Only a chapter is drawn as its book: a course lesson grouped under
+        // the same key is not.
+        var lesson = StudioArticle(url: "foreverlm://course/c1/lesson/1", title: "Lesson 1", sourceType: .course)
+        lesson.parentGroup = "book-1"
+        #expect(ReferenceCardArtwork.bookCoverPath(for: lesson, coverPaths: coverPaths) == nil)
+    }
+
     @Test("The editor's status contract carries the card's title and detail")
     func statusJSON() throws {
         var status = ArtifactReferenceStatus.inLibrary(sourceID: "src_1")
