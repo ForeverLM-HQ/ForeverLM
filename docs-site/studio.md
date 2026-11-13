@@ -713,10 +713,14 @@ title: a short list of your pages and notebooks appears at the caret, narrowing 
 you type; Return writes the one you pick as a link with its title. The **Link**
 field (the link button on the bar over selected words) takes a title as readily as a web
 address, so selecting a few words and typing a page's name there links them to
-that page. Pasting a web address over selected words links them to it. On the Mac you can also drag a page from the Pages list, or a notebook's row
-from the navigation rail, onto the page: a caret follows the pointer and the
-drop writes the link where the caret was. Hover a link to open the page or the
-notebook it points at. In Markdown the link is `[Title](foreverlm://doc/<id>)` or
+that page. Pasting a web address over selected words links them to it. A line
+that is only a link to a page or a notebook shows as its card, like a source's:
+a small tile, the title, and under it what it is and the notebook a page is
+filed in; press the card to open it. On the Mac you can also drag a page from
+the Pages list, or a notebook's row from the navigation rail, onto the page: a
+line follows the pointer between the paragraphs, and the drop writes the page's
+card there (an empty line under the pointer takes it). Hover a link in a
+sentence to open the page or the notebook it points at. In Markdown the link is `[Title](foreverlm://doc/<id>)` or
 `[Title](foreverlm://notebook/<id>)`, which the page tools can write too. On a
 published Page, a link to a Page that is itself published becomes a link to its
 web page; a link to a Page that is not published shows as plain text. The **Notebooks** checklist in the ⋯ menu above a

@@ -1112,8 +1112,10 @@ body.is-dragging-card * {
   margin: 0.3em 0;
 }
 
-/* A card the library holds opens its source when pressed anywhere. */
-.milkdown .editor p.artifact-reference[data-reference-state="inLibrary"] {
+/* A card the library holds opens its source when pressed anywhere, and a
+   page's, a notebook's, an Idea's or a chat's card opens it. */
+.milkdown .editor p.artifact-reference[data-reference-state="inLibrary"],
+.milkdown .editor p.artifact-reference[data-reference-state="inApp"] {
   cursor: pointer;
 }
 
@@ -1236,6 +1238,31 @@ body.is-dragging-card * {
 .artifact-reference-thumbnail[data-kind="video"] {
   background: color-mix(in srgb, #e5484d 11%, transparent);
   color: #e5484d;
+}
+
+/* The app's own things wear the system accent, the colour their link wore;
+   an Idea its bulb's amber. The link colour stands in where the engine does
+   not know the accent. */
+.artifact-reference-thumbnail[data-kind="app-doc"],
+.artifact-reference-thumbnail[data-kind="app-notebook"],
+.artifact-reference-thumbnail[data-kind="app-chat"] {
+  background: color-mix(in srgb, LinkText 12%, transparent);
+  background: color-mix(in srgb, AccentColor 12%, transparent);
+  color: LinkText;
+  color: AccentColor;
+}
+
+.artifact-reference-thumbnail[data-kind="app-idea"] {
+  background: color-mix(in srgb, #f5a524 14%, transparent);
+  color: #d98a00;
+}
+
+/* A page's tile is a small sheet of the page's own paper. */
+.artifact-reference-thumbnail .artifact-app-card-sheet {
+  fill: Canvas;
+  stroke: currentColor;
+  stroke-opacity: 0.4;
+  stroke-width: 1;
 }
 
 .artifact-reference-control {

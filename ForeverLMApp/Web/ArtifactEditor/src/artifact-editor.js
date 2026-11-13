@@ -1227,6 +1227,12 @@ function withPrivateAddressPreviews(ctx) {
         const link = inAppLink(href)
         if (link) {
           hide.call(tooltip)
+          // A card's title: the card opens what it names when pressed, so an
+          // Open pill under the pointer would be the same press again.
+          if (linkIsCardTitle(view, from)) {
+            hideInAppLinkTooltip(true)
+            return
+          }
           showInAppLinkTooltip(link, rect)
           return
         }
@@ -1485,6 +1491,8 @@ function hideInAppLinkTooltip(force = false) {
 // set of keys: ↑↓ move, Return or Tab writes, Escape leaves the typing.
 
 let linkTargets = []
+/// The same targets by `<kind>/<id>`, for the line under an app card's title.
+let linkTargetsByKey = new Map()
 /// The normalized titles of the docs a link can point at: a `[[Title]]` with
 /// one of these names a page that exists.
 let linkTargetTitleKeys = new Set()
@@ -1524,6 +1532,12 @@ function setLinkTargets(targets) {
   }
   linkTargets = next
   linkTargetTitleKeys = new Set(next.filter((target) => target.kind === 'doc').map((target) => normalizedTitle(target.title)))
+  const byKey = new Map(next.map((target) => [`${target.kind}/${target.id}`, target]))
+  const cardsChange = [...byKey].some(([key, target]) => linkTargetsByKey.get(key)?.detail !== target.detail)
+    || [...linkTargetsByKey.keys()].some((key) => !byKey.has(key))
+  linkTargetsByKey = byKey
+  // Where a page is filed is written under its card.
+  if (cardsChange) refreshReferenceDecorations()
   if (linkPickerState && linkPickerState.source !== 'block') refreshLinkPicker(linkPickerState.query)
   // Which titles name a page decides how a title link is drawn.
   if (graph.active) graphContextChanged()
@@ -2518,6 +2532,17 @@ document.addEventListener('focusout', (event) => {
 // its title, and the library's metadata line under it. The host answers by id
 // rather than by address, and a card whose source this library does not hold
 // says so instead of offering Add to Sources, which has no address to add.
+//
+// A line that is nothing but a link to one of the app's own things — a page,
+// a notebook, an Idea, a chat: `[Title](foreverlm://doc/<id>)`, the line a
+// page dragged onto the page writes — is that thing's card, in the same frame
+// as a source's (product owner, 2026-11-12: "The page that I linked to, can
+// that one maybe also show up more nicely?"). Its tile is drawn here, its line
+// under the title says what it is and, from the link targets the host already
+// gave (`setLinkTargets`), where it is filed, and a press anywhere on it opens
+// it. The host is not asked about it: there is no library to look it up in.
+// Only a line that is the link alone, outside a list, is one: a list of page
+// links is the writer's own index and reads as one.
 
 const referencePluginKey = new PluginKey('foreverlm-reference-cards')
 let referenceStatuses = new Map()
@@ -2564,6 +2589,26 @@ function referenceHref(href) {
 /// Whether a card's address names a library source rather than the web.
 function isSourceReference(href) {
   return String(href ?? '').startsWith(sourceMarkdownPrefix)
+}
+
+/// The stored address of a link to one of the app's own things that a line
+/// can stand as a card for, or null. A link to a place inside a page (one of
+/// its blocks, `#<block id>`) is not the page, and stays a link.
+function appCardHref(href) {
+  const link = inAppLink(href)
+  if (!link || String(href ?? '').includes('#')) return null
+  return link.href
+}
+
+/// Whether a card's address names one of the app's own things.
+function isAppReference(href) {
+  return !isSourceReference(href) && inAppLink(href) != null
+}
+
+/// The address a line's link gives its card: a reference's, or one of the
+/// app's own things'.
+function cardAddress(href) {
+  return referenceHref(href) ?? appCardHref(href)
 }
 
 function referenceDomain(href) {
@@ -2628,7 +2673,7 @@ function referenceInBlock(state, block) {
     if (!child.isText) return null
     const mark = child.marks.find((candidate) => candidate.type.name === 'link')
     if (mark) {
-      const markHref = referenceHref(mark.attrs?.href)
+      const markHref = cardAddress(mark.attrs?.href)
       if (!markHref) return null
       // A second link, or the same one resumed after other words: a sentence.
       if (href && (href !== markHref || detail)) return null
@@ -2642,6 +2687,9 @@ function referenceInBlock(state, block) {
     }
   }
   if (!href || !title.trim()) return null
+  // A page, notebook, Idea or chat is a card only on a line that is its link
+  // alone, and not in a list: a link to one with words around it is a sentence.
+  if (isAppReference(href) && (inList || leading.trim() || detail.trim())) return null
   if (!(inList ? referenceListLabel : referenceNumericLabel).test(leading)) return null
   const detailLimit = inList ? referenceListDetailLimit : referenceDetailLimit
   if (detail.trim() && (detail.length > detailLimit || !referenceDetailOpening.test(detail))) return null
@@ -2723,6 +2771,39 @@ function referenceThumbnail(href, status) {
   })
   tile.append(image)
   return tile
+}
+
+// The tile of a card for one of the app's own things. A page's is a small
+// sheet with its title line and a few lines of text, the way a paper's card
+// carries its first page; the others carry their mark.
+const appCardTiles = {
+  doc: '<svg viewBox="0 0 34 34" width="34" height="34" aria-hidden="true"><rect class="artifact-app-card-sheet" x="8.5" y="4.5" width="17" height="25" rx="2.5"/><path d="M12 10.5h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15h10M12 18.5h10M12 22h6.5" stroke="currentColor" stroke-opacity=".42" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  notebook: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="3.5" width="13" height="17" rx="2"/><path d="M9 3.5v17"/><path d="M12 8h4M12 11h4"/></svg>',
+  idea: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17.5h6M10 20.5h4"/><path d="M12 3.5a5.5 5.5 0 0 0-3.2 10c.7.5 1.2 1.3 1.2 2.2v.3h4v-.3c0-.9.5-1.7 1.2-2.2A5.5 5.5 0 0 0 12 3.5z"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.5V16a2.5 2.5 0 0 1-2-2.5v-7A2.5 2.5 0 0 1 7.5 4z"/></svg>',
+}
+
+function appCardThumbnail(kind) {
+  const tile = document.createElement('span')
+  tile.className = 'artifact-reference-thumbnail is-glyph'
+  tile.contentEditable = 'false'
+  tile.setAttribute('aria-hidden', 'true')
+  tile.dataset.kind = `app-${kind}`
+  tile.innerHTML = appCardTiles[kind] ?? appCardTiles.doc
+  return tile
+}
+
+/// The line under an app card's title: what the thing is, then where it is
+/// filed when the host's link targets say ("Page · Norn Nexus", "Page ·
+/// Draft"). A daily note is a day's page.
+function appCardDetail(link) {
+  const what = link.kind === 'doc'
+    ? (/^daily-\d{4}-\d{2}-\d{2}$/.test(link.id) ? 'Daily note' : 'Page')
+    : link.kind === 'notebook' ? 'Notebook'
+      : link.kind === 'idea' ? 'Idea'
+        : 'Chat'
+  const where = linkTargetsByKey.get(`${link.kind}/${link.id}`)?.detail ?? ''
+  return where && where !== what ? `${what} · ${where}` : what
 }
 
 /// A source card's second line: what the library says about the source — a
@@ -3136,6 +3217,10 @@ function referenceDecorations(state) {
       for (const { href } of citedLinksInBlock(state, block, { grounding })) hrefs.push(href)
       continue
     }
+    if (isAppReference(reference.href)) {
+      decorations.push(...appCardDecorations(reference))
+      continue
+    }
     hrefs.push(reference.href)
     const status = referenceStatus(reference.href)
     const stateName = status?.state ?? 'unknown'
@@ -3182,6 +3267,33 @@ function referenceDecorations(state) {
   }
   scheduleReferencesChanged(hrefs)
   return DecorationSet.create(state.doc, decorations)
+}
+
+/// A card for one of the app's own things: the source card's frame, its tile
+/// at the head of the line and what it is under the title. It has nothing to
+/// offer at its trailing edge; a press on it opens it.
+function appCardDecorations(reference) {
+  const { block, href } = reference
+  const link = inAppLink(href)
+  const detail = appCardDetail(link)
+  return [
+    Decoration.node(block.position, block.position + block.node.nodeSize, {
+      class: 'artifact-reference artifact-source-card artifact-app-card',
+      'data-reference-state': 'inApp',
+    }),
+    Decoration.widget(block.to, () => referenceMeta({ detail }), {
+      side: 1,
+      key: `app-card-meta:${detail}:${href}`,
+      ignoreSelection: true,
+      stopEvent: () => true,
+    }),
+    Decoration.widget(block.from, () => appCardThumbnail(link.kind), {
+      side: -2,
+      key: `app-card-thumbnail:${href}`,
+      ignoreSelection: true,
+      stopEvent: () => true,
+    }),
+  ]
 }
 
 /// Tell the host which addresses the doc holds, once per distinct answer and
@@ -3277,7 +3389,8 @@ function cardGrippedAt(view, target) {
 // ─── Pressing a card ───────────────────────────────────────────────────────
 // A card whose source the library holds opens it when pressed anywhere: the
 // picture, the title, the line under it, the room around them (product owner,
-// 2026-11-12: "Why not just click the box directly?"). The press still puts
+// 2026-11-12: "Why not just click the box directly?"). So does the card of a
+// page, a notebook, an Idea or a chat. The press still puts
 // the caret where it landed, so the title is edited as before when the writer
 // comes back to the page. A drag (a selection, or the card being moved) and a
 // press with a modifier key are not a press on the card, and the control at
@@ -3295,13 +3408,19 @@ document.addEventListener('click', (event) => {
   if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
   if (Math.hypot(event.clientX - press.x, event.clientY - press.y) >= cardDragSlop) return
   if (!(event.target instanceof Element) || event.target.closest('.artifact-reference-control')) return
-  const card = event.target.closest('p.artifact-reference[data-reference-state="inLibrary"]')
+  const card = event.target.closest('p.artifact-reference[data-reference-state="inLibrary"], p.artifact-reference[data-reference-state="inApp"]')
   const view = activeEditorView()
   if (!card || !view || !view.dom.contains(card)) return
   const selection = window.getSelection()
   if (selection && !selection.isCollapsed) return
   const href = cardHref(view, card)
   if (!href) return
+  // A page's, a notebook's, an Idea's or a chat's card opens it, as its
+  // link's Open did.
+  if (isAppReference(href)) {
+    openInAppHref(href)
+    return
+  }
   post('openSourceRequested', { href, sourceID: referenceStatus(href)?.sourceID ?? '' })
 })
 
@@ -3316,7 +3435,7 @@ function cardHref(view, element) {
   let href = null
   paragraph.forEach((child) => {
     const mark = child.marks.find((candidate) => candidate.type.name === 'link')
-    if (!href && mark) href = referenceHref(mark.attrs?.href)
+    if (!href && mark) href = cardAddress(mark.attrs?.href)
   })
   return href
 }
@@ -10371,7 +10490,7 @@ function previewSourceDrop(x, y) {
   const target = sourceDropTarget(Number(x), Number(y))
   const rects = target ? rangeClientRects(target.from, target.to) : []
   if (rects.length === 0) {
-    previewLinkDrop(x, y)
+    previewDropCaret(x, y)
     return
   }
   const layer = ensureSelectionDropLayer()
@@ -10393,9 +10512,9 @@ function endSourceDropPreview() {
   selectionDropLayer.hidden = true
 }
 
-/// Where a dragged doc or Notebook would be written: the caret position under
-/// the pointer, or the end of the document when the pointer is below the last
-/// paragraph. Null only when there is no editor to write into.
+/// Where a source dropped off the prose would be written: the caret position
+/// under the pointer, or the end of the document when the pointer is below the
+/// last paragraph. Null only when there is no editor to write into.
 function linkDropPosition(x, y) {
   const view = activeEditorView()
   if (!view) return null
@@ -10406,10 +10525,9 @@ function linkDropPosition(x, y) {
   return view.state.doc.content.size
 }
 
-/// A dragged doc or Notebook becomes a titled link in the prose, so unlike a
-/// source drop the drag has a caret to show: a thin bar where the link will be
-/// written, drawn in the same layer the source highlight uses.
-function previewLinkDrop(x, y) {
+/// A source on its way off the prose shows the caret where its card is
+/// written: a thin bar, drawn in the same layer the source highlight uses.
+function previewDropCaret(x, y) {
   const view = activeEditorView()
   const pos = linkDropPosition(Number(x), Number(y))
   if (!view || pos == null) {
@@ -10433,13 +10551,64 @@ function previewLinkDrop(x, y) {
   layer.hidden = false
 }
 
-/// Write links to docs or Notebooks into the prose at a point.
-///
-/// `links` is `[{ title, href }]` with `href` in the stored `foreverlm://`
-/// form; it is translated to the editor's private address so Milkdown's link
-/// mark keeps it. Inside a paragraph the links join the sentence, spaced from
-/// the words either side; between blocks, or below the last one, they become a
-/// paragraph of their own. The caret lands after what was written.
+/// Where the cards of pages (notebooks, Ideas, chats) dragged onto the page go
+/// for a pointer at (x, y), and where the drag shows it: `{ pos, top, left,
+/// width }`. An empty line under the pointer is taken, the way a source card
+/// takes one; anywhere else the cards go in the gap between the two top-level
+/// blocks the pointer is between by their middles, as a card being moved
+/// finds its place, so a drop over a line of words never splits it.
+function linkCardDropPlace(view, x, y) {
+  const { doc } = view.state
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { pos: view.state.selection.from, top: null }
+  const blocks = []
+  doc.forEach((node, offset) => {
+    const dom = view.nodeDOM(offset)
+    const rect = dom instanceof Element ? dom.getBoundingClientRect() : null
+    if (rect && rect.height > 0) blocks.push({ node, offset, rect })
+  })
+  const column = (rect) => ({ left: rect.left, width: rect.width })
+  const blank = blocks.find(({ node, rect }) => isBlankParagraph(node) && y >= rect.top && y <= rect.bottom)
+  if (blank) return { pos: blank.offset + 1, top: (blank.rect.top + blank.rect.bottom) / 2, ...column(blank.rect) }
+  let index = blocks.findIndex(({ rect }) => y < (rect.top + rect.bottom) / 2)
+  if (index < 0) index = blocks.length
+  const before = blocks[index - 1]?.rect
+  const after = blocks[index]?.rect
+  const pos = index < blocks.length ? blocks[index].offset : doc.content.size
+  if (!before && !after) return { pos, top: null }
+  const top = before && after ? (before.bottom + after.top) / 2 : after ? after.top - 4 : before.bottom + 4
+  return { pos, top, ...column(after ?? before) }
+}
+
+/// A dragged page (notebook, Idea, chat) shows the line its card will be
+/// written on, the same line a card being moved shows.
+function previewLinkDrop(x, y) {
+  const view = activeEditorView()
+  if (!view) {
+    endSourceDropPreview()
+    return
+  }
+  const place = linkCardDropPlace(view, Number(x), Number(y))
+  if (place.top == null) {
+    endSourceDropPreview()
+    return
+  }
+  const layer = ensureSelectionDropLayer()
+  const line = document.createElement('div')
+  line.className = 'artifact-card-drop-line'
+  line.style.left = `${place.left}px`
+  line.style.top = `${place.top}px`
+  line.style.width = `${place.width}px`
+  layer.replaceChildren(line)
+  layer.hidden = false
+}
+
+/// Write pages, notebooks, Ideas or chats dragged onto the page as their
+/// cards, one line each, where the drag showed (product owner, 2026-11-12:
+/// "I can't really drag it in and have it look the same"). `links` is
+/// `[{ title, href }]` with `href` in the stored `foreverlm://` form; it is
+/// translated to the editor's private address so Milkdown's link mark keeps
+/// it. A link inside a sentence is still written from the keyboard, with `[[`
+/// or `@`. The caret lands at the end of the last card.
 function insertLinksAt(links, x, y) {
   endSourceDropPreview()
   const view = activeEditorView()
@@ -10448,48 +10617,16 @@ function insertLinksAt(links, x, y) {
     .map((entry) => ({ title: String(entry?.title ?? '').trim(), href: editorAddress(String(entry?.href ?? '')) }))
     .filter((entry) => entry.href && inAppLink(entry.href))
   if (entries.length === 0) return
-  const pos = linkDropPosition(Number(x), Number(y))
-  if (pos == null) return
-
-  const { state } = view
-  const { schema } = state
+  const { schema } = view.state
   const linkType = schema.marks.link
-  const separator = () => schema.text(', ')
-  const inline = []
-  entries.forEach((entry, index) => {
-    if (index > 0) inline.push(separator())
-    const title = entry.title || (inAppLink(entry.href)?.kind === 'notebook' ? 'Notebook' : 'Page')
-    inline.push(schema.text(title, [linkType.create({ href: entry.href })]))
+  const paragraphs = entries.map((entry) => {
+    const link = inAppLink(entry.href)
+    const title = entry.title || (link.kind === 'notebook' ? 'Notebook' : link.kind === 'idea' ? 'Idea' : link.kind === 'chat' ? 'Chat' : 'Page')
+    return schema.nodes.paragraph.create(null, schema.text(title, [linkType.create({ href: entry.href })]))
   })
-
-  const $pos = state.doc.resolve(Math.min(pos, state.doc.content.size))
-  const tr = state.tr
-  let end
-  if ($pos.parent.isTextblock) {
-    const before = $pos.nodeBefore?.isText ? $pos.nodeBefore.text.slice(-1) : ''
-    const after = $pos.nodeAfter?.isText ? $pos.nodeAfter.text.slice(0, 1) : ''
-    const content = []
-    if ($pos.parentOffset > 0 && before && !/\s/.test(before)) content.push(schema.text(' '))
-    content.push(...inline)
-    if ($pos.parentOffset < $pos.parent.content.size && after && !/\s/.test(after)) content.push(schema.text(' '))
-    tr.insert($pos.pos, content)
-    end = $pos.pos + content.reduce((size, node) => size + node.nodeSize, 0)
-  } else {
-    const paragraph = schema.nodes.paragraph.create(null, inline)
-    // Between blocks the position is already valid; inside a non-text block
-    // (an image, a divider) write after it.
-    const at = $pos.parent.type === schema.nodes.doc ? $pos.pos : $pos.after($pos.depth)
-    tr.insert(at, paragraph)
-    end = at + paragraph.nodeSize - 1
-  }
-  tr.setSelection(TextSelection.create(tr.doc, end))
-  // As in `writeInAppLink`: typing on from the link's end is prose, not more link.
-  tr.setStoredMarks([])
-  userHasInteracted = true
-  hasUserChanges = true
-  view.dispatch(tr.scrollIntoView())
-  view.focus()
-  requestAnimationFrame(publishSelection)
+  // A drop that carried no point writes at the caret.
+  const point = x == null || y == null ? [NaN, NaN] : [Number(x), Number(y)]
+  insertBlocksAt(view, paragraphs, linkCardDropPlace(view, ...point).pos)
 }
 
 function ensureSelectionDropLayer() {
