@@ -54,7 +54,7 @@ A beachball (main thread blocked) is always a bug and a release blocker, on par 
 - **SwiftUI `body` and computed properties used by views are pure and fast.** No reading files, querying SQLite, resolving iCloud containers (`FileManager.url(forUbiquityContainerIdentifier:)`), parsing documents or normalizing large lists while rendering.
 - **App startup is read-only and fast.** Sync and discovery start after launch and never block the main actor.
 - **Reader progress (PDF pages, EPUB locators, transcript offsets) is debounced** and persisted off-main; scroll and page callbacks only update lightweight UI state.
-- **Diagnosing a stall:** `UIResponsivenessMonitor` writes a process sample to the app's Diagnostics folder whenever the main thread stalls for more than a second. Read the main-thread stack there first.
+- **Diagnosing a stall:** whenever the main thread stalls for more than a second, `UIResponsivenessMonitor` samples it every 5 ms while the stall lasts (4 s at most) and writes `ui-stall-<time>.sample.txt` to the app's Diagnostics folder, laid out like `/usr/bin/sample`'s call graph: follow the biggest count down to the app's own frame. It samples the main thread only, from a thread of the app, holding it for microseconds per snapshot; never go back to `/usr/bin/sample`, which stops the whole app for each snapshot and once froze it for 5.6 s.
 - When adding a workflow, ask of every step whether it can block; if so, move it off-main and surface progress or errors through existing UI state.
 
 ## LLM features
