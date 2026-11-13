@@ -272,6 +272,23 @@ struct PaperMetadataResultValidationTests {
         #expect(AIService.wordsNotPrinted(in: "Zara Holt; Lukasz Fischer", given: frontMatter) == ["Fischer"])
     }
 
+    @Test("A title whose words PDF text ran together may come back with its spaces")
+    func toleratesWordsRunTogether() {
+        // JACS's title line as PDFKit reads it: set by glyph position, no spaces.
+        let frontMatter = """
+        EngineeredMetal-OrganicFrameworksPreserveMitochondrial
+        BioenergeticsatMicromolarConcentrations
+        """
+        #expect(AIService.wordsNotPrinted(
+            in: "Engineered Metal-Organic Frameworks Preserve Mitochondrial Bioenergetics at Micromolar Concentrations",
+            given: frontMatter
+        ).isEmpty)
+        #expect(AIService.wordsNotPrinted(
+            in: "Engineered Metal-Organic Frameworks Protect Mitochondrial Bioenergetics",
+            given: frontMatter
+        ) == ["Protect"])
+    }
+
     @Test("Preserves the LLM's paper title without a second heuristic cleaner")
     func preservesLLMPaperTitle() {
         let result = AIService.PaperMetadataResult.validated(
@@ -686,6 +703,40 @@ struct RegisteredPaperTitleTests {
             #expect(RegisteredPaperTitle.restoringLostCharacters(in: held, registered: registered) == registered, "\(held)")
         }
         #expect(RegisteredPaperTitle.restoringLostCharacters(in: "Title with", registered: " Title  with\nα ") == "Title with α")
+    }
+
+    @Test("A title whose words PDF text ran together takes back the registered title")
+    func restoresWordsRunTogether() {
+        let registered = "Engineered Metal-Organic Frameworks Preserve Mitochondrial Bioenergetics at Micromolar Concentrations"
+        for held in [
+            // JACS's PDF, as the library stored it on 2026-10-22.
+            "EngineeredMetal-OrganicFrameworksPreserveMitochondrial BioenergeticsatMicromolarConcentrations",
+            // One space lost is still a lost character.
+            "Engineered Metal-Organic Frameworks Preserve Mitochondrial Bioenergeticsat Micromolar Concentrations",
+        ] {
+            #expect(RegisteredPaperTitle.restoringLostCharacters(in: held, registered: registered) == registered, "\(held)")
+        }
+        // Crossref's record breaks the title across lines and may set an en dash.
+        #expect(RegisteredPaperTitle.restoringLostCharacters(
+            in: "EngineeredMetal-OrganicFrameworksPreserve",
+            registered: "Engineered Metal–Organic\nFrameworks Preserve"
+        ) == "Engineered Metal–Organic Frameworks Preserve")
+        // Spaces and a glyph lost together.
+        #expect(RegisteredPaperTitle.restoringLostCharacters(
+            in: "Catalyzedby-KetoglutarateDehydrogenase",
+            registered: "Catalyzed by α-Ketoglutarate Dehydrogenase"
+        ) == "Catalyzed by α-Ketoglutarate Dehydrogenase")
+        // Run together and also a different word: another edition, left alone.
+        #expect(RegisteredPaperTitle.restoringLostCharacters(
+            in: "EngineeredMetal-OrganicFrameworksProtectMitochondrial",
+            registered: registered
+        ) == nil)
+        // Spaced as registered, or with an extra space: nothing was lost.
+        #expect(RegisteredPaperTitle.restoringLostCharacters(in: registered, registered: registered) == nil)
+        #expect(RegisteredPaperTitle.restoringLostCharacters(
+            in: "Engineered Metal - Organic Frameworks Preserve Mitochondrial Bioenergetics at Micromolar Concentrations",
+            registered: registered
+        ) == nil)
     }
 
     @Test("An edition's difference, typography or another paper's record leaves the title alone")

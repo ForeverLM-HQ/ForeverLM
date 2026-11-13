@@ -22,9 +22,16 @@ import Foundation
 /// "aging" against "ageing", a footnote letter in the catalog's
 /// "…Birdsa", a web headline against the print one. Whitespace, format
 /// characters (a soft hyphen) and typographic variants (compatibility forms,
-/// dashes, quotes) are not differences. A title that differs in case, or
-/// lost more than it kept, is left alone. Ligature loss ("Specific" read as
-/// "Specic") drops ASCII letters and is out of reach by the same rule.
+/// dashes, quotes) are not differences, with one exception: a space between
+/// two letters is a character PDF text can lose too. A title set by glyph
+/// position rather than with space characters reads back with its words run
+/// together — JACS's PDF gave "EngineeredMetal-OrganicFrameworksPreserve
+/// Mitochondrial BioenergeticsatMicromolarConcentrations" — so a copy that
+/// joins two words the registered title keeps apart lost characters. A space
+/// beside a digit or a sign stays typography ("Ca2+" against "Ca ²⁺"). A
+/// title that differs in case, or lost more than it kept, is left alone.
+/// Ligature loss ("Specific" read as "Specic") drops ASCII letters and is out
+/// of reach by the same rule.
 enum RegisteredPaperTitle {
     /// The registered title, whitespace collapsed, when `title` is a copy of
     /// it that lost characters; nil when `title` should stand.
@@ -40,7 +47,8 @@ enum RegisteredPaperTitle {
     }
 
     /// Whether `damaged` is `registered` with only non-ASCII characters lost
-    /// or replaced by a placeholder, and at least one lost.
+    /// or replaced by a placeholder, or with words run together, and at
+    /// least one lost.
     static func isCopyWithLostCharacters(_ damaged: String, of registered: String) -> Bool {
         let held = units(of: damaged)
         let reference = units(of: registered)
@@ -48,7 +56,13 @@ enum RegisteredPaperTitle {
         guard !held.isEmpty, reference.count >= held.count else { return false }
         let lost = reference.count - held.count + placeholders
         let kept = held.count - placeholders
-        guard lost > 0, lost <= kept else { return false }
+        guard lost <= kept else { return false }
+        // Every character kept: the copy lost something only if it ran two
+        // of the registered title's words together.
+        if lost == 0 {
+            return zip(held, reference).allSatisfy { $0.character == $1.character }
+                && runsWordsTogether(held, of: reference)
+        }
 
         // reachable[j]: `held[..<i]` is `reference[..<j]` with only losable
         // characters lost or stood in for, one row of `i` at a time.
@@ -74,6 +88,16 @@ enum RegisteredPaperTitle {
         return reachable[reference.count]
     }
 
+    /// Whether `held`, character for character `reference`, has no space
+    /// where `reference` has one between two letters.
+    private static func runsWordsTogether(_ held: [Unit], of reference: [Unit]) -> Bool {
+        guard held.count == reference.count else { return false }
+        return reference.indices.dropFirst().contains { index in
+            reference[index].followsSpace && !held[index].followsSpace
+                && reference[index - 1].character.isLetter && reference[index].character.isLetter
+        }
+    }
+
     /// One comparable character, with what it came from.
     private struct Unit {
         let character: Character
@@ -81,18 +105,26 @@ enum RegisteredPaperTitle {
         let isLosable: Bool
         /// U+FFFD or U+0000: the extraction marking a glyph it could not map.
         let isPlaceholder: Bool
+        /// Whitespace stood between it and the character before it.
+        var followsSpace = false
     }
 
     /// Whitespace and format characters dropped; each character's
     /// compatibility form, with dashes and quotes folded to ASCII.
     private static func units(of text: String) -> [Unit] {
         var units: [Unit] = []
+        var pendingSpace = false
         for scalar in text.precomposedStringWithCanonicalMapping.unicodeScalars {
             if scalar.value == 0xFFFD || scalar.value == 0 {
-                units.append(Unit(character: "\u{FFFD}", isLosable: false, isPlaceholder: true))
+                units.append(Unit(character: "\u{FFFD}", isLosable: false, isPlaceholder: true, followsSpace: pendingSpace))
+                pendingSpace = false
                 continue
             }
-            if scalar.properties.isWhitespace || scalar.properties.generalCategory == .format {
+            if scalar.properties.isWhitespace {
+                pendingSpace = !units.isEmpty
+                continue
+            }
+            if scalar.properties.generalCategory == .format {
                 continue
             }
             let losable = !scalar.isASCII
@@ -100,7 +132,13 @@ enum RegisteredPaperTitle {
                 if folded.properties.isWhitespace || folded.properties.generalCategory == .format {
                     continue
                 }
-                units.append(Unit(character: Character(typographic(folded)), isLosable: losable, isPlaceholder: false))
+                units.append(Unit(
+                    character: Character(typographic(folded)),
+                    isLosable: losable,
+                    isPlaceholder: false,
+                    followsSpace: pendingSpace
+                ))
+                pendingSpace = false
             }
         }
         return units

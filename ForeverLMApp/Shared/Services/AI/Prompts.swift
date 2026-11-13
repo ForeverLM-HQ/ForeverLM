@@ -1278,7 +1278,10 @@ enum Prompts {
     For title: extract the exact document title from the front matter. Do not use the URL or filename. \
     Copy its words as printed: never correct, complete, translate, or replace a word, even one that looks \
     misspelled or unfamiliar, and join a word the text breaks across a line ("PROTO-" then "BIOGENIC" is \
-    "PROTOBIOGENIC"). Every word of the title and authors you return is checked against the text you are \
+    "PROTOBIOGENIC"). PDF text sometimes runs a title's or an author's words together with no spaces \
+    ("EngineeredMetal-OrganicFrameworksPreserve"); put the spaces back between those words \
+    ("Engineered Metal-Organic Frameworks Preserve") and change nothing else. \
+    Every word of the title and authors you return is checked against the text you are \
     given, and a reply with a word the text does not print is refused. \
     Remove web page/library suffixes that are not part of the paper title, such as "- PMC", "- PubMed", \
     "- PubMed Central", "| ScienceDirect", or "| Semantic Scholar".

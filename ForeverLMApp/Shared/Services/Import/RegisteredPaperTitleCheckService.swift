@@ -22,7 +22,8 @@ struct RegisteredPaperTitleCheckResult: Sendable {
 /// a paper ingested since checks itself while its metadata is read
 /// (`applyExtractedPaperMetadata`). This asks Crossref and then DataCite — free,
 /// keyless, no model — a few DOIs at a time, and restores a title only where
-/// the stored one is the registered one with non-ASCII characters lost
+/// the stored one is the registered one with non-ASCII characters, or the
+/// spaces between its words, lost
 /// (`RegisteredPaperTitle`), so a DOI that names some other work changes
 /// nothing. An answered row leaves the queue. A row no agency could answer
 /// counts an attempt and is asked again on a later drain; a batch in which no
