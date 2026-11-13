@@ -211,6 +211,11 @@ extension MobileAudioReviewViewModel {
             }
             persistPlaybackPosition(force: true)
         } else {
+            // A timer that ran out while playback was paused has nothing left
+            // to pause; pressing play is the listener awake again.
+            if sleepTimer?.isDue(at: Date()) == true {
+                sleepTimer = nil
+            }
             // An opening section that has run out is not a finished source, so
             // resuming must not replay it from the top while the rest arrives.
             if duration > 0, currentTime >= duration, !isAwaitingRemainingNarration {
@@ -243,6 +248,7 @@ extension MobileAudioReviewViewModel {
             openingPlaybackRanDry = false
         }
         currentItem = nil
+        sleepTimer = nil
         bookContinuationOffer = nil
         pendingAutomaticBookContinuation = nil
         nextChapterPrefetchTask?.cancel()
@@ -252,6 +258,30 @@ extension MobileAudioReviewViewModel {
         lastPlaybackPositionSaveAt = nil
         MPNowPlayingInfoCenter.default().playbackState = .stopped
         updateNowPlayingInfo()
+    }
+
+    // MARK: - Sleep timer
+
+    func setSleepTimer(minutes: Int) {
+        sleepTimer = .minutes(minutes, from: Date())
+    }
+
+    func setSleepTimerToEndOfSource() {
+        sleepTimer = .endOfSource
+    }
+
+    func cancelSleepTimer() {
+        sleepTimer = nil
+    }
+
+    /// Checked on the player's clock, which ticks twice a second while sound
+    /// is playing, in the background and on the Lock Screen too.
+    private func pauseForSleepTimerIfDue() {
+        guard let sleepTimer, sleepTimer.isDue(at: Date()) else { return }
+        self.sleepTimer = nil
+        if isPlaying {
+            togglePlayback()
+        }
     }
 
     func nextBookChapter(after sourceID: String) -> MobileCloudSource? {
@@ -894,6 +924,7 @@ extension MobileAudioReviewViewModel {
                 guard let self else { return }
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
                 self.installDeferredOpeningExtensionIfDue()
+                self.pauseForSleepTimerIfDue()
                 if self.isPlaying {
                     self.persistPlaybackPosition(force: false)
                     if self.openingPlaybackSourceID == nil,
@@ -933,7 +964,14 @@ extension MobileAudioReviewViewModel {
         clearPlaybackPosition(for: sourceID)
         updateNowPlayingInfo()
         noteVoiceListenFinished(sourceID: sourceID)
+        // A sleep timer set to the end of this source stops here: the book
+        // does not carry on into its next chapter, and nothing is offered.
+        let sleepsHere = sleepTimer == .endOfSource
+        if sleepsHere {
+            sleepTimer = nil
+        }
         Task { @MainActor [weak self] in
+            guard !sleepsHere else { return }
             await self?.handleCompletedBookChapter(sourceID: sourceID)
         }
         Task { @MainActor [weak self] in

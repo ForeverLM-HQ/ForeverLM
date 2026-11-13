@@ -67,6 +67,38 @@ enum MobileAudioPlaybackSpeed {
     }
 }
 
+/// Listen's sleep timer: playback pauses when it runs out, at the place it
+/// had reached, so the next Listen carries on from there (product owner,
+/// 2026-11-13: "add a sleep timer for when i listen to a book or paper").
+enum MobileSleepTimer: Equatable {
+    /// Pause at this moment.
+    case at(Date)
+    /// Pause when what is playing ends, and do not carry on into the next
+    /// chapter of a book.
+    case endOfSource
+
+    static let minuteOptions = [5, 10, 15, 30, 45, 60]
+
+    static func minutes(_ minutes: Int, from now: Date) -> MobileSleepTimer {
+        .at(now.addingTimeInterval(TimeInterval(minutes) * 60))
+    }
+
+    /// True once a timed timer has run out. The end of a source is not a
+    /// time; the player says when that comes.
+    func isDue(at now: Date) -> Bool {
+        if case .at(let date) = self { return now >= date }
+        return false
+    }
+
+    /// "14:05" left on a timed timer, rounded up so it never reads 0:00
+    /// while it still runs; nil for the end of a source.
+    func remainingLabel(at now: Date) -> String? {
+        guard case .at(let date) = self else { return nil }
+        let seconds = max(0, Int(date.timeIntervalSince(now).rounded(.up)))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
 enum MobileBookPlaybackPreferences {
     static var automaticallyContinues: Bool {
         get { Preferences.value(Prefs.Mobile.automaticallyContinuesBooks) }

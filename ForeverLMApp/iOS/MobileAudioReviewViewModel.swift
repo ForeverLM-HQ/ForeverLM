@@ -154,6 +154,8 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// clears it.
     @Published var pendingDeepLink: MobileDeepLink?
     @Published var bookContinuationOffer: MobileBookContinuationOffer?
+    /// Listen's sleep timer, while one is set.
+    @Published var sleepTimer: MobileSleepTimer?
     @Published var lastDrivingBenchmark: MobileDrivingVoiceBenchmark?
     @Published var apiKeyText: String
     @Published var errorMessage: String?

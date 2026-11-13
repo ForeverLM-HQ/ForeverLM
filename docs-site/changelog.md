@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A sleep timer on the iPhone.** The full player has a moon beside the speed: pause after 5, 10, 15, 30, 45 or 60 minutes, or at the end of the chapter (or source) that is playing, in which case a book does not run on into its next chapter. The button shows the time left, and the place you had reached is kept.
 - **On the iPhone, a whole audiobook in one tap.** A book's chapter list starts with **Generate Audiobook** (also under a touch and hold on **Listen** in the Reader): one price for every chapter that has no audio yet, then the chapters are made one after another, the ones after the chapter you are listening to first. A line above the player shows how far the book is, with **Stop**; a locked phone or a lost connection pauses it until you are back in the app. Before, each chapter had to be opened and started by hand.
 - **On the iPhone, a book says where you stopped listening.** **Continue Listening** at the top of a book's chapters plays the chapter you were last in, from the second you left it.
 - **The iPhone's player is one row, and no longer covers the Reader's buttons.** It showed four rows and sat on top of the Reader's bottom bar, so with something playing, **Listen** for the next chapter, **Voice** and **Ask** could not be reached. It is now the title, back 15 seconds, pause and close on one line, and it sits above the Reader's bar. Skipping ahead, scrubbing and the speed are in the full player, one tap on the title.

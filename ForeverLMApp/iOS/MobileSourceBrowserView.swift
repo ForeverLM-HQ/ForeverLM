@@ -547,8 +547,11 @@ struct MobileFullScreenPlaybackView: View {
                     transportControls
                         .padding(.top, MobileDesign.Spacing.xLarge)
 
-                    speedControl
-                        .padding(.top, MobileDesign.Spacing.xxLarge)
+                    HStack(spacing: MobileDesign.Spacing.medium) {
+                        speedControl
+                        sleepTimerControl
+                    }
+                    .padding(.top, MobileDesign.Spacing.xxLarge)
 
                     if showsNextChapterControl {
                         nextChapterControl
@@ -723,6 +726,50 @@ struct MobileFullScreenPlaybackView: View {
                 .background(.thinMaterial, in: Capsule())
         }
         .accessibilityLabel("Playback speed")
+    }
+
+    /// The sleep timer: a moon while none is set, the time left once one is.
+    private var sleepTimerControl: some View {
+        Menu {
+            if vm.sleepTimer != nil {
+                Button("Turn Off", systemImage: "moon.zzz") {
+                    vm.cancelSleepTimer()
+                }
+                Divider()
+            }
+            ForEach(MobileSleepTimer.minuteOptions, id: \.self) { minutes in
+                Button(minutes == 60 ? "1 hour" : "\(minutes) minutes") {
+                    vm.setSleepTimer(minutes: minutes)
+                }
+            }
+            Divider()
+            Button {
+                vm.setSleepTimerToEndOfSource()
+            } label: {
+                let title = displayedSource?.sourceType == "book" ? "End of Chapter" : "End of This Source"
+                if vm.sleepTimer == .endOfSource {
+                    Label(title, systemImage: "checkmark")
+                } else {
+                    Text(title)
+                }
+            }
+        } label: {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                HStack(spacing: MobileDesign.Spacing.xSmall) {
+                    Image(systemName: vm.sleepTimer == nil ? "moon" : "moon.fill")
+                    if let timer = vm.sleepTimer {
+                        Text(timer.remainingLabel(at: context.date) ?? "End")
+                            .monospacedDigit()
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, MobileDesign.Spacing.medium)
+                .frame(minWidth: 64, minHeight: MobileDesign.Metrics.minimumTouchTarget)
+                .background(.thinMaterial, in: Capsule())
+            }
+        }
+        .accessibilityLabel(vm.sleepTimer == nil ? "Sleep timer" : "Sleep timer, on")
+        .accessibilityIdentifier("listen.sleepTimer")
     }
 
     @ViewBuilder

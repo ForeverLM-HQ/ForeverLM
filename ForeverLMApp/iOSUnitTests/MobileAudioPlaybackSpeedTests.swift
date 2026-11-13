@@ -38,6 +38,33 @@ final class MobileAudioPlaybackSpeedTests: XCTestCase {
     }
 }
 
+/// Listen's sleep timer: when it is due, and what it shows while it runs.
+final class MobileSleepTimerTests: XCTestCase {
+    private let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+
+    func testATimedTimerIsDueWhenItsMinutesHavePassed() {
+        let timer = MobileSleepTimer.minutes(15, from: now)
+        XCTAssertFalse(timer.isDue(at: now))
+        XCTAssertFalse(timer.isDue(at: now.addingTimeInterval(15 * 60 - 1)))
+        XCTAssertTrue(timer.isDue(at: now.addingTimeInterval(15 * 60)))
+    }
+
+    /// The end of a source is not a time: only the player reaching it ends it.
+    func testEndOfSourceIsNeverDueByTheClock() {
+        XCTAssertFalse(MobileSleepTimer.endOfSource.isDue(at: .distantFuture))
+        XCTAssertNil(MobileSleepTimer.endOfSource.remainingLabel(at: now))
+    }
+
+    func testTheTimeLeftCountsDownAndNeverReadsZeroWhileRunning() {
+        let timer = MobileSleepTimer.minutes(15, from: now)
+        XCTAssertEqual(timer.remainingLabel(at: now), "15:00")
+        XCTAssertEqual(timer.remainingLabel(at: now.addingTimeInterval(55.5)), "14:05")
+        XCTAssertEqual(timer.remainingLabel(at: now.addingTimeInterval(15 * 60 - 0.2)), "0:01")
+        XCTAssertEqual(timer.remainingLabel(at: now.addingTimeInterval(16 * 60)), "0:00")
+        XCTAssertEqual(MobileSleepTimer.minutes(60, from: now).remainingLabel(at: now), "60:00")
+    }
+}
+
 /// What the car shows once voice mode has handed the audio to a source's
 /// narration (`listen_to_source`): the narration while no conversation runs,
 /// and the way back to the assistant when it ends.
