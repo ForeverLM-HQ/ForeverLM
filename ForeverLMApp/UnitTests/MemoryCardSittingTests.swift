@@ -757,6 +757,20 @@ struct MemoryCardSittingTests {
         #expect(bySource.map(\.title) == ["Metabolism as Inference", "Mitochondria"])
         #expect(bySource.map { $0.cards.map(\.itemID) } == [["3"], ["1", "2"]])
 
+        // A book's chapters sit together under the book, in chapter order,
+        // never interleaved with another book's chapters of the same number.
+        let chapters = [
+            listing("4", front: "a", back: "a", sourceID: "factory-2"),
+            listing("5", front: "b", back: "b", sourceID: "machine-1"),
+            listing("6", front: "c", back: "c", sourceID: "factory-1"),
+            listing("7", front: "d", back: "d", sourceID: "mito"),
+        ]
+        let chapterTitles = ["factory-1": "1) Oil Drops", "factory-2": "2) West To East", "machine-1": "1) The End of the Machine", "mito": "Mitochondria"]
+        let books = ["factory-1": "The Idea Factory", "factory-2": "The Idea Factory", "machine-1": "Way of the Cell"]
+        let byBook = MemoryCardCatalog.grouped(chapters, by: .source, sourceTitle: { chapterTitles[$0] }, book: { books[$0] }, notebooks: [])
+        #expect(byBook.map(\.id) == ["mito", "factory-1", "factory-2", "machine-1"])
+        #expect(byBook.map(\.book) == [nil, "The Idea Factory", "The Idea Factory", "Way of the Cell"])
+
         let notebooks = [
             (title: "Powerhouse", scope: MemoryCardScope(notebookID: "power", memberSourceIDs: ["mito"])),
             (title: "Finbow", scope: MemoryCardScope(notebookID: "finbow", memberSourceIDs: ["mito"])),

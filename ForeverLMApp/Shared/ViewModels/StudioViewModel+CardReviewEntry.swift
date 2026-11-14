@@ -698,6 +698,26 @@ extension StudioViewModel {
         )
     }
 
+    /// Delete Card in All Cards (the row's menu): as in the review, the row
+    /// leaves the list at once (the list skips a card whose removal is
+    /// pending, `hasPendingDeletion(forDeletionKey:)`) and "Card deleted"
+    /// waits with Undo; when that window closes the card is retired, never
+    /// asked again, its answers kept.
+    func deleteMemoryCardFromList(_ card: MemoryCardListing) {
+        let itemID = card.itemID
+        let key = Self.memoryCardRemovalKey(itemID)
+        guard !hasPendingDeletion(forDeletionKey: key) else { return }
+        deferDeletion(
+            message: "Card deleted",
+            deletionKey: key,
+            gracePeriod: deletionGracePeriod,
+            undo: {},
+            commit: { [weak self] in
+                await self?.retireMemoryCard(itemID: itemID)
+            }
+        )
+    }
+
     nonisolated static func memoryCardRemovalKey(_ itemID: String) -> String { "memory-card:\(itemID)" }
 
     // MARK: Counts

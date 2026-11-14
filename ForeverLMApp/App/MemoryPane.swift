@@ -45,7 +45,6 @@ struct MemoryPane: View {
     @State private var grouping: MemoryCardCatalog.Grouping = .source
     @State private var editing: MemoryCardListing?
     @State private var confirmingStartOver: MemoryCardListing?
-    @State private var confirmingRetire: MemoryCardListing?
     /// The All Cards groups folded away, by group id; this pane's only.
     @State private var collapsedGroups: Set<String> = []
     @State private var hoveredCard: String?
@@ -83,17 +82,6 @@ struct MemoryPane: View {
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
                 Text("It comes back as a new card, first asked tomorrow. Its answers so far stay with the old one.")
-            }
-            .alert("Retire this card?", isPresented: Binding(
-                get: { confirmingRetire != nil },
-                set: { if !$0 { confirmingRetire = nil } }
-            ), presenting: confirmingRetire) { card in
-                Button("Retire", role: .destructive) {
-                    Task { await vm.retireMemoryCard(card) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { _ in
-                Text("It is never asked again.")
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("memory.pane")
@@ -472,8 +460,12 @@ struct MemoryPane: View {
     /// When a card is next asked shows under the pointer; the group says
     /// how many are due.
     private var allCardsSection: some View {
+        // A card deleted here leaves the list while its Undo waits.
+        let listed = snapshot.cards.filter {
+            !vm.hasPendingDeletion(forDeletionKey: StudioViewModel.memoryCardRemovalKey($0.itemID))
+        }
         let searched = MemoryCardCatalog.search(
-            snapshot.cards,
+            listed,
             query: query,
             wording: wording(of:),
             sourceTitle: sourceTitle(_:)
@@ -482,6 +474,7 @@ struct MemoryPane: View {
             searched,
             by: grouping,
             sourceTitle: sourceTitle(_:),
+            book: bookTitle(_:),
             notebooks: grouping == .notebook ? vm.memoryCardScopes(for: vm.notebooks) : []
         )
         return ScrollView {
@@ -580,7 +573,7 @@ struct MemoryPane: View {
                         .font(.headline)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    Text(Self.groupDetail(group.cards))
+                    Text([group.book, Self.groupDetail(group.cards)].compactMap { $0 }.joined(separator: " · "))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -668,7 +661,6 @@ struct MemoryPane: View {
                 vm.setMemoryCardAlwaysAsk(!alwaysAsked.contains(card.itemID), for: card)
             }
             .help("A card remembered twice is asked in other words, same answer; this keeps it in its own")
-            Button("Retire…", role: .destructive) { confirmingRetire = card }
             if let sourceID = card.sourceIDs.first {
                 Divider()
                 Button("Open Source") {
@@ -676,6 +668,9 @@ struct MemoryPane: View {
                 }
                 OtherWindowSourceMenuItem(sourceID: sourceID)
             }
+            Divider()
+            Button("Delete Card", role: .destructive) { vm.deleteMemoryCardFromList(card) }
+                .help("Never asked again; Undo waits at the foot of the window")
         }
         .accessibilityValue(Self.statusLine(card.schedule))
         .accessibilityIdentifier("memory.pane.card.\(card.itemID)")
@@ -733,6 +728,14 @@ struct MemoryPane: View {
 
     private func sourceTitle(_ sourceID: String) -> String? {
         vm.articlesById[vm.canonicalSourceID(sourceID)]?.title
+    }
+
+    /// The book a chapter belongs to, by its title; nil for any other source.
+    private func bookTitle(_ sourceID: String) -> String? {
+        guard let article = vm.articlesById[vm.canonicalSourceID(sourceID)],
+              article.sourceType == .book,
+              let group = article.parentGroup else { return nil }
+        return vm.bookDisplayName(group)
     }
 }
 

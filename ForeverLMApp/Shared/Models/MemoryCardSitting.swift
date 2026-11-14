@@ -1036,6 +1036,9 @@ enum MemoryCardCatalog {
         let id: String
         let title: String
         let cards: [MemoryCardListing]
+        /// By source, for a book's chapter: the book's title. The chapters
+        /// of one book sit together under it, in chapter order.
+        var book: String? = nil
     }
 
     /// The group of cards anchored on sources no notebook holds.
@@ -1062,7 +1065,10 @@ enum MemoryCardCatalog {
     }
 
     /// By source: one group per card's first anchor, titled by the source,
-    /// in title order. By notebook: one group per notebook holding one of a
+    /// in title order; a book's chapter is placed by its book's title (`book`),
+    /// then by its own, so one book's chapters stay together in chapter order
+    /// rather than interleaving with another book's "1)", "2)" (product owner,
+    /// 2026-11-14: "it says by source, but clearly isn't"). By notebook: one group per notebook holding one of a
     /// card's sources (a card in two notebooks is listed in both), in the
     /// order `notebooks` gives, then the cards no notebook holds. Within a
     /// group, cards keep their order: oldest kept first.
@@ -1070,6 +1076,7 @@ enum MemoryCardCatalog {
         _ cards: [MemoryCardListing],
         by grouping: Grouping,
         sourceTitle: (String) -> String?,
+        book: (String) -> String? = { _ in nil },
         notebooks: [(title: String, scope: MemoryCardScope)]
     ) -> [Group] {
         switch grouping {
@@ -1086,10 +1093,13 @@ enum MemoryCardCatalog {
                     Group(
                         id: key,
                         title: key == unfiledID ? "No source" : (sourceTitle(key) ?? "Source not in the library"),
-                        cards: bySource[key] ?? []
+                        cards: bySource[key] ?? [],
+                        book: key == unfiledID ? nil : book(key)
                     )
                 }
                 .sorted {
+                    let shelf = ($0.book ?? $0.title).localizedStandardCompare($1.book ?? $1.title)
+                    if shelf != .orderedSame { return shelf == .orderedAscending }
                     let order = $0.title.localizedStandardCompare($1.title)
                     if order != .orderedSame { return order == .orderedAscending }
                     return $0.id < $1.id
