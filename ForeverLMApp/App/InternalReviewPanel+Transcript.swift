@@ -229,12 +229,14 @@ extension InternalReviewPanelContent {
     /// same deck the transcript drew inline, to check, keep and page through.
     @MainActor
     private func showSavedCards(_ saved: ChatSavedCards, at rect: CGRect, in view: NSView) {
-        let deck = ReviewChatSavedCardsView(saved: saved)
+        let popover = NSPopover()
+        var shownDeck = ReviewChatSavedCardsView(saved: saved)
+        shownDeck.onOpenedInMemory = { [weak popover] in popover?.close() }
+        let deck = shownDeck
             .padding(12)
             .frame(width: 560)
             .environment(vm)
             .environment(windowState)
-        let popover = NSPopover()
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: deck)
         let anchor = NSRect(

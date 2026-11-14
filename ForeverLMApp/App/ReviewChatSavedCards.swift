@@ -26,6 +26,9 @@ struct ReviewChatSavedCardsView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let saved: ChatSavedCards
+    /// Set when the deck is drawn in a popover: called once a card is opened in
+    /// the Memory pane, so the popover closes as its cards move there.
+    var onOpenedInMemory: (() -> Void)?
 
     /// The cards as storage read them, in the call's order; nil until read.
     @State private var cards: [ChatSavedCard]?
@@ -113,6 +116,19 @@ struct ReviewChatSavedCardsView: View {
             Spacer(minLength: 8)
             if let cards, cards.count > 1 {
                 pager(count: cards.count, page: min(page, cards.count - 1))
+            }
+            if onOpenedInMemory != nil, let cards, !cards.isEmpty {
+                Button {
+                    let shown = cards[min(page, cards.count - 1)]
+                    open(shown.toCheck != nil ? shown : cards.first { $0.toCheck != nil } ?? shown)
+                } label: {
+                    Image(systemName: "arrow.up.forward.square")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .accentColor))
+                .help("Move these cards into the Memory pane")
+                .accessibilityLabel("Open in Memory")
+                .accessibilityIdentifier("chat.savedCards.openInMemory")
             }
         }
     }
@@ -322,7 +338,7 @@ struct ReviewChatSavedCardsView: View {
         let target = cards[page].toCheck != nil ? cards[page] : cards.first { $0.toCheck != nil }
         return HStack(spacing: 12) {
             Spacer(minLength: 8)
-            Button("Keep All") { keep(waiting) }
+            Button(waiting.count == 1 ? "Keep" : "Keep All") { keep(waiting) }
                 .font(.callout)
                 .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .accentColor))
                 .disabled(isKeeping)
@@ -344,6 +360,7 @@ struct ReviewChatSavedCardsView: View {
             cardID: card.toCheck?.cardID,
             in: windowState ?? vm.activeWindowState
         )
+        onOpenedInMemory?()
     }
 
     /// Keeps the cards as drafted, as To Check's Keep All does; the read that
