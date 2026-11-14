@@ -320,9 +320,13 @@ struct NotebookTaskRow: View {
             .accessibilityLabel("Status: \(task.status.title)")
 
             VStack(alignment: .leading, spacing: 4) {
-                TextField("Task", text: $title)
+                // A long title wraps onto more lines instead of being clipped
+                // at the card's edge; Return still commits it.
+                TextField("Task", text: $title, axis: .vertical)
                     .textFieldStyle(.plain)
                     .zoomedSystemFont(size: 12, weight: .medium)
+                    .lineLimit(1...6)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(isDone ? Color.secondary : Color.primary)
                     .strikethrough(isDone, color: .secondary)
                     .focused($titleFocused)
@@ -639,7 +643,11 @@ struct NotebookTaskRow: View {
     }
 
     private func commitTitle() {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A wrapping field can take a pasted line break; a title stays one line.
+        let trimmed = title
+            .components(separatedBy: .newlines)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else {
             title = task.title
             return
