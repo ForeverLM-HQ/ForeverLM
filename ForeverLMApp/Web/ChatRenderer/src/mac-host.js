@@ -16,9 +16,10 @@ const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage
 /// to have the tutor expand on them, or to ask about them in a small chat that
 /// pops over the passage. The app's context menu reaches the same actions
 /// through `requestSelectionAction("quote" | "moreDetails" | "sideChat")`.
-window.requestSelectionAction = installSelectionActions({
+const selectionActions = installSelectionActions({
   post: (payload) => post("selectionAction", payload),
 });
+window.requestSelectionAction = selectionActions.run;
 
 /// Measure the message, not the WebView viewport. A pooled WebView can still
 /// have its previous row's much taller frame when new markdown is pushed into
@@ -103,9 +104,16 @@ window.setCitationContext = (context) => {
 };
 window.setMarkdown = (markdown) => {
   if (content) renderer.render(content, markdown, { citations: citationContext });
+  selectionActions.refresh();
 };
-window.setSourceCards = (cards) => renderer.setSourceCards(cards);
-window.setSourceImages = (images) => renderer.setSourceImages(images);
+window.setSourceCards = (cards) => {
+  renderer.setSourceCards(cards);
+  selectionActions.refresh();
+};
+window.setSourceImages = (images) => {
+  renderer.setSourceImages(images);
+  selectionActions.refresh();
+};
 window.resetSourceCards = () => renderer.resetSourceCards();
 window.resetSourceImages = () => renderer.resetSourceImages();
 

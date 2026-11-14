@@ -195,8 +195,14 @@ const renderer = createChatRenderer({
   runsVisualizations: true,
 });
 
-window.setSourceCards = (cards) => keepingPlace(() => renderer.setSourceCards(cards));
-window.setSourceImages = (images) => keepingPlace(() => renderer.setSourceImages(images));
+window.setSourceCards = (cards) => {
+  keepingPlace(() => renderer.setSourceCards(cards));
+  selectionActions.refresh();
+};
+window.setSourceImages = (images) => {
+  keepingPlace(() => renderer.setSourceImages(images));
+  selectionActions.refresh();
+};
 
 /// The frames video moments were asked at, by "sourceID@seconds".
 const momentFrames = new Map();
@@ -224,9 +230,27 @@ function selectionMessageID() {
   return null;
 }
 
-window.requestSelectionAction = installSelectionActions({
+const selectionActions = installSelectionActions({
   post: (payload) => post("selectionAction", { ...payload, messageID: selectionMessageID() }),
 });
+window.requestSelectionAction = selectionActions.run;
+
+/// Puts `wanted` under `parent` in that order, moving only what is out of
+/// place. `replaceChildren` takes every child out of the document and puts it
+/// back, and a selection inside a child that leaves the document is gone: a
+/// finished reply sent again, with nothing new but its footer, took the
+/// learner's selected words with it and left the selection bar over nothing.
+function placeChildren(parent, wanted) {
+  const keep = new Set(wanted);
+  for (const child of [...parent.childNodes]) {
+    if (!keep.has(child)) child.remove();
+  }
+  let cursor = parent.firstChild;
+  for (const node of wanted) {
+    if (node === cursor) cursor = cursor.nextSibling;
+    else parent.insertBefore(node, cursor);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Drawing
@@ -723,13 +747,14 @@ function drawAnswer(block, entry) {
     }
   }
   if (block.footer) {
-    children.push(drawFooter(block));
+    const json = JSON.stringify(block.footer);
+    if (entry.footer?.json !== json) entry.footer = { json, element: drawFooter(block) };
+    children.push(entry.footer.element);
+  } else {
+    entry.footer = null;
   }
-  // Keep the parts that did not change in place; only reorder when needed.
-  const current = [...root.children];
-  if (current.length !== children.length || current.some((child, index) => child !== children[index])) {
-    root.replaceChildren(...children);
-  }
+  // The parts that did not change stay where they are, in the document.
+  placeChildren(root, children);
   entry.parts = parts;
 }
 
@@ -865,6 +890,7 @@ function forgetEntry(entry) {
   if (entry.images) renderer.forgetContainer(entry.images);
   entry.parts = null;
   entry.images = null;
+  entry.footer = null;
 }
 
 function drawBlock(block) {
@@ -972,11 +998,7 @@ window.transcriptApply = (update) => {
         entry.element.remove();
         drawn.delete(id);
       }
-      const wanted = update.order.map((id) => drawn.get(id)?.element).filter(Boolean);
-      const current = [...blocksRoot.children];
-      if (current.length !== wanted.length || current.some((child, index) => child !== wanted[index])) {
-        blocksRoot.replaceChildren(...wanted);
-      }
+      placeChildren(blocksRoot, update.order.map((id) => drawn.get(id)?.element).filter(Boolean));
     }
     applyLaneFolds();
     if ("summary" in update) {
@@ -988,6 +1010,7 @@ window.transcriptApply = (update) => {
     if (typeof update.reserve === "number") reserve.style.height = `${Math.max(0, update.reserve)}px`;
   });
   updateJumpButton();
+  selectionActions.refresh();
 };
 
 post("ready", true);

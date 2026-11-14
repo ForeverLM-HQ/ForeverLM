@@ -29,8 +29,9 @@ export const SELECTION_ACTIONS = [
 ];
 
 /// Installs the bar on `document`, posting `{ action, text }` through `post`
-/// when one of its actions is pressed. Returns the function the app's context
-/// menu calls to run an action on the current selection without the bar.
+/// when one of its actions is pressed. Returns `run`, which the app's context
+/// menu calls to run an action on the current selection without the bar, and
+/// `refresh`, which the page calls after it redraws anything under the bar.
 export function installSelectionActions({ document: document_ = document, actions = SELECTION_ACTIONS, post }) {
   const window_ = document_.defaultView;
   let host = null;
@@ -303,5 +304,16 @@ export function installSelectionActions({ document: document_ = document, action
   window_.addEventListener("scroll", schedulePlace, { passive: true });
   window_.addEventListener("resize", schedulePlace, { passive: true });
 
-  return run;
+  // A redraw that takes the selected words out of the document drops the
+  // selection without a `selectionchange`, and the bar stayed up over words
+  // that were no longer selected, pressing to nothing (product owner,
+  // 2026-11-13: "it's not nicely selecting what i'm expecting"). A redraw
+  // that only moves the words takes the bar with them.
+  const refresh = () => {
+    if (!host || host.style.display === "none") return;
+    if (selectionText()) place();
+    else hide();
+  };
+
+  return { run, refresh };
 }
