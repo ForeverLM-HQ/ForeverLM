@@ -1320,3 +1320,357 @@ extension URL {
         return scheme == "http" || scheme == "https"
     }
 }
+
+// MARK: - A paper's reading view
+
+/// Makes a paper's reading view when the learner asks for one in the Reader's
+/// ⋯ menu (`PaperReadingViewService`). One run per paper at a time; the
+/// Reader redraws on its own when the saved view changes.
+@MainActor
+@Observable
+final class PaperReadingViewMaker {
+    static let shared = PaperReadingViewMaker()
+
+    private(set) var making: Set<String> = []
+
+    func make(_ article: StudioArticle) {
+        guard !making.contains(article.id) else { return }
+        making.insert(article.id)
+        Task { [weak self] in
+            defer { self?.making.remove(article.id) }
+            do {
+                // The click is the learner's ask: the two passes are theirs,
+                // not background work.
+                try await AIUsageAttribution.$learnerAsked.withValue(true) {
+                    _ = try await PaperReadingViewService.make(sourceID: article.id, title: article.title)
+                }
+            } catch {
+                Self.tell("Couldn't make a reading view", error.localizedDescription)
+            }
+        }
+    }
+
+    func setShown(_ shown: Bool, for article: StudioArticle) {
+        do {
+            try PaperReadingViewStore.setShown(shown, sourceID: article.id)
+        } catch {
+            Self.tell("Couldn't switch the reading view", error.localizedDescription)
+        }
+    }
+
+    func remove(for article: StudioArticle) {
+        do {
+            try PaperReadingViewStore.remove(sourceID: article.id)
+        } catch {
+            Self.tell("Couldn't remove the reading view", error.localizedDescription)
+        }
+    }
+
+    private static func tell(_ title: String, _ message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+}
+
+/// The ⋯ menu's reading-view items for a paper: make one, switch between it
+/// and the PDF, remove it.
+struct PaperReadingViewMenuItems: View {
+    let article: StudioArticle
+
+    var body: some View {
+        let maker = PaperReadingViewMaker.shared
+        let isMaking = maker.making.contains(article.id)
+        let view = PaperReadingViewStore.load(sourceID: article.id)
+
+        if let view {
+            Button {
+                maker.setShown(!view.isShown, for: article)
+            } label: {
+                Label(
+                    view.isShown ? "Show PDF" : "Show Reading View",
+                    systemImage: view.isShown ? "doc.richtext" : "text.justify.left"
+                )
+            }
+            Button {
+                maker.make(article)
+            } label: {
+                Label(isMaking ? "Making Reading View…" : "Make Reading View Again", systemImage: "arrow.clockwise")
+            }
+            .disabled(isMaking)
+            Button {
+                maker.remove(for: article)
+            } label: {
+                Label("Remove Reading View", systemImage: "trash")
+            }
+        } else {
+            Button {
+                maker.make(article)
+            } label: {
+                Label(isMaking ? "Making Reading View…" : "Reading View", systemImage: "text.justify.left")
+            }
+            .disabled(isMaking)
+            .help("Re-sets the paper's text as one column, its citations as superscript numbers")
+        }
+    }
+}
+
+/// A paper's Reader: its reading view while one is shown, else its PDF. A
+/// source that is not a paper always shows `pdf`.
+struct PaperReaderSwitch<PDF: View>: View {
+    let article: StudioArticle
+    let zoomScale: CGFloat
+    @ViewBuilder let pdf: () -> PDF
+
+    /// Bumped when this paper's reading view is made, switched or removed,
+    /// so the store is asked again.
+    @State private var changes = 0
+
+    var body: some View {
+        Group {
+            if article.sourceType == .paper,
+               let readingView = PaperReadingViewStore.load(sourceID: article.id),
+               readingView.isShown {
+                PaperReadingViewPane(article: article, readingView: readingView, zoomScale: zoomScale)
+            } else {
+                pdf()
+            }
+        }
+        .id(changes)
+        .onReceive(NotificationCenter.default.publisher(for: .paperReadingViewChanged)) { note in
+            guard note.userInfo?["sourceID"] as? String == article.id else { return }
+            changes += 1
+        }
+    }
+}
+
+/// The paper as one column of text: headings, paragraphs, and each citation
+/// as superscript numbers that open the reference they name.
+struct PaperReadingViewPane: View {
+    let article: StudioArticle
+    let readingView: PaperReadingView
+    let zoomScale: CGFloat
+
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(\.readerOpensCitedSource) private var opensCitedSource
+    @State private var rows: [Row] = []
+    @State private var index: PaperReferenceIndex?
+    @State private var shown: Shown?
+
+    struct Row: Identifiable {
+        let id: Int
+        let isHeading: Bool
+        let text: AttributedString
+    }
+
+    /// The reference a clicked number opened, and the paragraph it is in.
+    struct Shown: Equatable {
+        let row: Int
+        let ordinal: Int
+        let number: Int
+    }
+
+    private static let citationScheme = "foreverlm-citation"
+    private var bodySize: CGFloat { 15 * zoomScale }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 14 * zoomScale) {
+                ForEach(rows) { row in
+                    paragraph(row)
+                }
+            }
+            .frame(maxWidth: 680 * zoomScale, alignment: .leading)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 28)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+        .environment(\.openURL, OpenURLAction { url in
+            guard url.scheme == Self.citationScheme else { return .systemAction }
+            open(url)
+            return .handled
+        })
+        .task(id: "\(article.id)|\(readingView.createdAt.timeIntervalSince1970)|\(zoomScale)") { await build() }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("reader.paperReadingView")
+    }
+
+    private func paragraph(_ row: Row) -> some View {
+        Text(row.text)
+            .font(.system(size: row.isHeading ? bodySize * 1.15 : bodySize, weight: row.isHeading ? .semibold : .regular, design: .serif))
+            .lineSpacing(bodySize * 0.35)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, row.isHeading ? 10 * zoomScale : 0)
+            .popover(
+                isPresented: Binding(
+                    get: { shown?.row == row.id },
+                    set: { if !$0, shown?.row == row.id { shown = nil } }
+                ),
+                arrowEdge: .trailing
+            ) {
+                if let shown, let reference = index?.reference(forNumber: shown.ordinal) {
+                    PaperReadingReferenceCard(
+                        reference: reference,
+                        number: shown.number,
+                        openSource: { sourceID in
+                            self.shown = nil
+                            if let opensCitedSource {
+                                opensCitedSource(sourceID)
+                            } else {
+                                Task { await vm.selectReaderSource(sourceID) }
+                            }
+                        }
+                    )
+                    .environment(vm)
+                }
+            }
+    }
+
+    /// The rows as drawn: the stored paragraphs with the citations the
+    /// paper's reference list can name turned into numbers.
+    private func build() async {
+        let index = await vm.paperReferenceIndex(forSource: article.id)
+        let paragraphs = readingView.paragraphs
+        let size = bodySize
+        let built = await Task.detached(priority: .userInitiated) {
+            let runs = PaperReadingViewBuilder.runs(of: paragraphs, index: index)
+            return zip(paragraphs, runs).enumerated().map { offset, pair in
+                Row(id: offset, isHeading: pair.0.isHeading, text: Self.attributed(pair.1, row: offset, size: size))
+            }
+        }.value
+        guard !Task.isCancelled else { return }
+        self.index = index
+        rows = built
+    }
+
+    /// A paragraph's runs as text: each citation's numbers small and raised,
+    /// each number a link naming its paragraph, its reference and itself.
+    nonisolated static func attributed(_ runs: [PaperReadingRun], row: Int, size: CGFloat) -> AttributedString {
+        var text = AttributedString()
+        func raised(_ string: String) -> AttributedString {
+            var piece = AttributedString(string)
+            piece.swiftUI.font = .system(size: size * 0.66)
+            piece.swiftUI.baselineOffset = size * 0.4
+            return piece
+        }
+        for run in runs {
+            switch run {
+            case .text(let string):
+                text.append(AttributedString(string))
+            case .citation(let references):
+                for (offset, reference) in references.enumerated() {
+                    if offset > 0 { text.append(raised(",")) }
+                    var number = raised(String(reference.number))
+                    number.link = URL(string: "\(citationScheme)://\(row)/\(reference.ordinal)/\(reference.number)")
+                    text.append(number)
+                }
+            }
+        }
+        return text
+    }
+
+    private func open(_ url: URL) {
+        let parts = url.pathComponents.filter { $0 != "/" }
+        guard let row = url.host.flatMap(Int.init), parts.count == 2,
+              let ordinal = Int(parts[0]), let number = Int(parts[1]) else { return }
+        shown = Shown(row: row, ordinal: ordinal, number: number)
+    }
+}
+
+/// One reference, opened from its number in the reading view: who and what
+/// it is, the way to it in the library (or into it), and its link.
+private struct PaperReadingReferenceCard: View {
+    let reference: PaperReference
+    let number: Int
+    let openSource: (String) -> Void
+
+    @Environment(StudioViewModel.self) private var vm
+    @State private var status: ArtifactReferenceStatus?
+    @State private var isAdding = false
+
+    var body: some View {
+        let summary = PaperReferenceSummary(entryText: reference.text, stored: reference)
+        VStack(alignment: .leading, spacing: 8) {
+            if let title = summary.title {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text([String(number), summary.byline].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(title)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .textSelection(.enabled)
+            } else {
+                Text(reference.text)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let link = reference.linkURL {
+                HStack(spacing: 12) {
+                    action(href: link.absoluteString)
+                    Spacer(minLength: 0)
+                    Button { WebLinkOpening.open(link) } label: {
+                        Label(ReaderReferenceLink.displayText(for: link), systemImage: "link")
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                    .help("Open \(link.absoluteString)")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 360, alignment: .leading)
+        .padding(12)
+        .task(id: reference.id) {
+            guard let href = reference.linkURL?.absoluteString else { return }
+            status = await vm.referenceLibraryStatuses(for: [href])[href]
+        }
+    }
+
+    @ViewBuilder
+    private func action(href: String) -> some View {
+        if isAdding {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("Adding…")
+            }
+            .fixedSize()
+        } else if let status {
+            switch status.state {
+            case .inLibrary:
+                if let sourceID = status.sourceID {
+                    Button { openSource(sourceID) } label: { Label("Open", systemImage: "arrow.up.right") }
+                        .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                        .fixedSize()
+                }
+            case .absent:
+                Button { add(href) } label: { Label("Add to Library", systemImage: "plus") }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                    .fixedSize()
+            case .failed:
+                Text(status.message ?? "The paper could not be added.")
+            case .adding, .requestable, .requested, .fulfillable:
+                EmptyView()
+            }
+        }
+    }
+
+    private func add(_ href: String) {
+        isAdding = true
+        Task {
+            let added = await vm.addReferenceToLibrary(href)
+            isAdding = false
+            status = added
+            if added.state == .inLibrary, let sourceID = added.sourceID { openSource(sourceID) }
+        }
+    }
+}

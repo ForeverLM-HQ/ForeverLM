@@ -681,3 +681,489 @@ extension AIService {
         return kept
     }
 }
+
+// MARK: - A paper's reading view
+
+/// A paper re-set as one flowing column, its inline citations drawn as
+/// superscript numbers (product owner, 2026-11-13, of a review article with a
+/// paragraph of names in every sentence: "is it possible for you to show them
+/// in a way that removes those and replaces them with superscript numbers?";
+/// offered the page with gaps, the citations faded, or this, they chose
+/// this). A PDF's lines cannot close up, so this is a second way to read the
+/// paper beside its PDF, never in place of it: the PDF, the paper's text and
+/// its references are not touched, and Show PDF is one click away.
+struct PaperReadingView: Codable, Equatable, Sendable {
+    /// One inline citation, as the paragraph writes it.
+    struct Citation: Codable, Equatable, Sendable {
+        var exactText: String
+        /// Which occurrence of `exactText` in the paragraph, from 1.
+        var occurrence: Int
+    }
+
+    struct Paragraph: Codable, Equatable, Sendable {
+        var text: String
+        var isHeading: Bool
+        var citations: [Citation]
+    }
+
+    var paragraphs: [Paragraph]
+    var createdAt: Date
+    /// Off shows the PDF while keeping the view, so switching back is instant
+    /// and costs no model call.
+    var isShown: Bool
+
+    var citationCount: Int { paragraphs.reduce(0) { $0 + $1.citations.count } }
+}
+
+extension Notification.Name {
+    /// Posted with the source ID in `userInfo["sourceID"]` whenever a paper's
+    /// reading view is made, switched or removed, so an open Reader redraws.
+    static let paperReadingViewChanged = Notification.Name("ForeverLM.paperReadingViewChanged")
+}
+
+/// The papers' reading views, one JSON file per source. Mac only; nothing
+/// here syncs. What was last read or saved is kept in memory, so the Reader
+/// asks on every draw without going to the disk again.
+enum PaperReadingViewStore {
+    /// Each source's view as last read or saved; `.some(nil)` is a source
+    /// known to have none.
+    private static let cache = OSAllocatedUnfairLock<[String: PaperReadingView?]>(initialState: [:])
+
+    private static var directoryURL: URL {
+        ForeverLMRuntimeIdentity.applicationSupportRootURL
+            .appendingPathComponent("PaperReadingViews", isDirectory: true)
+    }
+
+    static func fileURL(sourceID: String) -> URL {
+        let name = sourceID.replacingOccurrences(of: "/", with: "_")
+        return directoryURL.appendingPathComponent("\(name).json")
+    }
+
+    static func load(sourceID: String) -> PaperReadingView? {
+        if let known = cache.withLock({ $0[sourceID] }) { return known }
+        var view: PaperReadingView?
+        if let data = try? Data(contentsOf: fileURL(sourceID: sourceID)) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            view = try? decoder.decode(PaperReadingView.self, from: data)
+        }
+        cache.withLock { $0[sourceID] = .some(view) }
+        return view
+    }
+
+    static func save(_ view: PaperReadingView, sourceID: String) throws {
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(view).write(to: fileURL(sourceID: sourceID), options: .atomic)
+        cache.withLock { $0[sourceID] = .some(view) }
+        announce(sourceID)
+    }
+
+    /// Switch between the reading view and the PDF.
+    static func setShown(_ shown: Bool, sourceID: String) throws {
+        guard var view = load(sourceID: sourceID) else { return }
+        view.isShown = shown
+        try save(view, sourceID: sourceID)
+    }
+
+    static func remove(sourceID: String) throws {
+        let url = fileURL(sourceID: sourceID)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        cache.withLock { $0[sourceID] = .some(nil) }
+        announce(sourceID)
+    }
+
+    private static func announce(_ sourceID: String) {
+        NotificationCenter.default.post(
+            name: .paperReadingViewChanged,
+            object: nil,
+            userInfo: ["sourceID": sourceID]
+        )
+    }
+}
+
+/// What the model said of a paper's lines (`Prompts.paperReadingViewLayout`):
+/// which begin a paragraph, which are headings, which are page furniture.
+struct PaperReadingLayout: Equatable, Sendable {
+    var paragraphStarts: Set<String> = []
+    var headings: Set<String> = []
+    var removed: Set<String> = []
+
+    func merging(_ other: PaperReadingLayout) -> PaperReadingLayout {
+        PaperReadingLayout(
+            paragraphStarts: paragraphStarts.union(other.paragraphStarts),
+            headings: headings.union(other.headings),
+            removed: removed.union(other.removed)
+        )
+    }
+}
+
+/// One piece of a paragraph as the reading view draws it.
+enum PaperReadingRun: Equatable, Sendable {
+    case text(String)
+    /// A citation as superscript numbers: each the number shown and the
+    /// ordinal of the reference it opens.
+    case citation([PaperReadingCitedReference])
+}
+
+struct PaperReadingCitedReference: Equatable, Sendable {
+    let number: Int
+    let ordinal: Int
+}
+
+/// Putting a paper's reading view together from what the model named. Pure:
+/// the model decides what a paragraph and a citation are; this only joins
+/// lines, checks a named citation is really in its paragraph, and counts.
+enum PaperReadingViewBuilder {
+    /// The paper's lines joined into paragraphs: a removed line is dropped, a
+    /// heading stands alone, and a paragraph runs from one start to the next,
+    /// its lines joined as Listen joins them (a word broken at a line's end
+    /// closed up).
+    static func paragraphs(
+        lines: [AIService.PaperContentBlock],
+        layout: PaperReadingLayout
+    ) -> [PaperReadingView.Paragraph] {
+        var paragraphs: [PaperReadingView.Paragraph] = []
+        var current: [String] = []
+        func flush() {
+            guard !current.isEmpty else { return }
+            let text = CloudArticleTTS.reflowedForSpeech(current.joined(separator: "\n"))
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                paragraphs.append(PaperReadingView.Paragraph(text: text, isHeading: false, citations: []))
+            }
+            current = []
+        }
+        for line in lines where !layout.removed.contains(line.id) {
+            if layout.headings.contains(line.id) {
+                flush()
+                let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    paragraphs.append(PaperReadingView.Paragraph(text: text, isHeading: true, citations: []))
+                }
+            } else {
+                if layout.paragraphStarts.contains(line.id) { flush() }
+                current.append(line.text)
+            }
+        }
+        flush()
+        return paragraphs
+    }
+
+    /// The paragraphs as blocks for the citation pass, numbered in order.
+    static func blocks(of paragraphs: [PaperReadingView.Paragraph]) -> [AIService.PaperContentBlock] {
+        paragraphs.enumerated().map { index, paragraph in
+            AIService.PaperContentBlock(id: String(format: "B%06d", index + 1), text: paragraph.text)
+        }
+    }
+
+    /// The named citations that really are in `text`, in the order they are
+    /// written, none overlapping another.
+    static func located(
+        _ citations: [PaperReadingView.Citation],
+        in text: String
+    ) -> [(citation: PaperReadingView.Citation, range: Range<String.Index>)] {
+        var found: [(citation: PaperReadingView.Citation, range: Range<String.Index>)] = []
+        for citation in citations {
+            guard citation.occurrence > 0,
+                  !citation.exactText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let range = PaperContentPreparationService.occurrenceRange(
+                      of: citation.exactText,
+                      occurrence: citation.occurrence,
+                      in: text
+                  ),
+                  !found.contains(where: { $0.range.overlaps(range) }) else { continue }
+            found.append((citation, range))
+        }
+        return found.sorted { $0.range.lowerBound < $1.range.lowerBound }
+    }
+
+    /// The view as it is drawn: each paragraph's text with its citations as
+    /// numbers. A numbered paper keeps its own numbers; an author-year paper
+    /// is numbered in the order its references are first cited, as a numbered
+    /// journal would. A citation that names no entry of the stored list stays
+    /// as the paper wrote it, rather than vanish with nothing to open.
+    static func runs(
+        of paragraphs: [PaperReadingView.Paragraph],
+        index: PaperReferenceIndex
+    ) -> [[PaperReadingRun]] {
+        var numberOfOrdinal: [Int: Int] = [:]
+        func number(_ reference: PaperReference) -> Int {
+            if let own = Int(reference.label.trimmingCharacters(in: .whitespaces)) { return own }
+            if let given = numberOfOrdinal[reference.ordinal] { return given }
+            let next = numberOfOrdinal.count + 1
+            numberOfOrdinal[reference.ordinal] = next
+            return next
+        }
+        return paragraphs.map { paragraph in
+            guard !paragraph.isHeading else { return [.text(paragraph.text)] }
+            var runs: [PaperReadingRun] = []
+            var cursor = paragraph.text.startIndex
+            for (citation, range) in located(paragraph.citations, in: paragraph.text) {
+                let references = index.references(forMarker: citation.exactText)
+                guard !references.isEmpty else { continue }
+                if cursor < range.lowerBound { runs.append(.text(String(paragraph.text[cursor..<range.lowerBound]))) }
+                runs.append(.citation(references.map { PaperReadingCitedReference(number: number($0), ordinal: $0.ordinal) }))
+                cursor = range.upperBound
+            }
+            if cursor < paragraph.text.endIndex { runs.append(.text(String(paragraph.text[cursor...]))) }
+            return runs
+        }
+    }
+}
+
+/// Makes a paper's reading view: two model passes over the paper's text, one
+/// for its paragraphs and one for its citations, asked for by the learner
+/// from the Reader's ⋯ menu and never on a timer. The model's judgment is the
+/// whole of what a paragraph or a citation is; nothing here decides by
+/// pattern.
+enum PaperReadingViewService {
+    enum Failure: LocalizedError {
+        case noText
+        case noParagraphs
+        case unavailable(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .noText:
+                return "This paper has no saved text to re-set yet."
+            case .noParagraphs:
+                return "The model returned no paragraphs for this paper."
+            case .unavailable(let reason):
+                return reason
+            }
+        }
+    }
+
+    /// Characters of paper text per model call, and how many calls run side
+    /// by side.
+    static let chunkCharacters = 12_000
+    private static let concurrentChunks = 4
+
+    static func make(
+        sourceID: String,
+        title: String,
+        aiService: AIService = AIService()
+    ) async throws -> PaperReadingView {
+        guard let config = KeychainService.resolveConfig(for: .paperTextToSpeechPreparation) else {
+            throw Failure.unavailable(
+                KeychainService.backgroundAIUnavailableMessage(for: .paperTextToSpeechPreparation)
+                    ?? "No model is configured for preparing papers. Choose one in Settings."
+            )
+        }
+        let text = (await StorageService().loadSourceContent(sourceID) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw Failure.noText }
+
+        let lines = PaperContentPreparationService.semanticBlocks(text)
+        let source = AIUsageSource(id: sourceID, sourceType: .paper, title: title)
+        return try await AIUsageAttribution.withSource(source) {
+            let layouts = try await inChunks(of: lines) { chunk in
+                try await aiService.paperReadingViewLayout(source: source, blocks: chunk, config: config)
+            }
+            let layout = layouts.reduce(PaperReadingLayout()) { $0.merging($1) }
+            var paragraphs = PaperReadingViewBuilder.paragraphs(lines: lines, layout: layout)
+            guard !paragraphs.isEmpty else { throw Failure.noParagraphs }
+
+            let blocks = PaperReadingViewBuilder.blocks(of: paragraphs)
+            let cited = try await inChunks(of: blocks) { chunk in
+                try await aiService.paperReadingViewCitations(source: source, blocks: chunk, config: config)
+            }
+            let indexByID = Dictionary(uniqueKeysWithValues: blocks.enumerated().map { ($0.element.id, $0.offset) })
+            for (blockID, citation) in cited.flatMap({ $0 }) {
+                guard let index = indexByID[blockID], !paragraphs[index].isHeading else { continue }
+                paragraphs[index].citations.append(citation)
+            }
+            for index in paragraphs.indices {
+                paragraphs[index].citations = PaperReadingViewBuilder
+                    .located(paragraphs[index].citations, in: paragraphs[index].text)
+                    .map(\.citation)
+            }
+            let view = PaperReadingView(paragraphs: paragraphs, createdAt: Date(), isShown: true)
+            try PaperReadingViewStore.save(view, sourceID: sourceID)
+            return view
+        }
+    }
+
+    static func chunks(of blocks: [AIService.PaperContentBlock]) -> [[AIService.PaperContentBlock]] {
+        var chunks: [[AIService.PaperContentBlock]] = []
+        var current: [AIService.PaperContentBlock] = []
+        var size = 0
+        for block in blocks {
+            if size + block.text.count > chunkCharacters, !current.isEmpty {
+                chunks.append(current)
+                current = []
+                size = 0
+            }
+            current.append(block)
+            size += block.text.count
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+
+    /// `work` over the blocks' chunks, a few at a time, its results in chunk
+    /// order.
+    private static func inChunks<Result: Sendable>(
+        of blocks: [AIService.PaperContentBlock],
+        _ work: @escaping @Sendable ([AIService.PaperContentBlock]) async throws -> Result
+    ) async throws -> [Result] {
+        let chunks = chunks(of: blocks)
+        return try await withThrowingTaskGroup(of: (Int, Result).self) { group in
+            var found: [Int: Result] = [:]
+            var next = 0
+            func addNext() {
+                guard next < chunks.count else { return }
+                let index = next
+                next += 1
+                group.addTask { (index, try await work(chunks[index])) }
+            }
+            for _ in 0..<min(concurrentChunks, chunks.count) { addNext() }
+            while let (index, result) = try await group.next() {
+                found[index] = result
+                addNext()
+            }
+            return (0..<chunks.count).compactMap { found[$0] }
+        }
+    }
+}
+
+extension AIService {
+    private struct PaperReadingLayoutPlan: Decodable {
+        let paragraphStarts: [String]
+        let headings: [String]
+        let remove: [String]
+    }
+
+    private struct PaperReadingCitationPlan: Decodable {
+        struct Item: Decodable {
+            let blockID: String
+            let exactText: String
+            let occurrence: Int
+        }
+        let citations: [Item]
+    }
+
+    private static func taggedBlocksJSON(_ blocks: [PaperContentBlock]) -> String {
+        blocks.map { block in
+            "{\"id\":\"\(block.id)\",\"text\":\"\(Self.jsonEscaped(block.text))\"}"
+        }.joined(separator: ",\n")
+    }
+
+    private nonisolated static func jsonObject(in response: String) -> Data? {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let first = trimmed.firstIndex(of: "{"), let last = trimmed.lastIndex(of: "}"), first <= last {
+            return String(trimmed[first...last]).data(using: .utf8)
+        }
+        return trimmed.data(using: .utf8)
+    }
+
+    func paperReadingViewLayout(
+        source: AIUsageSource,
+        blocks: [PaperContentBlock],
+        config: AITaskConfig
+    ) async throws -> PaperReadingLayout {
+        guard !blocks.isEmpty else { return PaperReadingLayout() }
+        let user = """
+        AUTHORITATIVE SOURCE TITLE:
+        \(source.title)
+
+        BLOCKS JSON:
+        [
+        \(Self.taggedBlocksJSON(blocks))
+        ]
+        """
+        let response = try await call(
+            config: config,
+            system: Prompts.paperReadingViewLayout,
+            user: user,
+            // The answer is block IDs alone; the ceiling only has to let the
+            // JSON close on a chunk of short lines.
+            maxTokens: 16_384,
+            temperature: 0,
+            allowsReasoningInflation: false,
+            allowsResponseCache: false,
+            jsonMode: true,
+            sourceTitle: source.title,
+            subjectID: source.id,
+            subjectType: source.type,
+            activityID: AIUsageAttribution.activityID ?? UUID().uuidString
+        )
+        return try Self.validatedPaperReadingLayout(response, blocks: blocks)
+    }
+
+    /// The layout with only this chunk's IDs in it; a line named a heading
+    /// or removed is not also a paragraph's start.
+    nonisolated static func validatedPaperReadingLayout(
+        _ response: String,
+        blocks: [PaperContentBlock]
+    ) throws -> PaperReadingLayout {
+        guard let data = jsonObject(in: response),
+              let plan = try? JSONDecoder().decode(PaperReadingLayoutPlan.self, from: data) else {
+            throw AIError.apiError("Reading view returned an invalid paragraph plan.")
+        }
+        let known = Set(blocks.map(\.id))
+        let removed = Set(plan.remove).intersection(known)
+        let headings = Set(plan.headings).intersection(known).subtracting(removed)
+        let starts = Set(plan.paragraphStarts).intersection(known).subtracting(removed).subtracting(headings)
+        return PaperReadingLayout(paragraphStarts: starts, headings: headings, removed: removed)
+    }
+
+    func paperReadingViewCitations(
+        source: AIUsageSource,
+        blocks: [PaperContentBlock],
+        config: AITaskConfig
+    ) async throws -> [(blockID: String, citation: PaperReadingView.Citation)] {
+        guard !blocks.isEmpty else { return [] }
+        let user = """
+        AUTHORITATIVE SOURCE TITLE:
+        \(source.title)
+
+        BLOCKS JSON:
+        [
+        \(Self.taggedBlocksJSON(blocks))
+        ]
+        """
+        let response = try await call(
+            config: config,
+            system: Prompts.paperReadingViewCitations,
+            user: user,
+            // A review article cites in every sentence, each citation a
+            // verbatim item of up to a few hundred characters.
+            maxTokens: 32_768,
+            temperature: 0,
+            allowsReasoningInflation: false,
+            allowsResponseCache: false,
+            jsonMode: true,
+            sourceTitle: source.title,
+            subjectID: source.id,
+            subjectType: source.type,
+            activityID: AIUsageAttribution.activityID ?? UUID().uuidString
+        )
+        return try Self.validatedPaperReadingCitations(response, blocks: blocks)
+    }
+
+    /// The citations that really are in the block the model named.
+    nonisolated static func validatedPaperReadingCitations(
+        _ response: String,
+        blocks: [PaperContentBlock]
+    ) throws -> [(blockID: String, citation: PaperReadingView.Citation)] {
+        guard let data = jsonObject(in: response),
+              let plan = try? JSONDecoder().decode(PaperReadingCitationPlan.self, from: data) else {
+            throw AIError.apiError("Reading view returned an invalid citation plan.")
+        }
+        let textByID = Dictionary(blocks.map { ($0.id, $0.text) }, uniquingKeysWith: { first, _ in first })
+        return plan.citations.compactMap { item in
+            guard let text = textByID[item.blockID],
+                  item.occurrence > 0,
+                  item.exactText.count <= 1_200,
+                  PaperContentPreparationService.occurrenceRange(of: item.exactText, occurrence: item.occurrence, in: text) != nil
+            else { return nil }
+            return (item.blockID, PaperReadingView.Citation(exactText: item.exactText, occurrence: item.occurrence))
+        }
+    }
+}

@@ -74,6 +74,14 @@ Nothing is added until you pick it. The papers with a link need no AI at all. On
 
 A journal often prints a figure on one page and its legend on another: overleaf, a few pages on, or at the end of a preprint. When a paper is open in the reader, choose **Figure Legends** from the reader's **⋯** menu and a column opens beside the PDF with every figure's legend. It follows the page you are on: the figures drawn on that page are marked and their legends scroll into view, wherever the legend itself is printed. Click a figure's name to go to its page. The legends are read from the paper's own PDF, free, with no model call, and a figure whose legend the paper does not print shows "No legend found". Figure Legends shares the reader's side column with Levels and Linked References, so opening one closes the others. On the Mac it is in the reader and in a Source Reader window, for papers open as a PDF. In the web library the same **Figure Legends** item in the Reader's **⋯** menu opens the legends beside the PDF, and a click on a figure opens the PDF at its page; the browser's own PDF viewer does not report which page you are on, so the web column does not follow it. It shows legends once the Mac has read the paper's figures and synced them.
 
+## Reading Without the Inline Citations
+
+Some papers, review articles above all, put a row of names and years in every sentence. A PDF's lines cannot close up around them, so ForeverLM offers a second way to read such a paper on the Mac: in the Reader's **⋯** menu, choose **Reading View**. A model reads the paper's text once, and the Reader then shows it as one column with each citation replaced by small raised numbers. Click a number to see the reference it names, open that paper if it is in your library, or add it.
+
+A paper with numbered citations keeps its own numbers. One that cites by author and year is numbered in the order its references are first cited. A citation ForeverLM cannot match to an entry of the paper's reference list stays as the paper wrote it.
+
+The PDF is untouched: **Show PDF** in the same menu switches back, **Show Reading View** returns without asking the model again, and **Remove Reading View** deletes it. Figures and tables are not drawn in the reading view, so switch to the PDF for those. The reading view is kept on this Mac only.
+
 ## How PDF Loading Works
 
 When you add a paper, ForeverLM tries to get the full PDF automatically:

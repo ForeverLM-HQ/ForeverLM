@@ -300,3 +300,123 @@ struct ArticleReadingViewTests {
         #expect(ArticleReadingViewStore.load(sourceID: id) == nil)
     }
 }
+
+/// A paper's reading view: the PDF's lines joined into paragraphs as the
+/// model grouped them, and each citation it named drawn as numbers.
+@Suite("Paper reading view")
+struct PaperReadingViewTests {
+    private func lines(_ texts: [String]) -> [AIService.PaperContentBlock] {
+        texts.enumerated().map { AIService.PaperContentBlock(id: String(format: "B%06d", $0.offset + 1), text: $0.element) }
+    }
+
+    @Test("Lines join into paragraphs at the starts the model named; furniture goes and a heading stands alone")
+    func paragraphs() {
+        let lines = lines([
+            "1 | Introduction",
+            "Microglia shift from mitochondrial ox-",
+            "idative phosphorylation (Hu",
+            "Journal of Neurochemistry, 2025",
+            "et al. 2022; Pan et al. 2022).",
+            "A second paragraph.",
+        ])
+        let layout = PaperReadingLayout(paragraphStarts: ["B000002", "B000006"], headings: ["B000001"], removed: ["B000004"])
+        let paragraphs = PaperReadingViewBuilder.paragraphs(lines: lines, layout: layout)
+        #expect(paragraphs.map(\.text) == [
+            "1 | Introduction",
+            "Microglia shift from mitochondrial oxidative phosphorylation (Hu et al. 2022; Pan et al. 2022).",
+            "A second paragraph.",
+        ])
+        #expect(paragraphs.map(\.isHeading) == [true, false, false])
+        #expect(PaperReadingViewBuilder.blocks(of: paragraphs).map(\.id) == ["B000001", "B000002", "B000003"])
+    }
+
+    @Test("A layout names only its chunk's lines, and a heading or a removed line is not also a start")
+    func validatedLayout() throws {
+        let blocks = lines(["Title", "Body", "9 of 22"])
+        let layout = try AIService.validatedPaperReadingLayout(
+            #"{"paragraphStarts":["B000001","B000002","B000003","B000099"],"headings":["B000001"],"remove":["B000003"]}"#,
+            blocks: blocks
+        )
+        #expect(layout == PaperReadingLayout(paragraphStarts: ["B000002"], headings: ["B000001"], removed: ["B000003"]))
+        #expect(throws: (any Error).self) { try AIService.validatedPaperReadingLayout("not json", blocks: blocks) }
+    }
+
+    @Test("Only a citation that is really in its paragraph is kept")
+    func validatedCitations() throws {
+        let blocks = lines(["Glycolysis rises (Hu et al. 2022; Pan et al. 2022). It falls later (Hu et al. 2022)."])
+        let kept = try AIService.validatedPaperReadingCitations(
+            #"""
+            {"citations":[
+              {"blockID":"B000001","exactText":" (Hu et al. 2022; Pan et al. 2022)","occurrence":1},
+              {"blockID":"B000001","exactText":" (Hu et al. 2022)","occurrence":1},
+              {"blockID":"B000001","exactText":" (Lee 2020)","occurrence":1},
+              {"blockID":"B000001","exactText":" (Hu et al. 2022)","occurrence":2},
+              {"blockID":"B000009","exactText":" (Hu et al. 2022)","occurrence":1}
+            ]}
+            """#,
+            blocks: blocks
+        )
+        #expect(kept.map(\.citation.exactText) == [" (Hu et al. 2022; Pan et al. 2022)", " (Hu et al. 2022)"])
+    }
+
+    @Test("An author-year paper is numbered in the order its references are first cited; one the list cannot name stays as written")
+    func runsNumberByFirstCitation() {
+        let index = PaperReferenceIndex(sourceID: "p", references: [
+            PaperReference(sourceID: "p", ordinal: 1, label: "Hu 2022", text: "Hu, Y. (2022). One."),
+            PaperReference(sourceID: "p", ordinal: 2, label: "Pan 2022", text: "Pan, R. (2022). Two."),
+            PaperReference(sourceID: "p", ordinal: 3, label: "Xiang 2021", text: "Xiang, X. (2021). Three."),
+        ])
+        let paragraphs = [
+            PaperReadingView.Paragraph(
+                text: "FDG-PET rises (Xiang et al. 2021). Glycolysis rises (Hu et al. 2022; Xiang et al. 2021) and stays (Nobody 1999).",
+                isHeading: false,
+                citations: [
+                    .init(exactText: " (Hu et al. 2022; Xiang et al. 2021)", occurrence: 1),
+                    .init(exactText: " (Xiang et al. 2021)", occurrence: 1),
+                    .init(exactText: " (Nobody 1999)", occurrence: 1),
+                ]
+            ),
+        ]
+        let runs = PaperReadingViewBuilder.runs(of: paragraphs, index: index)
+        #expect(runs == [[
+            .text("FDG-PET rises"),
+            .citation([PaperReadingCitedReference(number: 1, ordinal: 3)]),
+            .text(". Glycolysis rises"),
+            .citation([PaperReadingCitedReference(number: 2, ordinal: 1), PaperReadingCitedReference(number: 1, ordinal: 3)]),
+            .text(" and stays (Nobody 1999)."),
+        ]])
+    }
+
+    @Test("A numbered paper keeps its own numbers")
+    func runsKeepOwnNumbers() {
+        let index = PaperReferenceIndex(sourceID: "p", references: (1...12).map {
+            PaperReference(sourceID: "p", ordinal: $0, label: String($0), text: "Entry \($0).")
+        })
+        let paragraphs = [
+            PaperReadingView.Paragraph(text: "Seen before [12].", isHeading: false, citations: [.init(exactText: " [12]", occurrence: 1)]),
+        ]
+        #expect(PaperReadingViewBuilder.runs(of: paragraphs, index: index) == [[
+            .text("Seen before"),
+            .citation([PaperReadingCitedReference(number: 12, ordinal: 12)]),
+            .text("."),
+        ]])
+    }
+
+    @Test("A saved reading view round-trips, switches and is removed")
+    func storeRoundTrip() throws {
+        let id = "src_test_paper_reading_view_\(UUID().uuidString)"
+        defer { try? PaperReadingViewStore.remove(sourceID: id) }
+        #expect(PaperReadingViewStore.load(sourceID: id) == nil)
+        let view = PaperReadingView(
+            paragraphs: [.init(text: "Rises (Hu 2022).", isHeading: false, citations: [.init(exactText: " (Hu 2022)", occurrence: 1)])],
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            isShown: true
+        )
+        try PaperReadingViewStore.save(view, sourceID: id)
+        #expect(PaperReadingViewStore.load(sourceID: id) == view)
+        try PaperReadingViewStore.setShown(false, sourceID: id)
+        #expect(PaperReadingViewStore.load(sourceID: id)?.isShown == false)
+        try PaperReadingViewStore.remove(sourceID: id)
+        #expect(PaperReadingViewStore.load(sourceID: id) == nil)
+    }
+}

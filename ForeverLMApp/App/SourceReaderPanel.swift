@@ -1078,6 +1078,11 @@ struct SourceReaderPanel: View {
                 ArticleReadingViewMenuItems(article: article)
             }
 
+            if isSavedSource, article.sourceType == .paper, article.isPDF || article.cachedHasRemotePDFURL {
+                Divider()
+                PaperReadingViewMenuItems(article: article)
+            }
+
             if isSavedSource && isNarrating(article) {
                 Divider()
 
@@ -1705,39 +1710,43 @@ struct SourceReaderPanel: View {
                 )
             }
         } else if article.cachedHasRemotePDFURL, let pdfURL = article.remotePDFURL {
-            RemotePDFReaderView(
-                articleId: article.id,
-                url: pdfURL,
-                landingPageURL: URL(string: article.url).flatMap { $0 == pdfURL ? nil : $0 },
-                initialPageIndex: article.readingPositionPage,
-                selectedText: $selectedText,
-                findState: findState,
-                findRevision: findState.searchRevision,
-                zoomScale: readerZoomScale,
-                pageChanged: { page, pageCount in vm.updateReadingPosition(for: article.id, page: page, pageCount: pageCount) },
-                zoomScaleChanged: setReaderZoomScale,
-                zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
-                zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
-                resetZoomAction: resetReaderZoom
-            )
+            PaperReaderSwitch(article: article, zoomScale: readerZoomScale) {
+                RemotePDFReaderView(
+                    articleId: article.id,
+                    url: pdfURL,
+                    landingPageURL: URL(string: article.url).flatMap { $0 == pdfURL ? nil : $0 },
+                    initialPageIndex: article.readingPositionPage,
+                    selectedText: $selectedText,
+                    findState: findState,
+                    findRevision: findState.searchRevision,
+                    zoomScale: readerZoomScale,
+                    pageChanged: { page, pageCount in vm.updateReadingPosition(for: article.id, page: page, pageCount: pageCount) },
+                    zoomScaleChanged: setReaderZoomScale,
+                    zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
+                    zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
+                    resetZoomAction: resetReaderZoom
+                )
+            }
         } else if article.isPDF, article.cachedResolvedPDFPath != nil {
-            PDFBookReaderView(
-                initialArticle: article,
-                chapterArticles: article.parentGroup.map { vm.bookChaptersWithReadingProgress(for: $0) } ?? [article],
-                selectedText: $selectedText,
-                findState: findState,
-                findRevision: findState.searchRevision,
-                zoomScale: readerZoomScale,
-                bookNavigationBridge: bookNavigationBridge,
-                chapterChanged: { chapter in
-                    Task { await vm.selectReaderSource(chapter.id) }
-                },
-                pageChanged: { chapter, page, pageCount in vm.updateReadingPosition(for: chapter.id, page: page, pageCount: pageCount) },
-                zoomScaleChanged: setReaderZoomScale,
-                zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
-                zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
-                resetZoomAction: resetReaderZoom
-            )
+            PaperReaderSwitch(article: article, zoomScale: readerZoomScale) {
+                PDFBookReaderView(
+                    initialArticle: article,
+                    chapterArticles: article.parentGroup.map { vm.bookChaptersWithReadingProgress(for: $0) } ?? [article],
+                    selectedText: $selectedText,
+                    findState: findState,
+                    findRevision: findState.searchRevision,
+                    zoomScale: readerZoomScale,
+                    bookNavigationBridge: bookNavigationBridge,
+                    chapterChanged: { chapter in
+                        Task { await vm.selectReaderSource(chapter.id) }
+                    },
+                    pageChanged: { chapter, page, pageCount in vm.updateReadingPosition(for: chapter.id, page: page, pageCount: pageCount) },
+                    zoomScaleChanged: setReaderZoomScale,
+                    zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
+                    zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
+                    resetZoomAction: resetReaderZoom
+                )
+            }
         } else if article.cachedIsEPUBChapter, let path = article.cachedResolvedLocalPath {
             let lower = path.lowercased()
             if lower.hasSuffix(".htm") || lower.hasSuffix(".html") || lower.hasSuffix(".xhtml") {
