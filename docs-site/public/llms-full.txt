@@ -1935,15 +1935,19 @@ Schedule is stored in ForeverLM's local SQLite database and synced through Cloud
 
 # Board
 
-The Board is your own to-do board: cards in three columns, **To do**, **In progress** and **Done**. Use it for anything you are working on, whether or not it is about a source, and for planning your day.
+The Board is your own to-do board: cards in columns, **To do**, **In progress** and **Done**, plus any lists you add. Use it for anything you are working on, whether or not it is about a source, and for planning your day.
 
 Find **Board** in the Space's sidebar, under Notebooks, or keep it on the icon strip like any other place.
 
+## Lists
+
+**New list** at the end of the columns adds a list of your own; it sits between In progress and Done. Its **⋯** menu renames it, moves it left or right among your lists, or deletes it. Deleting a list that still holds cards asks first, and its cards go with it. Once there are more columns than fit, the Board scrolls sideways. A notebook's Tasks board has the same lists, and a team notebook's lists are the whole team's.
+
 ## Cards
 
-Type in **Add a card** at the foot of To do or In progress and press Return; the field stays ready for the next one. **New Card** at the top of the Board puts the cursor in To do.
+Type in **Add a card** at the foot of any column but Done and press Return; the field stays ready for the next one. **New Card** at the top of the Board puts the cursor in To do.
 
-Drag a card to another column, or to a different place in its column. The circle on a card moves it one column on, and Done wraps back to To do, so a card ticked by mistake reopens with one more click. Right-click a card to move it to any column or to delete it.
+Drag a card to another column, or to a different place in its column. The circle on a card moves it one column on (from one of your lists, that is Done), and Done wraps back to To do, so a card ticked by mistake reopens with one more click. Right-click a card to move it to any column or list, or to delete it.
 
 A card has a title, notes, an optional due date, and can point at a source or a Page. Moving a card into Done stamps when you finished it; moving it out clears the stamp.
 
@@ -1983,7 +1987,9 @@ A week's plan is the week on your Mac's Calendar: the blocks of focused work, on
 
 In **Plan**, an open quarter lists its weeks, Monday to Sunday. Each week shows its seven days as small bars, filled by the hours of its blocks in the colours of the objectives they serve, and how many blocks and hours it gives the quarter. Click a week to see its days and their blocks, and click a day to open it in **Day**. A block counts toward the quarter when its notes name one of the quarter's objectives or link its plan, as the blocks the chat plans with you do; meetings and everything else on the calendar show in grey. Each objective also shows the hours its weeks have given it so far.
 
-Click the calendar glyph at the foot of the window's left edge to see today's events and, under them, this quarter's objectives. Click the quarter to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
+An open week also lists what it is to deliver: the task lines under its heading in the quarter's Page ("Week of November 9"), each with a box to tick, the day it is due and its objective's colour. Ticking a box ticks the line in the Page.
+
+Click the calendar glyph at the foot of the window's left edge to see today's events. **Plan**, at its foot, opens this place.
 
 ## Planning with the chat
 
@@ -2929,6 +2935,14 @@ Nothing is added until you pick it. The papers with a link need no AI at all. On
 ## Reading a Figure Beside its Legend
 
 A journal often prints a figure on one page and its legend on another: overleaf, a few pages on, or at the end of a preprint. When a paper is open in the reader, choose **Figure Legends** from the reader's **⋯** menu and a column opens beside the PDF with every figure's legend. It follows the page you are on: the figures drawn on that page are marked and their legends scroll into view, wherever the legend itself is printed. Click a figure's name to go to its page. The legends are read from the paper's own PDF, free, with no model call, and a figure whose legend the paper does not print shows "No legend found". Figure Legends shares the reader's side column with Levels and Linked References, so opening one closes the others. On the Mac it is in the reader and in a Source Reader window, for papers open as a PDF. In the web library the same **Figure Legends** item in the Reader's **⋯** menu opens the legends beside the PDF, and a click on a figure opens the PDF at its page; the browser's own PDF viewer does not report which page you are on, so the web column does not follow it. It shows legends once the Mac has read the paper's figures and synced them.
+
+## Reading Without the Inline Citations
+
+Some papers, review articles above all, put a row of names and years in every sentence. A PDF's lines cannot close up around them, so ForeverLM offers a second way to read such a paper on the Mac: in the Reader's **⋯** menu, choose **Reading View**. A model reads the paper's text once, and the Reader then shows it as one column with each citation replaced by small raised numbers. Click a number to see the reference it names, open that paper if it is in your library, or add it.
+
+A paper with numbered citations keeps its own numbers. One that cites by author and year is numbered in the order its references are first cited. A citation ForeverLM cannot match to an entry of the paper's reference list stays as the paper wrote it.
+
+The PDF is untouched: **Show PDF** in the same menu switches back, **Show Reading View** returns without asking the model again, and **Remove Reading View** deletes it. Figures and tables are not drawn in the reading view, so switch to the PDF for those. The reading view is kept on this Mac only.
 
 ## How PDF Loading Works
 
@@ -4016,7 +4030,7 @@ refused.
 | `create_team` | `name` | Create a team the learner owns, stored in the learner's own iCloud. Returns the team. |
 | `share_with_team` | `team_id`, `kind`, `ids`, `include_sources?`, `include_docs?`, `include_chats?`, `include_cited_sources?`, `rights_affirmed_by_learner?` | Copy sources, Notebooks, Pages, chats or courses (`kind`) into the team. Originals stay; a Notebook travels with its Goals and by default its sources, Pages and chats, and whatever is filed under it afterwards follows it into the team; a chat becomes a read-only transcript; a course travels with its lectures, readings, quizzes and every source on its path (`course_sources_shared`), and each member takes it with their own progress. A Page, site or animation travels with its sources: the sources its record links are copied into the team and the copy names the team's copies (`linked_sources_shared`), and the web sources its body cites that My Library holds and the team does not (papers and books, or anything with a file on the Mac) come along too (`cited_sources_shared`) unless `include_cited_sources` is `false`; a source that could not be copied is listed under `sources_not_shared` and does not stop the share. Returns the team copy id for every original. |
 | `share_notebook` | `notebook_id`, `rights_affirmed_by_learner?`, `team_id?` | Share a notebook with people in one call, as its **Share…** does in ForeverLM. A notebook already in one team uses that team; a notebook in no team gets a new team named after it (its title, emoji included), holding a copy of the notebook with all its approved sources and their files, its Goals, Pages and chats, and what is filed in the notebook later follows it there. `team_id` names the team: needed for a notebook two teams hold, or to share it into another of the learner's teams; a team that already has the notebook gets nothing copied again. Returns `team_id`, `team_name`, `created_team`, `shared_sources`, `team_notebook_id` (the team's notebook), the `members` with their role and whether they accepted, `invitation_link`: the link **Copy Invitation Link** copies (`null` until iCloud has shared a new team, the reason in `message`), `link_opens_to_anyone`: `true` when the link opens a team the learner owns to anyone who has it, with editing, and `message`. Refused, naming the owner, when the learner can only read the team. |
-| `list_notebook_tasks` | `notebook_id`, `status?`, `assignee?` | List a Notebook's tasks with every field. Filter by `status` (`todo`, `doing`, `done`) or, in a team Notebook, by `assignee` (`user_record_name` or `me`). A team Notebook's response includes the team and its roster. |
+| `list_notebook_tasks` | `notebook_id`, `status?`, `assignee?` | List a Notebook's tasks with every field. Filter by `status` (`todo`, `doing`, `done`) or, in a team Notebook, by `assignee` (`user_record_name` or `me`). A team Notebook's response includes the team and its roster. The response also carries the board's own `lists` (`id`, `title`, in board order, between In progress and Done); an open task in one has its `list_id`. |
 | `create_notebook_task` | `notebook_id`, `title`, `notes?`, `status?`, `assignee_record_name?`, `due_date?`, `source_id?`, `doc_id?` | Add a task. `assignee_record_name` (a member's `user_record_name` or `me`) applies to team Notebooks only; `due_date` is `YYYY-MM-DD`. |
 | `update_notebook_task` | `task_id`, `title?`, `notes?`, `status?`, `assignee_record_name?`, `due_date?`, `source_id?`, `doc_id?` | Change a task; omitted fields keep their value. `assignee_record_name` `""` unassigns and `due_date` `""` clears the date. Setting `done` stamps the completion. |
 | `delete_notebook_task` | `task_id` | Delete a task; in a team Notebook every member loses it. Not undoable. |
@@ -6803,6 +6817,23 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.219.0 (build 299) — 2026-11-14
+
+**Highlights:**
+- **Read a paper with its citations as superscript numbers.**
+- **Cards for a source start with a story card,** then a few findings.
+- **The Board takes your own lists.**
+
+- **A paper can be read as a reflowed Reading View with its citations as superscript numbers.** In the Reader's ⋯ menu, Reading View makes one from the PDF; then Show PDF / Show Reading View, Make Reading View Again and Remove Reading View.
+- **Listen no longer reads a citation aloud that wraps a PDF line,** such as "(Shen et al. 2024)" split across two lines.
+- **A selection in a chat reply stays selected,** and the Add to chat / More details / Ask in side chat bar never hangs over nothing; a reply's citations settle when it stops streaming rather than at the next message.
+- **The day's popover is the day alone;** the week's deliverables and the quarter move to a Plan row that opens the Space's Plan place, where an open week lists what it is to deliver.
+- **A source gets a story card and a few findings, not a pile of factoids.** Cards for a paper, talk or lecture start with one that asks you to tell its story, then two to four findings worth knowing on their own.
+- **All Cards: delete a card from its menu,** with Undo; and By Source keeps a book's chapters together under the book's title.
+- **The Board takes your own lists** beside To do, In progress and Done: add, rename, reorder and delete them, and a team shares the same columns. A long card title wraps instead of running off the card.
+- **Chat beside a video carries the slide's whole talk,** everything said while the slide on screen was up, where it used to take a fixed window around the playhead.
+- **Saved cards in a chat:** the button says Keep for one card and Keep All for several, and the popover has an Open in Memory button that moves the cards into the Memory pane.
 
 ## 0.218.0 (build 298) — 2026-11-12
 

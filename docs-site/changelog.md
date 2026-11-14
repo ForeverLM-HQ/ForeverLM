@@ -33,6 +33,23 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.219.0 (build 299) — 2026-11-14
+
+**Highlights:**
+- **Read a paper with its citations as superscript numbers.**
+- **Cards for a source start with a story card,** then a few findings.
+- **The Board takes your own lists.**
+
+- **A paper can be read as a reflowed Reading View with its citations as superscript numbers.** In the Reader's ⋯ menu, Reading View makes one from the PDF; then Show PDF / Show Reading View, Make Reading View Again and Remove Reading View.
+- **Listen no longer reads a citation aloud that wraps a PDF line,** such as "(Shen et al. 2024)" split across two lines.
+- **A selection in a chat reply stays selected,** and the Add to chat / More details / Ask in side chat bar never hangs over nothing; a reply's citations settle when it stops streaming rather than at the next message.
+- **The day's popover is the day alone;** the week's deliverables and the quarter move to a Plan row that opens the Space's Plan place, where an open week lists what it is to deliver.
+- **A source gets a story card and a few findings, not a pile of factoids.** Cards for a paper, talk or lecture start with one that asks you to tell its story, then two to four findings worth knowing on their own.
+- **All Cards: delete a card from its menu,** with Undo; and By Source keeps a book's chapters together under the book's title.
+- **The Board takes your own lists** beside To do, In progress and Done: add, rename, reorder and delete them, and a team shares the same columns. A long card title wraps instead of running off the card.
+- **Chat beside a video carries the slide's whole talk,** everything said while the slide on screen was up, where it used to take a fixed window around the playhead.
+- **Saved cards in a chat:** the button says Keep for one card and Keep All for several, and the popover has an Open in Memory button that moves the cards into the Memory pane.
+
 ## 0.218.0 (build 298) — 2026-11-12
 
 **Highlights:**

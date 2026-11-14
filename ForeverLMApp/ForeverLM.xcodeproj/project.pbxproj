@@ -3272,6 +3272,7 @@
 		6A84BC883B8F97B0197E7B0B /* SlowFreeModelOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlowFreeModelOffer.swift; sourceTree = "<group>"; };
 		6AAE9CDAD0A0CCF349E792EE /* StorageService+PageVersions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorageService+PageVersions.swift"; sourceTree = "<group>"; };
 		6ABEE9269BD0217DB743C15B /* ArtifactThreeWayMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactThreeWayMerge.swift; sourceTree = "<group>"; };
+		6ACE879DC37076E1B9070A6A /* MainThreadStackSampler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MainThreadStackSampler.h; sourceTree = "<group>"; };
 		6AE335B11A3AE003B236A14E /* MobileReaderPageScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileReaderPageScriptTests.swift; sourceTree = "<group>"; };
 		6AF13B10988CD2FF41E83E13 /* Prefs+Imaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Prefs+Imaging.swift"; sourceTree = "<group>"; };
 		6B184E6F9FC4E7BCB4472AD4 /* MobileWalkthroughGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileWalkthroughGenerator.swift; sourceTree = "<group>"; };
@@ -5842,6 +5843,7 @@
 			isa = PBXGroup;
 			children = (
 				2AB3EF9CD5B807678CA5EC6C /* BridgingHeader.h */,
+				6ACE879DC37076E1B9070A6A /* MainThreadStackSampler.h */,
 				0F7FD98BF3FA1BF16F8D1BBA /* ObjCExceptionHandler.h */,
 				03447DA94D6940060ADC4F8A /* ObjCExceptionHandler.m */,
 				FB85571A4DE82433E186EC91 /* PrivacyInfo.xcprivacy */,
@@ -10058,7 +10060,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 298;
+				CURRENT_PROJECT_VERSION = 299;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (Dev)";
@@ -10072,7 +10074,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.218.0;
+				MARKETING_VERSION = 0.219.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -10095,7 +10097,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 298;
+				CURRENT_PROJECT_VERSION = 299;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = ForeverLM;
@@ -10109,7 +10111,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.218.0;
+				MARKETING_VERSION = 0.219.0;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -10253,7 +10255,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 298;
+				CURRENT_PROJECT_VERSION = 299;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (First Run)";
@@ -10267,7 +10269,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.218.0;
+				MARKETING_VERSION = 0.219.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev.firstrun;
 				PRODUCT_MODULE_NAME = ForeverLM;
