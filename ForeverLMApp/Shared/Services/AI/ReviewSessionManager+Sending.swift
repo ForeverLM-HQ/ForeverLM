@@ -589,16 +589,29 @@ extension ReviewSessionManager {
 
     /// The transcript around `seconds` of a video, read from its stored
     /// content off the main actor (`ChatContextAdditions.transcriptExcerpt`).
-    private func transcriptExcerpt(sourceID: String, around seconds: Int) async -> String? {
+    private func transcriptExcerpt(
+        sourceID: String,
+        around seconds: Int
+    ) async -> (said: String, slide: (slide: Int, from: Int, to: Int)?, trimmed: Bool)? {
         guard let content = await storage.loadSourceContent(sourceID) else { return nil }
         return await Task.detached(priority: .userInitiated) {
-            let transcript = YouTubeSlideContentParser.parse(content).transcriptContent
-            let timed = YouTubeTranscriptDisplayParser.parse(transcript).segments
+            let parsed = YouTubeSlideContentParser.parse(content)
+            let timed = YouTubeTranscriptDisplayParser.parse(parsed.transcriptContent).segments
                 .compactMap { segment -> (seconds: Double, text: String)? in
                     guard let start = YouTubeTranscriptTime.seconds(from: segment.startTime) else { return nil }
                     return (start, segment.text)
                 }
-            return ChatContextAdditions.transcriptExcerpt(timed, around: seconds)
+            // A video with an extracted deck is asked about a slide: everything
+            // said while it was up. Without one, a window around the playhead.
+            let deck = parsed.displaySlides.map { slide in
+                (index: slide.index, windows: slide.windows.map { (start: $0.start, end: $0.end) })
+            }
+            if let span = ChatContextAdditions.slideSpan(deck, at: seconds),
+               let talk = ChatContextAdditions.transcriptSpan(timed, from: span.from, to: span.to, around: seconds) {
+                return (talk.text, span, talk.trimmed)
+            }
+            guard let said = ChatContextAdditions.transcriptExcerpt(timed, around: seconds) else { return nil }
+            return (said, nil, false)
         }.value
     }
 
@@ -627,7 +640,13 @@ extension ReviewSessionManager {
             }
             setSendPreparationDetail("Looking at \(moment.clock)")
             startVideoMomentFrameCapture(sourceID: shown.id, seconds: moment.at)
-            moment.said = await transcriptExcerpt(sourceID: shown.id, around: moment.at)
+            if let talk = await transcriptExcerpt(sourceID: shown.id, around: moment.at) {
+                moment.said = talk.said
+                moment.slide = talk.slide?.slide
+                moment.slideFrom = talk.slide?.from
+                moment.slideTo = talk.slide?.to
+                moment.trimmed = talk.trimmed ? true : nil
+            }
             moment.frame = await videoMomentFrameCaptured(sourceID: shown.id, seconds: moment.at)
             completed[shown.id] = moment
         }

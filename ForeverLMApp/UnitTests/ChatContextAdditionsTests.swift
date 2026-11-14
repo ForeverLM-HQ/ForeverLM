@@ -416,4 +416,61 @@ struct ChatVideoMomentTests {
         #expect(ChatContextAdditions.playheadPhrase(.init(at: 65)) == "at 1:05")
         #expect(ChatOpenPanes.VideoPlayhead(seconds: 1611.9, isPlaying: false).positionLabel == "paused at 26:51")
     }
+
+    @Test("A slide's talk is everything said while it was up, trimmed from the end farther from the moment")
+    func slideTalk() throws {
+        let deck: [(index: Int, windows: [(start: Double, end: Double?)])] = [
+            (1, [(0, 600)]),
+            (2, [(600, 900), (1500, 1560)]),
+            (3, [(900, nil)]),
+        ]
+        let span = try #require(ChatContextAdditions.slideSpan(deck, at: 1530))
+        #expect(span.slide == 2 && span.from == 1500 && span.to == 1560)
+        #expect(ChatContextAdditions.slideSpan(deck, at: 950) == nil)
+        #expect(ChatContextAdditions.slideSpan([], at: 10) == nil)
+
+        let segments: [(seconds: Double, text: String)] = [
+            (1400, "Before the slide."),
+            (1497, "So, the genome."),
+            (1520, "Thirteen proteins."),
+            (1550, "Rest are nuclear."),
+            (1562, "Next slide."),
+        ]
+        let talk = try #require(ChatContextAdditions.transcriptSpan(segments, from: 1500, to: 1560, around: 1530))
+        #expect(talk.text == """
+        [24:57] So, the genome.
+        [25:20] Thirteen proteins.
+        [25:50] Rest are nuclear.
+        """)
+        #expect(!talk.trimmed)
+
+        // A paragraph under way when the slide came up belongs to it.
+        let under = try #require(ChatContextAdditions.transcriptSpan(
+            [(1300, "A long paragraph."), (1700, "Later.")], from: 1500, to: 1560, around: 1530))
+        #expect(under.text == "[21:40] A long paragraph.")
+
+        let many = (0..<40).map { (seconds: Double(1500 + $0), text: "word word word word \($0)") }
+        let capped = try #require(ChatContextAdditions.transcriptSpan(
+            many, from: 1500, to: 1540, around: 1539, characterLimit: 200))
+        #expect(capped.trimmed)
+        #expect(capped.text.count <= 201)
+        #expect(capped.text.hasSuffix("word 39"))
+    }
+
+    @Test("The tutor is told which slide the talk is for and whether it is whole")
+    func slideTalkFraming() throws {
+        func framing(trimmed: Bool?) throws -> String {
+            let moment = ChatContextAdditions.VideoMoment(
+                at: 1530, playing: false, said: "[25:20] Thirteen proteins.", frame: false,
+                slide: 2, slideFrom: 1500, slideTo: 1560, trimmed: trimmed)
+            let shown = ChatContextAdditions.OnScreen(id: "v1", title: "Talk", kind: "video", moment: moment)
+            return try #require(ChatContextAdditions.momentFraming([shown]))
+        }
+        let whole = try framing(trimmed: nil)
+        #expect(whole.contains("slide 2"))
+        #expect(whole.contains("25:00 to 26:00"))
+        #expect(whole.contains("Everything said while it was up"))
+        let cut = try framing(trimmed: true)
+        #expect(cut.contains("fetch_video_transcript"))
+    }
 }

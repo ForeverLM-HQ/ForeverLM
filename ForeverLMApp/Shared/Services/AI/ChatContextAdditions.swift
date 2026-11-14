@@ -175,12 +175,35 @@ enum ChatContextAdditions {
         /// True when the frame on screen at `at` was captured on this Mac and
         /// goes to the model with the message as a picture.
         var frame: Bool?
+        /// The slide on screen at `at`, by its number in the video's extracted
+        /// deck; set with `slideFrom` and `slideTo` when the video has one and
+        /// `said` is what was spoken while that slide was up, not a fixed window.
+        var slide: Int?
+        /// When that slide came on screen and went off, in whole seconds.
+        var slideFrom: Int?
+        var slideTo: Int?
+        /// True when the slide's talk ran past the limit and `said` keeps only
+        /// the lines nearest `at`.
+        var trimmed: Bool?
 
-        init(at: Int, playing: Bool? = nil, said: String? = nil, frame: Bool? = nil) {
+        init(
+            at: Int,
+            playing: Bool? = nil,
+            said: String? = nil,
+            frame: Bool? = nil,
+            slide: Int? = nil,
+            slideFrom: Int? = nil,
+            slideTo: Int? = nil,
+            trimmed: Bool? = nil
+        ) {
             self.at = max(0, at)
             self.playing = playing
             self.said = said
             self.frame = frame
+            self.slide = slide
+            self.slideFrom = slideFrom
+            self.slideTo = slideTo
+            self.trimmed = trimmed
         }
 
         /// "26:51", or "1:02:03" past the hour.
@@ -466,7 +489,16 @@ enum ChatContextAdditions {
                     + "“This”, “here”, “what was just said”, “this slide” or “this diagram” means that moment unless the learner names another."
             ]
             if let said = moment.said?.trimmingCharacters(in: .whitespacesAndNewlines), !said.isEmpty {
-                lines.append("What was said around it, from the transcript:")
+                if let slide = moment.slide, let from = moment.slideFrom, let to = moment.slideTo {
+                    lines.append("That is slide \(slide) of the video's extracted slides, on screen from \(Self.clock(from)) to \(Self.clock(to)).")
+                    if moment.trimmed == true {
+                        lines.append("What was said while it was up, from the transcript (the talk on this slide is longer than fits, so the lines nearest \(clock) are here; call fetch_video_transcript with source_id \(source.id) for the rest):")
+                    } else {
+                        lines.append("Everything said while it was up, from the transcript:")
+                    }
+                } else {
+                    lines.append("What was said around it, from the transcript:")
+                }
                 lines.append(said)
             }
             if moment.frame == true {
@@ -530,6 +562,68 @@ enum ChatContextAdditions {
             excerpt = "…" + String(excerpt.suffix(characterLimit))
         }
         return excerpt
+    }
+
+    /// The stretch of the video one slide is on screen around `seconds`: the
+    /// first window of any slide that holds the moment, as whole seconds, with
+    /// the slide's number. A window with no end is not known to hold anything.
+    /// Nil when no slide does, as in a video with no extracted deck.
+    static func slideSpan(
+        _ slides: [(index: Int, windows: [(start: Double, end: Double?)])],
+        at seconds: Int
+    ) -> (slide: Int, from: Int, to: Int)? {
+        let moment = Double(max(0, seconds))
+        for slide in slides {
+            for window in slide.windows {
+                guard let end = window.end, end > window.start,
+                      window.start <= moment, moment <= end else { continue }
+                return (slide.index, Int(window.start), Int(end.rounded(.up)))
+            }
+        }
+        return nil
+    }
+
+    /// Everything said while a slide was on screen: the segment under way when
+    /// it came up and every one that starts before it went off, starting
+    /// `lead` seconds early because a speaker usually begins a beat before the
+    /// slide changes. Over `characterLimit`, lines go from whichever end is
+    /// farther from the moment until it fits, and `trimmed` says so.
+    static func transcriptSpan(
+        _ segments: [(seconds: Double, text: String)],
+        from start: Int,
+        to end: Int,
+        around moment: Int,
+        lead: Double = 5,
+        characterLimit: Int = 9000
+    ) -> (text: String, trimmed: Bool)? {
+        var lines: [(seconds: Double, text: String)] = []
+        for (index, segment) in segments.enumerated() {
+            let words = segment.text
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            guard !words.isEmpty, segment.seconds.isFinite else { continue }
+            let next = index + 1 < segments.count ? segments[index + 1].seconds : segment.seconds + 120
+            let underWayAtStart = segment.seconds <= Double(start) && next > Double(start)
+            let startsWithin = segment.seconds >= Double(start) - lead && segment.seconds <= Double(end)
+            guard underWayAtStart || startsWithin else { continue }
+            lines.append((segment.seconds, "[\(clock(Int(segment.seconds)))] \(words)"))
+        }
+        guard !lines.isEmpty else { return nil }
+        func joined() -> String { lines.map(\.text).joined(separator: "\n") }
+        var trimmed = false
+        while lines.count > 1, joined().count > characterLimit {
+            trimmed = true
+            let first = abs(lines[0].seconds - Double(moment))
+            let last = abs(lines[lines.count - 1].seconds - Double(moment))
+            if first >= last { lines.removeFirst() } else { lines.removeLast() }
+        }
+        var text = joined()
+        if text.count > characterLimit {
+            trimmed = true
+            text = "…" + String(text.suffix(characterLimit))
+        }
+        return (text, trimmed)
     }
 
     /// "26:51", or "1:02:03" past the hour: the reading a transcript marker and
