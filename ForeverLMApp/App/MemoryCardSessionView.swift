@@ -403,7 +403,7 @@ struct MemoryCardSessionView: View {
                 }
                 Divider()
             }
-            Button("Delete Card", role: .destructive) { deleteCard() }
+            Button("Delete Card", systemImage: "trash", role: .destructive) { deleteCard() }
                 .accessibilityIdentifier("memory.cards.delete")
         } label: {
             Image(systemName: "ellipsis")
