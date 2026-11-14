@@ -103,6 +103,32 @@ extension ArticleSpeechContentTests {
         #expect(narration.contains("2020"))
     }
 
+    @Test("a citation that runs over PDF lines is removed a piece per line, and the sentence closes up")
+    func paperNarrationStripsCitationsAcrossLines() throws {
+        let blocks = [
+            AIService.PaperContentBlock(id: "B000001", text: "microglia are hypothesized to drive early FDG-PET elevations"),
+            AIService.PaperContentBlock(id: "B000002", text: "(Xiang et al. 2021; Zimmer et al. 2022; Brendel et al. 2016, 2017;"),
+            AIService.PaperContentBlock(id: "B000003", text: "Gotzl et al. 2019; Mirzaei et al. 2016; Liu et al. 2015; Xiang"),
+            AIService.PaperContentBlock(id: "B000004", text: "et al. 2022). Microglia undergo metabolic reprogramming (Hu"),
+            AIService.PaperContentBlock(id: "B000005", text: "et al. 2022; Pan et al. 2022) in response to pathology."),
+        ]
+        let response = """
+        {"adaptations":[],"relocations":[],"removeText":[
+          {"blockID":"B000002","exactText":"(Xiang et al. 2021; Zimmer et al. 2022; Brendel et al. 2016, 2017;","occurrence":1},
+          {"blockID":"B000003","exactText":"Gotzl et al. 2019; Mirzaei et al. 2016; Liu et al. 2015; Xiang","occurrence":1},
+          {"blockID":"B000004","exactText":"et al. 2022)","occurrence":1},
+          {"blockID":"B000004","exactText":" (Hu","occurrence":1},
+          {"blockID":"B000005","exactText":"et al. 2022; Pan et al. 2022)","occurrence":1}
+        ]}
+        """
+        let plan = try AIService.validatedPaperSpeechAdaptationPlan(response, blocks: blocks)
+        #expect(plan.removeText.count == 5)
+
+        let narration = try PaperTextToSpeechPreparationService.reconstruct(blocks: blocks, applying: plan)
+
+        #expect(narration == "microglia are hypothesized to drive early FDG-PET elevations. Microglia undergo metabolic reprogramming in response to pathology.")
+    }
+
     @Test("paper speech plan replaces a table with a concise explanation and preserves prose")
     func paperSpeechPlanReconstruction() throws {
         let blocks = [

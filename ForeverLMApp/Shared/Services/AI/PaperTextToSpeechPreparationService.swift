@@ -414,11 +414,20 @@ struct PaperTextToSpeechPreparationService: Sendable {
         var deferredSpokenText: [String] = []
 
         func appendUnadaptedBlock(_ block: AIService.PaperContentBlock) throws {
-            let cleaned = try applyingInlineDeletions(
-                deletionsByBlock[block.id] ?? [],
-                to: block.text
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !cleaned.isEmpty { output.append(cleaned) }
+            let deletions = deletionsByBlock[block.id] ?? []
+            let cleaned = try applyingInlineDeletions(deletions, to: block.text)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { return }
+            // A citation that ran over the line's edge was removed in pieces,
+            // the last from this block's head. What is left opens with the
+            // sentence's own punctuation, which belongs on the words before
+            // the citation: joined as a new line it would read "elevations .".
+            let headRemoved = deletions.contains { $0.occurrence == 1 && block.text.hasPrefix($0.exactText) }
+            if headRemoved, let first = cleaned.first, ".,;:!?)".contains(first), !output.isEmpty {
+                output[output.count - 1] += cleaned
+            } else {
+                output.append(cleaned)
+            }
         }
 
         func flushDeferredSpokenTextIfSentenceEnded() {
