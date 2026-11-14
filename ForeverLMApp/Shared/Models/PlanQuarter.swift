@@ -121,8 +121,8 @@ struct PlanQuarter: Hashable, Sendable, Identifiable {
 
     // MARK: The Page it starts as
 
-    /// The heading the popover reads the quarter's objectives under
-    /// (`PlanGlance`).
+    /// The heading the Plan place reads the quarter's objectives under
+    /// (`PlanOverview`).
     static let objectivesHeading = "Objectives"
 
     /// The Markdown a new plan Page starts with, as Newport describes a
@@ -142,54 +142,6 @@ struct PlanQuarter: Hashable, Sendable, Identifiable {
             "## \(PlanWeekDeliverables.weeksHeading)", "",
         ].joined(separator: "\n")
     }
-}
-
-// MARK: - The quarter at a glance
-
-/// What the calendar glyph's popover shows of the plan the day serves
-/// (`DayNowPopover`): the week's deliverables, written in the quarter's Page,
-/// above the quarter's objectives with the hours the week's calendar gives
-/// each. Read from the plan's Markdown and the calendar off the main actor.
-struct PlanGlance: Equatable, Sendable {
-    let quarter: PlanQuarter
-    /// Whether the quarter's plan Page exists.
-    let exists: Bool
-    /// The written bullets under Objectives, in order.
-    let objectives: [String]
-    /// The week the popover shows; nil when the plan does not exist.
-    var week: PlanWeekGlance? = nil
-
-    /// How many objectives the glance shows.
-    static let lineLimit = 5
-
-    /// The objectives' short names (`PlanQuarterWeeks.objectiveName`).
-    var objectiveNames: [String] { objectives.map(PlanQuarterWeeks.objectiveName) }
-
-    /// The colour an objective wears, by its place: its family's
-    /// (`PlanQuarterWeeks.colorSlots`).
-    func colorSlot(_ index: Int) -> Int {
-        let slots = PlanQuarterWeeks.colorSlots(objectiveNames)
-        return slots.indices.contains(index) ? slots[index] : index
-    }
-}
-
-/// One week as the popover shows it: what it is to deliver, and the hours its
-/// calendar gives each of the quarter's objectives.
-struct PlanWeekGlance: Equatable, Sendable {
-    /// The week's Monday.
-    let start: Date
-    /// Next week rather than this one: at the weekend, once next week's
-    /// deliverables are written, they are the ones worth seeing.
-    let isNext: Bool
-    let deliverables: [PlanDeliverable]
-    /// Minutes the week's calendar gives each objective, by its place.
-    let minutesByObjective: [Int: Int]
-    /// Whether the Mac's Calendar was read; off, there are no hours to show.
-    let calendarOn: Bool
-    /// The quarter's weeks still to come after this one.
-    let weeksLeft: Int
-
-    var doneCount: Int { deliverables.filter(\.isDone).count }
 }
 
 // MARK: - The week's deliverables, written in the quarter's Page
@@ -225,7 +177,7 @@ struct PlanDeliverable: Equatable, Sendable, Identifiable {
 ///     - [ ] Thesis: chapter two drafted and sent for comments (Fri)
 ///     - [x] Grant: budget section shared with the team (Thu)
 ///
-/// Pure, so the popover's reading and ticking are tested apart.
+/// Pure, so the reading and ticking are tested apart.
 enum PlanWeekDeliverables {
     static let weeksHeading = "Weeks"
 
@@ -398,13 +350,13 @@ enum PlanWeekDeliverables {
 }
 
 /// Reading a plan Page's outline: the bullets under one of its headings.
-/// Pure, so the popover's reading is tested apart.
+/// Pure, so the reading is tested apart.
 enum PlanOutline {
     /// The written top-level bullets under the `## heading` (any level, its
     /// words matched without case), up to the next heading: each bullet's
     /// text with its marker, a task box and `[[` `]]` and `**` taken off.
     /// Empty bullets, the template's, are left out.
-    static func items(under heading: String, in markdown: String, limit: Int = PlanGlance.lineLimit) -> [String] {
+    static func items(under heading: String, in markdown: String, limit: Int = PlanOverview.objectiveLimit) -> [String] {
         var items: [String] = []
         var inSection = false
         for raw in markdown.components(separatedBy: "\n") {
@@ -667,11 +619,24 @@ struct PlanOverview: Equatable, Sendable {
     /// The plan's written Objectives, in order.
     let objectives: [String]
     let weeks: [PlanWeek]
+    /// What each week is to deliver, by the week's Monday: the task lines
+    /// under its heading in the quarter's Page (`PlanWeekDeliverables`).
+    var deliverables: [Date: [PlanDeliverable]] = [:]
     /// Whether the Mac's Calendar is on for ForeverLM; off, the weeks are empty.
     let calendarOn: Bool
 
     /// How many objectives the Plan place lists and colours.
     static let objectiveLimit = 8
+
+    /// The objectives' short names (`PlanQuarterWeeks.objectiveName`).
+    var objectiveNames: [String] { objectives.map(PlanQuarterWeeks.objectiveName) }
+
+    /// The colour an objective wears, by its place: its family's
+    /// (`PlanQuarterWeeks.colorSlots`).
+    func colorSlot(_ index: Int) -> Int {
+        let slots = PlanQuarterWeeks.colorSlots(objectiveNames)
+        return slots.indices.contains(index) ? slots[index] : index
+    }
 
     /// Planned minutes per objective across the quarter.
     var minutesByObjective: [Int: Int] {

@@ -4,7 +4,7 @@ import Testing
 
 /// The quarter's plan (`PlanQuarter`): the ids that make one record per
 /// quarter on every device, the titles that link it, the stepping the Plan
-/// place and `get_plan` do, and the outline the day's popover reads. The
+/// place and `get_plan` do, and the outline the Plan place reads. The
 /// week and the day are the calendar, so no week is a plan.
 @Suite("Plan quarters")
 struct PlanQuarterTests {
@@ -63,11 +63,11 @@ struct PlanQuarterTests {
         let template = PlanQuarter(year: 2026, quarter: 4).template
         #expect(template.components(separatedBy: "\n").filter { $0.hasPrefix("## ") }
             == ["## Big picture", "## Objectives", "## Strategies and habits", "## Weeks"])
-        #expect(template.contains("## \(PlanQuarter.objectivesHeading)"), "the popover reads the objectives by this heading")
+        #expect(template.contains("## \(PlanQuarter.objectivesHeading)"), "the Plan place reads the objectives by this heading")
         #expect(!template.hasPrefix("# "), "a plan is named by its quarter, not its body")
     }
 
-    @Test("The popover reads a section's written bullets, the template's empty ones left out")
+    @Test("The outline reads a section's written bullets, the template's empty ones left out")
     func outlineItems() {
         let markdown = """
         ## Objectives
@@ -223,7 +223,7 @@ struct PlanQuarterTests {
         #expect(PlanWeekDeliverables.monday(ofHeading: "Week of someday", quarter: q4, calendar: calendar) == nil)
     }
 
-    @Test("The popover reads the week's top-level task lines, with their objective, day and tick")
+    @Test("The Plan place reads the week's top-level task lines, with their objective, day and tick")
     func weekDeliverables() {
         let calendar = PlanQuarterWeeks.weekCalendar(zone)
         let q4 = PlanQuarter(year: 2026, quarter: 4)

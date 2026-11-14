@@ -19,7 +19,10 @@ import os
 // quarter opens in place to its objectives, each in a colour with the hours
 // the calendar gives it, and its weeks, each a strip of seven days coloured
 // by the objectives their blocks serve; a week opens to its days and their
-// blocks, and a day opens the Day pane. The quarter's Page opens from its
+// blocks under what the week is to deliver (the task lines of the quarter's
+// Page, ticked here; product owner, 2026-11-13, of the calendar glyph's
+// popover that used to show them: "week and quarter can be on a separate
+// plan page"), and a day opens the Day pane. The quarter's Page opens from its
 // Objectives. Its pill starts the chat that plans a quarter, a week or a day.
 
 /// The Space's Plan place: the place head (title and the Plan pill), a
@@ -39,6 +42,10 @@ struct SpacePlanPage: View {
     /// The open quarter as last read, and the read's failure.
     @State private var overview: PlanOverview?
     @State private var loadError: String?
+    /// Ticks clicked and not yet read back from the quarter's Page, by
+    /// deliverable, so a click shows at once; and a tick's failed save.
+    @State private var pendingTicks: [String: Bool] = [:]
+    @State private var tickError: String?
     /// Bumped when the calendar changes under the place, to read it again.
     @State private var calendarChanges = 0
     /// How the open week's events look in the Calendar app: each one's
@@ -330,6 +337,8 @@ struct SpacePlanPage: View {
             ForEach(shown.weeks) { week in
                 weekRow(week)
                 if openWeek == week.start {
+                    weekDeliverables(week, in: shown)
+                        .padding(.leading, 30)
                     weekDays(week)
                         .padding(.leading, 30)
                         .padding(.top, 2)
@@ -422,6 +431,89 @@ struct SpacePlanPage: View {
 
     // MARK: A week
 
+    /// What the open week is to deliver: each task line of the quarter's
+    /// Page with its box, its due day, and its objective's colour. A box
+    /// ticks the line in the Page (`setPlanDeliverable`).
+    @ViewBuilder
+    private func weekDeliverables(_ week: PlanWeek, in shown: PlanOverview) -> some View {
+        let items = shown.deliverables[week.start] ?? []
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(items) { deliverable in
+                    deliverableRow(deliverable, week: week, in: shown)
+                }
+                if let tickError {
+                    Text(tickError)
+                        .zoomedSystemFont(size: 11.5)
+                        .foregroundStyle(Color.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+            .padding(.top, 4)
+            .padding(.bottom, 6)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("space.plan.week.deliverables")
+        }
+    }
+
+    private func deliverableRow(_ deliverable: PlanDeliverable, week: PlanWeek, in shown: PlanOverview) -> some View {
+        let isDone = pendingTicks[deliverable.id] ?? deliverable.isDone
+        let objective = deliverable.objective.flatMap { shown.objectives.indices.contains($0) ? $0 : nil }
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Button {
+                toggle(deliverable, to: !isDone, week: week, quarter: shown.quarter)
+            } label: {
+                Image(systemName: isDone ? "checkmark.square.fill" : "square")
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 5, inset: 0))
+            .disabled(vm.isActiveLibraryReadOnly)
+            .help(isDone ? "Mark as not delivered" : "Mark as delivered")
+            .accessibilityLabel(isDone ? "Delivered" : "Not delivered")
+            .accessibilityIdentifier("space.plan.deliverable.tick")
+            Text(deliverable.text)
+                .zoomedSystemFont(size: 12.5)
+                .strikethrough(isDone)
+                .foregroundStyle(isDone ? Color.secondary : Color.primary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let objective {
+                Circle()
+                    .fill(objectiveColor(objective))
+                    .frame(width: 7, height: 7)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+                    .help(shown.objectives[objective])
+                    .accessibilityLabel(shown.objectiveNames[objective])
+            }
+            Spacer(minLength: 12)
+            if let due = deliverable.due {
+                Text(due)
+                    .zoomedSystemFont(size: 11.5)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("space.plan.deliverable")
+    }
+
+    private func toggle(_ deliverable: PlanDeliverable, to done: Bool, week: PlanWeek, quarter: PlanQuarter) {
+        pendingTicks[deliverable.id] = done
+        Task {
+            do {
+                try await vm.setPlanDeliverable(deliverable, done: done, weekOf: week.start, quarter: quarter)
+                tickError = nil
+                await read()
+            } catch {
+                tickError = "Could not save the tick in \(quarter.title): \(error.localizedDescription)"
+            }
+            pendingTicks[deliverable.id] = nil
+        }
+    }
+
     /// An open week drawn as the Calendar app's week view draws it, every
     /// event in its calendar's colour (a group's work in its group's), with
     /// the way into the Calendar app itself.
@@ -491,11 +583,15 @@ struct SpacePlanPage: View {
     }
 
     /// An objective's colour: its group's calendar colour when it names a
-    /// group ("Guild grant draft" is the Guild's), else its place's.
+    /// group ("Guild grant draft" is the Guild's), else its family's by
+    /// place, so two objectives of one family share a colour
+    /// (`PlanOverview.colorSlot`).
     private func objectiveColor(_ index: Int) -> Color {
         let objectives = overview?.objectives ?? []
         guard objectives.indices.contains(index),
-              let color = groupLook.color(naming: objectives[index]) else { return Self.objectiveColor(index) }
+              let color = groupLook.color(naming: objectives[index]) else {
+            return Self.objectiveColor(overview?.colorSlot(index) ?? index)
+        }
         return Color(cgColor: color.cgColor)
     }
 

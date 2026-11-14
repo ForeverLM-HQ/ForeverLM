@@ -199,12 +199,13 @@ struct DayNowDot: View {
 // MARK: - The popover
 
 /// The day, opened from the chip: the bout on the clock, the event the hour is
-/// in, what is still ahead today, the week and the quarter the day serves
-/// (`PlanGlance`), and the ways on — plan the day in a chat, start a bout,
-/// open the Calendar app. It is a glance (product owner, 2026-11-13, of the
-/// popover listing the whole day, an objective under every deliverable and
-/// three blue-iconed rows: "redesign this pls; it's a bit much"): one accent
-/// thing, the action on the event; everything else in the text's own greys.
+/// in, today's schedule, and the ways on — plan the day in a chat, start a
+/// bout, open the Calendar app, the Plan place, the Day pane. The day alone:
+/// the week and the quarter are the Plan place's (product owner, 2026-11-13, of
+/// the popover that showed them under the schedule: "it's a bit much";
+/// "honestly just the day plan is fine"; "week and quarter can be on a
+/// separate plan page"). One accent thing, the event's first action; the
+/// rest in the text's own greys.
 private struct DayNowPopover: View {
     let model: DayModel
     /// The chip's Studio window, where Activity opens: a click stays in the
@@ -216,13 +217,6 @@ private struct DayNowPopover: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(\.uiZoomScale) private var uiZoomScale
     @State private var errorMessage: String?
-    /// This quarter's plan, read each time the popover opens; nil until
-    /// read, and in a team's library, which keeps none.
-    @State private var plans: PlanGlance?
-    /// Ticks clicked and not yet read back from the quarter's Page, by
-    /// deliverable, so a click shows at once.
-    @State private var pendingTicks: [String: Bool] = [:]
-
     var body: some View {
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.medium) {
             if let bout = model.liveBout, bout.phase(now: model.now) != .complete, bout.phase(now: model.now) != .abandoned {
@@ -251,19 +245,10 @@ private struct DayNowPopover: View {
                 allDaySection
                 scheduleSection
             }
-            plansSection
-            Divider()
             VStack(alignment: .leading, spacing: 0) {
                 menuRows
             }
             .padding(.horizontal, -menuRowInset)
-        }
-        .task {
-            do {
-                plans = try await vm.loadPlanGlance()
-            } catch {
-                errorMessage = "Could not read your quarter's plan: \(error.localizedDescription)"
-            }
         }
         .padding(StudioDesign.Spacing.large)
         .frame(width: 320)
@@ -281,11 +266,10 @@ private struct DayNowPopover: View {
         case .inEvent(let event):
             eventSection(event)
         case .beforeFirst(let next):
-            // The schedule under the heading leads with what is next.
-            quietHeading("The day starts at \(DayNow.clockString(next.start))", detail: nil)
+            quietHeading("The day starts at \(DayNow.clockString(next.start))", detail: "Next: \(DayNow.displayTitle(next))")
         case .between(let next):
             if let next {
-                quietHeading("Free until \(DayNow.clockString(next.start))", detail: nil)
+                quietHeading("Free until \(DayNow.clockString(next.start))", detail: "Next: \(DayNow.displayTitle(next))")
             } else {
                 quietHeading("Nothing more today", detail: nil)
             }
@@ -403,7 +387,7 @@ private struct DayNowPopover: View {
 
     /// Past this many rows the schedule scrolls rather than growing the
     /// popover past the window.
-    private let scheduleVisibleRows = 6
+    private let scheduleVisibleRows = 9
     private let scheduleRowHeight: CGFloat = 24
 
     /// Today's all-day events, one line: a trip, a holiday, a deadline.
@@ -420,22 +404,40 @@ private struct DayNowPopover: View {
         }
     }
 
-    /// What is still ahead today, by the clock (`DayNow.scheduleAhead`): the
-    /// heading says where the clock stands, and the whole day is the Day
-    /// pane's. A row opens the event in the Calendar app.
+    /// Today's events by the clock: the one the clock is in washed in the
+    /// accent, a line where the clock stands between events, what is behind
+    /// in grey. A row opens the event in the Calendar app. A long day
+    /// scrolls, starting at now.
     @ViewBuilder
     private var scheduleSection: some View {
-        let events = DayNow.scheduleAhead(events: model.timedEventsToday, state: model.nowState, now: model.now)
-        if !events.isEmpty {
+        let events = model.timedEventsToday
+        let state = model.nowState
+        let rows = DayNow.scheduleRows(events: events, state: state, now: model.now)
+        if !rows.isEmpty {
             let list = VStack(alignment: .leading, spacing: 0) {
-                ForEach(events, id: \.occurrenceKey) { event in
-                    scheduleEventRow(event)
+                ForEach(rows) { row in
+                    switch row {
+                    case .event(let event):
+                        // The heading above is this event; the clock's line
+                        // stands in its place rather than a second copy.
+                        if state.currentEvent?.occurrenceKey == event.occurrenceKey {
+                            scheduleNowRow
+                        } else {
+                            scheduleEventRow(event, isNow: false)
+                        }
+                    case .now: scheduleNowRow
+                    }
                 }
             }
             Group {
-                if events.count > scheduleVisibleRows {
-                    ScrollView(.vertical) { list }
-                        .frame(height: CGFloat(scheduleVisibleRows) * scheduleRowHeight * uiZoomScale)
+                if rows.count > scheduleVisibleRows {
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical) { list }
+                            .frame(height: CGFloat(scheduleVisibleRows) * scheduleRowHeight * uiZoomScale)
+                            .onAppear {
+                                proxy.scrollTo(DayNowScheduleRow.now.id, anchor: .center)
+                            }
+                    }
                 } else {
                     list
                 }
@@ -444,252 +446,64 @@ private struct DayNowPopover: View {
             // A group of its own, so each row keeps its identifier.
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("studio.now.schedule")
+            Divider()
         }
     }
 
-    private func scheduleEventRow(_ event: AppleCalendarEvent) -> some View {
-        Button {
+    private func scheduleEventRow(_ event: AppleCalendarEvent, isNow: Bool) -> some View {
+        let isBehind = event.end <= model.now
+        return Button {
             AppleCalendarService.openInCalendarApp(event)
             dismiss()
         } label: {
             HStack(spacing: 8) {
                 Text(DayNow.clockString(event.start))
-                    .zoomedSystemFont(size: 11)
+                    .zoomedSystemFont(size: 11, weight: isNow ? .semibold : .regular)
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isNow ? Color.accentColor : Color.secondary)
                     .fixedSize()
                 Circle()
                     .fill(event.calendarColor.map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? Color.secondary)
                     .frame(width: 6, height: 6)
                 Text(DayNow.displayTitle(event))
-                    .zoomedSystemFont(size: 12)
+                    .zoomedSystemFont(size: 12, weight: isNow ? .semibold : .regular)
+                    .foregroundStyle(isBehind ? Color.secondary : Color.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 4)
             }
             .padding(.horizontal, menuRowInset)
             .frame(height: scheduleRowHeight * uiZoomScale)
+            .background(
+                RoundedRectangle(cornerRadius: StudioDesign.Radius.control, style: .continuous)
+                    .fill(isNow ? Color.accentColor.opacity(0.13) : Color.clear)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0, opacity: 0.1))
         .help("\(DayNow.rangeText(event)) · \(DayNow.displayTitle(event))\(event.calendarTitle.isEmpty ? "" : " · \(event.calendarTitle)")")
         .accessibilityIdentifier("studio.now.schedule.event")
+        .id(event.occurrenceKey)
     }
 
-    // MARK: The plan the day serves
-
-    /// The week's deliverables, then the quarter's objectives with the hours
-    /// the week's calendar gives each, under the day's events (product owner,
-    /// 2026-11-07, at this popover: "i need to see the quarterly plan etc
-    /// also here"; 2026-11-08: "ultimately, I don't just want Q4 goals. Maybe
-    /// there should be weekly goals that show up in there. With clear
-    /// deliverables"). The deliverables are task lines in the quarter's Page
-    /// (`PlanWeekDeliverables`); a box ticks the line there. An objective with
-    /// no hours this week shows it, so a neglected one is seen on Monday, not
-    /// at the quarter's end. The quarter's heading opens its Page; a quarter
-    /// or a week not planned yet starts the chat that plans it.
-    @ViewBuilder
-    private var plansSection: some View {
-        if let plans {
-            Divider()
-            VStack(alignment: .leading, spacing: StudioDesign.Spacing.medium) {
-                if plans.exists, let week = plans.week {
-                    weekSection(week, plans: plans)
-                }
-                quarterSection(plans)
-            }
-            .padding(.horizontal, -menuRowInset)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("studio.now.plans")
-        }
-    }
-
-    private func weekSection(_ week: PlanWeekGlance, plans: PlanGlance) -> some View {
-        let done = week.deliverables.filter { tickShown($0) }.count
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(week.isNext ? "Next Week" : "This Week")
-                    .zoomedSystemFont(size: 12.5, weight: .semibold)
-                Spacer(minLength: 8)
-                if !week.deliverables.isEmpty {
-                    Text("\(done) of \(week.deliverables.count)")
-                        .zoomedSystemFont(size: 11)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("\(done) of \(week.deliverables.count) delivered")
-                }
-            }
-            .padding(.horizontal, menuRowInset)
-            if week.deliverables.isEmpty {
-                menuRow(
-                    week.isNext ? "Plan Next Week in Chat…" : "Plan the Week in Chat…",
-                    systemImage: "calendar.badge.plus",
-                    identifier: "studio.now.plan.planWeek"
-                ) {
-                    vm.requestPlanDayChat(request: ReviewSlashCommandParser.planDayRequest(week.isNext ? "next week" : "week"))
-                    dismiss()
-                }
-                .help("Agree the week's deliverables in a chat; they are written into \(plans.quarter.title)")
-            } else {
-                ForEach(week.deliverables) { deliverable in
-                    deliverableRow(deliverable, week: week, plans: plans)
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("studio.now.plan.week")
-    }
-
-    /// The tick a deliverable shows: the one just clicked until the Page has
-    /// been read back, else the Page's.
-    private func tickShown(_ deliverable: PlanDeliverable) -> Bool {
-        pendingTicks[deliverable.id] ?? deliverable.isDone
-    }
-
-    /// A deliverable on one line of text or two: its box, its words, and the
-    /// day it is due beside its objective's colour, which the quarter's rows
-    /// below name (the objective's name is the row's help).
-    private func deliverableRow(_ deliverable: PlanDeliverable, week: PlanWeekGlance, plans: PlanGlance) -> some View {
-        let isDone = tickShown(deliverable)
-        let objective = deliverable.objective.flatMap { $0 < plans.objectiveNames.count ? $0 : nil }
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Button {
-                toggle(deliverable, to: !isDone, week: week, quarter: plans.quarter)
-            } label: {
-                Image(systemName: isDone ? "checkmark.square.fill" : "square")
-                    .zoomedSystemFont(size: 13)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-            }
-            .buttonStyle(.plain)
-            .help(isDone ? "Mark as not delivered" : "Mark as delivered")
-            .accessibilityLabel(isDone ? "Delivered" : "Not delivered")
-            .accessibilityIdentifier("studio.now.plan.deliverable.tick")
-            Text(deliverable.text)
-                .zoomedSystemFont(size: 12)
-                .strikethrough(isDone)
-                .foregroundStyle(isDone ? Color.secondary : Color.primary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 6)
-            if let due = deliverable.due {
-                Text(due)
-                    .zoomedSystemFont(size: 11)
-                    .foregroundStyle(.secondary)
-            }
-            if let objective {
-                Circle()
-                    .fill(SpacePlanPage.objectiveColor(plans.colorSlot(objective)))
-                    .frame(width: 6, height: 6)
-                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 1 }
-                    .accessibilityLabel(plans.objectiveNames[objective])
-            }
-        }
-        .padding(.horizontal, menuRowInset)
-        .padding(.vertical, 2)
-        .help(objective.map { "\(deliverable.text) · \(plans.objectiveNames[$0])" } ?? deliverable.text)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("studio.now.plan.deliverable")
-    }
-
-    private func toggle(_ deliverable: PlanDeliverable, to done: Bool, week: PlanWeekGlance, quarter: PlanQuarter) {
-        pendingTicks[deliverable.id] = done
-        Task {
-            do {
-                try await vm.setPlanDeliverable(deliverable, done: done, weekOf: week.start, quarter: quarter)
-                plans = try await vm.loadPlanGlance()
-                errorMessage = nil
-            } catch {
-                errorMessage = "Could not save the tick in \(quarter.title): \(error.localizedDescription)"
-            }
-            pendingTicks[deliverable.id] = nil
-        }
-    }
-
-    /// The quarter's heading, opening its Page, and its objectives by name,
-    /// each with the hours this week's calendar gives it.
-    private func quarterSection(_ plans: PlanGlance) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Button {
-                if plans.exists {
-                    let quarter = plans.quarter
-                    let window = windowState
-                    Task { await vm.openPlan(quarter, in: window) }
-                } else {
-                    vm.requestPlanDayChat(request: ReviewSlashCommandParser.planDayRequest("quarter"))
-                }
-                dismiss()
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(plans.quarter.title)
-                        .zoomedSystemFont(size: 12.5, weight: .semibold)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    if !plans.exists {
-                        Text("Plan in Chat…")
-                            .zoomedSystemFont(size: 11)
-                            .foregroundStyle(.secondary)
-                    } else if let week = plans.week {
-                        Text(week.weeksLeft == 1 ? "1 more week" : "\(week.weeksLeft) more weeks")
-                            .zoomedSystemFont(size: 11)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, menuRowInset)
-                .padding(.vertical, 3)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0, opacity: 0.1))
-            .help(plans.exists ? "Open \(plans.quarter.title)" : "Plan this quarter in a chat")
-            .accessibilityIdentifier("studio.now.plan.quarter")
-            if plans.exists {
-                if plans.objectives.isEmpty {
-                    planLine("No objectives written yet")
-                } else {
-                    ForEach(Array(plans.objectiveNames.enumerated()), id: \.offset) { index, name in
-                        objectiveRow(index, name: name, plans: plans)
-                    }
-                }
-            }
-        }
-    }
-
-    /// An objective by its short name, its full words on hover, and the hours
-    /// the week's calendar gives it; none is said in orange.
-    private func objectiveRow(_ index: Int, name: String, plans: PlanGlance) -> some View {
+    /// Where the clock stands: the time, and a hairline to the row's end.
+    private var scheduleNowRow: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(SpacePlanPage.objectiveColor(plans.colorSlot(index)))
-                .frame(width: 7, height: 7)
-                .frame(width: 16)
-            Text(name)
-                .zoomedSystemFont(size: 12)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if let week = plans.week, week.calendarOn {
-                let minutes = week.minutesByObjective[index] ?? 0
-                Text(minutes == 0 ? "No time" : PlanQuarterWeeks.hoursText(minutes))
-                    .zoomedSystemFont(size: 11)
-                    .monospacedDigit()
-                    .foregroundStyle(minutes == 0 ? Color.orange : Color.secondary)
-            }
+            Text(DayPlan.clockString(minute: model.nowMinute))
+                .zoomedSystemFont(size: 11, weight: .semibold)
+                .monospacedDigit()
+                .foregroundStyle(Color.accentColor)
+                .fixedSize()
+            Capsule()
+                .fill(Color.accentColor.opacity(0.7))
+                .frame(height: 1.5)
         }
         .padding(.horizontal, menuRowInset)
-        .help(plans.objectives[index])
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("studio.now.plan.objective")
-    }
-
-    /// A line under the quarter's heading.
-    private func planLine(_ text: String) -> some View {
-        Text(text)
-            .zoomedSystemFont(size: 11.5)
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, menuRowInset)
+        .frame(height: scheduleRowHeight * uiZoomScale)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Now, \(DayPlan.clockString(minute: model.nowMinute))")
+        .accessibilityIdentifier("studio.now.schedule.now")
+        .id(DayNowScheduleRow.now.id)
     }
 
     // MARK: What can be done
@@ -740,6 +554,16 @@ private struct DayNowPopover: View {
                 PluginsPlace.requestOpen(.appleCalendar)
                 dismiss()
             }
+        case .plan:
+            menuRow(SpaceDestination.plan.title, systemImage: SpaceDestination.plan.symbolName, identifier: "studio.now.plan") {
+                if let windowState {
+                    vm.inWindow(windowState) { vm.showSpace(.plan, in: windowState) }
+                } else {
+                    vm.showSpace(.plan)
+                }
+                dismiss()
+            }
+            .help("The week and the quarter")
         case .activity:
             // The day's record, in this window; its right-click opens it in
             // another, as every opener's does.
@@ -774,7 +598,7 @@ private struct DayNowPopover: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
                 Text(title)
-                    .zoomedSystemFont(size: 12.5)
+                    .zoomedSystemFont(size: 13)
                 Spacer(minLength: 8)
                 if let detail {
                     Text(detail)
@@ -784,7 +608,7 @@ private struct DayNowPopover: View {
                 }
             }
             .padding(.horizontal, menuRowInset)
-            .padding(.vertical, 5)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0, opacity: 0.1))

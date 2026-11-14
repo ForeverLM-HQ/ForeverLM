@@ -25,7 +25,9 @@ A week's plan is the week on your Mac's Calendar: the blocks of focused work, on
 
 In **Plan**, an open quarter lists its weeks, Monday to Sunday. Each week shows its seven days as small bars, filled by the hours of its blocks in the colours of the objectives they serve, and how many blocks and hours it gives the quarter. Click a week to see its days and their blocks, and click a day to open it in **Day**. A block counts toward the quarter when its notes name one of the quarter's objectives or link its plan, as the blocks the chat plans with you do; meetings and everything else on the calendar show in grey. Each objective also shows the hours its weeks have given it so far.
 
-Click the calendar glyph at the foot of the window's left edge to see today's events and, under them, this quarter's objectives. Click the quarter to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
+An open week also lists what it is to deliver: the task lines under its heading in the quarter's Page ("Week of November 9"), each with a box to tick, the day it is due and its objective's colour. Ticking a box ticks the line in the Page.
+
+Click the calendar glyph at the foot of the window's left edge to see today's events. **Plan**, at its foot, opens this place.
 
 ## Planning with the chat
 

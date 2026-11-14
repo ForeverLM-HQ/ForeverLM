@@ -82,18 +82,18 @@ struct DayNowMenuRowTests {
     @Test("The calendar's own rows are as before")
     func calendarRows() {
         #expect(DayNowMenuRow.rows(calendarOn: true, calendarBlocked: false, boutRunning: false, inEvent: false)
-            == [.planDay, .startBout, .openCalendar, .activity])
+            == [.planDay, .startBout, .openCalendar, .plan, .activity])
         // A bout on the clock leaves the row's Start Pomodoro Timer… out.
         #expect(DayNowMenuRow.rows(calendarOn: true, calendarBlocked: false, boutRunning: true, inEvent: false)
-            == [.planDay, .openCalendar, .activity])
+            == [.planDay, .openCalendar, .plan, .activity])
         // An event has Start Timer… and Open in Calendar beside its title,
         // so neither is said twice.
         #expect(DayNowMenuRow.rows(calendarOn: true, calendarBlocked: false, boutRunning: false, inEvent: true)
-            == [.planDay, .activity])
+            == [.planDay, .plan, .activity])
         #expect(DayNowMenuRow.rows(calendarOn: false, calendarBlocked: true, boutRunning: false, inEvent: false)
-            == [.openPrivacySettings, .activity])
+            == [.openPrivacySettings, .plan, .activity])
         #expect(DayNowMenuRow.rows(calendarOn: false, calendarBlocked: false, boutRunning: false, inEvent: false)
-            == [.turnOnCalendar, .activity])
+            == [.turnOnCalendar, .plan, .activity])
     }
 }
 

@@ -77,64 +77,6 @@ extension StudioViewModel {
         }
     }
 
-    /// The plan the day serves at a glance, for the calendar glyph's popover:
-    /// the week's deliverables from the quarter's Page (`PlanWeekDeliverables`),
-    /// the quarter's objectives, and the hours the week's calendar gives each.
-    /// At the weekend the week shown is next week, the one being planned,
-    /// unless only this week's deliverables are written. A plan that does not exist
-    /// yet reads as not planned; nothing is made, and a failed read of the
-    /// Page throws rather than passing for an empty plan. A calendar that
-    /// cannot be read leaves the hours out, never shows them as none.
-    func loadPlanGlance(now: Date = Date()) async throws -> PlanGlance? {
-        guard activeTeamID == nil else { return nil }
-        let quarter = PlanQuarter.containing(now)
-        guard try await storage.loadArtifact(quarter.id) != nil else {
-            return PlanGlance(quarter: quarter, exists: false, objectives: [])
-        }
-        let markdown = try await storage.artifactMarkdown(quarter.id).markdown
-        let objectives = PlanOutline.items(under: PlanQuarter.objectivesHeading, in: markdown)
-        var glance = PlanGlance(quarter: quarter, exists: true, objectives: objectives)
-        let calendar = PlanQuarterWeeks.weekCalendar()
-        guard let thisMonday = calendar.dateInterval(of: .weekOfYear, for: now)?.start else { return glance }
-        let names = glance.objectiveNames
-        func deliverables(_ monday: Date) -> [PlanDeliverable] {
-            PlanWeekDeliverables.deliverables(for: monday, in: markdown, quarter: quarter, objectiveNames: names, calendar: calendar)
-        }
-        var monday = thisMonday
-        var items = deliverables(thisMonday)
-        var isNext = false
-        if calendar.isDateInWeekend(now), let next = calendar.date(byAdding: .day, value: 7, to: thisMonday) {
-            let nextItems = deliverables(next)
-            if !nextItems.isEmpty || items.isEmpty {
-                monday = next
-                items = nextItems
-                isNext = true
-            }
-        }
-        var minutes: [Int: Int] = [:]
-        var calendarOn = AppleCalendarService.shared.isConnected
-        if calendarOn, let end = calendar.date(byAdding: .day, value: 7, to: monday) {
-            do {
-                for item in try await planCalendarItems(from: monday, to: end) {
-                    let block = PlanQuarterWeeks.block(item, quarter: quarter, objectiveNames: names)
-                    if block.servesQuarter, let objective = block.objective { minutes[objective, default: 0] += block.minutes }
-                }
-            } catch {
-                logger.error("Reading the week's calendar for the plan glance failed: \(error.localizedDescription, privacy: .public)")
-                calendarOn = false
-            }
-        }
-        glance.week = PlanWeekGlance(
-            start: monday,
-            isNext: isNext,
-            deliverables: items,
-            minutesByObjective: minutes,
-            calendarOn: calendarOn,
-            weeksLeft: PlanQuarterWeeks.weekStarts(of: quarter, calendar: calendar).filter { $0 > monday }.count
-        )
-        return glance
-    }
-
     /// Ticks a week's deliverable in the quarter's Page, or clears its tick:
     /// the Page is read fresh and only that line's task box changes, so a
     /// line typed in the open Page meanwhile is kept. A save that loses the
@@ -175,19 +117,26 @@ extension StudioViewModel {
             }
     }
 
-    /// A quarter as the Plan place draws it: its plan's objectives, and its
+    /// A quarter as the Plan place draws it: its plan's objectives, what
+    /// each week is to deliver (`PlanWeekDeliverables`), and its
     /// weeks and days read off the calendars ForeverLM shows, each block
     /// tied to the objective it serves (`PlanQuarterWeeks`). A read: a plan
     /// that does not exist yet is not made. With the calendar off the weeks
     /// still list, empty, and `calendarOn` says why.
     func loadPlanOverview(_ quarter: PlanQuarter) async throws -> PlanOverview {
         var objectives: [String] = []
+        var deliverables: [Date: [PlanDeliverable]] = [:]
+        let weekCalendar = PlanQuarterWeeks.weekCalendar()
         let exists = try await storage.loadArtifact(quarter.id) != nil
         if exists {
             let markdown = try await storage.artifactMarkdown(quarter.id).markdown
-            objectives = PlanOutline.items(under: PlanQuarter.objectivesHeading, in: markdown, limit: PlanOverview.objectiveLimit)
+            objectives = PlanOutline.items(under: PlanQuarter.objectivesHeading, in: markdown)
+            let names = objectives.map(PlanQuarterWeeks.objectiveName)
+            for monday in PlanQuarterWeeks.weekStarts(of: quarter, calendar: weekCalendar) {
+                let items = PlanWeekDeliverables.deliverables(for: monday, in: markdown, quarter: quarter, objectiveNames: names, calendar: weekCalendar)
+                if !items.isEmpty { deliverables[monday] = items }
+            }
         }
-        let weekCalendar = PlanQuarterWeeks.weekCalendar()
         let calendarOn = AppleCalendarService.shared.isConnected
         var items: [PlanCalendarItem] = []
         if calendarOn, let span = PlanQuarterWeeks.span(of: quarter, calendar: weekCalendar) {
@@ -198,6 +147,7 @@ extension StudioViewModel {
             exists: exists,
             objectives: objectives,
             weeks: PlanQuarterWeeks.weeks(of: quarter, items: items, objectives: objectives, calendar: weekCalendar),
+            deliverables: deliverables,
             calendarOn: calendarOn
         )
     }

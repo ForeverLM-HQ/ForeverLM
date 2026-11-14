@@ -38,6 +38,20 @@ enum DayNowTone: Equatable, Sendable {
     case bout
 }
 
+/// One row of the day's schedule in the chip's popover (`DayNow.scheduleRows`).
+enum DayNowScheduleRow: Equatable, Identifiable, Sendable {
+    case event(AppleCalendarEvent)
+    /// Where the clock stands, drawn between the events around it.
+    case now
+
+    var id: String {
+        switch self {
+        case .event(let event): return event.occurrenceKey
+        case .now: return "now"
+        }
+    }
+}
+
 /// What the chip draws: one line, an optional tail, and a tone.
 struct DayNowPresentation: Equatable, Sendable {
     var title: String
@@ -224,12 +238,20 @@ enum DayNow {
 
     // MARK: The day's schedule
 
-    /// The day's schedule in the chip's popover: what is still ahead. An
-    /// event that has ended is the Day pane's to show, and the one the clock
-    /// is in is the popover's heading; one still running beside it stays.
-    static func scheduleAhead(events: [AppleCalendarEvent], state: DayNowState, now: Date) -> [AppleCalendarEvent] {
-        let current = state.currentEvent?.occurrenceKey
-        return events.filter { $0.end > now && $0.occurrenceKey != current }
+    /// The rows of the day's schedule in the chip's popover: today's timed
+    /// events by start, and — before the first or between two — a line where
+    /// the clock stands. Inside an event that event's row says where the
+    /// clock is.
+    static func scheduleRows(events: [AppleCalendarEvent], state: DayNowState, now: Date) -> [DayNowScheduleRow] {
+        var rows = events.map(DayNowScheduleRow.event)
+        switch state {
+        case .beforeFirst, .between:
+            let index = events.firstIndex { $0.start > now } ?? events.count
+            rows.insert(.now, at: index)
+        case .inEvent, .empty, .calendarOff:
+            break
+        }
+        return rows
     }
 }
 
@@ -250,6 +272,11 @@ enum DayNowMenuRow: String, Equatable, Sendable, CaseIterable {
     /// The Calendar app, offered while the clock is in no event (an event's
     /// own Open in Calendar is beside its title).
     case openCalendar
+    /// The Space's Plan place, where the week and the quarter are (product
+    /// owner, 2026-11-13, of the popover that showed them under the day:
+    /// "honestly just the day plan is fine"; "week and quarter can be on a
+    /// separate plan page").
+    case plan
     /// macOS refused Calendar access: the way to Privacy & Security.
     case openPrivacySettings
     /// Calendar is off in ForeverLM: the way to turn it on.
@@ -269,6 +296,7 @@ enum DayNowMenuRow: String, Equatable, Sendable, CaseIterable {
         } else {
             rows = [.turnOnCalendar]
         }
+        rows.append(.plan)
         rows.append(.activity)
         return rows
     }
