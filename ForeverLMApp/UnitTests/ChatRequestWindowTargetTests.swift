@@ -49,7 +49,7 @@ struct EventPluginSyncTests {
 
         let justNow: [Plugin: Date] = [
             .xBookmarks: now.addingTimeInterval(-10),
-            .browserReadingLists: now.addingTimeInterval(-10),
+            .browserReadingLists: now.addingTimeInterval(-2),
         ]
         #expect(due(.xPosts, justNow, now: now).isEmpty)
         #expect(due(.articles, justNow, now: now).isEmpty)
@@ -79,9 +79,9 @@ struct EventPluginSyncTests {
         #expect(activation.contains(.xBookmarks))
         vm.markPluginsSyncing(activation, at: now)
 
-        #expect(due(.xPosts, vm.lastPluginSyncAt, now: now.addingTimeInterval(20)).isEmpty)
-        #expect(due(.videos, vm.lastPluginSyncAt, now: now.addingTimeInterval(20)).isEmpty)
-        #expect(due(nil, vm.lastPluginSyncAt, now: now.addingTimeInterval(20)).isEmpty)
+        #expect(due(.xPosts, vm.lastPluginSyncAt, now: now.addingTimeInterval(3)).isEmpty)
+        #expect(due(.videos, vm.lastPluginSyncAt, now: now.addingTimeInterval(3)).isEmpty)
+        #expect(due(nil, vm.lastPluginSyncAt, now: now.addingTimeInterval(3)).isEmpty)
     }
 
     @Test("Screen Record mode checks X and Reading Lists again on returning from the browser")

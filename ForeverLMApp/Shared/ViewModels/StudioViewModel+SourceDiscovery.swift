@@ -91,11 +91,13 @@ extension StudioViewModel {
             return
         }
 
-        loadingStep = "Classifying new sources…"
         let discoveredAppLinks = await Self.filingSubstackPostsUnderTheirOwnAddress(
             &discovered, postAddress: substackPostAddress
         )
-        await classifyDiscoveredSourceTypesBeforePersistence(&discovered)
+        // The model's article/paper/book call is not awaited here: a page the URL alone
+        // cannot type is saved as `.unclassified` (listed under Articles) and
+        // `classifyUnclassifiedSources` moves it once the model answers, so a new
+        // reading-list page appears the moment it is found.
         await enrichYouTubeMetadataBeforePersistence(&discovered)
 
         // Extract DOIs for papers before persistence (enables DOI-based dedup)
@@ -207,7 +209,11 @@ extension StudioViewModel {
             }
             switch self {
             case .xBookmarks, .youtube, .googleDriveMeetings: return 5 * 60
-            case .browserReadingLists, .applePodcasts: return 30
+            // A page the learner just saved in the browser must be found by the
+            // next scroll to the top, not 30 seconds later: the Reading List scan
+            // is a directory-mtime check that no-ops when nothing changed.
+            case .browserReadingLists: return 5
+            case .applePodcasts: return 30
             }
         }
 
@@ -804,6 +810,7 @@ extension StudioViewModel {
             self.autoFetchUnfetchedSources()
             self.syncCloudKitInBackground()
             Task { await self.backfillMissingArtwork(onlyIds: result.changedIDs) }
+            Task { await self.classifyUnclassifiedSources() }
         }
     }
 
@@ -1003,7 +1010,8 @@ extension StudioViewModel {
         }
 
         let appLinks = await filingSubstackPostsUnderTheirOwnAddress(&candidates, postAddress: postAddress)
-        await classifyDiscoveredSourceTypesBeforePersistence(&candidates)
+        // Saved first, typed after: see `refreshTab`. The caller starts the
+        // classification once the new rows are on screen.
         await enrichYouTubeMetadataBeforePersistence(&candidates)
 
         for i in candidates.indices where candidates[i].sourceType == .paper && candidates[i].doi == nil {
