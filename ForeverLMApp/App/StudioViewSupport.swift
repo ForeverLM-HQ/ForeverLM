@@ -1207,6 +1207,9 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     )
                 }
             }
+            if dropTarget == .stripEnd(group: groupIndex) {
+                dropIndicatorCapsule
+            }
             // + adds a tab: what the pane shows now stays one of its tabs
             // (`replaceCenterPane`), so the pane takes the new place in front.
             TitlebarBandButton(
@@ -1247,9 +1250,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                         width: StudioPanelChrome.centerTabCloseButtonSize,
                         height: StudioPanelChrome.centerTabCloseButtonSize
                     )
-            }
-            if dropTarget == .stripEnd(group: groupIndex) {
-                dropIndicatorCapsule
             }
             // The strip's empty tail appends a dragged tab to this group.
             Color.clear
