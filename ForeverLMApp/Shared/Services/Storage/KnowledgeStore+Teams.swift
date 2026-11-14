@@ -232,7 +232,7 @@ extension KnowledgeStore {
     static let notebookTaskColumns = """
         id, notebook_id, team_id, title, notes, status, assignee_record_name, assignee_display_name,
         due_at, source_id, artifact_id, sort_order, created_by_record_name, created_by_display_name,
-        created_at, updated_at, completed_at
+        created_at, updated_at, completed_at, list_id
     """
 
     func loadNotebookTasks(notebookID: String) throws -> [NotebookTaskRecord] {
@@ -296,7 +296,8 @@ extension KnowledgeStore {
             createdByDisplayName: string(stmt, 13),
             createdAt: date(14) ?? Date(),
             updatedAt: date(15) ?? Date(),
-            completedAt: date(16)
+            completedAt: date(16),
+            listID: string(stmt, 17)
         )
     }
 
@@ -309,7 +310,7 @@ extension KnowledgeStore {
         }
         try execBind("""
             INSERT INTO notebook_tasks (\(Self.notebookTaskColumns))
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 notebook_id = excluded.notebook_id,
                 team_id = excluded.team_id,
@@ -326,7 +327,8 @@ extension KnowledgeStore {
                 created_by_display_name = excluded.created_by_display_name,
                 created_at = excluded.created_at,
                 updated_at = excluded.updated_at,
-                completed_at = excluded.completed_at
+                completed_at = excluded.completed_at,
+                list_id = excluded.list_id
         """) { stmt in
             bind(stmt, 1, task.id)
             bind(stmt, 2, task.notebookID)
@@ -345,6 +347,7 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 15, task.createdAt.timeIntervalSinceReferenceDate)
             sqlite3_bind_double(stmt, 16, task.updatedAt.timeIntervalSinceReferenceDate)
             bind(stmt, 17, task.completedAt.map(\.timeIntervalSinceReferenceDate))
+            bind(stmt, 18, task.listID)
         }
     }
 
@@ -356,6 +359,8 @@ extension KnowledgeStore {
             throw KnowledgeStoreError.invalidData("Notebook \(task.notebookID) does not exist.")
         }
         task.teamID = notebook.teamID
+        // A card in one of the Board's own lists is open: done takes it out of the list.
+        if task.status == .done { task.listID = nil }
         if task.status == .done, task.completedAt == nil {
             task.completedAt = task.updatedAt
         } else if task.status != .done {
@@ -377,6 +382,114 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("DELETE FROM notebook_tasks WHERE id = ?") { stmt in bind(stmt, 1, id) }
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    // MARK: - Board lists
+
+    /// A notebook's own Board lists, in Board order.
+    func loadNotebookTaskLists(notebookID: String) throws -> [NotebookTaskList] {
+        var lists: [NotebookTaskList] = []
+        try query(
+            "SELECT id, title, order_key, created_at FROM notebook_task_lists WHERE notebook_id = ? ORDER BY order_key, id",
+            [.text(notebookID)]
+        ) { row in
+            guard let id = row.text(0) else { return }
+            lists.append(NotebookTaskList(
+                id: id, notebookID: notebookID, title: row.text(1) ?? "", orderKey: row.text(2) ?? "",
+                createdAt: row.real(3).map(Date.init(timeIntervalSinceReferenceDate:)) ?? Date(timeIntervalSinceReferenceDate: 0)
+            ))
+        }
+        return lists
+    }
+
+    /// Adds a list at the end of the notebook's Board.
+    func addNotebookTaskList(notebookID: String, title: String, at date: Date = Date()) throws -> NotebookTaskList {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw KnowledgeStoreError.invalidData("A list needs a name.") }
+        guard try loadLearningGoal(notebookID) != nil else {
+            throw KnowledgeStoreError.invalidData("Notebook \(notebookID) does not exist.")
+        }
+        try exec("BEGIN IMMEDIATE")
+        do {
+            let last = try scalarText("SELECT MAX(order_key) FROM notebook_task_lists WHERE notebook_id = ?", [.text(notebookID)])
+            let list = NotebookTaskList(
+                notebookID: notebookID, title: trimmed,
+                orderKey: try FractionalIndex.key(between: last, and: nil), createdAt: date
+            )
+            try execute(
+                "INSERT INTO notebook_task_lists (notebook_id, id, title, order_key, created_at) VALUES (?, ?, ?, ?, ?)",
+                [.text(notebookID), .text(list.id), .text(list.title), .text(list.orderKey), .real(date.timeIntervalSinceReferenceDate)]
+            )
+            noteStoreChanged()
+            try exec("COMMIT")
+            return list
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    func renameNotebookTaskList(_ listID: String, notebookID: String, to title: String) throws {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw KnowledgeStoreError.invalidData("A list needs a name.") }
+        try execute(
+            "UPDATE notebook_task_lists SET title = ? WHERE notebook_id = ? AND id = ? AND title IS NOT ?",
+            [.text(trimmed), .text(notebookID), .text(listID), .text(trimmed)]
+        )
+        noteStoreChanged()
+    }
+
+    /// Moves a list one place left (`offset` -1) or right (+1) among the notebook's lists: only its
+    /// own key changes, to one between its new neighbours.
+    func moveNotebookTaskList(_ listID: String, notebookID: String, by offset: Int) throws {
+        try exec("BEGIN IMMEDIATE")
+        do {
+            let lists = try loadNotebookTaskLists(notebookID: notebookID)
+            guard let index = lists.firstIndex(where: { $0.id == listID }) else {
+                try exec("COMMIT")
+                return
+            }
+            let target = index + offset
+            guard offset != 0, lists.indices.contains(target) else {
+                try exec("COMMIT")
+                return
+            }
+            let others = lists.filter { $0.id != listID }
+            let before = target > 0 ? others[target - 1].orderKey : nil
+            let after = target < others.count ? others[target].orderKey : nil
+            if let before, let after, before >= after {
+                // Two lists added at once on two devices can share a key: the lists take fresh keys in
+                // their new order.
+                var ordered = others
+                ordered.insert(lists[index], at: target)
+                let keys = try FractionalIndex.keys(between: nil, and: nil, count: ordered.count)
+                for (list, key) in zip(ordered, keys) where list.orderKey != key {
+                    try execute("UPDATE notebook_task_lists SET order_key = ? WHERE notebook_id = ? AND id = ?", [.text(key), .text(notebookID), .text(list.id)])
+                }
+            } else {
+                let key = try FractionalIndex.key(between: before, and: after)
+                try execute("UPDATE notebook_task_lists SET order_key = ? WHERE notebook_id = ? AND id = ?", [.text(key), .text(notebookID), .text(listID)])
+            }
+            noteStoreChanged()
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+    }
+
+    /// Deletes a list and the cards in it, in one transaction.
+    func deleteNotebookTaskList(_ listID: String, notebookID: String) throws {
+        try exec("BEGIN IMMEDIATE")
+        do {
+            try execute("DELETE FROM notebook_tasks WHERE notebook_id = ? AND list_id = ?", [.text(notebookID), .text(listID)])
+            try execute("DELETE FROM notebook_task_lists WHERE notebook_id = ? AND id = ?", [.text(notebookID), .text(listID)])
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")

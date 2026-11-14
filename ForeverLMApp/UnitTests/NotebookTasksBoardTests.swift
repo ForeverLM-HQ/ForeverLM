@@ -255,4 +255,42 @@ struct NotebookTasksBoardTests {
         #expect(NotebookTaskBoard.matching(tasks, query: "zara export").map(\.title) == ["Ship invoice export"])
         #expect(NotebookTaskBoard.matching(tasks, query: "invoice release").isEmpty)
     }
+
+    // MARK: The Board's own lists
+
+    private static let lists = [
+        NotebookTaskList(id: "bl_b", notebookID: "proj", title: "Waiting", orderKey: "a1"),
+        NotebookTaskList(id: "bl_a", notebookID: "proj", title: "Reading", orderKey: "a0"),
+    ]
+
+    @Test("Lists sit between In progress and Done in key order, and only open cards of a list still there are in it")
+    func listColumns() {
+        var listed = Self.card("a", .todo, order: 1)
+        listed.listID = "bl_a"
+        var finished = Self.card("b", .done, order: 1)
+        finished.listID = "bl_a"
+        var orphan = Self.card("c", .todo, order: 2)
+        orphan.listID = "bl_gone"
+        let sections = NotebookTaskBoard.sections([listed, finished, orphan], lists: Self.lists)
+        #expect(sections.map(\.title) == ["To do", "In progress", "Reading", "Waiting", "Done"])
+        #expect(sections[2].tasks.map(\.id) == ["a"])
+        #expect(sections[0].tasks.map(\.id) == ["c"])
+        #expect(sections[4].tasks.map(\.id) == ["b"])
+        #expect(sections[2].status == .todo, "a list is open")
+    }
+
+    @Test("A card dragged into a list is open in it; dragged out, it leaves the list; its circle finishes it")
+    func movingIntoAndOutOfLists() {
+        let tasks = [Self.card("a", .doing, order: 1), Self.card("b", .todo, order: 1)]
+        let into = NotebookTaskBoard.moving(tasks[0], into: .list("bl_a"), before: nil, among: tasks, lists: Self.lists, now: Self.noon)
+        #expect(into.count == 1 && into[0].listID == "bl_a" && into[0].status == .todo && into[0].completedAt == nil)
+        let inList = into[0]
+        let out = NotebookTaskBoard.moving(inList, into: .status(.todo), before: "b", among: [inList, tasks[1]], lists: Self.lists, now: Self.noon)
+        #expect(out.count == 1 && out[0].listID == nil && out[0].status == .todo)
+        #expect(NotebookTaskBoard.next(for: inList, inList: true) == .done)
+        let done = NotebookTaskBoard.changing(inList, to: .done, now: Self.noon)
+        #expect(done.listID == nil && done.status == .done)
+        #expect(NotebookTaskBoard.moving(inList, into: .list("bl_a"), before: nil, among: [inList], lists: Self.lists, now: Self.noon).isEmpty,
+                "dropped where it is")
+    }
 }

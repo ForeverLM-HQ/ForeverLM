@@ -44,6 +44,16 @@ extension KnowledgeStore {
             ("order_key", "TEXT NOT NULL"),
             ("created_at", "REAL"),
         ], constraints: ["PRIMARY KEY (notebook_id, id)"]),
+        // The lists a learner added to a notebook's task Board (schema 177), one row per element of
+        // `Notebook.boardLists`; a task names one in `notebook_tasks.list_id`. Created empty: no
+        // generation-1 truth holds any.
+        ReplicaSchemaTable("notebook_task_lists", [
+            ("notebook_id", "TEXT NOT NULL REFERENCES learning_goals(id) ON DELETE CASCADE"),
+            ("id", "TEXT NOT NULL"),
+            ("title", "TEXT NOT NULL"),
+            ("order_key", "TEXT NOT NULL"),
+            ("created_at", "REAL"),
+        ], constraints: ["PRIMARY KEY (notebook_id, id)"]),
     ]
 
     /// The back-pointer index (§5.2): every row that files something into a notebook, by the

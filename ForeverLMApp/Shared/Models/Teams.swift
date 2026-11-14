@@ -295,6 +295,34 @@ enum NotebookTaskStatus: String, Codable, CaseIterable, Sendable, Equatable {
     }
 }
 
+/// A list a learner added to a Notebook's task Board, beside To do, In
+/// progress and Done (product owner, 2026-11-14: make a new list as well). It
+/// is an open list: its cards are not done, and the Board draws it between In
+/// progress and Done, in `orderKey` order. The lists travel on the Notebook's
+/// record (`boardLists`), so every member of a team sees the same columns.
+struct NotebookTaskList: Identifiable, Codable, Equatable, Sendable {
+    let id: String
+    let notebookID: String
+    var title: String
+    /// Fractional key (`FractionalIndex`): the lists' order on the Board.
+    var orderKey: String
+    let createdAt: Date
+
+    init(
+        id: String = "bl_" + UUID().uuidString.lowercased(),
+        notebookID: String,
+        title: String,
+        orderKey: String,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.notebookID = notebookID
+        self.title = title
+        self.orderKey = orderKey
+        self.createdAt = createdAt
+    }
+}
+
 /// One unit of work inside a Notebook. Tasks exist on every Notebook; in a team
 /// Notebook they can be assigned to a member, and they travel in the Notebook's
 /// zone so every member sees the same board.
@@ -320,6 +348,10 @@ struct NotebookTaskRecord: Identifiable, Codable, Equatable, Sendable {
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+    /// One of the Notebook's own Board lists (`NotebookTaskList`), when the
+    /// card sits in one: an open card, drawn in that list instead of its
+    /// status's column. A list the Notebook no longer holds reads as none.
+    var listID: String?
 
     init(
         id: String = UUID().uuidString.lowercased(),
@@ -338,7 +370,8 @@ struct NotebookTaskRecord: Identifiable, Codable, Equatable, Sendable {
         createdByDisplayName: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        completedAt: Date? = nil
+        completedAt: Date? = nil,
+        listID: String? = nil
     ) {
         self.id = id
         self.notebookID = notebookID
@@ -357,6 +390,7 @@ struct NotebookTaskRecord: Identifiable, Codable, Equatable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt
+        self.listID = listID
     }
 
     var isOverdue: Bool {

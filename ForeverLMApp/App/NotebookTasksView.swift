@@ -2,12 +2,14 @@ import SwiftUI
 
 // MARK: - Board
 
-/// A Notebook's task board: To do, In progress and Done as columns of cards,
-/// each card a task row. A card is dragged to another column, or to another
-/// place in its column; the circle on it still moves it one column on. A card
-/// is added at the foot of To do or In progress. In a team Notebook the tasks
-/// can be handed to a member; a read-only team shows the board with every
-/// editing control disabled.
+/// A Notebook's task board: To do, In progress, the learner's own lists and
+/// Done as columns of cards, each card a task row. A card is dragged to
+/// another column, or to another place in its column; the circle on it still
+/// moves it one column on. A card is added at the foot of any column but
+/// Done, and New list at the end of the row adds a list. Past three columns
+/// the board scrolls sideways. In a team Notebook the tasks can be handed to a
+/// member; a read-only team shows the board with every editing control
+/// disabled.
 struct NotebookTasksBoardView: View {
     @Environment(StudioViewModel.self) private var vm
     let goal: LearningGoalRecord
@@ -25,6 +27,7 @@ struct NotebookTasksBoardView: View {
 
     private static let minimumColumnWidth: CGFloat = 260
     private static let columnGap: CGFloat = 14
+    private static let newListWidth: CGFloat = 180
 
     private var isReadOnly: Bool { vm.isActiveLibraryReadOnly }
     private var isTeamNotebook: Bool { goal.teamID != nil }
@@ -38,6 +41,8 @@ struct NotebookTasksBoardView: View {
         goal.teamID.flatMap { vm.currentMember(of: $0) }
     }
 
+    private var lists: [NotebookTaskList] { vm.taskLists(for: goal.id) }
+
     private var sections: [NotebookTaskBoard.Section] {
         let shown = NotebookTaskBoard.filtered(
             vm.tasks(for: goal.id),
@@ -45,29 +50,38 @@ struct NotebookTasksBoardView: View {
             currentUserRecordName: currentMember?.userRecordName
         )
         return NotebookTaskBoard.sections(
-            NotebookTaskBoard.matching(NotebookTaskBoard.lensed(shown, lens, now: Date()), query: query)
+            NotebookTaskBoard.matching(NotebookTaskBoard.lensed(shown, lens, now: Date()), query: query),
+            lists: lists
         )
     }
 
     var body: some View {
         GeometryReader { proxy in
+            // Three columns and New list fill the width; a fourth column
+            // scrolls the row sideways.
+            let newListRoom = isReadOnly ? 0 : Self.newListWidth + Self.columnGap
             let gaps = Self.columnGap * 2
-            let columnWidth = max(Self.minimumColumnWidth, (proxy.size.width - horizontalPadding * 2 - gaps) / 3)
+            let columnWidth = max(Self.minimumColumnWidth, (proxy.size.width - horizontalPadding * 2 - gaps - newListRoom) / 3)
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: Self.columnGap) {
-                    ForEach(sections, id: \.status) { section in
+                    ForEach(sections, id: \.column) { section in
                         NotebookTaskColumn(
                             section: section,
                             goal: goal,
+                            lists: lists,
                             members: members,
                             isTeamNotebook: isTeamNotebook,
                             isReadOnly: isReadOnly,
                             lens: lens,
                             addFocusRequest: addFocusRequest,
-                            add: { title in addTask(title, status: section.status) }
+                            add: { title in addTask(title, in: section.column) }
                         )
                         .frame(width: columnWidth)
                         .frame(maxHeight: .infinity, alignment: .top)
+                    }
+                    if !isReadOnly {
+                        NotebookTaskNewListField(notebookID: goal.id)
+                            .frame(width: Self.newListWidth)
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
@@ -80,14 +94,19 @@ struct NotebookTasksBoardView: View {
         }
     }
 
-    private func addTask(_ title: String, status: NotebookTaskStatus) {
+    private func addTask(_ title: String, in column: NotebookTaskBoard.Column) {
         guard !isReadOnly else { return }
+        let listIDs = Set(lists.map(\.id))
+        let listID: String? = if case .list(let id) = column { id } else { nil }
         var task = NotebookTaskRecord(
             notebookID: goal.id,
             teamID: goal.teamID,
             title: title,
-            status: status,
-            sortOrder: NotebookTaskBoard.nextSortOrder(after: vm.tasks(for: goal.id).filter { $0.status == status })
+            status: listID == nil ? (column == .status(.doing) ? .doing : .todo) : .todo,
+            sortOrder: NotebookTaskBoard.nextSortOrder(
+                after: vm.tasks(for: goal.id).filter { NotebookTaskBoard.column(of: $0, listIDs: listIDs) == column }
+            ),
+            listID: listID
         )
         // A card typed while the board shows only mine is mine, and one typed
         // in Today is due today; otherwise it would vanish from the board
@@ -96,7 +115,7 @@ struct NotebookTasksBoardView: View {
             task.assigneeRecordName = me.userRecordName
             task.assigneeDisplayName = me.displayName
         }
-        if lens == .today, status == .todo {
+        if lens == .today, task.status == .todo {
             task.dueAt = NotebookTaskBoard.dueDate(for: .today, now: Date())
         }
         Task { await vm.saveNotebookTask(task) }
@@ -109,6 +128,7 @@ private struct NotebookTaskColumn: View {
     @Environment(StudioViewModel.self) private var vm
     let section: NotebookTaskBoard.Section
     let goal: LearningGoalRecord
+    let lists: [NotebookTaskList]
     let members: [TeamMemberRecord]
     let isTeamNotebook: Bool
     let isReadOnly: Bool
@@ -119,27 +139,22 @@ private struct NotebookTaskColumn: View {
     @State private var newTitle = ""
     @State private var frames: [String: CGRect] = [:]
     @State private var dropTarget: SpaceBoardDropTarget?
+    @State private var renaming = false
+    @State private var listTitle = ""
+    @State private var confirmsDelete = false
     @FocusState private var addFocused: Bool
+    @FocusState private var renameFocused: Bool
 
     private static let coordinateSpaceName = "boardColumn"
 
     private var status: NotebookTaskStatus { section.status }
-    private var canAdd: Bool { status != .done && !isReadOnly }
+    private var canAdd: Bool { section.column != .status(.done) && !isReadOnly }
+    private var listIndex: Int? { section.list.flatMap { list in lists.firstIndex { $0.id == list.id } } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Text(status.title)
-                    .zoomedSystemFont(size: 12, weight: .semibold)
-                    .foregroundStyle(.secondary)
-                if !section.tasks.isEmpty {
-                    Text("\(section.tasks.count)")
-                        .zoomedSystemFont(size: 11, weight: .medium)
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, 4)
+            header
+                .padding(.leading, 4)
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -179,12 +194,18 @@ private struct NotebookTaskColumn: View {
                 // stays in the view it was dropped in.
                 let dueTodayBy = lens == .today ? NotebookTaskBoard.dueDate(for: .today, now: Date()) : nil
                 Task {
-                    await vm.moveNotebookTask(taskID, notebookID: goal.id, to: status, before: beforeID, dueTodayBy: dueTodayBy)
+                    await vm.moveNotebookTask(taskID, notebookID: goal.id, into: section.column, before: beforeID, dueTodayBy: dueTodayBy)
                 }
             }
         ))
         .onChange(of: addFocusRequest) { _, _ in
-            if status == .todo, canAdd { addFocused = true }
+            if section.column == .status(.todo), canAdd { addFocused = true }
+        }
+        .confirmationDialog(
+            "Delete “\(section.title)” and its \(listCardCount == 1 ? "card" : "\(listCardCount) cards")?",
+            isPresented: $confirmsDelete
+        ) {
+            Button("Delete List", role: .destructive) { deleteList() }
         }
         // A card arriving or leaving ends any drop line still drawn.
         .onChange(of: section.tasks.map(\.id)) { _, _ in
@@ -192,10 +213,102 @@ private struct NotebookTaskColumn: View {
         }
     }
 
+    @ViewBuilder
+    private var header: some View {
+        HStack(spacing: 6) {
+            if renaming, section.list != nil {
+                TextField("List name", text: $listTitle)
+                    .textFieldStyle(.plain)
+                    .zoomedSystemFont(size: 12, weight: .semibold)
+                    .focused($renameFocused)
+                    .onSubmit(commitRename)
+                    .onExitCommand { renaming = false }
+                    .onChange(of: renameFocused) { wasFocused, isFocused in
+                        if wasFocused, !isFocused { commitRename() }
+                    }
+            } else {
+                Text(section.title)
+                    .zoomedSystemFont(size: 12, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .onTapGesture(count: 2) { if section.list != nil, !isReadOnly { startRename() } }
+                if !section.tasks.isEmpty {
+                    Text("\(section.tasks.count)")
+                        .zoomedSystemFont(size: 11, weight: .medium)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Spacer(minLength: 0)
+            if section.list != nil, !isReadOnly, !renaming {
+                listMenu
+            }
+        }
+        .frame(minHeight: 20)
+    }
+
+    /// A list's own menu: rename it, move it among the lists, delete it.
+    private var listMenu: some View {
+        Menu {
+            Button("Rename", systemImage: "pencil") { startRename() }
+            Divider()
+            Button("Move Left", systemImage: "arrow.left") { moveList(by: -1) }
+                .disabled(listIndex == nil || listIndex == 0)
+            Button("Move Right", systemImage: "arrow.right") { moveList(by: 1) }
+                .disabled(listIndex.map { $0 >= lists.count - 1 } ?? true)
+            Divider()
+            Button("Delete List", systemImage: "trash", role: .destructive) {
+                // A list that still holds cards asks first: its cards go with it.
+                if listCardCount == 0 { deleteList() } else { confirmsDelete = true }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .zoomedSystemFont(size: 11, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .hoverHighlight(cornerRadius: 6, inset: 0)
+        .help("List")
+    }
+
+    /// Every card in the list, those the lens, the search or Mine hides included.
+    private var listCardCount: Int {
+        guard let list = section.list else { return 0 }
+        return vm.tasks(for: goal.id).filter { $0.listID == list.id && $0.status != .done }.count
+    }
+
+    private func startRename() {
+        listTitle = section.title
+        renaming = true
+        renameFocused = true
+    }
+
+    private func commitRename() {
+        guard renaming, let list = section.list else { return }
+        renaming = false
+        let trimmed = listTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != list.title else { return }
+        Task { await vm.renameNotebookTaskList(list.id, notebookID: goal.id, to: trimmed) }
+    }
+
+    private func moveList(by offset: Int) {
+        guard let list = section.list else { return }
+        Task { await vm.moveNotebookTaskList(list.id, notebookID: goal.id, by: offset) }
+    }
+
+    private func deleteList() {
+        guard let list = section.list else { return }
+        Task { await vm.deleteNotebookTaskList(list.id, notebookID: goal.id) }
+    }
+
     private func card(_ task: NotebookTaskRecord) -> some View {
         NotebookTaskRow(
             task: task,
             goal: goal,
+            lists: lists,
             members: members,
             isTeamNotebook: isTeamNotebook,
             isReadOnly: isReadOnly,
@@ -257,6 +370,8 @@ struct NotebookTaskRow: View {
     @Environment(StudioViewModel.self) private var vm
     let task: NotebookTaskRecord
     let goal: LearningGoalRecord
+    /// The board's own lists, offered beside the statuses in the card's menu.
+    let lists: [NotebookTaskList]
     let members: [TeamMemberRecord]
     let isTeamNotebook: Bool
     let isReadOnly: Bool
@@ -274,6 +389,7 @@ struct NotebookTaskRow: View {
     init(
         task: NotebookTaskRecord,
         goal: LearningGoalRecord,
+        lists: [NotebookTaskList] = [],
         members: [TeamMemberRecord],
         isTeamNotebook: Bool,
         isReadOnly: Bool,
@@ -282,6 +398,7 @@ struct NotebookTaskRow: View {
     ) {
         self.task = task
         self.goal = goal
+        self.lists = lists
         self.members = members
         self.isTeamNotebook = isTeamNotebook
         self.isReadOnly = isReadOnly
@@ -293,6 +410,9 @@ struct NotebookTaskRow: View {
     }
 
     private var isDone: Bool { task.status == .done }
+    private var column: NotebookTaskBoard.Column { NotebookTaskBoard.column(of: task, listIDs: Set(lists.map(\.id))) }
+    private var isInList: Bool { if case .list = column { return true } else { return false } }
+    private var nextStatus: NotebookTaskStatus { NotebookTaskBoard.next(for: task, inList: isInList) }
     private var isOverdue: Bool { NotebookTaskBoard.isOverdue(task, now: Date()) }
 
     private var statusTint: Color {
@@ -306,7 +426,7 @@ struct NotebookTaskRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Button {
-                save(NotebookTaskBoard.changing(task, to: NotebookTaskBoard.next(after: task.status)))
+                save(NotebookTaskBoard.changing(task, to: nextStatus))
             } label: {
                 Image(systemName: task.status.symbolName)
                     .zoomedSystemFont(size: 15, weight: .medium)
@@ -316,7 +436,7 @@ struct NotebookTaskRow: View {
             }
             .buttonStyle(.hoverWash(cornerRadius: 6, inset: -2))
             .disabled(isReadOnly)
-            .help(task.status == .done ? "Reopen" : "Move to \(NotebookTaskBoard.next(after: task.status).title)")
+            .help(task.status == .done ? "Reopen" : "Move to \(nextStatus.title)")
             .accessibilityLabel("Status: \(task.status.title)")
 
             VStack(alignment: .leading, spacing: 4) {
@@ -390,16 +510,12 @@ struct NotebookTaskRow: View {
         }
         .contextMenu {
             ForEach(NotebookTaskStatus.allCases, id: \.self) { status in
-                Button {
-                    save(NotebookTaskBoard.changing(task, to: status))
-                } label: {
-                    if status == task.status {
-                        Label(status.title, systemImage: "checkmark")
-                    } else {
-                        Label(status.title, systemImage: status.symbolName)
+                columnItem(.status(status), title: status.title, symbol: status.symbolName)
+                if status == .doing {
+                    ForEach(lists) { list in
+                        columnItem(.list(list.id), title: list.title, symbol: "list.bullet")
                     }
                 }
-                .disabled(isReadOnly || status == task.status)
             }
             if !isReadOnly {
                 Divider()
@@ -408,6 +524,16 @@ struct NotebookTaskRow: View {
                 }
             }
         }
+    }
+
+    /// The card's menu item for one column: a checkmark on the one it is in.
+    private func columnItem(_ target: NotebookTaskBoard.Column, title: String, symbol: String) -> some View {
+        Button {
+            save(NotebookTaskBoard.placing(task, in: target))
+        } label: {
+            Label(title, systemImage: target == column ? "checkmark" : symbol)
+        }
+        .disabled(isReadOnly || target == column)
     }
 
     private var dueMenu: some View {
@@ -681,5 +807,74 @@ struct NotebookTaskRow: View {
         changed.assigneeDisplayName = member?.displayName
         changed.updatedAt = Date()
         save(changed)
+    }
+}
+
+// MARK: - New list
+
+/// The end of the board's row of columns: New list, which opens into a field
+/// that names a list and adds it. The field stays open after a list is added,
+/// so several can be typed one after another; Escape or an empty field
+/// leaving focus closes it.
+private struct NotebookTaskNewListField: View {
+    @Environment(StudioViewModel.self) private var vm
+    let notebookID: String
+
+    @State private var editing = false
+    @State private var title = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        Group {
+            if editing {
+                TextField("List name", text: $title)
+                    .textFieldStyle(.plain)
+                    .zoomedSystemFont(size: 12, weight: .semibold)
+                    .focused($focused)
+                    .onSubmit(commit)
+                    .onExitCommand(perform: close)
+                    .onChange(of: focused) { wasFocused, isFocused in
+                        if wasFocused, !isFocused, title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { close() }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.primary.opacity(focused ? 0.22 : 0.08), lineWidth: 1)
+                    }
+            } else {
+                Button {
+                    editing = true
+                    focused = true
+                } label: {
+                    Label("New list", systemImage: "plus")
+                        .zoomedSystemFont(size: 12, weight: .medium)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.hoverWash(cornerRadius: 12, inset: 0))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private func commit() {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            close()
+            return
+        }
+        title = ""
+        focused = true
+        Task { await vm.addNotebookTaskList(notebookID: notebookID, title: trimmed) }
+    }
+
+    private func close() {
+        title = ""
+        editing = false
     }
 }

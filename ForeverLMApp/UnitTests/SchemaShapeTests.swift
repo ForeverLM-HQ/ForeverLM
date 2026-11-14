@@ -70,7 +70,7 @@ struct SchemaShapeTests {
         "meeting_sources", "memory_attempts", "memory_card_states", "memory_day_close_state", "memory_item_sources",
         "memory_items", "memory_review_activity", "memory_schedules", "memory_sitting_answers", "memory_sittings",
         "notebook_course_links", "notebook_files", "notebook_related_notebook_links", "notebook_research_questions",
-        "notebook_resolution", "notebook_states", "notebook_tasks", "paper_content_preparations",
+        "notebook_resolution", "notebook_states", "notebook_task_lists", "notebook_tasks", "paper_content_preparations",
         "paper_figure_image_sweep_state", "paper_figure_index_queue", "paper_figure_index_state", "paper_figures",
         "paper_reference_reads", "paper_references", "paper_registered_title_queue", "papers",
         "pending_hidden_sources", "podcast_transcript_audits", "podcast_transcript_cleanup_queue",

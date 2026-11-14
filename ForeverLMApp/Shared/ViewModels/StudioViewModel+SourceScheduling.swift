@@ -323,6 +323,7 @@ extension StudioViewModel {
                 notebookFilesLastRefreshAt[id] = nil
             }
             notebookTasksByNotebookID[notebookID] = nil
+            notebookTaskListsByNotebookID[notebookID] = nil
             // The merged notebook's unticked boxes go with it; its sources
             // arrive in the survivor ticked. The context notebooks its chats
             // read stay in for the survivor, which took its links, and a

@@ -785,6 +785,39 @@ extension StorageService {
         scheduleImmediateCloudKitSyncForTeams()
         NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
     }
+
+    // MARK: - Board lists
+
+    func loadNotebookTaskLists(notebookID: String) throws -> [NotebookTaskList] {
+        try notebookFilesKnowledgeStore().loadNotebookTaskLists(notebookID: notebookID)
+    }
+
+    @discardableResult
+    func addNotebookTaskList(notebookID: String, title: String) throws -> NotebookTaskList {
+        let list = try notebookFilesKnowledgeStore().addNotebookTaskList(notebookID: notebookID, title: title)
+        scheduleImmediateCloudKitSyncForTeams()
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
+        return list
+    }
+
+    func renameNotebookTaskList(_ listID: String, notebookID: String, to title: String) throws {
+        try notebookFilesKnowledgeStore().renameNotebookTaskList(listID, notebookID: notebookID, to: title)
+        scheduleImmediateCloudKitSyncForTeams()
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
+    }
+
+    func moveNotebookTaskList(_ listID: String, notebookID: String, by offset: Int) throws {
+        try notebookFilesKnowledgeStore().moveNotebookTaskList(listID, notebookID: notebookID, by: offset)
+        scheduleImmediateCloudKitSyncForTeams()
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
+    }
+
+    /// Deletes the list and every card in it.
+    func deleteNotebookTaskList(_ listID: String, notebookID: String) throws {
+        try notebookFilesKnowledgeStore().deleteNotebookTaskList(listID, notebookID: notebookID)
+        scheduleImmediateCloudKitSyncForTeams()
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
+    }
 }
 
 /// Where Share… on a notebook shares it (`StorageService.notebookShareTarget`).

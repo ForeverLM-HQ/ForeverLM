@@ -159,10 +159,19 @@ struct NotebookRows: Equatable, Sendable {
     var researchQuestions: [NotebookResearchQuestions.Row]
     var openQuestions: [(id: String, summary: String, status: String, sourceID: String?, firstSeenAt: Double?)]
     var relatedNotebookIDs: [String]
+    /// Its own task Board lists (`notebook_task_lists`).
+    var boardLists: [BoardList] = []
+
+    struct BoardList: Equatable, Sendable {
+        let id: String
+        var title: String
+        var orderKey: String
+        var createdAt: Double?
+    }
 
     static func == (lhs: NotebookRows, rhs: NotebookRows) -> Bool {
         lhs.columns == rhs.columns && lhs.researchQuestions == rhs.researchQuestions && lhs.relatedNotebookIDs == rhs.relatedNotebookIDs
-            && lhs.openQuestions.map(\.id) == rhs.openQuestions.map(\.id)
+            && lhs.openQuestions.map(\.id) == rhs.openQuestions.map(\.id) && lhs.boardLists == rhs.boardLists
     }
 }
 
@@ -211,6 +220,8 @@ struct NotebookProjection: RecordProjection {
                               syncedColumns: ["summary", "status", "source_id", "first_seen_at"]),
             Self.elementTable("notebook_related_notebook_links", localKey: ["notebook_id", "related_notebook_id"], notebookColumn: "notebook_id",
                               element: "related_notebook_id", syncedColumns: []),
+            Self.elementTable("notebook_task_lists", localKey: ["notebook_id", "id"], notebookColumn: "notebook_id", element: "id",
+                              syncedColumns: ["title", "order_key", "created_at"]),
         ]
     }
 
@@ -227,6 +238,7 @@ struct NotebookProjection: RecordProjection {
             "researchQuestions": .elementRows(table: "notebook_research_questions"),
             "openQuestions": .elementRows(table: "learning_goal_gaps"),
             "relatedNotebookIDs": .elementRows(table: "notebook_related_notebook_links"),
+            "boardLists": .elementRows(table: "notebook_task_lists"),
         ]
     }
 
@@ -256,10 +268,16 @@ struct NotebookProjection: RecordProjection {
         try connection.query("SELECT related_notebook_id FROM notebook_related_notebook_links WHERE notebook_id = ? ORDER BY related_notebook_id", [.text(localID)]) { row in
             if let id = row.text(0) { related.append(id) }
         }
+        var lists: [NotebookRows.BoardList] = []
+        try connection.query(
+            "SELECT id, title, order_key, created_at FROM notebook_task_lists WHERE notebook_id = ? ORDER BY order_key, id", [.text(localID)]
+        ) { row in
+            if let id = row.text(0) { lists.append(NotebookRows.BoardList(id: id, title: row.text(1) ?? "", orderKey: row.text(2) ?? "", createdAt: row.real(3))) }
+        }
         return NotebookRows(
             columns: columns,
             researchQuestions: try NotebookResearchQuestions.rows(notebookID: localID, connection: connection),
-            openQuestions: gaps, relatedNotebookIDs: related
+            openQuestions: gaps, relatedNotebookIDs: related, boardLists: lists
         )
     }
 
@@ -310,6 +328,13 @@ struct NotebookProjection: RecordProjection {
         }
         fields["openQuestions"] = .object(gaps)
         fields["relatedNotebookIDs"] = .object(Dictionary(rows.relatedNotebookIDs.map { ($0, SyncJSON.bool(true)) }, uniquingKeysWith: { first, _ in first }))
+        var lists: [String: SyncJSON] = [:]
+        for list in rows.boardLists {
+            var value: [String: SyncJSON] = ["title": .string(list.title), "orderKey": .string(list.orderKey)]
+            if let created = list.createdAt { value["createdAt"] = SyncJSON(SyncTime.milliseconds(cocoaSeconds: created)) }
+            lists[list.id] = .object(value)
+        }
+        fields["boardLists"] = .object(lists)
         return fields
     }
 
@@ -391,6 +416,7 @@ struct NotebookProjection: RecordProjection {
         }
         try applyResearchQuestions(fields["researchQuestions"], notebookID: id, connection: connection)
         try applyOpenQuestions(fields["openQuestions"], notebookID: id, connection: connection)
+        try applyBoardLists(fields["boardLists"], notebookID: id, connection: connection)
         // A cover that arrived (D53): the cover pictures read the replica again. The notice goes out after
         // the open transaction, on the main queue.
         if fields["files"]?["cover"] != nil {
@@ -436,6 +462,28 @@ struct NotebookProjection: RecordProjection {
             "UPDATE learning_goals SET research_questions = ? WHERE id = ?",
             [.text(try NotebookResearchQuestions.activeQuestionsJSON(notebookID: notebookID, connection: connection)), .text(notebookID)]
         )
+    }
+
+    /// Each list the record holds lands on its row; a removed one (null) goes. Its cards stay: one a
+    /// member moved into it meanwhile reads as To do until it moves again.
+    private func applyBoardLists(_ value: SyncJSON?, notebookID: String, connection: SQLiteConnection) throws {
+        guard let elements = value?.objectValue else { return }
+        for (listID, element) in elements.sorted(by: { $0.key < $1.key }) {
+            guard let object = element.objectValue, let title = object["title"]?.stringValue else {
+                try connection.execute("DELETE FROM notebook_task_lists WHERE notebook_id = ? AND id = ?", [.text(notebookID), .text(listID)])
+                continue
+            }
+            let orderKey = object["orderKey"]?.stringValue ?? ((try? FractionalIndex.key(between: nil, and: nil)) ?? "a0")
+            try connection.execute("""
+                INSERT INTO notebook_task_lists (notebook_id, id, title, order_key, created_at) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(notebook_id, id) DO UPDATE SET
+                    title = excluded.title, order_key = excluded.order_key,
+                    created_at = COALESCE(excluded.created_at, notebook_task_lists.created_at)
+            """, [
+                .text(notebookID), .text(listID), .text(title), .text(orderKey),
+                .real(object["createdAt"]?.int64Value.map { SyncTime.cocoaSeconds(milliseconds: $0) }),
+            ])
+        }
     }
 
     private func applyOpenQuestions(_ value: SyncJSON?, notebookID: String, connection: SQLiteConnection) throws {

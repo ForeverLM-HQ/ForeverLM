@@ -1084,6 +1084,8 @@ class StudioViewModel {
     var teamMembersByTeamID: [String: [TeamMemberRecord]] = [:]
     /// Task boards, keyed by Notebook id, loaded when a Notebook page opens.
     var notebookTasksByNotebookID: [String: [NotebookTaskRecord]] = [:]
+    /// Each board's own lists, keyed by Notebook id, loaded with its tasks.
+    var notebookTaskListsByNotebookID: [String: [NotebookTaskList]] = [:]
     /// What other members have assigned to this account, in every team
     /// (docs/family-design.md), for the Today panel's Assigned section.
     var assignedToMe: [AssignedTask] = []

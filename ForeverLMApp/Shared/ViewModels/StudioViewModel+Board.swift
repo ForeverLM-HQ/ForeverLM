@@ -33,10 +33,23 @@ extension StudioViewModel {
         before targetID: String?,
         dueTodayBy: Date? = nil
     ) async {
+        await moveNotebookTask(taskID, notebookID: notebookID, into: .status(status), before: targetID, dueTodayBy: dueTodayBy)
+    }
+
+    /// Drops a card into a column, a status's or one of the board's lists.
+    /// An open card dropped in Today's view is due today (`dueTodayBy`).
+    func moveNotebookTask(
+        _ taskID: String,
+        notebookID: String,
+        into column: NotebookTaskBoard.Column,
+        before targetID: String?,
+        dueTodayBy: Date? = nil
+    ) async {
         let tasks = tasks(for: notebookID)
         guard let task = tasks.first(where: { $0.id == taskID }) else { return }
-        for var change in NotebookTaskBoard.moving(task, to: status, before: targetID, among: tasks) {
-            if change.id == taskID, status == .todo, let dueTodayBy, change.dueAt.map({ $0 > dueTodayBy }) ?? true {
+        let moves = NotebookTaskBoard.moving(task, into: column, before: targetID, among: tasks, lists: taskLists(for: notebookID))
+        for var change in moves {
+            if change.id == taskID, change.status == .todo, let dueTodayBy, change.dueAt.map({ $0 > dueTodayBy }) ?? true {
                 change.dueAt = dueTodayBy
             }
             await saveNotebookTask(change)

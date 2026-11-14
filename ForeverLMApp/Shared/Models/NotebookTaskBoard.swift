@@ -5,25 +5,61 @@ import Foundation
 /// the signed-in member's, what "overdue" means at a given moment, and the
 /// dates the due-date shortcuts stand for.
 enum NotebookTaskBoard {
-    struct Section: Equatable {
-        let status: NotebookTaskStatus
-        let tasks: [NotebookTaskRecord]
+    /// A column of the board: one of the three statuses, or one of the
+    /// Notebook's own lists.
+    enum Column: Hashable {
+        case status(NotebookTaskStatus)
+        case list(String)
     }
 
-    /// One section per status, in board order, each sorted by `sortOrder`
-    /// with creation time breaking ties so two tasks added in a row keep the
-    /// order they were typed in. Empty sections are kept: the board decides
-    /// whether to draw them.
-    static func sections(_ tasks: [NotebookTaskRecord]) -> [Section] {
-        NotebookTaskStatus.allCases.map { status in
-            let members = tasks
-                .filter { $0.status == status }
+    struct Section: Equatable {
+        let column: Column
+        /// The Notebook's list this column draws, when it draws one.
+        var list: NotebookTaskList?
+        let tasks: [NotebookTaskRecord]
+
+        init(column: Column, list: NotebookTaskList? = nil, tasks: [NotebookTaskRecord]) {
+            self.column = column
+            self.list = list
+            self.tasks = tasks
+        }
+
+        /// The status its cards hold: a list's cards are open (To do).
+        var status: NotebookTaskStatus {
+            if case .status(let status) = column { return status }
+            return .todo
+        }
+
+        var title: String { list?.title ?? status.title }
+    }
+
+    /// The column a card is drawn in: its list while it is open and the list
+    /// is still there, else its status's.
+    static func column(of task: NotebookTaskRecord, listIDs: Set<String>) -> Column {
+        if task.status != .done, let listID = task.listID, listIDs.contains(listID) { return .list(listID) }
+        return .status(task.status)
+    }
+
+    /// One section per column in board order: To do, In progress, the
+    /// Notebook's lists in their order, then Done. Each is sorted by
+    /// `sortOrder` with creation time breaking ties so two tasks added in a
+    /// row keep the order they were typed in. Empty sections are kept: the
+    /// board decides whether to draw them.
+    static func sections(_ tasks: [NotebookTaskRecord], lists: [NotebookTaskList] = []) -> [Section] {
+        let ordered = lists.sorted { ($0.orderKey, $0.id) < ($1.orderKey, $1.id) }
+        let listIDs = Set(ordered.map(\.id))
+        func members(_ column: Column) -> [NotebookTaskRecord] {
+            tasks
+                .filter { self.column(of: $0, listIDs: listIDs) == column }
                 .sorted {
                     if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
                     return $0.createdAt < $1.createdAt
                 }
-            return Section(status: status, tasks: members)
         }
+        var sections = [NotebookTaskStatus.todo, .doing].map { Section(column: .status($0), tasks: members(.status($0))) }
+        sections += ordered.map { Section(column: .list($0.id), list: $0, tasks: members(.list($0.id))) }
+        sections.append(Section(column: .status(.done), tasks: members(.status(.done))))
+        return sections
     }
 
     /// The "Mine" filter. With no signed-in member to compare against (My
@@ -50,6 +86,12 @@ enum NotebookTaskBoard {
     /// The status a click on the row's status control moves to. Done wraps
     /// back to To do so a task ticked by mistake can be reopened with one more
     /// click instead of a menu trip.
+    /// The status the circle moves a card to: a card in one of the lists,
+    /// which sit just before Done, is done next.
+    static func next(for task: NotebookTaskRecord, inList: Bool) -> NotebookTaskStatus {
+        inList ? .done : next(after: task.status)
+    }
+
     static func next(after status: NotebookTaskStatus) -> NotebookTaskStatus {
         switch status {
         case .todo: return .doing
@@ -65,8 +107,22 @@ enum NotebookTaskBoard {
         var changed = task
         changed.status = status
         changed.completedAt = status == .done ? (task.completedAt ?? now) : nil
+        changed.listID = nil
         changed.updatedAt = now
         return changed
+    }
+
+    /// A copy of the task in `column`: a status column as `changing` makes
+    /// it, a list as an open card in that list.
+    static func placing(_ task: NotebookTaskRecord, in column: Column, now: Date = Date()) -> NotebookTaskRecord {
+        switch column {
+        case .status(let status):
+            return changing(task, to: status, now: now)
+        case .list(let listID):
+            var changed = changing(task, to: .todo, now: now)
+            changed.listID = listID
+            return changed
+        }
     }
 
     /// A new task lands at the bottom of its board.
@@ -87,13 +143,25 @@ enum NotebookTaskBoard {
         among tasks: [NotebookTaskRecord],
         now: Date = Date()
     ) -> [NotebookTaskRecord] {
+        moving(task, into: .status(status), before: targetID, among: tasks, lists: [], now: now)
+    }
+
+    static func moving(
+        _ task: NotebookTaskRecord,
+        into target: Column,
+        before targetID: String?,
+        among tasks: [NotebookTaskRecord],
+        lists: [NotebookTaskList],
+        now: Date = Date()
+    ) -> [NotebookTaskRecord] {
         guard targetID != task.id else { return [] }
-        let full = sections(tasks).first { $0.status == status }?.tasks ?? []
+        let listIDs = Set(lists.map(\.id))
+        let full = sections(tasks, lists: lists).first { $0.column == target }?.tasks ?? []
         let column = full.filter { $0.id != task.id }
         let insertIndex = targetID.flatMap { id in column.firstIndex { $0.id == id } } ?? column.count
-        if task.status == status, full.firstIndex(where: { $0.id == task.id }) == insertIndex { return [] }
+        if Self.column(of: task, listIDs: listIDs) == target, full.firstIndex(where: { $0.id == task.id }) == insertIndex { return [] }
 
-        var moved = changing(task, to: status, now: now)
+        var moved = placing(task, in: target, now: now)
         let previous = insertIndex > 0 ? column[insertIndex - 1].sortOrder : nil
         let next = insertIndex < column.count ? column[insertIndex].sortOrder : nil
         switch (previous, next) {

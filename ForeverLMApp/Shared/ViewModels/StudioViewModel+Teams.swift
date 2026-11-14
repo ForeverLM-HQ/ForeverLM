@@ -159,6 +159,7 @@ extension StudioViewModel {
         closeNotebooksMissingFromLibrary()
         selectedArticleId = nil
         notebookTasksByNotebookID = [:]
+        notebookTaskListsByNotebookID = [:]
         invalidateFilteredSidebarCache()
         // Which teams' courses the Courses home lists follows the library.
         invalidateCourseDerivedState()
@@ -648,9 +649,17 @@ extension StudioViewModel {
         notebookTasksByNotebookID[notebookID] ?? []
     }
 
+    /// The board's own lists, in Board order.
+    func taskLists(for notebookID: String) -> [NotebookTaskList] {
+        notebookTaskListsByNotebookID[notebookID] ?? []
+    }
+
     func loadNotebookTasks(notebookID: String) async {
         do {
-            notebookTasksByNotebookID[notebookID] = try await storage.loadNotebookTasks(notebookID: notebookID)
+            let tasks = try await storage.loadNotebookTasks(notebookID: notebookID)
+            let lists = try await storage.loadNotebookTaskLists(notebookID: notebookID)
+            notebookTasksByNotebookID[notebookID] = tasks
+            if notebookTaskListsByNotebookID[notebookID] != lists { notebookTaskListsByNotebookID[notebookID] = lists }
         } catch {
             logger.error("Loading tasks for \(notebookID) failed: \(error.localizedDescription)")
         }
@@ -672,6 +681,54 @@ extension StudioViewModel {
             logger.error("Saving task \(task.id) failed: \(error.localizedDescription)")
             showToast("Could not save the task: \(error.localizedDescription)")
             return nil
+        }
+    }
+
+    // MARK: - Board lists
+
+    /// Adds a list at the end of the board's lists; returns it, or nil when saving failed.
+    @discardableResult
+    func addNotebookTaskList(notebookID: String, title: String) async -> NotebookTaskList? {
+        do {
+            let list = try await storage.addNotebookTaskList(notebookID: notebookID, title: title)
+            await loadNotebookTasks(notebookID: notebookID)
+            return list
+        } catch {
+            logger.error("Adding a list to \(notebookID) failed: \(error.localizedDescription)")
+            showToast("Could not add the list: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    func renameNotebookTaskList(_ listID: String, notebookID: String, to title: String) async {
+        do {
+            try await storage.renameNotebookTaskList(listID, notebookID: notebookID, to: title)
+            await loadNotebookTasks(notebookID: notebookID)
+        } catch {
+            logger.error("Renaming list \(listID) failed: \(error.localizedDescription)")
+            showToast("Could not rename the list: \(error.localizedDescription)")
+        }
+    }
+
+    /// Moves a list one place left (-1) or right (+1).
+    func moveNotebookTaskList(_ listID: String, notebookID: String, by offset: Int) async {
+        do {
+            try await storage.moveNotebookTaskList(listID, notebookID: notebookID, by: offset)
+            await loadNotebookTasks(notebookID: notebookID)
+        } catch {
+            logger.error("Moving list \(listID) failed: \(error.localizedDescription)")
+            showToast("Could not move the list: \(error.localizedDescription)")
+        }
+    }
+
+    /// Deletes the list and the cards in it.
+    func deleteNotebookTaskList(_ listID: String, notebookID: String) async {
+        do {
+            try await storage.deleteNotebookTaskList(listID, notebookID: notebookID)
+            await loadNotebookTasks(notebookID: notebookID)
+        } catch {
+            logger.error("Deleting list \(listID) failed: \(error.localizedDescription)")
+            showToast("Could not delete the list: \(error.localizedDescription)")
         }
     }
 

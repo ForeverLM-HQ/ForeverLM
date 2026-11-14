@@ -167,4 +167,84 @@ struct TaskProjectionTests {
         #expect(try store.loadNotebookTask("task-2") == nil)
         #expect(try F.pending(store)["Task:task-2"] == nil, "an inbound delete sends nothing back")
     }
+
+    // MARK: The Board's own lists (schema 177)
+
+    @Test("A notebook's lists ride on its record as a map, and a card in one sends its list; done sends none")
+    func boardListsOutbound() throws {
+        let (root, store) = try Self.store("lists-out")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try F.sendAll(store)
+        let reading = try store.addNotebookTaskList(notebookID: "nb-1", title: "Reading")
+        let waiting = try store.addNotebookTaskList(notebookID: "nb-1", title: "Waiting")
+        #expect(reading.orderKey < waiting.orderKey, "a new list goes at the end")
+        var card = Self.task("task-1", "Read the methods", sortOrder: 0)
+        card.listID = reading.id
+        try store.saveNotebookTask(card)
+        let pending = try F.pending(store)
+        let lists = try #require(F.savedFields(pending["Notebook:nb-1"])?["boardLists"]?.objectValue)
+        #expect(lists[reading.id]?["title"] == .string("Reading") && lists[reading.id]?["orderKey"] == .string(reading.orderKey))
+        #expect(lists[waiting.id]?["title"] == .string("Waiting"))
+        #expect(F.savedFields(pending["Task:task-1"])?["listID"] == .string(reading.id))
+        try F.sendAll(store)
+
+        card.status = .done
+        try store.saveNotebookTask(card)
+        #expect(try store.loadNotebookTask("task-1")?.listID == nil, "done takes a card out of its list")
+        #expect(F.savedFields(try F.pending(store)["Task:task-1"])?["listID"] == .null)
+    }
+
+    @Test("Moving a list rekeys only it; deleting one takes its cards and leaves a removal in the map")
+    func boardListsMoveAndDelete() throws {
+        let (root, store) = try Self.store("lists-move")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try store.addNotebookTaskList(notebookID: "nb-1", title: "First")
+        let second = try store.addNotebookTaskList(notebookID: "nb-1", title: "Second")
+        let third = try store.addNotebookTaskList(notebookID: "nb-1", title: "Third")
+        try store.moveNotebookTaskList(third.id, notebookID: "nb-1", by: -1)
+        #expect(try store.loadNotebookTaskLists(notebookID: "nb-1").map(\.title) == ["First", "Third", "Second"])
+        try store.moveNotebookTaskList(first.id, notebookID: "nb-1", by: -1)
+        #expect(try store.loadNotebookTaskLists(notebookID: "nb-1").map(\.title) == ["First", "Third", "Second"], "the first stays first")
+        try store.renameNotebookTaskList(second.id, notebookID: "nb-1", to: "  Later ")
+        #expect(try store.loadNotebookTaskLists(notebookID: "nb-1").last?.title == "Later")
+
+        var inList = Self.task("task-1", "In the list", sortOrder: 0)
+        inList.listID = second.id
+        try store.saveNotebookTask(inList)
+        try store.saveNotebookTask(Self.task("task-2", "In To do", sortOrder: 1))
+        try F.sendAll(store)
+        try store.deleteNotebookTaskList(second.id, notebookID: "nb-1")
+        #expect(try store.loadNotebookTaskLists(notebookID: "nb-1").map(\.id) == [first.id, third.id])
+        #expect(try store.loadNotebookTasks(notebookID: "nb-1").map(\.id) == ["task-2"])
+        let pending = try F.pending(store)
+        #expect(F.savedFields(pending["Notebook:nb-1"])?["boardLists"]?[second.id] == .null)
+        #expect(pending["Task:task-1"] != nil, "the card's removal is sent")
+    }
+
+    @Test("Lists and a card's list from another device land; a removed list goes and its card reads as To do")
+    func boardListsInbound() throws {
+        let (root, store) = try Self.store("lists-in")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try F.apply(store, [
+            try F.record(.notebook, "nb-1", ["boardLists": .object([
+                "bl_web": .object(["title": .string("Blocked"), "orderKey": .string("a0"), "createdAt": SyncJSON(Int64(1_759_000_000_000))]),
+            ])]),
+            try F.record(.task, "task-web", [
+                "kind": .string("todo"), "notebookID": .string("nb-1"), "title": .string("Waiting on Zara Holt"), "status": .string("todo"),
+                "listID": .string("bl_web"), "createdAt": SyncJSON(Int64(1_759_000_000_000)),
+            ]),
+        ])
+        let lists = try store.loadNotebookTaskLists(notebookID: "nb-1")
+        #expect(lists.map(\.title) == ["Blocked"])
+        let card = try #require(try store.loadNotebookTask("task-web"))
+        #expect(card.listID == "bl_web")
+        #expect(NotebookTaskBoard.sections([card], lists: lists).map(\.column) == [.status(.todo), .status(.doing), .list("bl_web"), .status(.done)])
+        #expect(NotebookTaskBoard.sections([card], lists: lists)[2].tasks.map(\.id) == ["task-web"])
+        #expect(try F.pending(store).isEmpty, "an applied record sends nothing back")
+
+        try F.apply(store, [try F.record(.notebook, "nb-1", ["boardLists": .object(["bl_web": .null])], ms: 1_759_500_000_000)])
+        #expect(try store.loadNotebookTaskLists(notebookID: "nb-1").isEmpty)
+        let orphan = try #require(try store.loadNotebookTask("task-web"))
+        #expect(NotebookTaskBoard.sections([orphan], lists: []).first?.tasks.map(\.id) == ["task-web"], "a card whose list went reads as To do")
+    }
 }

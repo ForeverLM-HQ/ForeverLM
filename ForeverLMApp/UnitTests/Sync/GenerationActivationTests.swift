@@ -315,4 +315,29 @@ struct GenerationActivationTests {
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources") == sources, "no library row is touched")
         _ = try store.scalarInteger("SELECT COUNT(*) FROM source_projection")
     }
+
+    // MARK: Schema 177: a notebook's own Board lists
+
+    @Test("Schema 177 adds the Board's lists and a task's list to a 176 store, keeping its tasks")
+    func schema177AddsBoardLists() throws {
+        let root = try Schema154Fixture.temporaryRoot("177-from-176")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Schema154Fixture.makeLibrary(at: root, version: nil)
+        do {
+            // A 176 store: no lists table, no `list_id`, one task.
+            let store = try KnowledgeStore(storeDirectory: root)
+            try store.executeScript("""
+                DROP TABLE notebook_task_lists;
+                ALTER TABLE notebook_tasks DROP COLUMN list_id;
+                INSERT INTO notebook_tasks (id, notebook_id, title, created_at, updated_at) VALUES ('task-1', 'nb-1', 'Read', 1, 1);
+                """)
+            try store.execForTesting("PRAGMA user_version = 176")
+        }
+        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('notebook_tasks') WHERE name = 'list_id'") == 0)
+        let store = try KnowledgeStore(storeDirectory: root)
+        #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion))
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM pragma_table_info('notebook_tasks') WHERE name = 'list_id'") == 1)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM notebook_task_lists") == 0)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM notebook_tasks WHERE id = 'task-1' AND list_id IS NULL") == 1)
+    }
 }

@@ -5,15 +5,19 @@ title: Board
 
 # Board
 
-The Board is your own to-do board: cards in three columns, **To do**, **In progress** and **Done**. Use it for anything you are working on, whether or not it is about a source, and for planning your day.
+The Board is your own to-do board: cards in columns, **To do**, **In progress** and **Done**, plus any lists you add. Use it for anything you are working on, whether or not it is about a source, and for planning your day.
 
 Find **Board** in the Space's sidebar, under Notebooks, or keep it on the icon strip like any other place.
 
+## Lists
+
+**New list** at the end of the columns adds a list of your own; it sits between In progress and Done. Its **⋯** menu renames it, moves it left or right among your lists, or deletes it. Deleting a list that still holds cards asks first, and its cards go with it. Once there are more columns than fit, the Board scrolls sideways. A notebook's Tasks board has the same lists, and a team notebook's lists are the whole team's.
+
 ## Cards
 
-Type in **Add a card** at the foot of To do or In progress and press Return; the field stays ready for the next one. **New Card** at the top of the Board puts the cursor in To do.
+Type in **Add a card** at the foot of any column but Done and press Return; the field stays ready for the next one. **New Card** at the top of the Board puts the cursor in To do.
 
-Drag a card to another column, or to a different place in its column. The circle on a card moves it one column on, and Done wraps back to To do, so a card ticked by mistake reopens with one more click. Right-click a card to move it to any column or to delete it.
+Drag a card to another column, or to a different place in its column. The circle on a card moves it one column on (from one of your lists, that is Done), and Done wraps back to To do, so a card ticked by mistake reopens with one more click. Right-click a card to move it to any column or list, or to delete it.
 
 A card has a title, notes, an optional due date, and can point at a source or a Page. Moving a card into Done stamps when you finished it; moving it out clears the stamp.
 

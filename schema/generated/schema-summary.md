@@ -191,6 +191,7 @@ Id: Some existing ids are uppercase UUIDs; ids compare exactly.
 | `topic` | string | scalar | L |  |  |
 | `researchQuestions` | object | map | L |  | qid → {text, status: open\|answered\|dropped, orderKey, createdAt}; per-question merge (was a JSON array). Keys: question id. |
 | `openQuestions` | object | map | L |  | gid → {text, status: open\|resolved, createdAt, sourceIDs?} (was learning_goal_gaps). Keys: gap id. |
+| `boardLists` | object | map | L |  | lid → {title, orderKey, createdAt}: the lists a learner added to the notebook's task Board, drawn between In progress and Done in orderKey order; per-list merge. A Task names one in listID. Keys: list id. |
 | `discovery` | object | scalar | L |  | {enabled, query?, lastRunAt?}. |
 | `relatedNotebookIDs` | id → Notebook | set | L |  | The notebooks this one may draw on in its chats ("Uses context from"; shared). Being listed feeds no context: each member ticks listed notebooks into their own chats' context in NotebookState.contextNotebooks, and the Studio never reads them (D52, §5.6). |
 | `repository` | object | scalar | L |  | {url, branch?}. |
@@ -697,6 +698,7 @@ Home: `parent` (the zone of `notebookID`: Notebook).
 | `meetingSourceID` | id → Source | scalar | L |  | Meeting action items. |
 | `fulfilledSourceID` | id → Source | scalar | L |  | Share requests. |
 | `orderKey` | orderKey | scalar | L |  | Board order. |
+| `listID` | id | scalar | L |  | A to-do in one of its notebook's own Board lists (a key of Notebook.boardLists), open and not done; absent, it sits in its status's column. A key the notebook no longer holds reads as absent. |
 | `createdAt` | ms | scalar | S | ✓ |  |
 | `createdBy` | Person | scalar | S | spaces |  |
 | `resolvedAt` | ms | scalar | L |  |  |

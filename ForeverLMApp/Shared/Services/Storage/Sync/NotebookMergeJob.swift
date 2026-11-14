@@ -424,6 +424,13 @@ enum NotebookChildren {
         ON CONFLICT(notebook_id, related_notebook_id) DO NOTHING
         """,
         "DELETE FROM notebook_related_notebook_links WHERE related_notebook_id = ?2",
+        // The Board's own lists go with the cards in them.
+        """
+        INSERT INTO notebook_task_lists (notebook_id, id, title, order_key, created_at)
+        SELECT ?1, id, title, order_key, created_at FROM notebook_task_lists WHERE notebook_id = ?2
+        ON CONFLICT(notebook_id, id) DO NOTHING
+        """,
+        "DELETE FROM notebook_task_lists WHERE notebook_id = ?2",
     ]
 
     /// What moved, for the counts a merge reports.

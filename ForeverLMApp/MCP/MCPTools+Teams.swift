@@ -603,6 +603,8 @@ extension MCPDataStore {
             "notebook_title": notebook.title,
             "count": tasks.count,
             "tasks": tasks.map(notebookTaskPayload),
+            // The board's own lists, between In progress and Done; an open task with a list_id is in it.
+            "lists": try store.loadNotebookTaskLists(notebookID: notebook.id).map { ["id": $0.id, "title": $0.title] },
         ]
         if let team {
             payload["team"] = teamPayload(team.team, members: team.members)
@@ -940,6 +942,7 @@ extension MCPDataStore {
             "source_id": task.sourceID.map { $0 as Any } ?? NSNull(),
             "doc_id": task.artifactID.map { $0 as Any } ?? NSNull(),
             "sort_order": task.sortOrder,
+            "list_id": task.listID.map { $0 as Any } ?? NSNull(),
             "created_at": iso.string(from: task.createdAt),
             "updated_at": iso.string(from: task.updatedAt),
             "completed_at": task.completedAt.map { iso.string(from: $0) as Any } ?? NSNull(),

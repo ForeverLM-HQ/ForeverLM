@@ -28,6 +28,8 @@ enum TaskRows: Equatable, Sendable {
         var createdByName: String?
         var createdAt: Double
         var completedAt: Double?
+        /// One of its notebook's own Board lists (`notebook_task_lists`).
+        var listID: String? = nil
         /// The kind the record already holds: `kind` is first-writer (S), so a later assignee never
         /// turns a to-do into an assignment.
         var heldKind: String?
@@ -70,7 +72,7 @@ struct TaskProjection: RecordProjection {
 
     static let boardColumns = [
         "notebook_id", "title", "notes", "status", "assignee_record_name", "assignee_display_name", "due_at", "source_id",
-        "artifact_id", "order_key", "created_by_record_name", "created_by_display_name", "created_at", "completed_at",
+        "artifact_id", "order_key", "created_by_record_name", "created_by_display_name", "created_at", "completed_at", "list_id",
     ]
     static let shareRequestColumns = [
         "url", "title", "artifact_id", "requested_by_record_name", "requested_by_display_name", "status",
@@ -108,6 +110,7 @@ struct TaskProjection: RecordProjection {
             "meetingSourceID": Self.feed(item: ["source_id"]),
             "fulfilledSourceID": Self.feed(request: ["fulfilled_source_id"]),
             "orderKey": Self.feed(board: ["order_key"], item: ["position"]),
+            "listID": Self.feed(board: ["list_id"]),
             "createdAt": Self.feed(board: ["created_at"], request: ["created_at"], item: ["created_at"]),
             "createdBy": Self.feed(board: ["created_by_record_name", "created_by_display_name"], request: ["requested_by_record_name", "requested_by_display_name"]),
             "resolvedAt": Self.feed(board: ["completed_at"], request: ["resolved_at"], item: ["done_at"]),
@@ -124,14 +127,14 @@ struct TaskProjection: RecordProjection {
         var rows: TaskRows?
         try connection.query("""
             SELECT notebook_id, title, notes, status, assignee_record_name, assignee_display_name, due_at, source_id, artifact_id,
-                   order_key, created_by_record_name, created_by_display_name, created_at, completed_at
+                   order_key, created_by_record_name, created_by_display_name, created_at, completed_at, list_id
             FROM notebook_tasks WHERE id = ?
         """, [.text(id)]) { row in
             rows = .board(TaskRows.BoardTask(
                 id: id, notebookID: row.text(0) ?? "", title: row.text(1) ?? "", notes: row.text(2) ?? "", status: row.text(3) ?? "todo",
                 assigneeUser: row.text(4), assigneeName: row.text(5), dueAt: row.real(6), sourceID: row.text(7), artifactID: row.text(8),
                 orderKey: row.text(9), createdByUser: row.text(10), createdByName: row.text(11), createdAt: row.real(12) ?? 0,
-                completedAt: row.real(13)
+                completedAt: row.real(13), listID: row.text(14)
             ))
         }
         if case .board(var task)? = rows {
@@ -181,6 +184,7 @@ struct TaskProjection: RecordProjection {
                 "resolvedAt": task.status == "done" ? milliseconds(task.completedAt) : .null,
             ]
             if let key = task.orderKey { fields["orderKey"] = .string(key) }
+            fields["listID"] = task.status == "done" ? .null : task.listID.map(SyncJSON.string) ?? .null
             if let user = task.createdByUser, !user.isEmpty { fields["createdBy"] = person(user, task.createdByName) }
             return fields
 
@@ -283,6 +287,8 @@ struct TaskProjection: RecordProjection {
             task.artifactID = ref?.kind == .artifact ? ref?.id : nil
         }
         if let key = fields["orderKey"] { task.orderKey = key.stringValue }
+        if let list = fields["listID"] { task.listID = list.stringValue }
+        if task.status == "done" { task.listID = nil }
         if let creator = fields["createdBy"].flatMap(SyncPerson.init(json:)) {
             task.createdByUser = creator.user
             task.createdByName = creator.name
@@ -294,20 +300,21 @@ struct TaskProjection: RecordProjection {
         let updated = max(task.completedAt ?? 0, task.createdAt)
         try connection.execute("""
             INSERT INTO notebook_tasks (id, notebook_id, title, notes, status, assignee_record_name, assignee_display_name, due_at, source_id,
-                artifact_id, sort_order, created_by_record_name, created_by_display_name, created_at, updated_at, completed_at, order_key)
+                artifact_id, sort_order, created_by_record_name, created_by_display_name, created_at, updated_at, completed_at, order_key, list_id)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
-                (SELECT COUNT(*) FROM notebook_tasks WHERE notebook_id = ?2), ?11, ?12, ?13, ?14, ?15, ?16)
+                (SELECT COUNT(*) FROM notebook_tasks WHERE notebook_id = ?2), ?11, ?12, ?13, ?14, ?15, ?16, ?17)
             ON CONFLICT(id) DO UPDATE SET
                 notebook_id = excluded.notebook_id, title = excluded.title, notes = excluded.notes, status = excluded.status,
                 assignee_record_name = excluded.assignee_record_name, assignee_display_name = excluded.assignee_display_name,
                 due_at = excluded.due_at, source_id = excluded.source_id, artifact_id = excluded.artifact_id,
                 created_by_record_name = excluded.created_by_record_name, created_by_display_name = excluded.created_by_display_name,
                 created_at = excluded.created_at, updated_at = MAX(notebook_tasks.updated_at, excluded.updated_at),
-                completed_at = excluded.completed_at, order_key = excluded.order_key
+                completed_at = excluded.completed_at, order_key = excluded.order_key, list_id = excluded.list_id
         """, [
             .text(id), .text(task.notebookID), .text(task.title), .text(task.notes), .text(task.status), .text(task.assigneeUser),
             .text(task.assigneeName), .real(task.dueAt), .text(task.sourceID), .text(task.artifactID), .text(task.createdByUser),
             .text(task.createdByName), .real(task.createdAt), .real(updated), .real(task.completedAt), .text(task.orderKey),
+            .text(task.listID),
         ])
         // Generation 1's readers order the board by `sort_order`: each row's rank in key order.
         try TaskUpkeep.deriveSortOrder(notebookID: task.notebookID, connection: connection)
