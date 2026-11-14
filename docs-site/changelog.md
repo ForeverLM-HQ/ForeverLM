@@ -33,6 +33,19 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.220.0 (build 300) — 2026-11-14
+
+**Highlights:**
+- **A page you add to a browser Reading List shows up at once.**
+- **Chat history compaction runs on the chat's own model.**
+
+- **A page you add to a browser Reading List shows up at once.** It is saved the moment it is found and typed afterward, so a paper no longer waits on a model call before it appears, and scrolling to the top of the Library checks the Reading Lists straight away.
+- **Chat history compaction runs on the chat's own model,** at its lowest supported effort.
+- **Dragging a tab to a pane's end shows the blue drop bar to the left of the + button.**
+- **In the video Reader, a two-finger drag no longer scrolls the player and its controls out of the pane.**
+- **A card asked for again in a chat names the stored card,** not the new draft.
+- **The Library's hidden-items footer follows the list's search** and shows no second search field when expanded.
+
 ## 0.219.0 (build 299) — 2026-11-14
 
 **Highlights:**
