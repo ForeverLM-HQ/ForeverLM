@@ -269,8 +269,12 @@ export function installSelectionActions({ document: document_ = document, action
     const range = selection.getRangeAt(0);
     const replies = [...document_.querySelectorAll(".chat-rendered")].filter((reply) => range.intersectsNode(reply));
     for (const reply of replies) reply.classList.add("chat-selection-repaint");
+    // Two frames, not one: a class added and taken off before a frame paints
+    // changes nothing on screen, so the repaint never happened.
     window_.requestAnimationFrame(() => {
-      for (const reply of replies) reply.classList.remove("chat-selection-repaint");
+      window_.requestAnimationFrame(() => {
+        for (const reply of replies) reply.classList.remove("chat-selection-repaint");
+      });
     });
   };
 
