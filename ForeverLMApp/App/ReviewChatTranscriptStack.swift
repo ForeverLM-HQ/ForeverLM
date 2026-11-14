@@ -216,6 +216,12 @@ struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
         .onChange(of: manager.chatMessages.map(\.id), initial: true) { _, _ in
             citationContexts = ReviewChatCitationContexts.contexts(for: manager)
         }
+        // Once it has finished, the reply cites only what it cites. Left open,
+        // its context narrowed at the next message added, whenever that came,
+        // and the reply drew its text again under the learner's selection.
+        .onChange(of: manager.streamingMessageID) { _, _ in
+            citationContexts = ReviewChatCitationContexts.contexts(for: manager)
+        }
         .onChange(of: latestUserMessageID) { _, _ in
             // Scroll only when the user submits a message (or a session loads
             // its history). A fresh send leaves the user's message as the last

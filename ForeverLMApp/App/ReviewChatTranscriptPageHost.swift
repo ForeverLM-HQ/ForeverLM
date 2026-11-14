@@ -290,6 +290,13 @@ struct ReviewChatTranscriptPageHost: View {
         .onChange(of: manager.chatMessages.map(\.id), initial: true) { _, _ in
             citationContexts = ReviewChatCitationContexts.contexts(for: manager)
         }
+        // A reply that has finished streaming cites only what it cites. Left
+        // open, its context narrowed at the next message added, whenever that
+        // came, and the reply drew its text again under the learner's
+        // selection (`ReviewChatTranscriptStack` says why it opens).
+        .onChange(of: manager.streamingMessageID) { _, _ in
+            citationContexts = ReviewChatCitationContexts.contexts(for: manager)
+        }
         .onChange(of: latestUserMessageID) { _, _ in
             // A send puts the learner's message at the middle, with the reply
             // to stream under it; a chat loading its history lands at its end.
