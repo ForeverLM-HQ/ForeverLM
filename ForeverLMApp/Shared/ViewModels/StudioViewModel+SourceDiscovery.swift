@@ -209,10 +209,12 @@ extension StudioViewModel {
             }
             switch self {
             case .xBookmarks, .youtube, .googleDriveMeetings: return 5 * 60
-            // A page the learner just saved in the browser must be found by the
-            // next scroll to the top, not 30 seconds later: the Reading List scan
-            // is a directory-mtime check that no-ops when nothing changed.
-            case .browserReadingLists: return 5
+            // No wait: a page the learner just saved in the browser must be found
+            // by the very next scroll to the top. The Reading List scan is a
+            // directory-mtime check that no-ops when nothing changed, and
+            // `syncBrowserReadingListsIfChanged` runs one scan at a time (an event
+            // during a scan queues one trailing pass), so a bouncy scroll cannot stack it.
+            case .browserReadingLists: return 0
             case .applePodcasts: return 30
             }
         }

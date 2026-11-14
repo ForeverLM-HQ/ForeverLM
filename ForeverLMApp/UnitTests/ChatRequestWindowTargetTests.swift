@@ -52,9 +52,10 @@ struct EventPluginSyncTests {
             .browserReadingLists: now.addingTimeInterval(-2),
         ]
         #expect(due(.xPosts, justNow, now: now).isEmpty)
-        #expect(due(.articles, justNow, now: now).isEmpty)
-        #expect(due(.papers, justNow, now: now).isEmpty)
-        #expect(due(nil, justNow, now: now) == [.youtube, .googleDriveMeetings, .applePodcasts])
+        // Reading Lists have no cooldown: a page just saved in the browser is found at once.
+        #expect(due(.articles, justNow, now: now) == [.browserReadingLists])
+        #expect(due(.papers, justNow, now: now) == [.browserReadingLists])
+        #expect(due(nil, justNow, now: now) == [.youtube, .googleDriveMeetings, .applePodcasts, .browserReadingLists])
     }
 
     @Test("A remote plugin waits minutes between event syncs; a local store waits seconds")
@@ -81,7 +82,7 @@ struct EventPluginSyncTests {
 
         #expect(due(.xPosts, vm.lastPluginSyncAt, now: now.addingTimeInterval(3)).isEmpty)
         #expect(due(.videos, vm.lastPluginSyncAt, now: now.addingTimeInterval(3)).isEmpty)
-        #expect(due(nil, vm.lastPluginSyncAt, now: now.addingTimeInterval(3)).isEmpty)
+        #expect(due(nil, vm.lastPluginSyncAt, now: now.addingTimeInterval(3)) == [.browserReadingLists])
     }
 
     @Test("Screen Record mode checks X and Reading Lists again on returning from the browser")
