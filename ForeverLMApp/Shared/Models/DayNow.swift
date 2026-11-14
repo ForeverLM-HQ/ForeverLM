@@ -38,20 +38,6 @@ enum DayNowTone: Equatable, Sendable {
     case bout
 }
 
-/// One row of the day's schedule in the chip's popover (`DayNow.scheduleRows`).
-enum DayNowScheduleRow: Equatable, Identifiable, Sendable {
-    case event(AppleCalendarEvent)
-    /// Where the clock stands, drawn between the events around it.
-    case now
-
-    var id: String {
-        switch self {
-        case .event(let event): return event.occurrenceKey
-        case .now: return "now"
-        }
-    }
-}
-
 /// What the chip draws: one line, an optional tail, and a tone.
 struct DayNowPresentation: Equatable, Sendable {
     var title: String
@@ -238,20 +224,12 @@ enum DayNow {
 
     // MARK: The day's schedule
 
-    /// The rows of the day's schedule in the chip's popover: today's timed
-    /// events by start, and — before the first or between two — a line where
-    /// the clock stands. Inside an event that event's row says where the
-    /// clock is.
-    static func scheduleRows(events: [AppleCalendarEvent], state: DayNowState, now: Date) -> [DayNowScheduleRow] {
-        var rows = events.map(DayNowScheduleRow.event)
-        switch state {
-        case .beforeFirst, .between:
-            let index = events.firstIndex { $0.start > now } ?? events.count
-            rows.insert(.now, at: index)
-        case .inEvent, .empty, .calendarOff:
-            break
-        }
-        return rows
+    /// The day's schedule in the chip's popover: what is still ahead. An
+    /// event that has ended is the Day pane's to show, and the one the clock
+    /// is in is the popover's heading; one still running beside it stays.
+    static func scheduleAhead(events: [AppleCalendarEvent], state: DayNowState, now: Date) -> [AppleCalendarEvent] {
+        let current = state.currentEvent?.occurrenceKey
+        return events.filter { $0.end > now && $0.occurrenceKey != current }
     }
 }
 
@@ -267,8 +245,10 @@ enum DayNowMenuRow: String, Equatable, Sendable, CaseIterable {
     /// calendar's events.
     case planDay
     /// A bout on the clock, offered while none runs and the clock is in no
-    /// event (an event's own Start Pomodoro Timer… is beside its title).
+    /// event (an event's own Start Timer… is beside its title).
     case startBout
+    /// The Calendar app, offered while the clock is in no event (an event's
+    /// own Open in Calendar is beside its title).
     case openCalendar
     /// macOS refused Calendar access: the way to Privacy & Security.
     case openPrivacySettings
@@ -283,7 +263,7 @@ enum DayNowMenuRow: String, Equatable, Sendable, CaseIterable {
         if calendarOn {
             rows = [.planDay]
             if !boutRunning, !inEvent { rows.append(.startBout) }
-            rows.append(.openCalendar)
+            if !inEvent { rows.append(.openCalendar) }
         } else if calendarBlocked {
             rows = [.openPrivacySettings]
         } else {

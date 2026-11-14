@@ -166,19 +166,21 @@ struct DayNowTests {
 
     // MARK: The schedule
 
-    @Test("The popover's schedule marks where the clock stands between events, never inside one")
-    func scheduleRows() {
+    @Test("The popover's schedule holds what is ahead: nothing that has ended, and not the event the clock is in")
+    func scheduleAhead() {
         let standup = event(540, 570, "Standup")
         let reading = event(600, 720, "Read the atlas")
-        let events = [standup, reading]
-        let between = DayNow.scheduleRows(events: events, state: .between(next: reading), now: at(580))
-        #expect(between.map(\.id) == [standup.occurrenceKey, "now", reading.occurrenceKey])
-        let before = DayNow.scheduleRows(events: events, state: .beforeFirst(next: standup), now: at(500))
-        #expect(before.first == .now)
-        let after = DayNow.scheduleRows(events: events, state: .between(next: nil), now: at(800))
-        #expect(after.last == .now)
-        let inside = DayNow.scheduleRows(events: events, state: .inEvent(reading), now: at(610))
-        #expect(!inside.contains(.now))
+        let call = event(660, 690, "Call")
+        let events = [standup, reading, call]
+        func ahead(_ state: DayNowState, _ minute: Int) -> [String] {
+            DayNow.scheduleAhead(events: events, state: state, now: at(minute)).map(\.title)
+        }
+        #expect(ahead(.beforeFirst(next: standup), 500) == ["Standup", "Read the atlas", "Call"])
+        #expect(ahead(.between(next: reading), 580) == ["Read the atlas", "Call"])
+        #expect(ahead(.inEvent(reading), 610) == ["Call"])
+        // An event still running beside the one the clock is in stays.
+        #expect(ahead(.inEvent(call), 670) == ["Read the atlas"])
+        #expect(ahead(.between(next: nil), 800).isEmpty)
     }
 
     @Test("Only timed events that hold the day are on the schedule, by start")
