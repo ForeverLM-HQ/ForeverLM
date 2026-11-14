@@ -213,7 +213,13 @@ struct FlashcardDeck: Equatable, Sendable {
             let seed = read.seed.flatMap(Self.nonEmptySingleLine)
             let front = Flashcard.normalizedFront(read.front)
             guard !ids.contains(read.id), seed.map({ !seeds.contains($0) }) ?? true, !fronts.contains(front) else {
-                result.alreadyDrafted.append(read)
+                // Report the card the deck holds, not the draft: a draft's own id names no stored card
+                // (a seeded card is stored under an id made from its seed), so a chat's saved-cards link
+                // built from this id could never find the card again.
+                let held = result.deck.cards.first { $0.id == read.id }
+                    ?? result.deck.cards.first { card in seed != nil && card.seed.flatMap(Self.nonEmptySingleLine) == seed }
+                    ?? result.deck.cards.first { Flashcard.normalizedFront($0.front) == front }
+                result.alreadyDrafted.append(held ?? read)
                 continue
             }
             ids.insert(read.id)

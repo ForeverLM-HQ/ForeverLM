@@ -1251,6 +1251,26 @@ struct ChatSavedCardsTests {
         #expect(after.map(\.standing.label) == ["kept", "skipped", "toCheck"])
     }
 
+    @Test("Asking again for a card already drafted names the stored card, so the chat's saved-cards link still finds it")
+    func alreadyDraftedCardKeepsItsStoredID() async throws {
+        let (storage, defaults, cleanup) = try await makeStorage()
+        defer { cleanup() }
+        func draft(at date: Date) -> Flashcard {
+            Flashcard.mint(front: "What couples respiration to ATP synthesis?", back: "A proton gradient.", sourceID: "src-1", sourceTitle: "Mitochondria",
+                           quote: "couple respiration to ATP synthesis through a proton gradient", seed: "respiration-atp-coupling",
+                           origin: .assistant, isRequested: true, at: date)
+        }
+        let first = try await storage.saveCardDrafts([draft(at: Date())], sourceID: "src-1", sourceTitle: "Mitochondria")
+        let storedID = try #require(first.added.first?.id)
+        let again = try await storage.saveCardDrafts([draft(at: Date().addingTimeInterval(60))], sourceID: "src-1", sourceTitle: "Mitochondria")
+        #expect(again.added.isEmpty)
+        #expect(again.alreadyDrafted.map(\.id) == [storedID])
+
+        let link = ChatSavedCards(cardIDs: again.alreadyDrafted.map(\.id), sourceIDs: ["src-1"])
+        let read = try await storage.chatSavedCards(link, stateDefaults: defaults)
+        #expect(read.map(\.id) == [storedID])
+    }
+
     private static let config = AITaskConfig(provider: .openRouter, apiKey: "test-key", model: "z-ai/glm-5.3-flash")
 
     @Test("A turn's saved cards are drawn as their own row, stored at the head of its reply, and drawn again when the chat reopens")
