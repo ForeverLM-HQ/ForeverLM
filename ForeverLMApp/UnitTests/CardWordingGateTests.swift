@@ -65,6 +65,13 @@ struct CardWordingGateTests {
         for writer in [Prompts.cardDrafter, Prompts.situatedCards, Prompts.mnemonicReadingWriter] {
             #expect(writer.contains(Prompts.cardAnswerIsMeaningRule))
         }
+        // A source gets a story card and a few findings, never a pile of factoids (2026-11-14).
+        #expect(Prompts.sourceCardSetRule.contains("tell its story"))
+        #expect(Prompts.sourceCardSetRule.contains("never ten or fifteen small factoids"))
+        #expect(Prompts.cardDrafter.contains(Prompts.sourceCardSetRule))
+        #expect(Prompts.mcpServerInstructions.contains(Prompts.sourceCardSetRule))
+        let saveDrafts = try #require(MCPToolRegistry.shared.tools.first { $0.name == "save_card_drafts" })
+        #expect(saveDrafts.description.contains("tell its story"))
         #expect(Prompts.mnemonicReadingWriter.contains("\"this lecture\" without naming it"))
         #expect(AITask.cardWordingCheck.rawValue == "card_wording_check")
         #expect(AITask.cardWordingCheck.isBackgroundWork)

@@ -407,6 +407,7 @@ enum Prompts {
     - When the learner asks to review their cards, or for today's cards, call get_due_cards (notebook_id for one Notebook's). Ask each card's `ask` exactly as written, one at a time, show its back only after they answer, and call record_card_result after every answer with the sitting_id get_due_cards returned.
     - When the learner asks for some of their cards in ForeverLM itself — a topic, a source ("open my mitochondria cards in the app") — read list_cards status kept, choose the cards by what each asks, and call practice_cards: the app's card review opens on them on the Mac, and the learner answers there.
     - New cards wait in To Check until the learner keeps them: save_card_drafts saves cards you drafted, and draft_cards has ForeverLM draft them, priced first. list_cards lists them; on the learner's word, triage_cards keeps or skips them and update_card rewords, starts over or retires a kept one.
+    - When you draft a source's cards: \(sourceCardSetRule)
 
     Saving a conversation about sources:
     - Every conversation about the learner's sources — a paper, a chapter, an article, a podcast, a meeting, a video — \
@@ -2095,7 +2096,8 @@ enum Prompts {
     - Draft from the seeds first, in the order given: a seed is something the learner or ForeverLM already chose about this source. One card a seed at most, named in "seed". Then draft from the text for what matters most in it: mechanisms, causal relationships, methods, major claims, quantitative results, definitions put to use, assumptions, limitations and trade-offs, before terminology, examples and trivia.
     - A highlight tagged [FOLLOW UP] or [DOUBT] is something the learner has not settled and means to come back to, not a fact they have taken in. Draft a card from it only when the source's text answers it, and ask what the source says about it, never whether the learner agrees. When the text does not answer it, leave that seed unused; the learner will follow it up another way. Tagged [REMEMBER], [KEY IDEA] and [CONNECT] marks are settled: draft from them first.
     - When a focus is given, every card serves it.
-    - One idea a card. A question that needs two answers is two cards, or none.
+    - \(sourceCardSetRule) When the source's cards already include its story card, write none again.
+    - One idea a card, the story card aside. A question that needs two answers is two cards, or none.
     - Never ask what the source's cards already ask, in other words or in the same.
     - Write no more cards than you are asked for, and fewer when the source does not hold that many worth asking. Never pad.
 
@@ -2146,6 +2148,18 @@ enum Prompts {
     You reply to a learner's answer to one question that went past a flashcard they had remembered. You are given the card, the kind of question and what it asks for, the question, and their answer.
 
     Write two or three plain sentences: first what the answer got, then what it missed or could add. Be specific to their words and to the card. No score or grade, no praise or flattery ("great answer"), and do not repeat the question. When the answer is empty or beside the point, say in one sentence what the question was after. Plain text only: no Markdown, no lists, no headings.
+    """
+
+    /// How many cards a source gets, and the shape of the set (`cardDrafter`,
+    /// `mcpServerInstructions`, `save_card_drafts`): a story card first, then a
+    /// few findings (product owner, 2026-11-14, of a paper with seventeen cards:
+    /// "the flashcards are good but there are toooo many of them; might be better
+    /// to just have a flashcards that asks me to tell the story of the paper …
+    /// with a few factoids in there like gdf and energy expenditure", and "it
+    /// doesn't have to be ONLY ONE card but also shouldn't be 10-15 cards with
+    /// each just having a small factoid").
+    static let sourceCardSetRule = """
+    Draft few cards a source, not one for every detail. For a paper, a talk, a lecture or a long article, the first card asks the learner to tell its story: the question it asks, how it was studied, what it found and what it means, its back a short paragraph that tells that story (this card alone is exempt from the one-idea and short-answer rules). Then add only the two to four findings or ideas worth knowing on their own, such as a headline number or the key mechanism, never ten or fifteen small factoids. A short source gets its one takeaway card and little more.
     """
 
     /// The "why" every card writer is asked for (`cardDrafter`,
