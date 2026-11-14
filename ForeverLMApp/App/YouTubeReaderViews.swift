@@ -1609,6 +1609,29 @@ struct YouTubeWatchPageView: NSViewRepresentable {
             // YouTube swaps content nodes on SPA navigation; re-assert if ours went with it.
             window.addEventListener('yt-navigate-finish', installStyle);
 
+            // The player fills the pane exactly, so nothing around it may scroll.
+            // `overflow: hidden` stops the wheel but not a script's scrollTo (the
+            // pinch-zoom anchor restore is one), nor a wrapper YouTube makes
+            // scrollable; either slides the player, control bar and all, up out
+            // of the pane under a two-finger drag. Put it back whenever it moves.
+            function pinPlayerScroll(event) {
+                var target = event.target;
+                var root = document.scrollingElement || document.documentElement;
+                if (target === document || target === root || target === document.body) {
+                    if (root.scrollTop || root.scrollLeft) { root.scrollTo(0, 0); }
+                    return;
+                }
+                var player = document.getElementById('movie_player');
+                if (!player || !target.contains) { return; }
+                if (target === player || target.contains(player)) {
+                    if (target.scrollTop || target.scrollLeft) {
+                        target.scrollTop = 0;
+                        target.scrollLeft = 0;
+                    }
+                }
+            }
+            document.addEventListener('scroll', pinPlayerScroll, true);
+
             // Autoplay-next is what actually navigates away from the source the
             // reader is synced to, and pausing on 'ended' does not cancel it —
             // the queued autonav still fires. Switching the player's own toggle
