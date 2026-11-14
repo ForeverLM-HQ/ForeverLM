@@ -414,6 +414,9 @@ struct NotebookTaskRow: View {
     private var isInList: Bool { if case .list = column { return true } else { return false } }
     private var nextStatus: NotebookTaskStatus { NotebookTaskBoard.next(for: task, inList: isInList) }
     private var isOverdue: Bool { NotebookTaskBoard.isOverdue(task, now: Date()) }
+    private var hasDetails: Bool {
+        task.dueAt != nil || link != nil || (isTeamNotebook && task.assigneeRecordName != nil)
+    }
 
     private var statusTint: Color {
         switch task.status {
@@ -456,25 +459,16 @@ struct NotebookTaskRow: View {
                     }
                     .disabled(isReadOnly)
 
-                HStack(spacing: 6) {
-                    dueMenu
-                    if isTeamNotebook {
-                        assigneeMenu
+                // Only what is set shows here; an empty due date, assignee,
+                // link or note is added from the card's context menu, so a
+                // plain card carries no row of small icons.
+                if hasDetails {
+                    HStack(spacing: 6) {
+                        if task.dueAt != nil { dueMenu }
+                        if isTeamNotebook, task.assigneeRecordName != nil { assigneeMenu }
+                        if link != nil { linkMenu }
+                        Spacer(minLength: 0)
                     }
-                    linkMenu
-                    Button {
-                        showsNotes.toggle()
-                        if showsNotes { notesFocused = true }
-                    } label: {
-                        Image(systemName: "text.alignleft")
-                            .zoomedSystemFont(size: 10, weight: .medium)
-                            .foregroundStyle(notes.isEmpty ? Color.secondary : Color.accentColor)
-                            .frame(width: 20, height: 20)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
-                    .help(showsNotes ? "Hide notes" : "Notes")
-                    Spacer(minLength: 0)
                 }
 
                 if showsNotes {
@@ -500,6 +494,7 @@ struct NotebookTaskRow: View {
             in: RoundedRectangle(cornerRadius: 10)
         )
         .onHover { hovering = $0 }
+        .overlay(alignment: .bottomLeading) { datePickerPopover }
         // A synced edit from another member arrives through the record, not
         // the field; mirror it unless this row is being typed in right now.
         .onChange(of: task.title) { _, newTitle in
@@ -519,6 +514,16 @@ struct NotebookTaskRow: View {
             }
             if !isReadOnly {
                 Divider()
+                Menu("Due Date", systemImage: "calendar") { dueChoices }
+                if isTeamNotebook {
+                    Menu("Assign", systemImage: "person.crop.circle.badge.plus") { assigneeChoices }
+                }
+                Menu("Link", systemImage: "link") { linkChoices }
+                Button(showsNotes ? "Hide Notes" : "Notes", systemImage: "text.alignleft") {
+                    showsNotes.toggle()
+                    if showsNotes { notesFocused = true }
+                }
+                Divider()
                 Button(role: .destructive, action: delete) {
                     Label("Delete Task", systemImage: "trash")
                 }
@@ -536,18 +541,23 @@ struct NotebookTaskRow: View {
         .disabled(isReadOnly || target == column)
     }
 
+    @ViewBuilder
+    private var dueChoices: some View {
+        ForEach(NotebookTaskBoard.DuePreset.allCases, id: \.self) { preset in
+            Button(preset.title) {
+                saveDue(NotebookTaskBoard.dueDate(for: preset, now: Date()))
+            }
+        }
+        Button("Pick a Date…") { showsDatePicker = true }
+        if task.dueAt != nil {
+            Divider()
+            Button("Clear Due Date", role: .destructive) { saveDue(nil) }
+        }
+    }
+
     private var dueMenu: some View {
         Menu {
-            ForEach(NotebookTaskBoard.DuePreset.allCases, id: \.self) { preset in
-                Button(preset.title) {
-                    saveDue(NotebookTaskBoard.dueDate(for: preset, now: Date()))
-                }
-            }
-            Button("Pick a Date…") { showsDatePicker = true }
-            if task.dueAt != nil {
-                Divider()
-                Button("Clear Due Date", role: .destructive) { saveDue(nil) }
-            }
+            dueChoices
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: isOverdue ? "calendar.badge.exclamationmark" : "calendar")
@@ -568,7 +578,12 @@ struct NotebookTaskRow: View {
         .hoverHighlight(cornerRadius: 6, inset: 0)
         .disabled(isReadOnly)
         .help(task.dueAt == nil ? "Set a due date" : (isOverdue ? "Overdue" : "Due date"))
-        .popover(isPresented: $showsDatePicker, arrowEdge: .bottom) {
+    }
+
+    /// The date picker hangs off the card, so "Pick a Date…" from the context
+    /// menu opens it when no due-date chip exists yet.
+    private var datePickerPopover: some View {
+        Color.clear.frame(width: 0, height: 0).popover(isPresented: $showsDatePicker, arrowEdge: .bottom) {
             DatePicker(
                 "Due",
                 selection: Binding(
@@ -590,29 +605,34 @@ struct NotebookTaskRow: View {
         }
     }
 
+    @ViewBuilder
+    private var assigneeChoices: some View {
+        Button {
+            saveAssignee(nil)
+        } label: {
+            if task.assigneeRecordName == nil {
+                Label("Unassigned", systemImage: "checkmark")
+            } else {
+                Text("Unassigned")
+            }
+        }
+        if !members.isEmpty { Divider() }
+        ForEach(members) { member in
+            Button {
+                saveAssignee(member)
+            } label: {
+                if member.userRecordName == task.assigneeRecordName {
+                    Label(member.displayName, systemImage: "checkmark")
+                } else {
+                    Text(member.displayName)
+                }
+            }
+        }
+    }
+
     private var assigneeMenu: some View {
         Menu {
-            Button {
-                saveAssignee(nil)
-            } label: {
-                if task.assigneeRecordName == nil {
-                    Label("Unassigned", systemImage: "checkmark")
-                } else {
-                    Text("Unassigned")
-                }
-            }
-            if !members.isEmpty { Divider() }
-            ForEach(members) { member in
-                Button {
-                    saveAssignee(member)
-                } label: {
-                    if member.userRecordName == task.assigneeRecordName {
-                        Label(member.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(member.displayName)
-                    }
-                }
-            }
+            assigneeChoices
         } label: {
             HStack(spacing: 4) {
                 if let name = task.assigneeDisplayName, task.assigneeRecordName != nil {
