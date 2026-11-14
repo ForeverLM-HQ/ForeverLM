@@ -122,15 +122,24 @@ extension ReviewSessionManager {
     /// transcript compact instead, so a reply never waits on a summary.
     func scheduleHistoryFoldIfNeeded() {
         guard historyFoldTask == nil, sessionActive, let sessionID, historyFoldIsDue else { return }
-        // The fold runs on its own Background route (Settings › Background ›
-        // Tasks), not the chat's model. With none to run on, the transcript
-        // compact carries the older turns, as after a failed fold.
-        guard let foldConfig = KeychainService.resolveConfig(for: .chatHistoryCompaction) else { return }
+        // The fold runs on the chat's own model (product owner, 2026-11-14:
+        // compaction ran on the free router, not the model in use), at that
+        // model's lowest supported effort and labelled for the ledger. With
+        // no chat model to resolve, the transcript compact carries the older
+        // turns, as after a failed fold.
+        let override = modelOverride
 
         let foldID = UUID()
         historyFoldID = foldID
         historyFoldTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            guard let foldConfig = await Self.historyFoldConfig(override: override) else {
+                if self.historyFoldID == foldID {
+                    self.historyFoldTask = nil
+                    self.historyFoldID = nil
+                }
+                return
+            }
             // Ledger rows from the fold belong to this chat, like the turn's own.
             await AIUsageAttribution.$sessionID.withValue(sessionID) {
                 await self.foldChatHistory(config: foldConfig, sessionID: sessionID)
@@ -140,6 +149,17 @@ extension ReviewSessionManager {
                 self.historyFoldID = nil
             }
         }
+    }
+
+    /// The chat's model for a fold: the override a scheduled run walks, else
+    /// the chat's Default Model, cut to its lowest supported effort.
+    nonisolated static func historyFoldConfig(override: AITaskConfig?) async -> AITaskConfig? {
+        var resolved = override
+        if resolved == nil { resolved = await resolveChatConfig().config }
+        guard var config = resolved else { return nil }
+        config.taskLabel = AITask.chatHistoryCompaction.rawValue
+        config.effort = AIRequestOptionSupport.supportedEfforts(provider: config.provider, model: config.model).first
+        return config
     }
 
     /// Fold in bounded batches until the backlog is under a block. A failure
