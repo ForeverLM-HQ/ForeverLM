@@ -528,6 +528,9 @@ struct HiddenItemsPage: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var query: String
+    /// Inline, the list's own search field drives the filter, live; the page
+    /// shows no second field of its own while that one has text.
+    private let inlineQuery: String
     /// Groups the user opened or closed by hand, over the default that opens a
     /// group the search reached only through its episodes. Cleared when the
     /// query changes, since the default changes with it.
@@ -545,6 +548,7 @@ struct HiddenItemsPage: View {
         self.onBack = onBack
         self.isInline = isInline
         _query = State(initialValue: initialQuery)
+        self.inlineQuery = initialQuery
     }
 
     private var filteredGroups: [HiddenItemsModel.GroupEntry] {
@@ -563,7 +567,9 @@ struct HiddenItemsPage: View {
     }
 
     private var trimmedQuery: String {
-        query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let outer = inlineQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isInline, !outer.isEmpty { return outer }
+        return query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func isExpanded(_ group: HiddenItemsModel.GroupEntry) -> Bool {
@@ -582,7 +588,8 @@ struct HiddenItemsPage: View {
     /// field when there are many, then the groups and the lone items.
     @ViewBuilder
     private var inlineRows: some View {
-        if model.searchableCount > 8 || !query.isEmpty {
+        if inlineQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           model.searchableCount > 8 || !query.isEmpty {
             searchField
                 .padding(.bottom, 4)
         }
