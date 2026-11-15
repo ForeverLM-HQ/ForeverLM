@@ -270,7 +270,7 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
     /// (`options(fromDirectory:)`).
     var takesVoice: Bool { !voices.isEmpty }
 
-    /// Spoken by OpenAI through ForeverLM's proxy rather than through
+    /// Spoken by OpenAI on the learner's own OpenAI key rather than through
     /// OpenRouter, which lists no OpenAI voice (`ArticleSpeechCatalog.openAIRealtimeModelID`).
     var speaksThroughOpenAI: Bool { id == ArticleSpeechCatalog.openAIRealtimeModelID }
 
@@ -282,7 +282,7 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
 
     /// Where a request for this model goes before `ManagedAI.rewrite`.
     var speechEndpoint: URL {
-        speaksThroughOpenAI ? ManagedAI.openAISpeechURL : OpenRouterAPI.audioSpeech
+        speaksThroughOpenAI ? OpenAIRealtimeNarration.requestURL : OpenRouterAPI.audioSpeech
     }
 
     var defaultVoiceID: String? { voices.first?.id }
@@ -1195,11 +1195,10 @@ enum ArticleSpeechCatalog {
     /// Listen on OpenAI (product owner, 2026-11-11: "DO do a direct openai
     /// route too"). OpenRouter lists no OpenAI voice, and OpenAI retires its
     /// speech models on 2027-01-06 for gpt-realtime-2.1-mini, which speaks
-    /// only over the Realtime API. The proxy reads each section aloud on it
-    /// (`POST /v1/openai/speech`, foreverlm-ai-proxy `realtime-narration.js`)
-    /// and answers with 24 kHz PCM, paid by ForeverLM's OpenAI credits. A
-    /// reading that strays from the text comes back 422, and the section is
-    /// read again in halves.
+    /// only over the Realtime API. The app reads each section aloud on it, on the
+    /// learner's own OpenAI key (`OpenAIRealtimeNarration`), and gets 24 kHz
+    /// PCM. A reading that strays from the text comes back 422, and the
+    /// section is read again in halves.
     static let openAIRealtimeModelID = "openai/gpt-realtime-2.1-mini"
 
     /// gpt-realtime-2.1-mini's voices (developers.openai.com);
@@ -1839,15 +1838,16 @@ enum ArticleSpeechCatalog {
     /// with a retired model still prices while OpenRouter lists it. Nil for a
     /// model OpenRouter does not bill by the character, or has not priced.
     static func ratePerMillionCharacters(forModel modelID: String) -> Double? {
-        // An OpenAI voice charges the learner nothing: ForeverLM's OpenAI
-        // credits pay for it (`openAIRealtimeModelID`).
-        if modelID == openAIRealtimeModelID { return 0 }
+        // An OpenAI voice is billed by OpenAI in tokens, on the learner's own
+        // key (`openAIRealtimeModelID`), so it has no per-character rate; the
+        // narration records the tokens it used.
+        if modelID == openAIRealtimeModelID { return nil }
         return OpenRouterAudioPrices.speechUSDPerMillionCharacters(slug: modelID)
     }
 
-    /// The mark beside an OpenAI voice's price: it is spoken on an OpenAI
-    /// key of ForeverLM's own, outside OpenRouter, as voice mode is, and AI
-    /// Usage marks those calls the same way (`AIUsagePanel.byokRoute`).
+    /// The mark beside an OpenAI voice's price: it is spoken on the learner's
+    /// own OpenAI key, outside OpenRouter, as voice mode is, and AI Usage
+    /// marks those calls the same way (`AIUsagePanel.byokRoute`).
     static let ownKeyPriceMark = "BYOK"
 
     /// The price line for a slug, in OpenRouter's unit, or "Price unknown".

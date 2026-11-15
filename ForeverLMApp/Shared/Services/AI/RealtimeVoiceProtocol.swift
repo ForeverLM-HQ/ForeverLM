@@ -3,11 +3,10 @@ import Foundation
 // Voice mode's wire protocol: OpenAI Realtime, speech to speech, over WebRTC.
 // It came back on 2026-11-07 (product owner, 2026-11-07: "now we actually have
 // free API credits from OpenAI as part of our plan ... we should 100% implement
-// the real-time voice mode again"). The proxy mints a short-lived client secret
-// on the company's OpenAI account (`ManagedAI.mintRealtimeVoiceSecret`), so no
-// company key reaches a device and the learner pays nothing. A learner who
-// stores their own OpenAI key (`ManagedAI.ownOpenAIVoiceKey`) has
-// the app mint the same secret straight with OpenAI on it, and pays OpenAI. This is the one
+// the real-time voice mode again"). Since 2026-11-15 it runs on the learner's
+// own OpenAI key alone (`ManagedAI.ownOpenAIVoiceKey`): the app mints the
+// short-lived client secret straight with OpenAI on it
+// (`ManagedAI.mintRealtimeVoiceSecret`), and the learner pays OpenAI. This is the one
 // model route that does not go through OpenRouter, which serves no
 // speech-to-speech model.
 //
@@ -88,9 +87,9 @@ enum RealtimeVoiceServerEvent: Equatable {
     case ignored(type: String)
 }
 
-/// One reply's tokens, split the way OpenAI prices them. Reported to the proxy
-/// (`ManagedAI.reportRealtimeVoiceUsage`), which records it in the usage ledger
-/// as spent on ForeverLM's own OpenAI credits: shown in AI Usage, never charged.
+/// One reply's tokens, split the way OpenAI prices them. The Mac records it in
+/// its own usage ledger as an own-key call at OpenAI's list price
+/// (`ManagedAI.reportRealtimeVoiceUsage`), shown in AI Usage.
 struct RealtimeVoiceUsage: Equatable, Sendable {
     let responseID: String
     var textInputTokens = 0

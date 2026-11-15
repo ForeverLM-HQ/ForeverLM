@@ -282,7 +282,7 @@ enum MacArticleTTSClient {
         while true {
             do {
                 try Task.checkCancellation()
-                let (data, response) = try await session.foreverLMData(for: request)
+                let (data, response) = try await session.speechData(for: request)
                 try Task.checkCancellation()
                 guard let http = response as? HTTPURLResponse else {
                     throw MacArticleTTSError.badResponse("\(providerName) did not return an HTTP response.")
@@ -395,7 +395,7 @@ enum MacArticleTTSClient {
             request.setValue(value, forHTTPHeaderField: key)
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        ManagedAI.rewrite(&request)
+        if !OpenAIRealtimeNarration.handles(request) { ManagedAI.rewrite(&request) }
         return request
     }
 

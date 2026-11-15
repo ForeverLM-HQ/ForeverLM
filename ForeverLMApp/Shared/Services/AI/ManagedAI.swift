@@ -44,11 +44,6 @@ enum ManagedAI {
 
     /// The metered proxy. Every managed request and account call goes here.
     static let baseURL = URL(string: "https://ai.foreverlm.com")!
-    /// Listen on OpenAI's voices, which the proxy speaks itself
-    /// (`ArticleSpeechCatalog.openAIRealtimeModelID`). Not below /v1/proxy:
-    /// no OpenAI API is passed through, and the learner's own OpenRouter key
-    /// cannot reach it, so `rewrite` keeps it on the proxy either way.
-    static let openAISpeechURL = URL(string: "https://ai.foreverlm.com/v1/openai/speech")!
     /// What the learner has spent, per model and day, in OpenRouter's own monitor.
     /// ForeverLM keeps no spend figures of its own (product owner, 2026-10-15:
     /// "we shouldn't maintain our own spend stuff").
@@ -715,10 +710,6 @@ enum ManagedAI {
         let path: String
         let queryItems: [URLQueryItem]
         switch host {
-        case openAISpeechURL.host?.lowercased() where originalURL?.path == openAISpeechURL.path:
-            // A route the proxy serves itself, kept as it is.
-            path = openAISpeechURL.path
-            queryItems = []
         case "openrouter.ai":
             path = "openrouter" + (originalURL?.path ?? "")
             // OpenRouter takes its key only as a header, so the query (a

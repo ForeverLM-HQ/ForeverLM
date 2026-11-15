@@ -736,6 +736,7 @@ targets:
       - Shared/Views/ForeverLMLoadingIndicator.swift
       - Shared/Views/LoadingIndicatorSpeed.swift
       - Shared/Services/AI/CloudArticleTTS.swift
+      - Shared/Services/AI/OpenAIRealtimeNarration.swift
       # A text-to-speech pick is tested before it is used, with the Mac's
       # records and rules (`AIModelQualification`).
       - Shared/Services/AI/AIModelQualificationCore.swift

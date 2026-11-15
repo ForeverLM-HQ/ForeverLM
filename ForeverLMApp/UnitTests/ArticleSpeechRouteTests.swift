@@ -56,9 +56,10 @@ struct OwnOpenRouterKeyMediaRouteTests {
     }
 
     /// Listen on OpenAI (product owner, 2026-11-11): OpenRouter lists no OpenAI
-    /// voice, so the proxy speaks gpt-realtime-2.1-mini itself.
-    @Test("an OpenAI voice is read through the proxy's own route")
-    func openAIVoiceGoesThroughTheProxy() throws {
+    /// voice, so the app speaks gpt-realtime-2.1-mini itself, on the learner's
+    /// own OpenAI key (2026-11-15).
+    @Test("an OpenAI voice is read on the learner's own OpenAI key, never the proxy")
+    func openAIVoiceRunsOnTheOwnOpenAIKey() throws {
         let openAI = try #require(ArticleSpeechCatalog.model(id: ArticleSpeechCatalog.openAIRealtimeModelID))
         #expect(openAI.speaksThroughOpenAI)
         #expect(openAI.wireModelID == "gpt-realtime-2.1-mini")
@@ -70,10 +71,12 @@ struct OwnOpenRouterKeyMediaRouteTests {
         // the same thing as the card: not "Price unknown" for a voice
         // OpenRouter does not list.
         #expect(ArticleSpeechCatalog.priceLabel(forModel: ArticleSpeechCatalog.openAIRealtimeModelID) == openAI.priceLabel)
-        #expect(openAI.ratePerMillionCharacters == 0)
+        // Billed by OpenAI in tokens, so there is no per-character rate.
+        #expect(openAI.ratePerMillionCharacters == nil)
 
-        // Even on the learner's own OpenRouter key, the request stays on the
-        // proxy: OpenRouter cannot serve it.
+        // Even with an own OpenRouter key stored, the request is addressed to
+        // the narration, which `URLSession.speechData` answers from a Realtime
+        // session: OpenRouter cannot serve it, and the proxy no longer does.
         ManagedAI.ownKeyOverrideForTesting = .some(
             ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key")
         )
@@ -82,7 +85,8 @@ struct OwnOpenRouterKeyMediaRouteTests {
             text: "Two sentences. One voice.",
             selection: CloudArticleTTS.Selection(model: openAI.id, voice: "cedar")
         )
-        #expect(request.url?.absoluteString == "https://ai.foreverlm.com/v1/openai/speech")
+        #expect(request.url?.absoluteString == "https://api.openai.com/v1/realtime")
+        #expect(OpenAIRealtimeNarration.handles(request))
         #expect(request.value(forHTTPHeaderField: "Authorization") != "Bearer sk-or-test-key")
         let body = try #require(request.httpBody)
         let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])

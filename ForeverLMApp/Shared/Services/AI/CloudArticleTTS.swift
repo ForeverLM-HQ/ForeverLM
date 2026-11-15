@@ -894,7 +894,9 @@ enum CloudArticleTTS {
         request.timeoutInterval = requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        ManagedAI.rewrite(&request)
+        // An OpenAI voice is answered on the learner's own OpenAI key by
+        // `URLSession.speechData`; the managed rail has no part in it.
+        if !OpenAIRealtimeNarration.handles(request) { ManagedAI.rewrite(&request) }
         return request
     }
 
@@ -1143,7 +1145,7 @@ enum CloudArticleTTS {
     ) async throws -> (Data, URLResponse) {
         try await requestScheduler.acquire(priority: priority)
         do {
-            let response = try await session.foreverLMData(for: request)
+            let response = try await session.speechData(for: request)
             await requestScheduler.release()
             return response
         } catch {
@@ -1166,6 +1168,9 @@ enum CloudArticleTTS {
             // allowance, or voice switched off on the server.
             "narration_allowance_reached",
             "realtime_unavailable",
+            // OpenAI voices run on the learner's own OpenAI key.
+            "no_openai_key",
+            "own_openai_key_rejected",
         ].contains(error.code)
     }
 
@@ -1200,6 +1205,7 @@ enum CloudArticleTTS {
         let requestID = response.value(forHTTPHeaderField: "x-foreverlm-request-id")?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let boughtOnOwnKey = response.url?.host?.lowercased() == ManagedAI.OwnKeyRouter.openRouter.host
+            || response.url?.host?.lowercased() == OpenAIRealtimeNarration.requestURL.host
         if !boughtOnOwnKey, requestID?.isEmpty ?? true {
             throw GenerationError.badResponse(
                 "ForeverLM AI returned audio without a metering receipt."

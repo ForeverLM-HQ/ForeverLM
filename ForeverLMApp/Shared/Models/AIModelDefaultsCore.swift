@@ -43,8 +43,8 @@ enum AIModelDefaults {
     static let recommendedDeepSeekFlash = "deepseek/deepseek-v4-flash"
 
     /// Voice mode (`RealtimeVoiceController`): OpenAI Realtime, the one model
-    /// not reached through OpenRouter, on ForeverLM's own OpenAI credits
-    /// (product owner, 2026-11-07). The proxy accepts this and the -mini model.
+    /// not reached through OpenRouter, on the learner's own OpenAI key
+    /// (product owner, 2026-11-15).
     static let realtimeVoiceModel = "gpt-realtime-2.1"
 
     /// Stable fixture used only by the opt-in live API test. Production read-
