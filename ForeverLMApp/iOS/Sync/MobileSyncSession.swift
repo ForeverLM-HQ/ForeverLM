@@ -416,6 +416,8 @@ final class MobileAppDelegate: NSObject, UIApplicationDelegate {
         if MobileSyncSession.isEnabled {
             application.registerForRemoteNotifications()
         }
+        // The Apple Watch app's link, also when the watch woke the app.
+        MobileWatchBridge.shared.start()
         return true
     }
 

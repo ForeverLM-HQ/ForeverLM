@@ -125,6 +125,7 @@ final class MobileLearningBoutTimer: ObservableObject {
             needsAttention: phase == .writing || phase == .earned
         )
         WidgetCenter.shared.reloadTimelines(ofKind: "ForeverLMTodayWidget")
+        MobileWatchBridge.shared.scheduleRefresh()
         Task { await scheduleBreakAlarm(endsAt: phase == .resting ? clock : nil) }
     }
 
