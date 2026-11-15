@@ -30,9 +30,12 @@ enum MobileRealtimeCardReview {
 
     final class Toolbox: RealtimeVoiceToolbox, @unchecked Sendable {
         private let cards: MobileRealtimeCardTools
+        /// The cards waiting in To Check, gone through on request.
+        private let toCheck: MobileRealtimeToCheckTools
 
         init(cards: MobileRealtimeCardTools) {
             self.cards = cards
+            self.toCheck = MobileRealtimeToCheckTools(scope: cards.scope)
         }
 
         var toolDefinitions: [[String: Any]] {
@@ -41,11 +44,18 @@ enum MobileRealtimeCardReview {
                     description: "More of today's due cards, once the ones in your instructions are done: only cards not dealt yet in this review."
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
+                RealtimeVoiceCardReview.searchCardsTool(),
+                RealtimeVoiceCardReview.listTopicsTool(),
+                RealtimeVoiceCardsToCheck.listTool(
+                    description: "The cards waiting in To Check, when the learner asks to go through them: ask each one's question, then decide_card only on their say."
+                ),
+                RealtimeVoiceCardsToCheck.decideTool,
             ]
         }
 
         func run(name: String, argumentsJSON: String) async -> String {
-            await cards.run(name: name, argumentsJSON: argumentsJSON, onlyNew: true)
+            if let answer = await cards.run(name: name, argumentsJSON: argumentsJSON, onlyNew: true) { return answer }
+            return await toCheck.run(name: name, argumentsJSON: argumentsJSON, onlyNew: true)
                 ?? #"{"error":"Unknown tool."}"#
         }
 
@@ -94,8 +104,40 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
                 remembered: (arguments["remembered"] as? Bool) ?? false,
                 learnerSaid: arguments["learner_said"] as? String
             )
+        case RealtimeVoiceCardReview.searchCardsToolName:
+            let limit = min(max((arguments["limit"] as? NSNumber)?.intValue ?? 10, 1), RealtimeVoiceCardReview.searchResultCap)
+            let query = (arguments["query"] as? String) ?? ""
+            let matches = RealtimeVoiceCardReview.search(await library(), query: query)
+            // A found card can be asked and graded like a dealt one.
+            dealt.withLock { prompts in
+                for entry in matches.prefix(limit) { prompts[entry.card.id] = entry.card.question }
+            }
+            return RealtimeVoiceCardReview.searchOutput(matches, limit: limit)
+        case RealtimeVoiceCardReview.listTopicsToolName:
+            let query = (arguments["query"] as? String) ?? ""
+            return RealtimeVoiceCardReview.topicsOutput(RealtimeVoiceCardReview.search(await library(), query: query))
         default:
             return nil
+        }
+    }
+
+    /// Every kept card on the phone, not only today's slice of them.
+    @MainActor
+    private func library() async -> [RealtimeVoiceCardReview.LibraryCard] {
+        let vm = MobileAudioReviewViewModel.shared
+        let now = Date()
+        return await vm.keptCardListings().map { listing in
+            let title = listing.sourceIDs.lazy.compactMap { vm.sourcesByID[$0]?.title }.first?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return RealtimeVoiceCardReview.LibraryCard(
+                card: RealtimeVoiceCardReview.Card(
+                    id: listing.itemID,
+                    question: listing.face.front,
+                    answer: listing.face.back,
+                    source: (title?.isEmpty ?? true) ? nil : title
+                ),
+                dueToday: listing.schedule.dueAt <= now
+            )
         }
     }
 

@@ -46,6 +46,11 @@ enum RealtimeVoiceCardReview {
         - "I don't know", "pass" or "tell me" is not remembered: give the answer, grade it false, move on.
         - If they ask about a card, answer in a sentence or two, then carry on. A grade is recorded once; say so if \
         they want it changed, and carry on.
+        - Today's cards are only a slice of their deck. For a subject, a paper or a card they remember, call \
+        search_cards: it searches every kept card, and what it returns can be asked and graded like the others. \
+        For "what do I have cards on", call list_card_topics and name a few topics, never the whole list.
+        - If they want to go through their cards to check, use get_cards_to_check and decide_card: ask each \
+        question, and decide only when they clearly say keep, change or skip.
         - Speak briefly: one to three short sentences a turn. No lists, markdown, URLs or ids out loud.
         - Reply in the language the learner speaks; keep each card's meaning when you translate it.
         - Say a card's source by its title only when it helps ("from the paper on …"); never "this lecture".
@@ -144,5 +149,105 @@ enum RealtimeVoiceCardReview {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard flat.count > fieldBudget else { return flat }
         return String(flat.prefix(fieldBudget)) + "…"
+    }
+}
+
+// MARK: - The whole card library, by voice
+
+/// Today's queue is a time-budgeted slice of the deck (about 30 cards), so the
+/// voice conversation also reaches every kept card: `search_cards` finds them
+/// by what they say or the source they come from, and `list_card_topics` says
+/// which sources hold how many (product owner, 2026-11-15: voice "doesn't have
+/// access to all flashcards; only 30 at a time", asking to search them, list
+/// some by topic and go through the cards to check).
+extension RealtimeVoiceCardReview {
+    static let searchCardsToolName = "search_cards"
+    static let listTopicsToolName = "list_card_topics"
+    static let searchResultCap = 20
+    static let topicCap = 40
+
+    /// A kept card anywhere in the library, due or not.
+    struct LibraryCard: Equatable, Sendable {
+        let card: Card
+        let dueToday: Bool
+    }
+
+    /// Cards whose question, answer or source title holds every word of the
+    /// query, ignoring case and accents. An empty query matches all.
+    static func search(_ cards: [LibraryCard], query: String) -> [LibraryCard] {
+        let words = foldedWords(query)
+        guard !words.isEmpty else { return cards }
+        return cards.filter { entry in
+            let haystack = foldedText("\(entry.card.question) \(entry.card.answer) \(entry.card.source ?? "")")
+            return words.allSatisfy { haystack.contains($0) }
+        }
+    }
+
+    /// The sources holding the cards, biggest first, as the topics a learner
+    /// would name.
+    static func topics(_ cards: [LibraryCard]) -> [(title: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for entry in cards {
+            let title = (entry.card.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            counts[title.isEmpty ? "Other cards" : title, default: 0] += 1
+        }
+        return counts.map { (title: $0.key, count: $0.value) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.title < $1.title }
+    }
+
+    static func searchOutput(_ matches: [LibraryCard], limit: Int) -> String {
+        guard !matches.isEmpty else {
+            return #"{"cards":[],"matches":0,"note":"No kept card matches. Say so and offer to try other words or list the topics."}"#
+        }
+        let shown = matches.prefix(limit)
+        let rows = shown.map { entry -> [String: Any] in
+            var row: [String: Any] = [
+                "card_id": entry.card.id,
+                "question": clipped(entry.card.question),
+                "answer": clipped(entry.card.answer),
+                "due_today": entry.dueToday,
+            ]
+            if let source = entry.card.source, !source.isEmpty { row["source"] = source }
+            return row
+        }
+        let object: [String: Any] = ["cards": rows, "matches": matches.count, "shown": shown.count]
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? #"{"cards":[]}"#
+    }
+
+    static func topicsOutput(_ cards: [LibraryCard]) -> String {
+        let all = topics(cards)
+        let rows = all.prefix(topicCap).map { ["topic": $0.title, "cards": $0.count] as [String: Any] }
+        let object: [String: Any] = ["topics": rows, "topics_in_all": all.count, "cards_in_all": cards.count]
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? #"{"topics":[]}"#
+    }
+
+    static func searchCardsTool() -> [String: Any] {
+        RealtimeVoiceAssistant.function(
+            searchCardsToolName,
+            "Searches ALL the learner's kept cards, not only today's, by words in the question, the answer or the source's title. Use it when they ask about a subject, a paper or a card they remember. Cards it returns can be asked and graded with grade_card.",
+            properties: [
+                "query": ["type": "string", "description": "Words to look for; every word must appear. Empty lists cards in no particular order."],
+                "limit": ["type": "integer", "description": "How many cards, 1 to 20; 10 if left out."],
+            ],
+            required: ["query"]
+        )
+    }
+
+    static func listTopicsTool() -> [String: Any] {
+        RealtimeVoiceAssistant.function(
+            listTopicsToolName,
+            "Lists the sources the learner's kept cards come from, with how many cards each holds, biggest first. Use it when they ask what topics or subjects they have cards on. Name a few aloud, not all.",
+            properties: ["query": ["type": "string", "description": "Optional words to narrow the topics to cards matching them."]]
+        )
+    }
+
+    private static func foldedText(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+    }
+
+    private static func foldedWords(_ text: String) -> [String] {
+        foldedText(text).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
     }
 }

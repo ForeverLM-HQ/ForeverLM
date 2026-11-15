@@ -835,3 +835,32 @@ struct RealtimeVoiceOwnKeyTests {
         #expect(ManagedAI.ownOpenAIVoiceKeySuffix == "1234")
     }
 }
+
+@Suite("Voice card library search")
+struct RealtimeVoiceCardLibraryTests {
+    private func entry(_ id: String, _ q: String, _ a: String, _ source: String?, due: Bool = false) -> RealtimeVoiceCardReview.LibraryCard {
+        .init(card: .init(id: id, question: q, answer: a, source: source), dueToday: due)
+    }
+
+    @Test("search needs every word, in the question, answer or source title, ignoring case and accents")
+    func searchMatches() {
+        let cards = [
+            entry("a", "What does PINK1 do?", "It marks damaged mitochondria", "Mitophagy review"),
+            entry("b", "Where is Parkin recruited?", "Onto the outer membrane", "Mitophagy review"),
+            entry("c", "Capital of France?", "Paris", "Géographie"),
+        ]
+        #expect(RealtimeVoiceCardReview.search(cards, query: "pink1").map(\.card.id) == ["a"])
+        #expect(RealtimeVoiceCardReview.search(cards, query: "MITOPHAGY membrane").map(\.card.id) == ["b"])
+        #expect(RealtimeVoiceCardReview.search(cards, query: "geographie").map(\.card.id) == ["c"])
+        #expect(RealtimeVoiceCardReview.search(cards, query: "  ").count == 3)
+    }
+
+    @Test("topics count cards per source, biggest first")
+    func topicsCount() {
+        let cards = [entry("a", "q", "a", "Big"), entry("b", "q", "a", "Big"), entry("c", "q", "a", "Small"), entry("d", "q", "a", nil)]
+        let topics = RealtimeVoiceCardReview.topics(cards)
+        #expect(topics.first?.title == "Big")
+        #expect(topics.first?.count == 2)
+        #expect(topics.map(\.title).contains("Other cards"))
+    }
+}
