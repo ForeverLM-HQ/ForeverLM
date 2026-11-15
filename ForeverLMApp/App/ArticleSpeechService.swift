@@ -1,5 +1,6 @@
 #if os(macOS)
 import AVFoundation
+import CoreAudio
 import Foundation
 import MediaPlayer
 import os
@@ -182,6 +183,11 @@ final class ArticleSpeechService: NSObject, ObservableObject {
     @Published var nowPlayingSubtitle: String?
     @Published var isPlaying = false
     @Published var isPaused = false
+    /// Watches the Mac's default output so Listen pauses when AirPods (or any
+    /// Bluetooth headphones) stop being it, rather than carrying on out loud.
+    var outputDeviceWatcher: MacDefaultAudioDevicesWatcher?
+    var outputDeviceID = AudioDeviceID(kAudioObjectUnknown)
+    var outputDeviceIsBluetooth = false
     @Published var isLoading = false
     /// Human-readable work currently blocking the first audible word. Published
     /// synchronously from `startTextToSpeech` so every Listen entry point visibly
@@ -365,6 +371,7 @@ final class ArticleSpeechService: NSObject, ObservableObject {
         super.init()
         synthesizer.delegate = self
         installRemoteCommandHandlers()
+        installOutputDeviceWatcher()
         loadStoredConfiguration()
         installSpeechDirectoryRepair()
     }

@@ -174,6 +174,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         initializedPlayer = player
         installTimeObserver(for: player)
         installRemoteCommandHandlers()
+        installAudioSessionObservers()
         registerAudioSessionPreemptionIfNeeded()
         return player
     }()
@@ -302,6 +303,12 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     var textToSpeechCostConfirmationContinuation: CheckedContinuation<Bool, Never>?
     private var cancellables: Set<AnyCancellable> = []
     var didRegisterAudioSessionPreemption = false
+    /// The session observers that keep Listen in step with AirPods and the
+    /// system: a pulled-out bud or a call pauses it, a call ending resumes it.
+    var audioSessionObservers: [NSObjectProtocol] = []
+    /// True while a call, Siri or an alarm holds Listen paused and the system
+    /// may hand the audio back.
+    var pausedByAudioInterruption = false
     var activeCatalogLoad: (id: UUID, task: Task<Bool, Never>)?
     var forcedCatalogReloadRequested = false
     /// Whether the next load walks the iCloud Drive audio tree; a reload the replica asked for does not.
@@ -460,6 +467,9 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         }
         if let endObserver {
             NotificationCenter.default.removeObserver(endObserver)
+        }
+        for observer in audioSessionObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
         syncedAudioObservationTask?.cancel()
     }

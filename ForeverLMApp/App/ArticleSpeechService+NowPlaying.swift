@@ -1,5 +1,6 @@
 // Playback rate, remote commands, now playing info and the synced audio manifest.
 #if os(macOS)
+import CoreAudio
 import Foundation
 import MediaPlayer
 import SwiftUI
@@ -68,6 +69,66 @@ extension ArticleSpeechService {
             }
             return .success
         }
+
+        // AirPods' double press and triple press (and the keyboard's next and
+        // previous keys) arrive as next and previous track. A narration has no
+        // track list, so they skip within it, as a podcast player does.
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isPlaying else { return }
+                self.skipForward()
+            }
+            return .success
+        }
+
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isPlaying else { return }
+                self.skipBackward()
+            }
+            return .success
+        }
+
+        // Stop pauses in place; closing the narration stays the learner's own.
+        commandCenter.stopCommand.isEnabled = true
+        commandCenter.stopCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isPlaying, !self.isPaused else { return }
+                self.pauseOrResume()
+            }
+            return .success
+        }
+    }
+
+    /// Pauses Listen when the default output stops being Bluetooth headphones:
+    /// AirPods put back in the case, switched to the iPhone, or out of range.
+    /// macOS moves the sound to the speakers, and a narration carrying on out
+    /// loud is the wrong answer; music players pause there too.
+    func installOutputDeviceWatcher() {
+        guard outputDeviceWatcher == nil else { return }
+        recordOutputDevice()
+        outputDeviceWatcher = MacDefaultAudioDevicesWatcher { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.outputDeviceChanged()
+            }
+        }
+    }
+
+    private func recordOutputDevice() {
+        outputDeviceID = MacAudioDevice.defaultDevice(kAudioHardwarePropertyDefaultOutputDevice)
+        outputDeviceIsBluetooth = MacAudioDevice.isBluetooth(outputDeviceID)
+    }
+
+    private func outputDeviceChanged() {
+        let previousID = outputDeviceID
+        let leftHeadphones = outputDeviceIsBluetooth
+        recordOutputDevice()
+        // The watcher also reports input changes; only a new output counts.
+        guard outputDeviceID != previousID, leftHeadphones else { return }
+        guard isPlaying, !isPaused else { return }
+        pauseOrResume()
     }
 
     func updateNowPlayingInfo() {

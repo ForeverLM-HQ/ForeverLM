@@ -1078,6 +1078,99 @@ extension MobileAudioReviewViewModel {
             Task { @MainActor [weak self] in self?.skip(seconds: -15) }
             return .success
         }
+
+        // AirPods' double press and triple press (and a wired remote's) arrive
+        // as next and previous track. Listen has no track list to step through,
+        // so they skip within the narration, as a podcast player does.
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in self?.skip(seconds: 15) }
+            return .success
+        }
+
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in self?.skip(seconds: -15) }
+            return .success
+        }
+
+        // Stop from a headset, CarPlay or Siri pauses in place; closing the
+        // player stays the learner's own gesture.
+        commandCenter.stopCommand.isEnabled = true
+        commandCenter.stopCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                if self?.isPlaying == true {
+                    self?.togglePlayback()
+                }
+            }
+            return .success
+        }
+    }
+
+    /// Keeps Listen's own play state in step with what the system does to the
+    /// player. AVPlayer pauses itself when AirPods come out or a call starts,
+    /// but `isPlaying` would still say playing: the next stem press then
+    /// "paused" a silent player and needed a second press to start it, and
+    /// the mini-player showed Pause over silence.
+    func installAudioSessionObservers() {
+        guard audioSessionObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
+
+        audioSessionObservers.append(center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            let reason = reasonValue.flatMap(AVAudioSession.RouteChangeReason.init(rawValue:))
+            MainActor.assumeIsolated {
+                // Headphones gone (both buds out, AirPods switched away, a
+                // cable pulled): pause rather than carry on out of the speaker.
+                guard reason == .oldDeviceUnavailable else { return }
+                self?.pauseForAudioSystem(interrupted: false)
+            }
+        })
+
+        audioSessionObservers.append(center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            let info = notification.userInfo
+            let typeValue = info?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let type = typeValue.flatMap(AVAudioSession.InterruptionType.init(rawValue:))
+            let optionsValue = info?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume)
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                switch type {
+                case .began:
+                    self.pauseForAudioSystem(interrupted: true)
+                case .ended:
+                    let resume = self.pausedByAudioInterruption && shouldResume
+                    self.pausedByAudioInterruption = false
+                    guard resume, self.currentItem != nil, !self.isPlaying else { return }
+                    Task { @MainActor [weak self] in
+                        // The interruption deactivated the session; take it
+                        // back before the player is asked to sound.
+                        try? await self?.configureAudioSession()
+                        guard let self, self.currentItem != nil, !self.isPlaying else { return }
+                        self.togglePlayback()
+                    }
+                default:
+                    break
+                }
+            }
+        })
+    }
+
+    /// The system paused (or is about to pause) the player: record it as a
+    /// pause, so the position is kept and the next play command plays.
+    private func pauseForAudioSystem(interrupted: Bool) {
+        guard currentItem != nil, isPlaying else { return }
+        pausedByAudioInterruption = interrupted
+        togglePlayback()
     }
 
     func updateNowPlayingInfo() {
