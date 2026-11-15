@@ -149,8 +149,9 @@ final class MobileRealtimeToCheckTools: @unchecked Sendable {
         guard !decisions.isEmpty else { return #"{"ok":true,"note":"Nothing is left to decide there."}"# }
         let result = await MobileAudioReviewViewModel.shared.triageCardsToCheck(decisions)
         let failed = Set(result.failed.map(\.cardID))
+        let written = decisions
         decided.withLock { held in
-            for decision in decisions where !failed.contains(decision.card.cardID) {
+            for decision in written where !failed.contains(decision.card.cardID) {
                 if case .skip = decision.action { held[decision.card.cardID] = false } else { held[decision.card.cardID] = true }
             }
         }
