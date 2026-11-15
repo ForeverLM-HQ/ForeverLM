@@ -136,7 +136,7 @@ struct PreferenceSyncTests {
     @Test("Synced keys are recognized, including runtime-built prefixes")
     func syncedKeysMatch() throws {
         #expect(SyncedPreferenceKeys.isSynced("account.displayName"))
-        #expect(SyncedPreferenceKeys.isSynced(MacAccountUser.showsCompCrownPreferenceKey))
+        #expect(SyncedPreferenceKeys.isSynced(Prefs.Account.showsCompCrown.name))
         #expect(SyncedPreferenceKeys.isSynced("anthropic_model"))
         #expect(SyncedPreferenceKeys.isSynced("studio.hiddenTabs"))
         #expect(SyncedPreferenceKeys.isSynced("studio.excludedKnowledgeSourceTabs"))

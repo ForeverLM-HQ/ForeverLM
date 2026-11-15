@@ -201,13 +201,6 @@ struct MobileSettingsView: View {
                     Label(MobileKeyScreenCopy.title, systemImage: "key")
                 }
                 .accessibilityIdentifier("settings.credits")
-
-                NavigationLink {
-                    MobileUsageHistoryView()
-                } label: {
-                    Label("Usage", systemImage: "chart.bar")
-                }
-                .accessibilityIdentifier("settings.usage")
             } header: {
                 Text("AI")
             } footer: {
@@ -851,15 +844,13 @@ private struct MobileAccountDeletionAuthorizationView: View {
 
 /// The phone's key screen (product owner, 2026-09-25): AI features run on the
 /// learner's own OpenRouter key, for every account (the app is free; only MCP
-/// is paid for, and the phone has none). The phone stores the key and shows
-/// any leftover balance. The
+/// is paid for, and the phone has none). The phone stores the key. The
 /// iPhone app is a free companion to the Mac app (product owner, 2026-10-10; App
 /// Review 3.1.3(f)): it sells nothing, and nothing on it names a price, a place
 /// to buy, or a link that leads to one, so Stripe's billing pages and buying
 /// OpenRouter credits stay on the Mac.
 private struct MobileCreditsView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var balance: ManagedAI.Balance?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var lastRefreshAt: Date?
@@ -873,10 +864,6 @@ private struct MobileCreditsView: View {
         List {
             ownKeySection
             MobileRealtimeVoiceOwnKeySection()
-            if showsBalanceSection {
-                balanceSection
-            }
-
             if let errorMessage {
                 Section {
                     Text(errorMessage)
@@ -989,47 +976,6 @@ private struct MobileCreditsView: View {
         await refresh(silently: true)
     }
 
-    /// Balance is not sold, so the section shows
-    /// only while some is left, or for a comped or disabled account.
-    private var showsBalanceSection: Bool {
-        guard let balance else { return false }
-        return balance.microUSD > 0 || balance.billingExempt || balance.disabled
-    }
-
-    private var balanceSection: some View {
-        Section {
-            if let balance {
-                LabeledContent("Balance left") {
-                    Text(ManagedAI.creditBalanceText(microUSD: balance.microUSD))
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                        .accessibilityIdentifier("credits.balance")
-                }
-
-                if balance.disabled {
-                    Label("Account disabled", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                } else if balance.billingExempt {
-                    // Otherwise the figure above looks like a balance that stopped
-                    // moving for no reason.
-                    Label(compLabel, systemImage: "checkmark.seal.fill")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } footer: {
-            if balance?.billingExempt != true {
-                Text(ownKey == nil
-                    ? "Spent on requests sent without your key until it runs out."
-                    : "Not spent while your \(ownKeyRouter.label) key is stored: the key pays for every model.")
-            }
-        }
-    }
-
-    /// A comped tester needs to know why the figure above never moves.
-    private var compLabel: String {
-        "Usage is paid for by ForeverLM on this account"
-    }
-
     @MainActor
     private func refresh(minimumInterval: TimeInterval = 0, silently: Bool = false) async {
         if let lastRefreshAt, Date().timeIntervalSince(lastRefreshAt) < minimumInterval {
@@ -1042,7 +988,7 @@ private struct MobileCreditsView: View {
         defer { isLoading = false }
 
         do {
-            balance = try await ManagedAI.balance()
+            _ = try await ManagedAI.balance()
             lastRefreshAt = Date()
         } catch is CancellationError {
             return

@@ -57,15 +57,11 @@ extension ChatRobustnessTests {
         #expect(grok.model == "x-ai/grok-4.3")
     }
 
-    @Test("The server names the text router, OpenRouter is the default, stored choices are preserved")
-    func productRoutingOverridesStoredAndCompPreferences() {
+    @Test("OpenRouter is the only text router, and stored choices are preserved")
+    func productRoutingOverridesStoredPreferences() {
         let storedKey = AIModelPreferenceKey.textRoutingMode
         let previousStored = UserDefaults.standard.string(forKey: storedKey)
-        let previousRequired = ManagedAI.requiredTextRouterToken
-        defer {
-            UserDefaults.standard.set(previousStored, forKey: storedKey)
-            ManagedAI.requiredTextRouterToken = previousRequired
-        }
+        defer { UserDefaults.standard.set(previousStored, forKey: storedKey) }
 
         // The wire token is a transport name, not this enum's case name.
         #expect(AITextRoutingMode(serverToken: " OpenRouter ") == .openRouter)
@@ -84,81 +80,12 @@ extension ChatRobustnessTests {
         #expect(AITextRoutingMode.allCases == [.openRouter])
 
         UserDefaults.standard.set(AITextRoutingMode.openRouter.rawValue, forKey: storedKey)
-        ManagedAI.requiredTextRouterToken = nil
         #expect(KeychainService.textRoutingMode == .shippedDefault)
         #expect(UserDefaults.standard.string(forKey: storedKey) == AITextRoutingMode.openRouter.rawValue)
-
-        // The account-wide field is the policy, and it reaches a paying account
-        // too — not just a comped one. It is stored as named; a router this
-        // build does not know (from an older or newer Worker) resolves to
-        // the shipped default.
-        ManagedAI.applyTextRouterPolicy("otherrouter", comp: nil)
-        #expect(ManagedAI.requiredTextRouterToken == "otherrouter")
-        #expect(ManagedAI.requiredTextRoutingMode == nil)
-        #expect(KeychainService.textRoutingMode == .openRouter)
         #expect(
             KeychainService.routedTextSelection(provider: .anthropic, model: "claude-sonnet-5")
                 .provider == .openRouter
         )
-
-        // The whole point of the field: a router switched server-side moves this
-        // client's text without a new build, and it still never touches the
-        // user's own dormant stored choice.
-        ManagedAI.applyTextRouterPolicy("openrouter", comp: nil)
-        #expect(ManagedAI.requiredTextRoutingMode == .openRouter)
-        #expect(KeychainService.textRoutingMode == .openRouter)
-        #expect(
-            KeychainService.routedTextSelection(provider: .anthropic, model: "claude-sonnet-5")
-                .provider == .openRouter
-        )
-        #expect(UserDefaults.standard.string(forKey: storedKey) == AITextRoutingMode.openRouter.rawValue)
-
-        // A worker that predates the account-wide field still reports a comp's
-        // router, so an older deployment keeps working.
-        ManagedAI.applyTextRouterPolicy(
-            nil,
-            comp: ManagedAI.CompRow(active: true, textRouter: "openrouter", spentThisMonthMicrousd: 0)
-        )
-        #expect(ManagedAI.requiredTextRoutingMode == .openRouter)
-
-        // An inactive comp block carries no policy, and neither does a response
-        // with nothing in it. Both resolve to the shipped default rather than to
-        // "route however you like".
-        ManagedAI.applyTextRouterPolicy(
-            nil,
-            comp: ManagedAI.CompRow(active: false, textRouter: "openrouter", spentThisMonthMicrousd: nil)
-        )
-        #expect(ManagedAI.requiredTextRoutingMode == nil)
-        #expect(KeychainService.textRoutingMode == .shippedDefault)
-
-        ManagedAI.applyTextRouterPolicy(nil, comp: nil)
-        #expect(ManagedAI.requiredTextRoutingMode == nil)
-        #expect(KeychainService.textRoutingMode == .shippedDefault)
-        #expect(UserDefaults.standard.string(forKey: storedKey) == AITextRoutingMode.openRouter.rawValue)
-
-        // A token from a newer server than this build is not understood, and must
-        // not become "no policy" either.
-        ManagedAI.requiredTextRouterToken = "some-router-from-the-future"
-        #expect(ManagedAI.requiredTextRoutingMode == nil)
-        #expect(KeychainService.textRoutingMode == .shippedDefault)
-    }
-
-    @Test("A refused transport is a stale policy, not a dead end")
-    func staleTextRouterIsDistinguishedFromOtherRefusals() {
-        // The proxy names this code when the account-wide router moved while
-        // this client was running. Recovery is re-reading the policy, so it must
-        // not be confused with the refusals that mean something else.
-        let stale = ManagedAI.ServiceError(
-            code: "text_router_required",
-            message: "ForeverLM sends ordinary text inference through OpenRouter."
-        )
-        #expect(stale.isStaleTextRouter)
-        #expect(!stale.isCreditsEmpty)
-        #expect(!stale.isInvalidSession)
-
-        for other in ["credits_empty", "invalid_session", "model_not_managed", "unknown_path"] {
-            #expect(!ManagedAI.ServiceError(code: other, message: "").isStaleTextRouter)
-        }
     }
 
     /// Runs `body` with the managed-AI sign-in state pinned, then restores the
@@ -896,35 +823,50 @@ extension ChatRobustnessTests {
             #expect(request.value(forHTTPHeaderField: header) == nil)
         }
 
-        // Only that key's own router leaves the proxy. Any other host ends at
-        // the proxy's deliberate 404, and the key does not travel with it.
+        // Only that key's own router leaves the device with it. Any other host
+        // is pointed nowhere, and the key does not travel with it.
         var elsewhere = URLRequest(url: URL(string: "https://api.openai.com/v1/audio/speech")!)
         ManagedAI.rewrite(&elsewhere)
-        #expect(elsewhere.url?.host == ManagedAI.baseURL.host)
-        #expect(elsewhere.url?.path == "/v1/proxy/unsupported")
+        #expect(elsewhere.url == ManagedAI.noKeyURL)
         #expect(elsewhere.value(forHTTPHeaderField: ManagedAI.ownKeyHeader) == nil)
         for (_, value) in elsewhere.allHTTPHeaderFields ?? [:] {
             #expect(!value.contains("sk-or-test-key"))
         }
     }
 
-    @Test("With no own key every provider request still ends at the proxy")
-    func withoutAnOwnKeyEverythingIsProxied() throws {
+    @Test("With no own key no provider request goes anywhere")
+    func withoutAnOwnKeyNothingLeaves() throws {
         ManagedAI.ownKeyOverrideForTesting = .some(nil)
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
 
         #expect(!ManagedAI.sendsOwnKeyDirect(toHost: "openrouter.ai"))
         var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
         ManagedAI.rewrite(&request)
-        #expect(request.url?.host == ManagedAI.baseURL.host)
-        #expect(request.url?.path == "/v1/proxy/openrouter/api/v1/chat/completions")
+        #expect(request.url == ManagedAI.noKeyURL)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
     }
 
-    @Test("A lab's own API has no proxy route, and its query never reaches the proxy")
-    func labHostsEndAtTheUnsupportedRoute() throws {
-        // OpenRouter is the proxy's only upstream since 2026-10-02. The hosts
-        // that once had a route of their own now end where any unknown host
-        // does, carrying nothing of their URL, not even a `?key=`.
+    @Test("A request with no route fails with the sentence that says to add a key")
+    func blockedRequestSaysToAddAKey() throws {
+        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        defer { ManagedAI.ownKeyOverrideForTesting = nil }
+        var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
+        ManagedAI.rewrite(&request)
+        let error = URLError(.unsupportedURL, userInfo: [NSURLErrorFailingURLErrorKey: try #require(request.url)])
+        let service = try #require(ManagedAI.blockedRequestError(error))
+        #expect(service.code == "no_own_key")
+        #expect(service.message.contains("OpenRouter key"))
+        // Any other unsupported URL is not ours to rename.
+        #expect(ManagedAI.blockedRequestError(URLError(.unsupportedURL, userInfo: [
+            NSURLErrorFailingURLErrorKey: URL(string: "ftp://example.com")!,
+        ])) == nil)
+    }
+
+    @Test("A lab's own API has no route, and nothing of its URL is kept")
+    func labHostsEndAtTheNoRouteURL() throws {
+        // OpenRouter is the only router. The hosts that once had a route of
+        // their own end where any unknown host does, carrying nothing of their
+        // URL, not even a `?key=`.
         ManagedAI.ownKeyOverrideForTesting = .some(nil)
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
 
@@ -937,15 +879,16 @@ extension ChatRobustnessTests {
         ] {
             var request = URLRequest(url: URL(string: url)!)
             ManagedAI.rewrite(&request)
-            #expect(request.url?.host == ManagedAI.baseURL.host)
-            #expect(request.url?.path == "/v1/proxy/unsupported")
+            #expect(request.url == ManagedAI.noKeyURL)
             #expect(request.url?.query == nil)
         }
 
-        // OpenRouter's own query passes through whole.
+        // With a key, OpenRouter's own query passes through whole, direct.
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
         var lookup = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/generation?id=gen-1")!)
         ManagedAI.rewrite(&lookup)
-        #expect(lookup.url?.path == "/v1/proxy/openrouter/api/v1/generation")
+        #expect(lookup.url?.host == "openrouter.ai")
+        #expect(lookup.url?.path == "/api/v1/generation")
         #expect(lookup.url?.query == "id=gen-1")
     }
 
@@ -1036,28 +979,6 @@ extension ChatRobustnessTests {
         var proxied = body("anthropic/claude-opus-5.5")
         AIService.applyOpenRouterPayloadExtras(&proxied, provider: .openRouter)
         #expect((proxied["provider"] as? [String: Any])?["order"] == nil)
-    }
-
-    @Test("A subsidized account may pick its makers' models and the free ones; any other pick runs on the substitute")
-    func subsidizedModelAccess() throws {
-        let json = Data(#"{"makers":["anthropic","openai"],"free_models":true}"#.utf8)
-        let access = try JSONDecoder().decode(AIModelAccess.self, from: json)
-        #expect(access == AIModelAccess(makers: ["anthropic", "openai"], freeModels: true))
-        for slug in ["anthropic/claude-opus-5.5", "OpenAI/gpt-6.1-terra", "openrouter/free", "meta-llama/llama-4:free"] {
-            #expect(access.allows(slug: slug), "\(slug)")
-        }
-        for slug in ["google/gemini-2.5-flash", "deepseek/deepseek-v4-flash", "nvidia/parakeet-tdt-0.6b-v3", "claude-opus-5.5"] {
-            #expect(!access.allows(slug: slug), "\(slug)")
-        }
-        #expect(access.permitted("deepseek/deepseek-v4-flash") == AIModelAccess.substituteSlug)
-        #expect(access.permitted("anthropic/claude-opus-5.5") == "anthropic/claude-opus-5.5")
-        #expect(access.permitted("nvidia/parakeet-tdt-0.6b-v3", substitute: AIModelDefaults.batchTranscription)
-            == AIModelDefaults.batchTranscription)
-        // The substitutes are themselves covered.
-        #expect(access.allows(slug: AIModelAccess.substituteSlug))
-        #expect(access.allows(slug: AIModelDefaults.batchTranscription))
-        // Without free models only the makers remain.
-        #expect(!AIModelAccess(makers: ["anthropic"], freeModels: false).allows(slug: "openrouter/free"))
     }
 
     @Test("A first-party lab has no text endpoint; Muse Spark's text travels OpenRouter")

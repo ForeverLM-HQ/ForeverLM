@@ -437,7 +437,6 @@ export const SETTINGS_PARITY_TOOL_NAMES: readonly string[] = [
   "get_chat_models_offered",
   "set_chat_model_offered",
   "get_billing_settings",
-  "set_billing_settings",
   "get_background_ai_jobs",
   "decide_background_ai_job",
   "get_plugin_connections",

@@ -197,7 +197,7 @@ struct MCPAppSettingsToolsTests {
 
         let read = try payload(try await store.getAppSettings(pane: "Your name", settingID: nil))
         let rows = try #require(read["settings"] as? [[String: Any]])
-        #expect(rows.compactMap { $0["id"] as? String } == ["account.display_name", "account.show_comp_crown"])
+        #expect(rows.compactMap { $0["id"] as? String } == ["account.display_name"])
         #expect(rows.allSatisfy { $0["reach"] as? String == "account" })
 
         // Only refusals here: an accepted rename is a synced write to the

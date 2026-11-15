@@ -76,7 +76,6 @@ extension ChatRobustnessTests {
         let data = Data(#"{"error":{"code":"credits_empty","message":"ForeverLM AI credits are empty — top up in Settings to continue."}}"#.utf8)
         let error = try #require(ManagedAI.serviceError(from: data))
 
-        #expect(error.isCreditsEmpty)
         #expect(error.code == "credits_empty")
         #expect(error.message.contains("top up in Settings"))
     }

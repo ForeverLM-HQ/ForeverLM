@@ -181,7 +181,7 @@ extension MCPDataStore {
         ["pane": "Background › Models (Text-only, Multimodal, Tasks), a card's ⋯ for its host; Data & Privacy", "read": "get_ai_task_settings", "write": "set_ai_task_settings"],
         ["pane": "Chat › Models (which models the chat picker offers)", "read": "get_ai_task_settings", "write": "set_chat_model_offered"],
         ["pane": "AI Usage › API keys", "read": "get_own_router_key", "write": "set_own_router_key"],
-        ["pane": "Billing › Plan; AI Usage › Spending (monthly spending limit)", "read": "get_billing_settings", "write": "set_billing_settings"],
+        ["pane": "Billing › Plan (paying is the learner's own step)", "read": "get_billing_settings", "write": "open_settings (billing)"],
         ["pane": "Sources sidebar › bulk re-queues waiting for a decision", "read": "get_background_ai_jobs", "write": "decide_background_ai_job"],
         ["pane": "Automatic audio (no pane)", "read": "get_automatic_audio_settings", "write": "set_automatic_audio_settings"],
         ["pane": "Plugins › Calendar (the Mac's Calendar, which is the day)", "read": "get_calendar_settings", "write": "set_calendar_settings"],
@@ -340,17 +340,6 @@ extension MCPDataStore {
                 preferenceKeys: [WorkingNotesPreference.enabledKey],
                 read: { WorkingNotesPreference.isEnabled },
                 write: { WorkingNotesPreference.setEnabled(try AppSettingEntry.bool($0, "working_notes.enabled")) }
-            ),
-            AppSettingEntry(
-                id: "account.show_comp_crown",
-                pane: "Data & Privacy › Your name (the crown has no pane)",
-                title: "Show the crown by your name",
-                detail: "Whether an account whose AI usage ForeverLM pays for shows it: the crown in the web's account footer and the Mac account menu's \"Usage is paid for\" row (the Mac's account button carries no crown since 2026-10-06). On by default; off hides both on every client, for screenshots and recordings. It shows nothing on an account that pays for itself either way, and AI Usage still says who pays.",
-                reach: .account,
-                kind: .boolean,
-                preferenceKeys: [MacAccountUser.showsCompCrownPreferenceKey],
-                read: { MacAccountUser.showsCompCrown },
-                write: { MacAccountUser.setShowsCompCrown(try AppSettingEntry.bool($0, "account.show_comp_crown")) }
             ),
             AppSettingEntry(
                 id: "papers.read_unlinked_references_with_ai",

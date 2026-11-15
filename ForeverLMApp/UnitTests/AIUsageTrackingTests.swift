@@ -716,55 +716,6 @@ struct AIUsageTrackingTests {
         #expect(chat.callCount == 2)
     }
 
-    @Test("Server usage replaces client estimates during authoritative coverage")
-    func serverUsageReconciliationIsAuthoritative() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let oldLocal = usageEvent(id: "old-local", createdAt: 100, cost: 0.25)
-        let overlappingLocal = usageEvent(id: "overlap-local", createdAt: 300, cost: 9.99)
-        try store.saveAIUsageEvent(oldLocal)
-        try store.saveAIUsageEvent(overlappingLocal)
-
-        let server = ManagedAI.UsageLedgerEvent(
-            id: 42,
-            provider: "openrouter",
-            model: "deepseek/deepseek-v4-flash",
-            task: "author_normalization",
-            sourceTitle: "A Theory of Learning",
-            subjectID: "source-42",
-            subjectType: "article",
-            activityID: "activity-42",
-            requestID: "proxy-request-42",
-            inputTokens: 383,
-            outputTokens: 100,
-            cachedInputTokens: 0,
-            cacheWrite5mTokens: 0,
-            cacheWrite1hTokens: 0,
-            reasoningTokens: 0,
-            webSearchCalls: 0,
-            billedMicrousd: 125,
-            exactCost: 1,
-            clientPlatform: "macOS",
-            clientBuild: "0.2.0 (20)",
-            createdAtUnix: Date(timeIntervalSinceReferenceDate: 200).timeIntervalSince1970
-        )
-        try store.importManagedAIUsageEvents([server], through: 42)
-
-        #expect(try store.managedAIUsageCursor() == 42)
-        let events = try store.loadAIUsageEvents(limit: 10)
-        #expect(Set(events.map(\.id)) == ["old-local", "managed-ledger-42"])
-        #expect(events.first(where: { $0.id == "managed-ledger-42" })?.providerReportedCost == 0.000125)
-        #expect(events.first(where: { $0.id == "managed-ledger-42" })?.clientPlatform == "macOS")
-        #expect(events.first(where: { $0.id == "managed-ledger-42" })?.subjectID == "source-42")
-        #expect(events.first(where: { $0.id == "managed-ledger-42" })?.subjectTitle == "A Theory of Learning")
-        let totals = try store.aiUsageEventTotals()
-        #expect(totals.count == 2)
-        #expect(abs((totals.cost ?? 0) - 0.250125) < 0.000000001)
-    }
-
-    /// Reads versus writes, not a hit rate against total prompt tokens:
-    /// `input_tokens` includes cached tokens on OpenAI-shaped providers and
-    /// excludes them on Anthropic-direct, so a total-prompt denominator would
-    /// double-count most of this app's traffic.
     @Test("A call that consumed nothing is priced at zero, not counted as unpriced")
     func zeroUsageCallIsPricedAtZero() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -1271,70 +1222,6 @@ struct AIUsageTrackingTests {
         totals.cacheReadTokens = 0
         totals.cacheWriteTokens = 40_000
         #expect(totals.cacheReadShare == 0)
-    }
-
-    @Test("Exact server repair replaces an already mirrored unmetered row")
-    func exactServerRepairReplacesUnmeteredMirror() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let unmetered = ManagedAI.UsageLedgerEvent(
-            id: 42,
-            provider: "openrouter",
-            model: "nvidia/parakeet-tdt-0.6b-v3",
-            task: "review_dictation",
-            sourceTitle: nil,
-            subjectID: nil,
-            subjectType: nil,
-            activityID: "dictation-1",
-            requestID: "proxy-request-42:unmetered",
-            inputTokens: 0,
-            outputTokens: 0,
-            cachedInputTokens: 0,
-            cacheWrite5mTokens: 0,
-            cacheWrite1hTokens: 0,
-            reasoningTokens: 0,
-            webSearchCalls: 0,
-            billedMicrousd: 0,
-            exactCost: 0,
-            clientPlatform: "macOS",
-            clientBuild: "0.2.0 (20)",
-            createdAtUnix: 100
-        )
-        try store.importManagedAIUsageEvents([unmetered], through: 42)
-
-        let repaired = ManagedAI.UsageLedgerEvent(
-            id: 43,
-            provider: "openrouter",
-            model: "nvidia/parakeet-tdt-0.6b-v3",
-            task: "review_dictation",
-            sourceTitle: nil,
-            subjectID: nil,
-            subjectType: nil,
-            activityID: "dictation-1",
-            requestID: "proxy-request-42",
-            inputTokens: 0,
-            outputTokens: 0,
-            cachedInputTokens: 0,
-            cacheWrite5mTokens: 0,
-            cacheWrite1hTokens: 0,
-            reasoningTokens: 0,
-            webSearchCalls: 0,
-            billedMicrousd: 80,
-            exactCost: 1,
-            clientPlatform: "macOS",
-            clientBuild: "0.2.0 (20)",
-            createdAtUnix: 100
-        )
-        try store.importManagedAIUsageEvents([repaired], through: 43)
-
-        // An old build could have advanced its cursor after importing both
-        // rows. Replaying the stale row models that persisted state and proves
-        // a later event-driven sync still reconciles it.
-        try store.importManagedAIUsageEvents([unmetered], through: 44)
-
-        let events = try store.loadAIUsageEvents(limit: 10)
-        #expect(events.map(\.id) == ["managed-ledger-43"])
-        #expect(events.first?.providerReportedCost == 0.000080)
-        #expect(try store.aiUsageEventTotals().unpriced == 0)
     }
 
     @Test("Usage remains durable when the knowledge schema is newer than the app")

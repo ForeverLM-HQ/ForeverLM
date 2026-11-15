@@ -30,8 +30,6 @@ actor MobileCloudSourceCatalog {
     private var replicaMemoryHandle: MobileReplica?
     /// Moves with every replica load, so a decode that began before one never outlives it.
     private var replicaMemoryEpoch = 0
-    /// The usage ledger's cache, in a file of its own.
-    private var usageStore: MobileUsageHistoryStore?
 
     /// The replica's query layer once the session runs (`MobileSyncSession`); nil when it cannot start.
     private let replicaProjection: @Sendable () async -> MobileProjection?
@@ -108,25 +106,6 @@ actor MobileCloudSourceCatalog {
     func loadNotebooks(forceRefresh: Bool = false) async throws -> [MobileCloudNotebook] {
         _ = try await loadSources(forceRefresh: forceRefresh)
         return cachedNotebooks
-    }
-
-    /// Usage owns no second persistence rail. Its last authoritative server
-    /// snapshot lives beside the catalog in the mobile SQLite database, served
-    /// immediately while a fresh ledger request runs in the background.
-    func loadUsageHistorySnapshot() -> MobileUsageHistorySnapshot? {
-        try? usageHistoryStore().loadUsageHistorySnapshot()
-    }
-
-    func saveUsageHistorySnapshot(_ snapshot: MobileUsageHistorySnapshot) throws {
-        try usageHistoryStore().saveUsageHistorySnapshot(snapshot)
-    }
-
-    /// A file of the usage cache's own beside the replica, kept in the zone mirror's table shape.
-    private func usageHistoryStore() throws -> MobileUsageHistoryStore {
-        if let usageStore { return usageStore }
-        let store = try MobileUsageHistoryStore(databaseURL: Self.usageDatabaseURL())
-        usageStore = store
-        return store
     }
 
     /// Book/course display metadata and the hidden sets, from the same zone
@@ -896,27 +875,6 @@ actor MobileCloudSourceCatalog {
             sourceRecordCount: replicaSnapshot?.sources.count, decodedSourceCount: lastDecodedSourceCount,
             zoneRecordCount: nil, zoneRecordTypes: nil, errorMessage: nil, checkedAt: checkedAt
         )
-    }
-
-    // MARK: - Persistence
-
-    /// The usage cache's file, in the folder the phone's catalog has always used, per CloudKit
-    /// environment.
-    private static func usageDatabaseURL() throws -> URL {
-        let applicationSupport = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        var directory = applicationSupport
-            .appendingPathComponent("ForeverLM", isDirectory: true)
-            .appendingPathComponent(MobileCloudKitEnvironment.current.scopedName("MobileCatalog"), isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try? directory.setResourceValues(values)
-        return directory.appendingPathComponent("usage.db")
     }
 }
 

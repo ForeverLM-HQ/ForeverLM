@@ -865,24 +865,6 @@
       "synced": false
     },
     {
-      "name": "managedAI.comp.textRouter",
-      "reason": "cache of server-held account state",
-      "scope": "device",
-      "synced": false
-    },
-    {
-      "name": "managedAI.creditsAreEmpty",
-      "reason": "cache of server-held account state",
-      "scope": "device",
-      "synced": false
-    },
-    {
-      "name": "managedAI.modelAccess",
-      "reason": "cache of server-held account state",
-      "scope": "device",
-      "synced": false
-    },
-    {
       "name": "managedAI.serverClockOffset",
       "reason": "this device's clock against the server's",
       "scope": "device",

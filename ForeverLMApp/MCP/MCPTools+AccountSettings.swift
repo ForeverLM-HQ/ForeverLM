@@ -99,19 +99,8 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_billing_settings",
-                description: "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 30 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
+                description: "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and AI Usage (the key), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 30 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key). This is account state, the same on every device.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
-            ),
-            MCPToolDef(
-                name: "set_billing_settings",
-                description: "Change the monthly spending limit in AI Usage › Spending exactly as the pane's picker does. monthly_spending_limit takes one of the picker's values: no_limit, or a dollar amount from monthly_spending_limit.options in get_billing_settings (5, 10, 20, 50, 100, 250). When the month's AI spend reaches the limit, AI pauses until the month resets; a limit below what has already been spent pauses AI at once. That changes whether AI keeps working, so ask the learner first. Paying for ForeverLM goes through Stripe Checkout, which only the learner can complete: use open_settings billing. The own OpenRouter key is set with set_own_router_key. Returns what get_billing_settings returns, after the change.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "monthly_spending_limit": ["description": "no_limit, or one of the picker's dollar amounts: 5, 10, 20, 50, 100, 250."],
-                    ],
-                    "required": ["monthly_spending_limit"],
-                ]
             ),
         ]
     }
@@ -155,8 +144,6 @@ extension MCPDataStore {
         case "get_billing_settings":
             let payload = try await Self.billingSettingsPayload(refresh: true)
             return try jsonString(payload)
-        case "set_billing_settings":
-            return try await setBillingSettings(monthlySpendingLimit: arguments["monthly_spending_limit"])
         default:
             return nil
         }
@@ -595,110 +582,9 @@ extension MCPDataStore {
             payload["error"] = message
         }
         guard account.isSignedIn else {
-            payload["message"] = "Not signed in to ForeverLM AI, so there is no plan, balance or limit to show. Signing in is the learner's own step (open_settings billing)."
+            payload["message"] = "Not signed in to ForeverLM, so there is no plan to show. Signing in is the learner's own step: open_settings billing."
             return payload
         }
-        guard let balance = account.balance else {
-            payload["message"] = "The balance could not be loaded from the account server; see error."
-            return payload
-        }
-
-        // The pane shows the balance only while some is left; the figure is
-        // reported either way so an assistant can say there is none.
-        var balanceJSON: [String: Any] = [
-            "remaining_usd": balance.usd,
-            "remaining_text": ManagedAI.creditBalanceText(microUSD: balance.microUSD),
-            "shown_in_pane": balance.microUSD > 0 || balance.billingExempt || balance.disabled,
-            "note": "Left over from before prepaid balance was retired; it pays for requests sent without the own key until it runs out and cannot be added to.",
-            "ai_paused_nothing_pays": balance.isEmpty,
-            "account_disabled": balance.disabled,
-            "usage_comped": account.usageIsComped,
-        ]
-        if let comp = balance.comp {
-            balanceJSON["comp_spent_this_month_usd"] = comp.spentThisMonthUSD
-            if let spentToday = comp.spentTodayMicroUSD {
-                balanceJSON["comp_spent_today_usd"] = Double(spentToday) / 1_000_000
-            }
-        }
-        payload["balance"] = balanceJSON
-
-        let cap = balance.spendCap
-        let capValue: Any = cap.limitUSD.map { Int($0.rounded()) as Any } ?? "no_limit"
-        var capJSON: [String: Any] = [
-            "value": capValue,
-            "limit_usd": cap.limitUSD ?? NSNull(),
-            "spent_this_month_usd": cap.spentThisMonthUSD,
-            "reached": cap.isReached,
-            "resets_at": cap.resetsAt ?? NSNull(),
-            "maximum_usd": cap.maximumUSD,
-            "options": ["no_limit" as Any] + ManagedAIAccountModel.spendCaps.map { $0 as Any },
-        ]
-        if let limit = cap.limitUSD, !ManagedAIAccountModel.spendCaps.contains(Int(limit.rounded())) {
-            capJSON["note"] = "The current limit is not one of the picker's values; it was set elsewhere."
-        }
-        payload["monthly_spending_limit"] = capJSON
-
         return payload
-    }
-
-    func setBillingSettings(monthlySpendingLimit rawLimit: Any?) async throws -> String {
-        guard let rawLimit, !(rawLimit is NSNull) else {
-            // `ManagedAIAccountModel` is @MainActor; so are its statics.
-            let spendCaps = await MainActor.run { ManagedAIAccountModel.spendCaps }
-            throw MCPError.invalidInput("Pass monthly_spending_limit: no_limit or one of \(spendCaps.map(String.init).joined(separator: ", ")). Paying for ForeverLM needs Stripe Checkout: open_settings billing.")
-        }
-        let limitChange = try await Self.spendCapChoice(rawLimit)
-        let changed = try await Self.applyBillingSettings(limitChange: limitChange)
-        var payload = try await Self.billingSettingsPayload(refresh: false)
-        payload["changed"] = changed
-        return try jsonString(payload)
-    }
-
-    /// nil is "No limit"; otherwise one of the picker's amounts.
-    @MainActor
-    private static func spendCapChoice(_ value: Any) throws -> Int? {
-        let options = ManagedAIAccountModel.spendCaps
-        let refusal = MCPError.invalidInput("monthly_spending_limit takes no_limit or one of: \(options.map(String.init).joined(separator: ", ")).")
-        if let text = value as? String {
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if ["no_limit", "no limit", "none", "off"].contains(trimmed) { return nil }
-            let digits = trimmed.hasPrefix("$") ? String(trimmed.dropFirst()) : trimmed
-            guard let number = Double(digits), let amount = Int(exactly: number), options.contains(amount) else { throw refusal }
-            return amount
-        }
-        if let number = value as? NSNumber, !(value is Bool) {
-            let double = number.doubleValue
-            guard let amount = Int(exactly: double), options.contains(amount) else { throw refusal }
-            return amount
-        }
-        throw refusal
-    }
-
-    /// Through `setSpendCap`, the pane's own call. It reports failure in
-    /// `errorMessage` rather than throwing; that sentence is what the learner
-    /// would have read under the pane.
-    @MainActor
-    private static func applyBillingSettings(limitChange: Int?) async throws -> [String] {
-        let account = try AppModelBridge.requireAccount()
-        await account.refresh()
-        guard account.isSignedIn else {
-            throw MCPError.invalidInput("Not signed in to ForeverLM AI. Signing in is the learner's own step: open_settings billing.")
-        }
-        guard let balance = account.balance else {
-            throw MCPError.invalidInput(account.balanceErrorMessage ?? "The Billing settings could not be loaded from the account server; try again.")
-        }
-        var changed: [String] = []
-        let current = balance.spendCap.limitUSD.map { Int($0.rounded()) }
-        if current != limitChange {
-            guard !account.spendCapInFlight else {
-                throw MCPError.invalidInput("A spending-limit change is already on its way; read get_billing_settings in a moment.")
-            }
-            await account.setSpendCap(monthlyLimitUSD: limitChange.map(Double.init))
-            if let message = account.errorMessage {
-                throw MCPError.invalidInput(message)
-            }
-            changed.append("monthly_spending_limit")
-        }
-        return changed
     }
 }

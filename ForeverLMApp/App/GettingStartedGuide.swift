@@ -1596,8 +1596,7 @@ struct GettingStartedGuide: View {
             case .key:
                 return GettingStartedAIPayment.isReady(
                     hasOwnKey: account.ownKey != nil,
-                    ownKeyAllowed: account.ownKeyAllowed,
-                    canPayWithoutKey: hasUsableForeverLMCredits
+                    ownKeyAllowed: account.ownKeyAllowed
                 )
             case .models:
                 return modelsReady
@@ -1661,13 +1660,6 @@ struct GettingStartedGuide: View {
             return
         }
         go(to: next)
-    }
-
-    /// A comp, or a leftover balance. Asked
-    /// without the key, which `Balance.isEmpty` would otherwise count.
-    private var hasUsableForeverLMCredits: Bool {
-        guard let balance = account.balance, !balance.disabled else { return false }
-        return balance.billingExempt || balance.microUSD > 0
     }
 
     /// A first launch holds the local source watchers until setup reaches the

@@ -126,11 +126,11 @@ extension ArticleSpeechContentTests {
 
     /// The product owner (2026-09-27): "it can just be done via openrouter". Gemini went
     /// to Google's own API until then; it is an OpenRouter model now, under
-    /// the same slug, on OpenRouter's speech endpoint through the proxy.
+    /// the same slug, on OpenRouter's speech endpoint, on the learner's key.
     @Test("Gemini narration goes to OpenRouter's speech endpoint")
     func mobileCloudNarrationUsesOpenRouterSpeechRoute() throws {
-        // The balance's routes; a key in the developer's Keychain would move them.
-        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        // The learner's own OpenRouter key: the request goes straight to OpenRouter.
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         let selection = CloudArticleTTS.Selection(
             model: "google/gemini-3.1-flash-tts-preview",
@@ -145,11 +145,12 @@ extension ArticleSpeechContentTests {
             }
         }
 
-        #expect(request.url?.host == "ai.foreverlm.com")
-        #expect(request.url?.path == "/v1/proxy/openrouter/api/v1/audio/speech")
-        #expect(request.value(forHTTPHeaderField: "X-ForeverLM-Task") == "read_aloud")
-        let encodedTitle = try #require(request.value(forHTTPHeaderField: "X-ForeverLM-Source-Title"))
-        #expect(encodedTitle.removingPercentEncoding == "Learning — 100%")
+        #expect(request.url?.host == "openrouter.ai")
+        #expect(request.url?.path == "/api/v1/audio/speech")
+        // Attribution is for ForeverLM's local ledger; none of it is sent to OpenRouter.
+        #expect(request.value(forHTTPHeaderField: "X-ForeverLM-Task") == nil)
+        #expect(request.value(forHTTPHeaderField: "X-ForeverLM-Source-Title") == nil)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-or-test-key")
 
         let body = try #require(request.httpBody)
         let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -163,8 +164,8 @@ extension ArticleSpeechContentTests {
 
     @Test("Grok narration goes to OpenRouter's speech endpoint, not xAI's")
     func grokNarrationUsesOpenRouterSpeechRoute() throws {
-        // The balance's routes; a key in the developer's Keychain would move them.
-        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        // The learner's own OpenRouter key: the request goes straight to OpenRouter.
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         let request = try AIUsageAttribution.$task.withValue("read_aloud") {
             try CloudArticleTTS.speechRequest(
@@ -176,8 +177,8 @@ extension ArticleSpeechContentTests {
             )
         }
 
-        #expect(request.url?.host == "ai.foreverlm.com")
-        #expect(request.url?.path == "/v1/proxy/openrouter/api/v1/audio/speech")
+        #expect(request.url?.host == "openrouter.ai")
+        #expect(request.url?.path == "/api/v1/audio/speech")
         let body = try #require(request.httpBody)
         let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(payload["model"] as? String == ArticleSpeechCatalog.grokModelID)
@@ -204,8 +205,8 @@ extension ArticleSpeechContentTests {
 
     @Test("router-only narration keeps OpenRouter's media route")
     func routerOnlyNarrationUsesOpenRouterMedia() throws {
-        // The balance's routes; a key in the developer's Keychain would move them.
-        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        // The learner's own OpenRouter key: the request goes straight to OpenRouter.
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         let request = try AIUsageAttribution.$task.withValue("read_aloud") {
             try CloudArticleTTS.speechRequest(
@@ -217,8 +218,8 @@ extension ArticleSpeechContentTests {
             )
         }
 
-        #expect(request.url?.host == "ai.foreverlm.com")
-        #expect(request.url?.path == "/v1/proxy/openrouter/api/v1/audio/speech")
+        #expect(request.url?.host == "openrouter.ai")
+        #expect(request.url?.path == "/api/v1/audio/speech")
     }
 
     @Test("transcription goes to OpenRouter for every model, GPT-4o mini included")

@@ -20,8 +20,6 @@ final class ManagedAIAccountModel {
 
     private(set) var balance: ManagedAI.Balance? {
         didSet {
-            creditsAreEmpty = balance?.isEmpty == true
-            if creditsAreEmpty { reconcileUsageAfterExhaustion() }
             // Every balance fetch carries the plan too, and every sign-out
             // clears both, so the plan follows whatever the balance just did.
             appAccess = ManagedAI.appAccess
@@ -86,19 +84,9 @@ final class ManagedAIAccountModel {
     var freeDaysStatus: String? {
         freeDaysLeft.map(ManagedAI.AppAccess.freeDaysStatus(daysLeft:))
     }
-    /// Ambient UI can keep the exhausted state visible even when the failed
-    /// request arrived before the first balance fetch completed.
-    private(set) var creditsAreEmpty = false
-
-    /// Present for a configured tester comp, carrying the monthly allowance and
-    /// what it has spent. Older predefined tester accounts can instead be marked
-    /// `billing_exempt`, so the rail uses `usageIsComped` to decide visibility.
-    var comp: ManagedAI.Comp? { balance?.comp }
-
-    /// The proxy's authoritative answer to whether ForeverLM pays for this
-    /// account. This includes both configured tester comps and predefined
-    /// billing exemptions; an ordinary account with granted credits stays false.
-    var usageIsComped: Bool { balance?.billingExempt == true }
+    /// Whether AI work has nothing to run on: no own key stored (ForeverLM pays
+    /// for no AI). Ambient UI shows it as the "add your key" prompt.
+    var creditsAreEmpty: Bool { !isLoadingStoredSession && ownKey == nil }
 
     /// The learner's own router key, mirrored for the Billing pane. Loaded with
     /// the stored session, off the main actor, and kept current by the two
@@ -122,8 +110,6 @@ final class ManagedAIAccountModel {
     private(set) var isLoadingStoredSession = true
     var signInInFlight = false
     var refreshInFlight = false
-    var spendCapInFlight = false
-    var grantInFlight = false
     var errorMessage: String? {
         didSet { errorIsAccountDisabled = false }
     }
@@ -136,14 +122,8 @@ final class ManagedAIAccountModel {
     /// checkout, portal, or account error the learner still needs to see.
     private(set) var balanceErrorMessage: String?
     @ObservationIgnored private var lastBalanceRefreshAt: Date?
-    /// Guards `reconcileUsageAfterExhaustion` to one pull per launch.
-    @ObservationIgnored private var hasReconciledAfterExhaustion = false
     @ObservationIgnored private var balanceRequest: Task<ManagedAI.Balance, Error>?
     @ObservationIgnored private var lastValidationAt: Date?
-    /// Held across failed operator grants so a retry after a lost response is
-    /// recognised as the same grant. Cleared once one succeeds, and abandoned
-    /// if the amount changes, since that is a different grant.
-    @ObservationIgnored private var pendingGrant: (amountUSD: Int, key: String)?
     @ObservationIgnored private var validationRunning = false
 
     /// True while a session that is *locally* past its expiry is being checked with the proxy.
@@ -158,9 +138,6 @@ final class ManagedAIAccountModel {
     /// in the background, so the common launch is not gated on the network.
     private(set) var isValidatingLapsedSession = false
 
-    /// Monthly spending caps offered in Settings. Any positive amount up to the
-    /// server's maximum is accepted; these are just the ones worth one tap.
-    static let spendCaps = [5, 10, 20, 50, 100, 250]
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ManagedAI")
 
@@ -223,7 +200,6 @@ final class ManagedAIAccountModel {
             return ManagedAI.ownKey
         }.value
         ownKey = stored
-        creditsAreEmpty = balance?.isEmpty == true
         await refresh(silently: true)
         return true
     }
@@ -239,7 +215,6 @@ final class ManagedAIAccountModel {
         let stored = await Task.detached(priority: .userInitiated) { ManagedAI.ownKey }.value
         guard stored != ownKey else { return }
         ownKey = stored
-        creditsAreEmpty = balance?.isEmpty == true
         await refresh(minimumInterval: 2, silently: true)
     }
 
@@ -308,7 +283,7 @@ final class ManagedAIAccountModel {
         errorMessage = nil
 
         do {
-            _ = try await ManagedAI.signIn(identityToken: identityToken)
+            try await ManagedAI.signIn(identityToken: identityToken)
             if let subject = AppleIdentityToken.subject(from: identityToken) {
                 // The proxy has now verified the token. Persisting the subject only
                 // after that check keeps MCP identity tied to an authenticated Apple user.
@@ -438,68 +413,6 @@ final class ManagedAIAccountModel {
     }
 
     // MARK: - Balance
-
-    func recordCreditsExhausted() {
-        // With the learner's own key, the refused route is one the key cannot
-        // cover; chat still sends, so the account is not empty for its purposes.
-        guard ownKey == nil else { return }
-        creditsAreEmpty = true
-        reconcileUsageAfterExhaustion()
-    }
-
-    /// Pull the server ledger the first time this launch sees credits empty.
-    ///
-    /// Reconciling accounting only when the Usage pane opens would let a
-    /// balance empty without the on-device ledger ever learning what spent it —
-    /// `last_ledger_id` would sit at 0 while months of spending accumulated. Running out is exactly when that history has to be
-    /// there. Once per launch: the transition can be observed repeatedly, by
-    /// every refused request as well as by each balance refresh.
-    private func reconcileUsageAfterExhaustion() {
-        guard !hasReconciledAfterExhaustion, ManagedAI.isSignedIn else { return }
-        hasReconciledAfterExhaustion = true
-        let logger = logger
-        Task {
-            do {
-                _ = try await Self.pullServerUsage(into: StorageService())
-            } catch {
-                logger.warning(
-                    "Managed AI usage reconciliation failed: \(error.localizedDescription, privacy: .public)"
-                )
-            }
-        }
-    }
-
-    /// Pull every unseen D1 usage row into the local `ai_usage_events` ledger.
-    ///
-    /// The server's ledger is authoritative and this table is a cache of it,
-    /// alongside locally estimated rows. The stored cursor makes a repeat call a
-    /// single empty page rather than a rescan of history, and each page commits
-    /// atomically, so any event may call this.
-    nonisolated static func pullServerUsage(into storage: StorageService) async throws -> Bool {
-        var cursor = try await storage.managedAIUsageCursor()
-        var importedEvents = false
-        while true {
-            try Task.checkCancellation()
-            let page = try await ManagedAI.usageEvents(after: cursor)
-            guard page.nextAfterID >= cursor else {
-                throw ManagedAI.ServiceError(
-                    code: "invalid_usage_cursor",
-                    message: "The server returned an invalid AI usage cursor."
-                )
-            }
-            try await storage.importManagedAIUsageEvents(page.events, through: page.nextAfterID)
-            importedEvents = importedEvents || !page.events.isEmpty
-            let advanced = page.nextAfterID > cursor
-            cursor = page.nextAfterID
-            if !page.hasMore { return importedEvents }
-            guard advanced else {
-                throw ManagedAI.ServiceError(
-                    code: "stalled_usage_cursor",
-                    message: "The server AI usage cursor did not advance."
-                )
-            }
-        }
-    }
 
     func refresh(minimumInterval: TimeInterval = 0, silently: Bool = false) async {
         guard ManagedAI.isSignedIn else {
@@ -702,74 +615,6 @@ final class ManagedAIAccountModel {
         } catch {
             logger.warning("Managed AI portal failed: \(error.localizedDescription, privacy: .public)")
             errorMessage = "Couldn't open your billing history. Check your connection and try again."
-        }
-    }
-
-    // MARK: - Spending cap
-
-    /// Set the monthly spending cap, or pass nil to remove it.
-    ///
-    /// Refreshes afterwards rather than writing the returned figure into
-    /// `balance` directly: the cap changes what the whole card should say (a cap
-    /// set below the month's spend reads as already reached), and the balance
-    /// payload is the one place that state is assembled.
-    func setSpendCap(monthlyLimitUSD: Double?) async {
-        guard !spendCapInFlight else { return }
-        spendCapInFlight = true
-        defer { spendCapInFlight = false }
-        errorMessage = nil
-
-        do {
-            try await ManagedAI.setSpendCap(monthlyLimitUSD: monthlyLimitUSD)
-            await refresh()
-        } catch let error as ManagedAI.ServiceError {
-            show(error)
-        } catch {
-            logger.warning("Managed AI spend cap update failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = monthlyLimitUSD == nil
-                ? "Couldn't remove the spending cap. Check your connection and try again."
-                : "Couldn't update the spending cap. Check your connection and try again."
-        }
-    }
-
-    // MARK: - Operator balance
-
-    /// Adds balance to this account with no payment. Only meaningful for an
-    /// operator account; the proxy rejects anyone else, so this is a convenience
-    /// rather than the check itself.
-    ///
-    /// The idempotency key deliberately outlives a failed attempt. The case worth
-    /// protecting is a grant that reached the server whose response was lost: a
-    /// fresh key per tap would make that retry a second grant, while reusing this
-    /// one lets the server recognise it and report that nothing was added. Two
-    /// taps that both succeed are still two grants, which is what was asked for.
-    func grantCredits(amountUSD: Int) async {
-        guard !grantInFlight else { return }
-        grantInFlight = true
-        defer { grantInFlight = false }
-        errorMessage = nil
-
-        let key = pendingGrant?.amountUSD == amountUSD
-            ? pendingGrant!.key
-            : "grant:\(UUID().uuidString)"
-        pendingGrant = (amountUSD, key)
-
-        do {
-            let grant = try await ManagedAI.grantCredits(amountUSD: amountUSD, idempotencyKey: key)
-            pendingGrant = nil
-            if grant.alreadyGranted {
-                errorMessage = "That balance was already added, so nothing was added again."
-            }
-            await refresh()
-        } catch let error as ManagedAI.ServiceError {
-            // A rejected amount or a non-operator account will be rejected again
-            // for the same reason; only a transport failure is worth retrying
-            // under the same key.
-            pendingGrant = nil
-            show(error)
-        } catch {
-            logger.warning("Managed AI balance grant failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = "Couldn't add balance. Check your connection and try again."
         }
     }
 

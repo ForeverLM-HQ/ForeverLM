@@ -209,23 +209,12 @@ extension StorageService {
         }
     }
 
-    func managedAIUsageCursor() throws -> Int64 {
-        try knowledgeStore().managedAIUsageCursor()
-    }
-
     func cachedAIResponse(for requestKey: String, notOlderThan cutoff: Date) throws -> String? {
         try knowledgeStore().cachedAIResponse(for: requestKey, notOlderThan: cutoff)
     }
 
     func saveCachedAIResponse(_ response: String, for requestKey: String) throws {
         try knowledgeStore().saveCachedAIResponse(response, for: requestKey)
-    }
-
-    func importManagedAIUsageEvents(
-        _ rows: [ManagedAI.UsageLedgerEvent],
-        through cursor: Int64
-    ) throws {
-        try knowledgeStore().importManagedAIUsageEvents(rows, through: cursor)
     }
 
     /// Recorded spend for one chat/review session, over rows created before

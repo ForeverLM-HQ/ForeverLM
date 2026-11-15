@@ -38,7 +38,6 @@ struct AIUsageAccountSections: View {
                 signedOutSection
             }
             spendingSection
-            if account.isSignedIn { CompanySpendCapsSection() }
 
             accountError
         }
@@ -411,10 +410,6 @@ struct AIActivitySettingsSection: View {
 
     @State private var range: UsageRange = .today
     @State private var isLoading = false
-    /// Server reconciliation is deliberately separate from the local load.
-    /// A full authoritative-ledger replay can span many network pages, but the
-    /// already-cached usage pane must remain immediately useful while it runs.
-    @State private var isReconciling = false
     @State private var activityGroups: [AIUsageTaskActivitySummary] = []
     @State private var expandedActivityKeys = Set<String>()
     @State private var subjectsByActivityKey: [String: [AIUsageSubjectActivitySummary]] = [:]
@@ -425,7 +420,6 @@ struct AIActivitySettingsSection: View {
     /// lookups, so they stay on the main actor with the rest of the pane state.
     @State private var ledgerFailures = 0
     @State private var ledgerFailureDetail: String?
-    @State private var serverReconciliationError: String?
     /// Expanded activity rows participate in the outer settings ScrollView's
     /// AppKit accessibility/focus tree. Keep that tree strictly bounded: a
     /// 410-item activity was enough to stall the main thread for several
@@ -512,19 +506,12 @@ struct AIActivitySettingsSection: View {
 
                         Spacer()
 
-                        if isLoading || isReconciling {
+                        if isLoading {
                             ProgressView().controlSize(.small)
                         }
                     }
 
                     ledgerFailureWarning
-
-                    if let serverReconciliationError {
-                        Label(serverReconciliationError, systemImage: "exclamationmark.triangle.fill")
-                            .font(.callout)
-                            .foregroundStyle(.orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
 
                     Text(
                         totalEvents == 0
@@ -1043,43 +1030,14 @@ struct AIActivitySettingsSection: View {
         let storage = StorageService()
         await reloadLocalUsage(from: storage)
         isLoading = false
-
-        guard !Task.isCancelled else { return }
-
-        if ManagedAI.isSignedIn {
-            isReconciling = true
-            defer { isReconciling = false }
-            do {
-                let importedEvents = try await reconcileManagedUsage(into: storage)
-                serverReconciliationError = nil
-                if importedEvents, !Task.isCancelled {
-                    await reloadLocalUsage(from: storage)
-                }
-            } catch {
-                guard !Task.isCancelled else { return }
-                serverReconciliationError = "Server usage could not be reconciled, so the list below may be incomplete: \(error.localizedDescription)"
-            }
-        } else {
-            serverReconciliationError = nil
-        }
     }
 
-    /// Publishes the on-device ledger before making any network request. The
-    /// server mirror is incremental and authoritative, but it is a refresh of
-    /// this cache rather than a prerequisite for rendering it.
+    /// Publishes the on-device ledger.
     private func reloadLocalUsage(from storage: StorageService) async {
         // Price what can be priced first, so a line is only treated as free
         // when its calls really cost nothing.
         await AIUsageTracker.repriceLedger(storage: storage)
         await reloadFilteredUsage(from: storage)
-    }
-
-    /// Pull every unseen D1 usage row. Opening the Usage pane is one of the
-    /// events that refreshes accounting — running out of credit is the other,
-    /// see `ManagedAIAccountModel.pullServerUsage`, which owns the pull so both
-    /// share one cursor and one import path.
-    private func reconcileManagedUsage(into storage: StorageService) async throws -> Bool {
-        try await ManagedAIAccountModel.pullServerUsage(into: storage)
     }
 
     /// Reloads the range's totals and activity groups without reconciling the
@@ -1259,190 +1217,10 @@ private struct AIUsageSpentToday: View {
     }
 }
 
-/// ForeverLM's own AI spending, with a monthly and a yearly cap per model
-/// maker (product owner, 2026-11-07: "let me set that in settings, like per
-/// month caps for each provider. it can also be a per year cap"). The proxy
-/// keeps the caps and refuses company-paid calls to a maker once one is
-/// reached. Only an operator account sees the section: the proxy answers
-/// anyone else with `not_admin`, and the section stays away.
-struct CompanySpendCapsSection: View {
-    @State private var caps: ManagedAI.CompanySpendCaps?
-    @State private var editing: ManagedAI.CompanySpendCaps.Provider?
-    @State private var errorMessage: String?
-
-    var body: some View {
-        Group {
-            if let caps {
-                SettingsSection(
-                    title: "ForeverLM's AI spending",
-                    description: "What ForeverLM pays each model maker for: voice on its OpenAI credits, and calls on its OpenRouter key. Learners' own keys aren't counted. Only operators see this."
-                ) {
-                    BillingCard {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(caps.providers.enumerated()), id: \.element.id) { index, provider in
-                                if index > 0 { BillingRowDivider() }
-                                row(provider)
-                            }
-                            if let errorMessage {
-                                BillingRowDivider()
-                                Label(errorMessage, systemImage: "exclamationmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .task { await load() }
-    }
-
-    private func row(_ provider: ManagedAI.CompanySpendCaps.Provider) -> some View {
-        BillingRow(
-            title: provider.label,
-            detail: "This month \(Self.line(provider.month)) · This year \(Self.line(provider.year))",
-            isWarning: provider.month.reached || provider.year.reached
-        ) {
-            Button("Set Caps…") { editing = provider }
-                .buttonStyle(.bordered)
-                .popover(isPresented: Binding(
-                    get: { editing?.id == provider.id },
-                    set: { if !$0 { editing = nil } }
-                )) {
-                    CompanySpendCapEditor(provider: provider) { month, year in
-                        await save(provider: provider, month: month, year: year)
-                    }
-                }
-        }
-    }
-
-    private static func dollars(_ microUSD: Int) -> String {
-        (Double(microUSD) / 1_000_000).formatted(.currency(code: "USD").precision(.fractionLength(2)))
-    }
-
-    private static func line(_ period: ManagedAI.CompanySpendCaps.Period) -> String {
-        guard let cap = period.capMicroUSD else { return "\(dollars(period.spentMicroUSD)), no cap" }
-        let figure = "\(dollars(period.spentMicroUSD)) of \(dollars(cap))"
-        return period.reached ? "\(figure), reached" : figure
-    }
-
-    private func load() async {
-        do {
-            caps = try await ManagedAI.companySpendCaps()
-        } catch {
-            // Not an operator, signed out, or offline: the section is
-            // simply not there.
-            caps = nil
-        }
-    }
-
-    /// Writes only the periods that changed, one request each, and keeps the
-    /// listing the last one returns.
-    private func save(provider: ManagedAI.CompanySpendCaps.Provider, month: Double?, year: Double?) async -> Bool {
-        errorMessage = nil
-        let changes: [(ManagedAI.CompanySpendCapPeriod, Double?, Int?)] = [
-            (.month, month, provider.month.capMicroUSD),
-            (.year, year, provider.year.capMicroUSD),
-        ]
-        do {
-            for (period, newUSD, oldMicroUSD) in changes {
-                let newMicroUSD = newUSD.map { Int(($0 * 1_000_000).rounded()) }
-                guard newMicroUSD != oldMicroUSD else { continue }
-                caps = try await ManagedAI.setCompanySpendCap(provider: provider.provider, period: period, capUSD: newUSD)
-            }
-            return true
-        } catch {
-            errorMessage = "Couldn't save the \(provider.label) caps. \(error.localizedDescription)"
-            return false
-        }
-    }
-}
-
-/// The two caps for one maker, in dollars. An empty field is no cap.
-private struct CompanySpendCapEditor: View {
-    let provider: ManagedAI.CompanySpendCaps.Provider
-    let onSave: (Double?, Double?) async -> Bool
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var month: String
-    @State private var year: String
-    @State private var saving = false
-
-    init(provider: ManagedAI.CompanySpendCaps.Provider, onSave: @escaping (Double?, Double?) async -> Bool) {
-        self.provider = provider
-        self.onSave = onSave
-        _month = State(initialValue: Self.text(provider.month.capMicroUSD))
-        _year = State(initialValue: Self.text(provider.year.capMicroUSD))
-    }
-
-    private static func text(_ microUSD: Int?) -> String {
-        guard let microUSD else { return "" }
-        return (Double(microUSD) / 1_000_000).formatted(.number.precision(.fractionLength(0...2)).grouping(.never))
-    }
-
-    /// Nil for an empty field; `.some(nil)` for one that isn't an amount.
-    private static func amount(_ text: String) -> Double?? {
-        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
-        if trimmed.isEmpty { return .some(nil) }
-        guard let value = Double(trimmed), value >= 0, value <= 1_000_000 else { return nil }
-        return .some(value)
-    }
-
-    private var monthAmount: Double?? { Self.amount(month) }
-    private var yearAmount: Double?? { Self.amount(year) }
-    private var isValid: Bool { monthAmount != nil && yearAmount != nil }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("\(provider.label) caps")
-                .font(.headline)
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
-                GridRow {
-                    Text("Per month")
-                    TextField("No cap", text: $month)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
-                }
-                GridRow {
-                    Text("Per year")
-                    TextField("No cap", text: $year)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
-                }
-            }
-            Text("Dollars. Leave a field empty for no cap. Months and years run in UTC.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button {
-                    guard let monthValue = monthAmount, let yearValue = yearAmount else { return }
-                    Task {
-                        saving = true
-                        defer { saving = false }
-                        if await onSave(monthValue, yearValue) { dismiss() }
-                    }
-                } label: {
-                    if saving { ProgressView().controlSize(.small) } else { Text("Save") }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!isValid || saving)
-            }
-        }
-        .padding(16)
-        .frame(width: 300)
-    }
-}
-
 /// Settings › Voice › Voice mode: the learner's own OpenAI key for voice
 /// mode (product owner, 2026-11-08: "let people put their own openai key for
 /// the voice mode"). With one, voice sessions open straight with OpenAI on it
-/// and OpenAI bills the learner; without one, voice runs on ForeverLM's own
-/// OpenAI account. The key is checked with OpenAI before it is stored, and
+/// and OpenAI bills the learner; without one, voice mode is off. The key is checked with OpenAI before it is stored, and
 /// sits in iCloud Keychain beside the OpenRouter key, shared with the iPhone.
 struct RealtimeVoiceOwnKeySection: View {
     static let description = "Voice mode runs on your own OpenAI API key, and OpenAI bills you for it. Without a key, voice mode is off."

@@ -75,7 +75,7 @@ struct MobileSignInGate: View {
             do {
                 // `signIn` is nonisolated async, so the keychain writes and the
                 // network round trip leave the main actor on their own.
-                _ = try await ManagedAI.signIn(identityToken: identityToken)
+                try await ManagedAI.signIn(identityToken: identityToken)
                 onSignedIn()
             } catch let error as ManagedAI.ServiceError {
                 // The proxy's message is already user-facing and is the authoritative

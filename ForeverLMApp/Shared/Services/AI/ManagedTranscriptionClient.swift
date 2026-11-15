@@ -191,7 +191,13 @@ enum ManagedTranscriptionClient {
         ManagedAI.rewrite(&request)
 
         let uploadStartedAt = Date()
-        let (data, response) = try await session.upload(for: request, from: body)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.upload(for: request, from: body)
+        } catch {
+            throw ManagedAI.namingUnreachableService(error)
+        }
         let roundTripMilliseconds = Self.milliseconds(since: uploadStartedAt)
         guard let http = response as? HTTPURLResponse else {
             throw TranscriptionError.badResponse(

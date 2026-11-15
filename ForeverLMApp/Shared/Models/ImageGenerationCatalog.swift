@@ -703,9 +703,8 @@ enum ImageGenerationDirectory {
 
     /// The last directory read (with prices, once they are in), for readers
     /// that cannot wait. Empty until the first read.
-    /// A subsidized account sees only what its access covers (`AIModelAccess`).
     static var snapshot: [ImageGenerationModel] {
-        latest.withLock { $0 }.filter { AIModelAccess.allows(slug: $0.id) }
+        latest.withLock { $0 }
     }
 
     private static let directory = OpenRouterMediaDirectoryCache<[ImageGenerationModel]>(freshness: 30 * 60) {
@@ -787,7 +786,7 @@ enum ImageGenerationDirectory {
 
     /// The models, without waiting for prices (any already read are filled in).
     static func models(forceRefresh: Bool = false) async throws -> [ImageGenerationModel] {
-        let models = try await directory.current(forceRefresh: forceRefresh).filter { AIModelAccess.allows(slug: $0.id) }
+        let models = try await directory.current(forceRefresh: forceRefresh)
         let known = (try? await pricesIfRead()) ?? [:]
         return publish(models, prices: known)
     }
@@ -795,7 +794,7 @@ enum ImageGenerationDirectory {
     /// The models with their prices; a model whose endpoints record could not
     /// be read keeps a nil price, which the pane shows as unknown.
     static func modelsWithPrices(forceRefresh: Bool = false) async throws -> [ImageGenerationModel] {
-        let models = try await directory.current(forceRefresh: forceRefresh).filter { AIModelAccess.allows(slug: $0.id) }
+        let models = try await directory.current(forceRefresh: forceRefresh)
         let table = try await prices.current(forceRefresh: forceRefresh)
         return publish(models, prices: table)
     }

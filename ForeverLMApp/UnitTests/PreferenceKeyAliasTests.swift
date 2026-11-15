@@ -19,7 +19,6 @@ struct PreferenceKeyAliasTests {
 
     static let keys: [(declared: String, constant: String)] = [
         (Prefs.Account.displayName.name, MacAccountUser.displayNamePreferenceKey),
-        (Prefs.Account.showsCompCrown.name, MacAccountUser.showsCompCrownPreferenceKey),
         (Prefs.Account.aboutYou.name, LearnerProfile.aboutYouPreferenceKey),
         (Prefs.Models.ttsProvider.name, ArticleSpeechSelection.syncedProviderKey),
         (Prefs.Models.ttsModelOpenRouter.name, ArticleSpeechSelection.syncedModelKey),

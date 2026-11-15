@@ -86,12 +86,11 @@ enum GettingStartedFlow {
 /// learner's own OpenRouter key, billed by OpenRouter at cost, so the step
 /// asks for the key, and the key has to be one the account may run
 /// (`ownKeyAllowed`): any unlocked account, so a new learner in the free
-/// days needs only the key. An account that can already pay another way (a
-/// comp, or balance left from before top-ups were retired) goes on without
-/// one.
+/// days needs only the key. ForeverLM pays for no AI (2026-11-15), so there is
+/// no other way to go on.
 enum GettingStartedAIPayment {
-    static func isReady(hasOwnKey: Bool, ownKeyAllowed: Bool, canPayWithoutKey: Bool) -> Bool {
-        (hasOwnKey && ownKeyAllowed) || canPayWithoutKey
+    static func isReady(hasOwnKey: Bool, ownKeyAllowed: Bool) -> Bool {
+        hasOwnKey && ownKeyAllowed
     }
 }
 

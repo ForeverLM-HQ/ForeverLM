@@ -138,10 +138,9 @@ playlists appear among your sources as collections you expand, with their chapte
 lectures in reading order. Planning your day and scheduling sources happen in
 the Mac app.
 
-Chats use the same synced Chat model setting. The browser never holds your
-OpenRouter key, so on the web they run on ForeverLM AI: they need a complimentary
-account or a ForeverLM balance bought before prepaid balance was retired on
-September 25, 2026; otherwise the composer says to chat in ForeverLM on your Mac.
+The browser never holds your OpenRouter key and ForeverLM's servers carry no AI
+requests, so the web library cannot chat, dictate, draw or read aloud: its composer
+says to chat in ForeverLM on your Mac, where your key lives.
 The **+** at the left of the composer also offers Deep Research, on the chat's own model, with
 live web search and cited results. Citations into a video, podcast, or
 recording show the cited moment (`[2 · 12:34]`) and list it as a chip under the

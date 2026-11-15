@@ -22,7 +22,7 @@ extension KeychainService {
             // rail; a request ForeverLM is not paying for is outside it, and the
             // proxy admits the key's router regardless of the policy.
             if let own = ManagedAI.ownKeyRouter { return own.routingMode }
-            return ManagedAI.requiredTextRoutingMode ?? .shippedDefault
+            return .shippedDefault
         }
         set {
             Preferences.set(newValue.rawValue, for: Prefs.Models.textRoutingMode)
@@ -40,11 +40,7 @@ extension KeychainService {
     ) -> (provider: AIProvider, model: String) {
         switch mode {
         case .openRouter:
-            // A subsidized account's stored pick that its access does not cover
-            // runs on the covered substitute instead of being refused
-            // (`AIModelAccess`; product owner, 2026-11-09: "subsidized users
-            // should have it easier").
-            return (.openRouter, AIModelAccess.permittedSlug(OpenRouterModelID.slug(provider: provider, model: model)))
+            return (.openRouter, OpenRouterModelID.slug(provider: provider, model: model))
         }
     }
 

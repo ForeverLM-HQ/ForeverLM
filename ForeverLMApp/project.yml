@@ -373,7 +373,6 @@ targets:
       - iOS/MobileCloudSourceCatalog.swift
       - iOS/MobileCloudSourceTextStore.swift
       - iOS/MobileTextToSpeechTypes.swift
-      - iOS/MobileUsageHistoryStore.swift
       - iOS/MobileCloudSourceModels.swift
       # Notebooks on the phone (docs/notebooks-design.md, "iPhone"): Home, a
       # notebook's Sources · Chat · Studio, and the rules they share with the
@@ -530,7 +529,6 @@ targets:
       - iOS/MobileSignInGate.swift
       - iOS/MobileAudioSessionArbiter.swift
       - iOS/MobileSettingsView.swift
-      - iOS/MobileUsageHistoryView.swift
       - iOS/MobileSourceBrowserView.swift
       # A course's page and its quizzes: the Mac's path and gate
       # (docs/courses-design.md) over the shared course types.

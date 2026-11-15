@@ -65,10 +65,6 @@ actor MobileModelPreferenceStore {
                 model: choice.preference.model,
                 speed: choice.preference.speed
             )) ?? choice.preference.model
-            // A subsidized account lists only what its access covers
-            // (`AIModelAccess`), its default included: a default it may not
-            // use runs on the covered substitute.
-            guard AIModelAccess.allows(slug: slug) else { return false }
             // The default is what a chat runs on anyway, so it stays listed.
             guard hidesTrainingModels, choice.id != defaultID else { return true }
             return !AIDataPolicy.trainsOnInputs(modelSlug: slug)
@@ -181,7 +177,7 @@ actor MobileModelPreferenceStore {
         // the server names it, the shipped default stands in until it has, and
         // the synced provider choice cannot move text traffic.
         if let own = ManagedAI.ownKeyRouter { return own.routingMode }
-        return ManagedAI.requiredTextRoutingMode ?? .shippedDefault
+        return .shippedDefault
     }
 
     /// Exact account scalar lookup for a synced setting.
@@ -312,13 +308,11 @@ actor MobileModelPreferenceStore {
         return ResolvedAITextRoute(
             task: task,
             provider: "OpenRouter",
-            // A subsidized account's pick its access does not cover runs on the
-            // covered substitute (`AIModelAccess`), as on the Mac.
-            model: AIModelAccess.permittedSlug(try openRouterModelID(
+            model: try openRouterModelID(
                 provider: provider,
                 model: rawModel,
                 speed: preference.speed
-            )),
+            ),
             effort: preference.effort,
             deniesDataCollection: deniesDataCollection
         )

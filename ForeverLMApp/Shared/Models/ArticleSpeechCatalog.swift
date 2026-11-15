@@ -547,8 +547,7 @@ enum OpenRouterAudioDirectory {
         ensurePersistedLoaded(kind)
         return lock.withLock {
             let entry = entries[kind]
-            // A subsidized account sees only what its access covers (`AIModelAccess`).
-            return (entry?.rows?.filter { AIModelAccess.allows(slug: $0.id) }, entry?.generation ?? 0)
+            return (entry?.rows, entry?.generation ?? 0)
         }
     }
 

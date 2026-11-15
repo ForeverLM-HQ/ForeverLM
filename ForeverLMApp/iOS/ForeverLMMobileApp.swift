@@ -306,16 +306,9 @@ struct ForeverLMMobileApp: App {
     private func resetCreditsEmptyEpisodeIfResolved() async {
         guard handledCreditsEmptyEpisode,
               !showsCreditsRequired,
-              ManagedAI.isSignedIn else { return }
-        do {
-            let balance = try await ManagedAI.balance()
-            guard !balance.isEmpty else { return }
-            handledCreditsEmptyEpisode = false
-            showsCreditsRequired = false
-        } catch {
-            // This is silent reconciliation. Feature-level requests and the
-            // Credits screen remain responsible for actionable network errors.
-        }
+              ManagedAI.hasOwnKey else { return }
+        handledCreditsEmptyEpisode = false
+        showsCreditsRequired = false
     }
 }
 

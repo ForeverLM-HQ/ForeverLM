@@ -1095,8 +1095,6 @@ struct StudioView: View {
     private var studioAccountEventContent: some View {
         studioWindowContent
             .onReceive(NotificationCenter.default.publisher(for: .managedAICreditsEmpty)) { _ in
-                account.recordCreditsExhausted()
-
                 // A burst of background jobs can all discover the empty balance at once,
                 // and more work may fail after the first sheet is dismissed. Prompt once
                 // for the whole empty-balance episode. Settings is itself the resolution

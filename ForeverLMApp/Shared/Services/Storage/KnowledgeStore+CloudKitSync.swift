@@ -343,14 +343,6 @@ extension KnowledgeStore {
         try saveAIUsageEventRecord(event)
     }
 
-    func managedAIUsageCursor() throws -> Int64 {
-        var cursor: Int64 = 0
-        try query("SELECT last_ledger_id FROM managed_ai_usage_sync_state WHERE singleton = 1") { stmt in
-            cursor = sqlite3_column_int64(stmt, 0)
-        }
-        return cursor
-    }
-
     func cachedAIResponse(for requestKey: String, notOlderThan cutoff: Date) throws -> String? {
         var response: String?
         try queryBind("""
@@ -379,108 +371,6 @@ extension KnowledgeStore {
             bind(stmt, 2, response)
             sqlite3_bind_double(stmt, 3, date.timeIntervalSinceReferenceDate)
         }
-    }
-
-    /// Mirrors a page from the proxy's append-only D1 ledger and advances the
-    /// cursor in the same SQLite transaction. A crash can therefore replay a
-    /// page but can never skip it; the unique server ledger id makes replays
-    /// idempotent.
-    func importManagedAIUsageEvents(
-        _ rows: [ManagedAI.UsageLedgerEvent],
-        through cursor: Int64
-    ) throws {
-        try exec("BEGIN IMMEDIATE")
-        var needsRollback = true
-        defer {
-            if needsRollback { try? exec("ROLLBACK") }
-        }
-
-        for row in rows {
-            // A repaired server debit is appended with a fresh cursor id so
-            // clients that already mirrored the broken row receive it. Remove
-            // that superseded `:unmetered` mirror in the same transaction;
-            // otherwise the exact replacement would coexist with the warning
-            // forever even though D1 no longer counts the failed record.
-            if row.exactCost != 0, let requestID = row.requestID {
-                try execBind("""
-                    DELETE FROM ai_usage_events
-                    WHERE server_ledger_id IS NOT NULL
-                      AND server_request_id = ?
-                """) { stmt in
-                    bind(stmt, 1, "\(requestID):unmetered")
-                }
-            }
-            let billedUSD = row.exactCost != 0
-                ? Double(row.billedMicrousd) / 1_000_000
-                : nil
-            let cacheCreation = (row.cacheWrite5mTokens ?? 0) + (row.cacheWrite1hTokens ?? 0)
-            let event = AIUsageEvent(
-                id: "managed-ledger-\(row.id)",
-                provider: row.provider,
-                model: row.model,
-                operation: "managed_proxy",
-                task: row.task,
-                sessionID: nil,
-                activityID: row.activityID,
-                subjectID: row.subjectID,
-                subjectType: row.subjectType,
-                subjectTitle: row.sourceTitle,
-                createdAt: Date(timeIntervalSince1970: row.createdAtUnix),
-                inputTokens: row.inputTokens,
-                outputTokens: row.outputTokens,
-                cachedInputTokens: row.cachedInputTokens,
-                cacheCreationInputTokens: cacheCreation > 0 ? cacheCreation : nil,
-                reasoningTokens: row.reasoningTokens,
-                audioInputTokens: nil,
-                audioOutputTokens: nil,
-                imageCount: nil,
-                totalTokens: (row.inputTokens ?? 0) + (row.outputTokens ?? 0),
-                characterCount: nil,
-                durationSeconds: nil,
-                providerReportedCost: billedUSD,
-                estimatedCost: billedUSD,
-                currency: billedUSD == nil ? nil : "USD",
-                rawUsageJSON: nil,
-                clientPlatform: row.clientPlatform,
-                serverLedgerID: row.id,
-                serverRequestID: row.requestID
-            )
-            try saveAIUsageEventRecord(event)
-        }
-
-        // Also reconcile databases where an older app build already imported
-        // both records before learning how server repairs are represented. This
-        // set-based cleanup runs whenever the event-driven usage sync imports a
-        // page (including an empty one), so advancing the cursor early cannot
-        // leave a superseded warning behind permanently.
-        try exec("""
-            DELETE FROM ai_usage_events
-            WHERE id IN (
-                SELECT stale.id
-                FROM ai_usage_events AS stale
-                JOIN ai_usage_events AS exact
-                  ON exact.server_request_id = substr(
-                      stale.server_request_id,
-                      1,
-                      length(stale.server_request_id) - 10
-                  )
-                WHERE stale.server_ledger_id IS NOT NULL
-                  AND stale.server_request_id LIKE '%:unmetered'
-                  AND exact.server_ledger_id IS NOT NULL
-                  AND COALESCE(exact.provider_reported_cost, exact.estimated_cost) IS NOT NULL
-            )
-        """)
-
-        try execBind("""
-            INSERT INTO managed_ai_usage_sync_state (singleton, last_ledger_id)
-            VALUES (1, ?)
-            ON CONFLICT(singleton) DO UPDATE SET
-                last_ledger_id = MAX(last_ledger_id, excluded.last_ledger_id)
-        """) { stmt in
-            sqlite3_bind_int64(stmt, 1, cursor)
-        }
-        try exec("COMMIT")
-        needsRollback = false
     }
 
     func saveAIUsageEventRecord(_ event: AIUsageEvent) throws {

@@ -203,14 +203,9 @@ struct MobileUITestProbeView: View {
         return tokens.joined(separator: " ")
     }
 
-    /// The managed account's remaining credit, or why it could not be read.
+    /// Whether an own key is stored (ForeverLM holds no balance).
     private static func balanceToken() async -> String {
-        do {
-            let balance = try await ManagedAI.balance()
-            return String(format: "%.4f", balance.usd)
-        } catch {
-            return "failed(\(error.localizedDescription.prefix(60)))"
-        }
+        ManagedAI.hasOwnKey ? "own-key" : "no-key"
     }
 
     /// Exercises the same request builder, managed proxy, model, metering

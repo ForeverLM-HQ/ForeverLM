@@ -36,6 +36,8 @@ final class CloudArticleTTSRoutingTests: XCTestCase {
     /// Grok went to xAI's own API until 2026-09-27; every voice is an
     /// OpenRouter model now (the product owner: "it can just be done via openrouter").
     func testGrokUsesOpenRouterSpeechRoute() throws {
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
+        defer { ManagedAI.ownKeyOverrideForTesting = nil }
         let request = try AIUsageAttribution.$task.withValue("read_aloud") {
             try CloudArticleTTS.speechRequest(
                 text: "A short narration probe.",
@@ -46,8 +48,8 @@ final class CloudArticleTTSRoutingTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(request.url?.host, "ai.foreverlm.com")
-        XCTAssertEqual(request.url?.path, "/v1/proxy/openrouter/api/v1/audio/speech")
+        XCTAssertEqual(request.url?.host, "openrouter.ai")
+        XCTAssertEqual(request.url?.path, "/api/v1/audio/speech")
         let body = try XCTUnwrap(request.httpBody)
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(payload["input"] as? String, "A short narration probe.")
@@ -58,6 +60,8 @@ final class CloudArticleTTSRoutingTests: XCTestCase {
     }
 
     func testRouterOnlyTTSUsesOpenRouterMediaRoute() throws {
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
+        defer { ManagedAI.ownKeyOverrideForTesting = nil }
         let request = try AIUsageAttribution.$task.withValue("read_aloud") {
             try CloudArticleTTS.speechRequest(
                 text: "A short narration probe.",
@@ -68,8 +72,8 @@ final class CloudArticleTTSRoutingTests: XCTestCase {
             )
         }
 
-        XCTAssertEqual(request.url?.host, "ai.foreverlm.com")
-        XCTAssertEqual(request.url?.path, "/v1/proxy/openrouter/api/v1/audio/speech")
+        XCTAssertEqual(request.url?.host, "openrouter.ai")
+        XCTAssertEqual(request.url?.path, "/api/v1/audio/speech")
     }
 
     func testGrokNeverStartsASecondPaidProviderAfterFailure() {

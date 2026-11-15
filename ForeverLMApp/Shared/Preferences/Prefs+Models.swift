@@ -84,10 +84,7 @@ extension Prefs {
         static let priceWatchLastSeen = DeviceKey<Data?>("aiModelPriceWatch.lastSeen.v1", reason: "what this Mac last saw each free model cost")
         static let priceWatchAnnouncedEnded = DeviceKey<[String]?>("aiModelPriceWatch.announcedEnded.v1", reason: "the ended free offers this Mac has already announced")
         static let managedAppAccess = DeviceKey<Data?>("managedAI.appAccess", reason: "cache of server-held account state")
-        static let managedModelAccess = DeviceKey<Data?>("managedAI.modelAccess", reason: "cache of server-held account state")
         static let managedServerClockOffset = DeviceKey<Double?>("managedAI.serverClockOffset", reason: "this device's clock against the server's")
-        static let managedRequiredTextRouter = DeviceKey<String?>("managedAI.comp.textRouter", reason: "cache of server-held account state")
-        static let managedCreditsAreEmpty = DeviceKey<Bool?>("managedAI.creditsAreEmpty", reason: "cache of server-held account state")
 
         static let all: [AnyPreferenceKey] = [
             aiProvider.erased,
@@ -156,10 +153,7 @@ extension Prefs {
             priceWatchLastSeen.erased,
             priceWatchAnnouncedEnded.erased,
             managedAppAccess.erased,
-            managedModelAccess.erased,
             managedServerClockOffset.erased,
-            managedRequiredTextRouter.erased,
-            managedCreditsAreEmpty.erased,
         ]
     }
 }

@@ -282,10 +282,7 @@ extension KeychainService {
     /// both without making one of them wrong.
     static var mediaTranscriptionModel: String {
         get {
-            AIModelAccess.permittedSlug(
-                load(.sttModelMedia) ?? defaultMediaTranscriptionModel,
-                substitute: AIModelDefaults.batchTranscription
-            )
+            load(.sttModelMedia) ?? defaultMediaTranscriptionModel
         }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -317,8 +314,6 @@ extension KeychainService {
     /// model and goes to OpenRouter (`ManagedTranscriptionClient.route`).
     static var speechToTextProvider: SpeechToTextProvider { .openai }
 
-    /// A subsidized account's pick its access does not cover transcribes on
-    /// OpenAI's batch model instead (`AIModelAccess`).
     static func transcriptionModel(for provider: SpeechToTextProvider) -> String {
         let stored: String
         switch provider {
@@ -326,7 +321,7 @@ extension KeychainService {
         case .openai: stored = openAITranscriptionModel
         case .openRouter: stored = openRouterTranscriptionModel
         }
-        return AIModelAccess.permittedSlug(stored, substitute: AIModelDefaults.batchTranscription)
+        return stored
     }
 
     static func setTranscriptionModel(_ model: String, for provider: SpeechToTextProvider) {

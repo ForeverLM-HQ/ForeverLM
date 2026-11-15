@@ -530,8 +530,8 @@ struct ReviewChatResumeTests {
 
     @Test("stream chat from every managed provider travels OpenRouter end to end")
     func streamChatWorksEndToEndForEveryManagedProvider() async throws {
-        // No own router key, so the account's shipped transport applies.
-        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        // The learner's own OpenRouter key: the call goes straight to OpenRouter.
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         let service = AIService(session: ProviderStreamMockURLProtocol.mockSession())
         // A first-party lab is a model family, not a transport: the stub answers
@@ -563,7 +563,7 @@ struct ReviewChatResumeTests {
 
     @Test("paper attachment check keeps a bounded output budget")
     func paperAttachmentCheckKeepsBoundedOutputBudget() async throws {
-        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         let service = AIService(session: RouterRequestCaptureURLProtocol.mockSession())
 
@@ -2095,7 +2095,7 @@ private final class ProviderStreamMockURLProtocol: URLProtocol {
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "ai.foreverlm.com"
+        request.url?.host == "openrouter.ai"
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -2123,7 +2123,7 @@ private final class ProviderStreamMockURLProtocol: URLProtocol {
 
     private static func body(for url: URL) -> String {
         switch url.path {
-        case let path where path.hasPrefix("/v1/proxy/openrouter/"):
+        case let path where path.hasPrefix("/api/v1/"):
             return """
             data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"OpenRouter answer."},"finish_reason":null}]}
 
@@ -2150,8 +2150,8 @@ private final class RouterRequestCaptureURLProtocol: URLProtocol {
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "ai.foreverlm.com"
-            && request.url?.path.hasPrefix("/v1/proxy/openrouter/") == true
+        request.url?.host == "openrouter.ai"
+            && request.url?.path.hasPrefix("/api/v1/") == true
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {

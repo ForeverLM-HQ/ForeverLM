@@ -1,17 +1,16 @@
 import Foundation
 
 extension Notification.Name {
-    /// A managed request reached the proxy but the account had nothing to pay
-    /// with: no own key, and no leftover balance. The app shell presents the
-    /// blocking "add your OpenRouter key" prompt; feature views keep their own
-    /// error state so the failed operation still has local context.
+    /// An AI request had no key to run on (`ManagedAI.creditsAreEmpty`). The
+    /// app shell presents the blocking "add your OpenRouter key" prompt; feature
+    /// views keep their own error state so the failed operation still has local
+    /// context.
     static let managedAICreditsEmpty = Notification.Name("managedAICreditsEmpty")
 
-    /// The account can pay again after having been empty (a key was added, or
-    /// an operator granted balance). This is the moment work that was refused
-    /// for want of payment becomes possible, so it is what resumes it — a key
-    /// the app never acts on leaves the learner pressing the button again on a
-    /// source that can already be paid for.
+    /// The learner stored an own key after having none. This is the moment work
+    /// that was refused for want of a key becomes possible, so it is what
+    /// resumes it — a key the app never acts on leaves the learner pressing the
+    /// button again on a source that can already be paid for.
     static let managedAICreditsRestored = Notification.Name("managedAICreditsRestored")
     /// The learner stored, replaced, or removed their own router key.
     static let managedAIOwnKeyDidChange = Notification.Name("managedAIOwnKeyDidChange")
@@ -21,28 +20,16 @@ extension Notification.Name {
     static let managedAISessionDidChange = Notification.Name("managedAISessionDidChange")
 }
 
-/// "ForeverLM AI" — the managed rail. Since 2026-09-25 AI features run on the
-/// learner's own OpenRouter key, which runs while the account is unlocked
-/// (`ManagedAI.ownKeyAllowed`; see `ManagedAI.AppAccess`); an account's
-/// leftover prepaid balance, and operator grants and comps, still pay through
-/// this proxy.
-///
-/// Requests go to the metered proxy (`workers/ai-proxy`, ai.foreverlm.com), which
-/// authenticates the user's session, meters the response server-side, debits any
-/// balance it pays from, and forwards to OpenRouter for text or the explicitly selected
-/// first-party media route. No provider key exists in this app;
-/// the session token is the only credential, and it is minted from Sign in with
-/// Apple.
-///
-/// This proxy is the only managed credential boundary. The app once also supported routing through the user's
-/// own Cloudflare AI Gateway on their own keys, with local provider keys as a
-/// third path; both are gone. Only the proxy can attach upstream attribution and
-/// hold the inference keys without shipping them in the app bundle. Neither managed
-/// provider route is an automatic fallback for another.
-/// Spec: docs/managed-ai-billing.md.
+/// ForeverLM's account service (`workers/ai-proxy`, ai.foreverlm.com): Sign in
+/// with Apple, the paid app's plan (the free days, payment, the lock), Stripe
+/// checkout, and the Doc and Site publishing bearer. ForeverLM pays for no AI
+/// (product owner, 2026-11-15): every AI request runs on the learner's own
+/// OpenRouter key (and, for voice, their own OpenAI key) and leaves the device
+/// for those providers directly, never through ForeverLM's server. The session
+/// token is the only ForeverLM credential, minted from Sign in with Apple.
 enum ManagedAI {
 
-    /// The metered proxy. Every managed request and account call goes here.
+    /// The account service. Every account call goes here; no AI request does.
     static let baseURL = URL(string: "https://ai.foreverlm.com")!
     /// What the learner has spent, per model and day, in OpenRouter's own monitor.
     /// ForeverLM keeps no spend figures of its own (product owner, 2026-10-15:
@@ -311,6 +298,10 @@ enum ManagedAI {
     /// when it is anything else, including the same failure against a real
     /// provider on the direct rail, where blaming the provider is correct.
     static func namingUnreachableService(_ error: Error) -> Error {
+        if let blocked = blockedRequestError(error) {
+            surfaceIfNeeded(blocked)
+            return blocked
+        }
         guard let urlError = error as? URLError else { return error }
         switch urlError.code {
         case .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
@@ -543,6 +534,7 @@ enum ManagedAI {
     static func setOwnKey(_ rawKey: String?, router: OwnKeyRouter) {
         let key = rawKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let stored: OwnKey? = key.isEmpty ? nil : OwnKey(router: router, key: key)
+        let hadNoKey = !hasOwnKey
         ownKeyLock.withLock {
             for candidate in OwnKeyRouter.allCases {
                 if let stored, candidate == stored.router {
@@ -553,10 +545,12 @@ enum ManagedAI {
             }
             ownKeyCache = .some(stored)
         }
-        if stored != nil, creditsAreEmpty {
-            creditsAreEmpty = false
-        }
         NotificationCenter.default.post(name: .managedAIOwnKeyDidChange, object: nil)
+        if stored != nil, hadNoKey {
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .managedAICreditsRestored, object: nil)
+            }
+        }
     }
 
     /// Drops the in-memory copy so the next read asks the Keychain again — for
@@ -661,18 +655,15 @@ enum ManagedAI {
 
     // MARK: - Routing
 
-    /// Rewrites a provider-native request to the metered proxy.
+    /// Readies a provider-native request to leave on the learner's own key.
     ///
     /// Keys off the request's own **host**, not a caller-supplied provider label:
     /// several call sites pass a hardcoded (and occasionally wrong) provider
-    /// string, so trusting the label would misroute them.
-    /// Missing sessions, malformed URLs, and unknown hosts still end at the
-    /// proxy. Nothing ForeverLM pays for is ever left pointing at a provider,
-    /// which makes routing failures explicit and prevents stale keys from older
-    /// builds escaping. The learner's own router key is the one exception, and
-    /// it is taken below on the same host test the key is attached by.
+    /// string, so trusting the label would misroute them. A request bound for
+    /// the key's own router gets the key; every other request is pointed
+    /// nowhere (`noKeyURL`), since ForeverLM pays for no AI, which makes routing
+    /// failures explicit and keeps stale keys from older builds from escaping.
     static func rewrite(_ request: inout URLRequest) {
-        let token = requestSessionToken
         let originalURL = request.url
         let host = originalURL?.host?.lowercased()
 
@@ -703,66 +694,42 @@ enum ManagedAI {
             return
         }
 
-        // Path the proxy expects, provider-native below /v1/proxy/{provider}.
-        // OpenRouter is the proxy's only upstream: text never travels a lab's
-        // own API (see `AIService.openAICompatibleChatEndpoint`), and the
-        // first-party media routes answer 410.
-        let path: String
-        let queryItems: [URLQueryItem]
-        switch host {
-        case "openrouter.ai":
-            path = "openrouter" + (originalURL?.path ?? "")
-            // OpenRouter takes its key only as a header, so the query (a
-            // generation lookup's `id`, for one) passes through whole.
-            queryItems = originalURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
-        default:
-            // Deliberately reaches a non-existent proxy endpoint and fails 404.
-            // It must never preserve an unknown provider URL as a fallback,
-            // its query included: a lab's own API can carry its key as `?key=`.
-            path = "unsupported"
-            queryItems = []
-        }
-
-        var components = URLComponents()
-        components.scheme = baseURL.scheme
-        components.host = baseURL.host
-        components.path = path.hasPrefix("/") ? path : "/v1/proxy/" + path
-        components.queryItems = queryItems.isEmpty ? nil : queryItems
-
-        request.url = components.url ?? baseURL.appendingPathComponent("v1/rejected-route")
-
-        // The session token is the only credential on this rail.
+        // Everything else has nowhere to go. ForeverLM pays for no AI, so a
+        // request with no own key (or whose key may not run, a locked app) is
+        // pointed at a URL no session can load, and `namingUnreachableService`
+        // turns the resulting failure into the sentence that says what to do.
+        // It must never be left pointing at a provider unauthenticated, and an
+        // unknown host's URL, query included, is never kept: a lab's own API
+        // can carry its key as `?key=`.
+        request.url = host == "openrouter.ai" && ownKey != nil && !ownKeyAllowed ? appLockedURL : noKeyURL
         for header in providerCredentialHeaders {
             request.setValue(nil, forHTTPHeaderField: header)
         }
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        request.setValue(nil, forHTTPHeaderField: "Authorization")
+    }
 
-        // The learner's key never travels to ForeverLM. A request bound for
-        // its router lands here only when the key may not run (a locked
-        // account; otherwise it went direct above), so the proxy is told only
-        // that a key is held, and answers `app_locked` or spends a leftover
-        // balance.
-        request.setValue(nil, forHTTPHeaderField: ownKeyHeader)
-        if let own = ownKey, own.router.host == host {
-            request.setValue("1", forHTTPHeaderField: ownKeyHeldHeader)
-        } else {
-            request.setValue(nil, forHTTPHeaderField: ownKeyHeldHeader)
-        }
+    /// Where a request with no route is pointed (`rewrite`). The scheme is one
+    /// URLSession cannot load, so nothing leaves the device.
+    static let noKeyURL = URL(string: "foreverlm-blocked://no-own-key")!
+    static let appLockedURL = URL(string: "foreverlm-blocked://app-locked")!
 
-        applyUsageAttribution(
-            &request,
-            activityID: AIUsageAttribution.resolvedActivityID(
-                AIUsageAttribution.activityID,
-                sessionID: AIUsageAttribution.sessionID,
-                fallback: UUID().uuidString
+    /// The sentence for a request `rewrite` had no route for, or nil when the
+    /// error is anything else.
+    static func blockedRequestError(_ error: Error) -> ServiceError? {
+        guard let urlError = error as? URLError, urlError.code == .unsupportedURL else { return nil }
+        let url = urlError.failingURL
+            ?? (urlError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String).flatMap { URL(string: $0) }
+        guard url?.scheme == noKeyURL.scheme else { return nil }
+        if url?.host == appLockedURL.host {
+            return ServiceError(
+                code: "app_locked",
+                message: "ForeverLM is locked until it is paid for. Everything you have set up stays as it is."
             )
-        )
-        if AIResponseCachePolicy.deterministic {
-            request.setValue("deterministic", forHTTPHeaderField: "X-ForeverLM-Response-Cache")
         }
-        applyDeviceAttribution(&request)
+        return ServiceError(
+            code: "no_own_key",
+            message: "AI runs on your own OpenRouter key. Add it in Settings, then try again."
+        )
     }
 
     /// Operational attribution only; billing identity still comes from the
@@ -844,197 +811,27 @@ enum ManagedAI {
 
     // MARK: - Account API
 
-    /// Balance is USD on the wire and in the UI; the ledger stays micro-USD
-    /// precise. Nothing adds balance except an operator grant: prepaid
-    /// top-ups are not sold (`balance_retired`).
-    static func creditBalanceText(microUSD: Int) -> String {
-        max(0, Double(microUSD) / 1_000_000).formatted(
-            .currency(code: "USD").precision(.fractionLength(2))
-        )
-    }
-
+    /// What `/v1/balance` still says that the app uses. ForeverLM pays for no
+    /// AI, so there is no balance, comp, spending limit or usage ledger any
+    /// more (product owner, 2026-11-15); the response also carries the plan,
+    /// which `fetchBalance` stores.
     struct Balance: Sendable {
-        /// Remaining credit in micro-USD (1 USD = 1_000_000). Can go slightly
-        /// negative: a request in flight may overshoot an almost-empty balance.
-        let microUSD: Int
+        /// An operator closed the account (a Stripe dispute, say).
         let disabled: Bool
-        /// Usage on this account is comped: the proxy skips the balance check and
-        /// records the real cost without debiting it. The balance figure is then
-        /// a historical number, not a spending limit.
-        let billingExempt: Bool
-        /// This account may grant itself balance. Server-decided; the app only
-        /// decides whether to show the control.
+        /// An operator account: the only thing it unlocks is screen record mode.
         let isAdmin: Bool
-        let recent: [LedgerEntry]
-        let spendCap: SpendCap
-        /// nil for an account that pays for itself. Present for a beta tester the
-        /// operator comps, carrying the router their text models must use and the
-        /// operator's monthly ceiling on the comp.
-        let comp: Comp?
-
-        var usd: Double { Double(microUSD) / 1_000_000 }
-        var credits: Double { Double(microUSD) / 10_000 }
-
-        /// Whether AI work has to stop. A comped account is never out of balance
-        /// however far below zero its history sits, so every caller that gates
-        /// work on this — onboarding, the rail banner, the paper pipeline — keeps
-        /// working without asking about exemption itself.
-        /// Whether the account cannot pay for AI. A learner's own router key
-        /// pays for every model without the balance, so an empty balance
-        /// beside a key gates nothing.
-        var isEmpty: Bool { microUSD <= 0 && !billingExempt && !ManagedAI.hasOwnKey }
     }
 
-    /// A comped beta account, as the server describes it.
-    ///
-    /// A comp is unlimited and carries no allowance, so the month's spend here is
-    /// reporting rather than a budget: it is the only honest number to show when
-    /// the balance beside it is history that a comp does not move.
-    struct Comp: Sendable {
-        /// Transport the account's text models must use, e.g. "openrouter".
-        let textRouter: String?
-        let spentThisMonthMicroUSD: Int
-        /// Today's comped spend, over the learner's own day (the UTC day from a
-        /// worker that predates the day-start header). nil from a worker that
-        /// predates the figure.
-        let spentTodayMicroUSD: Int?
-
-        var routingMode: AITextRoutingMode? {
-            textRouter.flatMap(AITextRoutingMode.init(serverToken:))
-        }
-        var spentThisMonthUSD: Double { Double(spentThisMonthMicroUSD) / 1_000_000 }
-    }
-
-    /// The user's optional monthly ceiling on managed-AI spend.
-    ///
-    /// Both figures are the complete underlying AI-cost debit, so the UI can
-    /// show "x of y" without applying pricing again.
-    struct SpendCap: Sendable {
-        /// nil when no cap is set, which is the default.
-        let monthlyLimitMicroUSD: Int?
-        let spentThisMonthMicroUSD: Int
-        /// When the month's total rolls back to zero (UTC month boundary).
-        let resetsAt: String?
-        /// Largest cap the server will store, for bounding the picker.
-        let maximumUSD: Int
-
-        var isSet: Bool { monthlyLimitMicroUSD != nil }
-        var limitUSD: Double? { monthlyLimitMicroUSD.map { Double($0) / 1_000_000 } }
-        var spentThisMonthUSD: Double { Double(spentThisMonthMicroUSD) / 1_000_000 }
-
-        var isReached: Bool {
-            guard let limit = monthlyLimitMicroUSD else { return false }
-            return spentThisMonthMicroUSD >= limit
-        }
-    }
-
-    struct LedgerEntry: Sendable, Identifiable {
-        let id = UUID()
-        /// "allowance" | "purchase" | "auto_topup" | "usage" | "refund" | "adjustment"
-        let kind: String
-        let microUSD: Int
-        let model: String?
-        /// Feature label supplied by the client and persisted by the managed
-        /// proxy. Nil for calls from builds predating server attribution.
-        let task: String?
-        /// Article, paper, or book title supplied for source-bound background
-        /// work. Nil for chat, non-source tasks, and older app builds.
-        let sourceTitle: String?
-        let requestID: String?
-        let clientPlatform: String?
-        let clientBuild: String?
-        let createdAt: String
-
-        var usd: Double { Double(microUSD) / 1_000_000 }
-        var credits: Double { Double(microUSD) / 10_000 }
-    }
-
-    /// One authoritative usage debit from the proxy's D1 billing ledger.
-    /// Unlike the client recorder, this row exists only after server metering
-    /// completed and includes the actual margin-adjusted amount.
-    struct UsageLedgerEvent: Codable, Sendable {
-        let id: Int64
-        let provider: String
-        let model: String
-        let task: String?
-        let sourceTitle: String?
-        let subjectID: String?
-        let subjectType: String?
-        let activityID: String?
-        let requestID: String?
-        let inputTokens: Int?
-        let outputTokens: Int?
-        let cachedInputTokens: Int?
-        let cacheWrite5mTokens: Int?
-        let cacheWrite1hTokens: Int?
-        let reasoningTokens: Int?
-        let webSearchCalls: Int?
-        let billedMicrousd: Int
-        let exactCost: Int
-        /// The learner's own router key paid for this row (migration 0041);
-        /// `billed_microusd` is then what their router charged them, not a debit.
-        var ownKey: Int? = nil
-        /// Who paid when it was neither the learner's balance nor their key:
-        /// `foreverlm_openai_credits` for voice mode (migration 0051).
-        var paidBy: String? = nil
-        let clientPlatform: String?
-        let clientBuild: String?
-        let createdAtUnix: TimeInterval
-
-        enum CodingKeys: String, CodingKey {
-            case id, provider, model, task
-            case sourceTitle = "source_title"
-            case subjectID = "subject_id"
-            case subjectType = "subject_type"
-            case activityID = "activity_id"
-            case requestID = "request_id"
-            case inputTokens = "input_tokens"
-            case outputTokens = "output_tokens"
-            case cachedInputTokens = "cached_input_tokens"
-            case cacheWrite5mTokens = "cache_write_5m_tokens"
-            case cacheWrite1hTokens = "cache_write_1h_tokens"
-            case reasoningTokens = "reasoning_tokens"
-            case webSearchCalls = "web_search_calls"
-            case billedMicrousd = "billed_microusd"
-            case exactCost = "exact_cost"
-            case ownKey = "own_key"
-            case paidBy = "paid_by"
-            case clientPlatform = "client_platform"
-            case clientBuild = "client_build"
-            case createdAtUnix = "created_at_unix"
-        }
-    }
-
-    struct UsageLedgerPage: Decodable, Sendable {
-        let events: [UsageLedgerEvent]
-        let nextAfterID: Int64
-        let hasMore: Bool
-
-        enum CodingKeys: String, CodingKey {
-            case events
-            case nextAfterID = "next_after_id"
-            case hasMore = "has_more"
-        }
-    }
-
-    /// An error the proxy reported, carrying its machine-readable code so callers
-    /// can branch (notably `credits_empty` → the add-your-key prompt) while showing the
-    /// server's own message verbatim. No fallback text is invented here.
     struct ServiceError: LocalizedError, Sendable {
         let code: String
         let message: String
         var errorDescription: String? { message }
 
-        var isCreditsEmpty: Bool { code == "credits_empty" }
         var isInvalidSession: Bool { code == "invalid_session" }
         /// The proxy closed the account (an operator, a Stripe dispute, or
         /// three metering failures in a row). The balance's `disabled` is the
         /// same flag, so a later balance read can say it no longer holds.
         var isAccountDisabled: Bool { code == "account_disabled" }
-        /// The proxy refused the transport this client named. It means the
-        /// account-wide policy moved while this client was running, so the
-        /// stored policy is stale rather than the request being wrong.
-        var isStaleTextRouter: Bool { code == "text_router_required" }
         /// The proxy's catch-all for a thrown failure (a D1 outage, Apple's
         /// JWKS unreachable, an upstream fetch that threw). It says nothing
         /// about the request, so it is as retryable as an `http_5xx`. The proxy
@@ -1042,44 +839,12 @@ enum ManagedAI {
         var isInternalProxyFailure: Bool { code == "internal" || code == "internal_error" }
     }
 
-    /// The comp block both `/v1/session` and `/v1/balance` return. Optional
-    /// throughout so a build newer than the deployed worker still decodes.
-    struct CompRow: Decodable, Sendable {
-        let active: Bool?
-        let textRouter: String?
-        let spentThisMonthMicrousd: Int?
-        var spentTodayMicrousd: Int? = nil
-
-        enum CodingKeys: String, CodingKey {
-            case active
-            case textRouter = "text_router"
-            case spentThisMonthMicrousd = "spent_this_month_microusd"
-            case spentTodayMicrousd = "spent_today_microusd"
-        }
-
-        var comp: Comp {
-            Comp(
-                textRouter: textRouter,
-                spentThisMonthMicroUSD: spentThisMonthMicrousd ?? 0,
-                spentTodayMicroUSD: spentTodayMicrousd
-            )
-        }
-    }
-
     /// Exchanges an Apple identity token for a session token, creating the account
-    /// on first sign-in. Returns the balance the server reports so the caller can
-    /// show it immediately.
-    static func signIn(identityToken: String) async throws -> Int {
+    /// on first sign-in, and stores the plan the server reports with it.
+    static func signIn(identityToken: String) async throws {
         struct Response: Decodable {
             let sessionToken: String
             let expiresAt: TimeInterval
-            let balanceMicrousd: Int
-            /// Optional so a build newer than the deployed worker still signs in.
-            let billingExempt: Bool?
-            /// Account-wide transport policy. Optional for the same reason, and
-            /// its absence means the shipped default rather than "no policy".
-            let textRouter: String?
-            let comp: CompRow?
             /// The app plan. Optional so a build newer than the worker still signs in.
             let access: AppAccess?
             /// The paid app's fields the proxy also sends beside `access`:
@@ -1087,21 +852,14 @@ enum ManagedAI {
             let state: String?
             let unlocked: Bool?
             let freeUntil: String?
-            /// Which models the account may pick; absent is any.
-            let modelAccess: AIModelAccess?
 
             enum CodingKeys: String, CodingKey {
                 case sessionToken = "session_token"
                 case expiresAt = "expires_at"
-                case balanceMicrousd = "balance_microusd"
-                case billingExempt = "billing_exempt"
-                case textRouter = "text_router"
-                case comp
                 case access
                 case state
                 case unlocked
                 case freeUntil = "free_until"
-                case modelAccess = "model_access"
             }
         }
 
@@ -1109,10 +867,6 @@ enum ManagedAI {
         let response: Response = try await post("/v1/session", body: body, authenticated: false)
         sessionToken = response.sessionToken
         sessionExpiry = Date(timeIntervalSince1970: response.expiresAt)
-        creditsAreEmpty = response.balanceMicrousd <= 0 && response.billingExempt != true && !hasOwnKey
-        // Sign-in is the first moment the app can learn the account's transport
-        // policy, so the launch's very first request already uses it.
-        applyTextRouterPolicy(response.textRouter, comp: response.comp)
         storeAppAccess(
             response.access,
             topLevel: .init(
@@ -1121,8 +875,6 @@ enum ManagedAI {
                 freeUntil: response.freeUntil
             )
         )
-        AIModelAccess.store(response.modelAccess)
-        return response.balanceMicrousd
     }
 
     /// Loads the read-only account snapshot with a short bounded retry. Opening
@@ -1187,92 +939,29 @@ enum ManagedAI {
 
     private static func fetchBalance() async throws -> Balance {
         struct Response: Decodable {
-            let balanceMicrousd: Int
-            let disabled: Bool
-            /// Optional so a build newer than the deployed worker still decodes.
-            let billingExempt: Bool?
+            let disabled: Bool?
             let admin: Bool?
-            let recent: [Row]
-
-            struct Row: Decodable {
-                let kind: String
-                let amountMicrousd: Int
-                let model: String?
-                let task: String?
-                let sourceTitle: String?
-                let requestID: String?
-                let clientPlatform: String?
-                let clientBuild: String?
-                let createdAt: String
-
-                enum CodingKeys: String, CodingKey {
-                    case kind
-                    case amountMicrousd = "amount_microusd"
-                    case model
-                    case task
-                    case sourceTitle = "source_title"
-                    case requestID = "request_id"
-                    case clientPlatform = "client_platform"
-                    case clientBuild = "client_build"
-                    case createdAt = "created_at"
-                }
-            }
-
-            /// Optional so a build newer than the deployed worker still decodes
-            /// a balance instead of failing the whole account screen.
-            struct SpendCapRow: Decodable {
-                let monthlyLimitMicrousd: Int?
-                let spentThisMonthMicrousd: Int
-                let resetsAt: String?
-                let maximumUSD: Int
-
-                enum CodingKeys: String, CodingKey {
-                    case monthlyLimitMicrousd = "monthly_limit_microusd"
-                    case spentThisMonthMicrousd = "spent_this_month_microusd"
-                    case resetsAt = "resets_at"
-                    case maximumUSD = "maximum_usd"
-                }
-            }
-
-            enum CodingKeys: String, CodingKey {
-                case balanceMicrousd = "balance_microusd"
-                case disabled
-                case billingExempt = "billing_exempt"
-                case admin
-                case recent
-                case spendCap = "spend_cap"
-                case textRouter = "text_router"
-                case comp
-                case access
-                case state
-                case unlocked
-                case freeUntil = "free_until"
-                case modelAccess = "model_access"
-            }
-
-            let spendCap: SpendCapRow?
-            let textRouter: String?
-            let comp: CompRow?
             let access: AppAccess?
             /// The paid app's fields the proxy also sends beside `access`:
             /// `state` here is the new state (`access.state` keeps the old one).
             let state: String?
             let unlocked: Bool?
             let freeUntil: String?
-            /// Which models the account may pick; absent is any.
-            let modelAccess: AIModelAccess?
+
+            enum CodingKeys: String, CodingKey {
+                case disabled
+                case admin
+                case access
+                case state
+                case unlocked
+                case freeUntil = "free_until"
+            }
         }
 
         let response: Response = try await get(
             "/v1/balance",
             headers: ["X-ForeverLM-Day-Start": dayStartHeaderValue()]
         )
-        let billingExempt = response.billingExempt ?? false
-        creditsAreEmpty = response.balanceMicrousd <= 0 && !billingExempt && !hasOwnKey
-        // The recurring chance to re-learn the policy: a router switched while
-        // this client was already running reaches it here rather than waiting
-        // for a new build.
-        applyTextRouterPolicy(response.textRouter, comp: response.comp)
         storeAppAccess(
             response.access,
             topLevel: .init(
@@ -1281,33 +970,7 @@ enum ManagedAI {
                 freeUntil: response.freeUntil
             )
         )
-        AIModelAccess.store(response.modelAccess)
-        return Balance(
-            microUSD: response.balanceMicrousd,
-            disabled: response.disabled,
-            billingExempt: billingExempt,
-            isAdmin: response.admin ?? false,
-            recent: response.recent.map {
-                LedgerEntry(
-                    kind: $0.kind,
-                    microUSD: $0.amountMicrousd,
-                    model: $0.model,
-                    task: $0.task,
-                    sourceTitle: $0.sourceTitle,
-                    requestID: $0.requestID,
-                    clientPlatform: $0.clientPlatform,
-                    clientBuild: $0.clientBuild,
-                    createdAt: $0.createdAt
-                )
-            },
-            spendCap: SpendCap(
-                monthlyLimitMicroUSD: response.spendCap?.monthlyLimitMicrousd,
-                spentThisMonthMicroUSD: response.spendCap?.spentThisMonthMicrousd ?? 0,
-                resetsAt: response.spendCap?.resetsAt,
-                maximumUSD: response.spendCap?.maximumUSD ?? 10_000
-            ),
-            comp: response.comp?.active == true ? response.comp?.comp : nil
-        )
+        return Balance(disabled: response.disabled ?? false, isAdmin: response.admin ?? false)
     }
 
     /// Permanently removes the managed-AI account, including its balance,
@@ -1330,194 +993,7 @@ enum ManagedAI {
         guard response.deleted else {
             throw ServiceError(code: "bad_response", message: "ForeverLM AI did not confirm account deletion.")
         }
-        // A deleted account's transport policy would otherwise outlive it and
-        // lock the next account signed in on this Mac to the old router.
-        applyTextRouterPolicy(nil, comp: nil)
         clearSession()
-    }
-
-    static func usageEvents(after ledgerID: Int64, limit: Int = 1_000) async throws -> UsageLedgerPage {
-        var components = URLComponents(
-            url: baseURL.appendingPathComponent("/v1/usage/events"),
-            resolvingAgainstBaseURL: false
-        )
-        components?.queryItems = [
-            URLQueryItem(name: "after_id", value: String(max(0, ledgerID))),
-            URLQueryItem(name: "limit", value: String(min(max(1, limit), 1_000))),
-        ]
-        guard let url = components?.url else {
-            throw ServiceError(code: "bad_request", message: "Could not construct the AI usage reconciliation request.")
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try authenticate(&request)
-        return try await send(request)
-    }
-
-    /// Set the monthly spending cap, or pass nil to remove it.
-    ///
-    /// The amount is what the account is charged, margin included — the same
-    /// number the balance and history show — so the cap means what the user
-    /// reads it to mean. Returns the month's spend so far so a cap set below it
-    /// can be reported as already reached without a second round trip.
-    @discardableResult
-    static func setSpendCap(monthlyLimitUSD: Double?) async throws -> SpendCap {
-        struct Response: Decodable {
-            let monthlyLimitMicrousd: Int?
-            let spentThisMonthMicrousd: Int
-
-            enum CodingKeys: String, CodingKey {
-                case monthlyLimitMicrousd = "monthly_limit_microusd"
-                case spentThisMonthMicrousd = "spent_this_month_microusd"
-            }
-        }
-        // `encode` rather than the synthesized `encodeIfPresent`, so clearing
-        // the cap sends an explicit `null` instead of dropping the key. The
-        // server rejects a body with no `monthly_limit_usd` at all — it refuses
-        // to guess whether a missing field meant "no cap" or a client bug — so
-        // the synthesized conformance would make "Remove cap" fail with a 400.
-        struct Body: Encodable {
-            let monthlyLimitUSD: Double?
-            enum CodingKeys: String, CodingKey { case monthlyLimitUSD = "monthly_limit_usd" }
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                try container.encode(monthlyLimitUSD, forKey: .monthlyLimitUSD)
-            }
-        }
-        let response: Response = try await post(
-            "/v1/credits/spend-cap",
-            body: Body(monthlyLimitUSD: monthlyLimitUSD),
-            authenticated: true
-        )
-        return SpendCap(
-            monthlyLimitMicroUSD: response.monthlyLimitMicrousd,
-            spentThisMonthMicroUSD: response.spentThisMonthMicrousd,
-            resetsAt: nil,
-            maximumUSD: 10_000
-        )
-    }
-
-    /// Result of an operator balance grant.
-    struct Grant: Sendable {
-        let balanceMicroUSD: Int
-        /// True when the server recognised this attempt's key and added nothing,
-        /// so a retry after a lost response reports honestly instead of twice.
-        let alreadyGranted: Bool
-    }
-
-    /// Adds balance directly, with no payment and no Stripe object, for accounts
-    /// the proxy recognises as operators. The server decides that; a non-operator
-    /// account gets `not_admin` back however the button was reached.
-    ///
-    /// `idempotencyKey` must be stable across retries of the same intent: the
-    /// ledger's unique index, not this client, is what stops a double grant.
-    static func grantCredits(amountUSD: Int, idempotencyKey: String) async throws -> Grant {
-        struct Body: Encodable {
-            let amountUSD: Int
-            let idempotencyKey: String
-
-            enum CodingKeys: String, CodingKey {
-                case amountUSD = "amount_usd"
-                case idempotencyKey = "idempotency_key"
-            }
-        }
-        struct Response: Decodable {
-            let balanceMicrousd: Int
-            let alreadyGranted: Bool?
-
-            enum CodingKeys: String, CodingKey {
-                case balanceMicrousd = "balance_microusd"
-                case alreadyGranted = "already_granted"
-            }
-        }
-        let response: Response = try await post(
-            "/v1/credits/grant",
-            body: Body(amountUSD: amountUSD, idempotencyKey: idempotencyKey),
-            authenticated: true
-        )
-        // A grant is true the moment the server answers, so the local
-        // exhausted flag can be cleared straight away.
-        if response.balanceMicrousd > 0 { creditsAreEmpty = false }
-        return Grant(
-            balanceMicroUSD: response.balanceMicrousd,
-            alreadyGranted: response.alreadyGranted ?? false
-        )
-    }
-
-    // MARK: - Company spending caps
-
-    /// What ForeverLM itself pays each model maker for, this UTC month and
-    /// year, and the caps an operator set (product owner, 2026-11-07: "let me
-    /// set that in settings, like per month caps for each provider. it can
-    /// also be a per year cap"). Company-paid is voice on the company's OpenAI
-    /// credits and every call on the proxy's own OpenRouter key; a learner's
-    /// own key is neither counted nor capped. Operators only: anyone else gets
-    /// `not_admin`, which the Settings section reads as "not shown".
-    struct CompanySpendCaps: Decodable, Sendable {
-        struct Period: Decodable, Sendable, Equatable {
-            let capMicroUSD: Int?
-            let spentMicroUSD: Int
-            let reached: Bool
-            let resetsAt: String
-
-            enum CodingKeys: String, CodingKey {
-                case capMicroUSD = "cap_microusd"
-                case spentMicroUSD = "spent_microusd"
-                case reached
-                case resetsAt = "resets_at"
-            }
-        }
-
-        struct Provider: Decodable, Sendable, Identifiable, Equatable {
-            /// The maker as OpenRouter names it: "anthropic", "openai".
-            let provider: String
-            let label: String
-            let month: Period
-            let year: Period
-            var id: String { provider }
-        }
-
-        let providers: [Provider]
-    }
-
-    enum CompanySpendCapPeriod: String, Sendable {
-        case month
-        case year
-    }
-
-    static func companySpendCaps() async throws -> CompanySpendCaps {
-        try await get("/v1/admin/company-spend-caps")
-    }
-
-    /// Sets one cap, or removes it with nil, and returns the listing as it
-    /// now stands.
-    static func setCompanySpendCap(
-        provider: String,
-        period: CompanySpendCapPeriod,
-        capUSD: Double?
-    ) async throws -> CompanySpendCaps {
-        // `encode` rather than `encodeIfPresent`: the server refuses a body
-        // without `cap_usd`, so removing a cap must send an explicit null.
-        struct Body: Encodable {
-            let provider: String
-            let period: String
-            let capUSD: Double?
-            enum CodingKeys: String, CodingKey {
-                case provider, period
-                case capUSD = "cap_usd"
-            }
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                try container.encode(provider, forKey: .provider)
-                try container.encode(period, forKey: .period)
-                try container.encode(capUSD, forKey: .capUSD)
-            }
-        }
-        return try await post(
-            "/v1/admin/company-spend-caps",
-            body: Body(provider: provider, period: period.rawValue, capUSD: capUSD),
-            authenticated: true
-        )
     }
 
     /// Stripe billing-portal URL: the user's plan, invoices, and receipts,
@@ -1626,128 +1102,48 @@ enum ManagedAI {
         return ServiceError(code: body.error.code, message: body.error.message)
     }
 
-    /// Publishes the one account failure that needs app-wide UI. Delivery is
-    /// main-actor-bound because SwiftUI observes it at the app shell, while the
-    /// network response is normally decoded on an AI or URLSession actor.
+    /// An account the proxy says is locked: the plan it carries is what puts
+    /// the pay screen up, so it is read again.
     static func surfaceIfNeeded(_ error: ServiceError) {
-        // A stale policy, or an account the proxy now says is locked: the
-        // balance fetch re-reads both, and the access it stores is what puts
-        // the pay screen up.
-        if error.isStaleTextRouter || error.code == "app_locked" {
-            refreshTextRouterPolicy()
+        if error.code == "no_own_key" {
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .managedAICreditsEmpty, object: nil)
+            }
             return
         }
-        guard error.isCreditsEmpty else { return }
-        // With the learner's own key every model is paid for, so a balance
-        // refusal here is the proxy's own message about a stray request;
-        // marking the account empty would make chat refuse to send, which
-        // the key still pays for.
-        guard !hasOwnKey else { return }
-        creditsAreEmpty = true
-        Task { @MainActor in
-            NotificationCenter.default.post(name: .managedAICreditsEmpty, object: nil)
-        }
+        guard error.code == "app_locked" else { return }
+        refreshAccess()
     }
 
-    /// Re-reads the account-wide transport policy after the proxy refused the
-    /// transport this client named.
-    ///
-    /// Deliberately not a retry of the failed request: the AI call still fails
-    /// loudly with the proxy's own message, and nothing here re-dispatches it
-    /// onto a second provider. All this does is make the *next* request use the
-    /// router the server now names, so recovery costs one visible failure rather
-    /// than an app relaunch.
+    /// Whether AI work has nothing to run on: ForeverLM pays for none, so with
+    /// no own key every AI request is refused (`rewrite`), and work that needs
+    /// one waits until a key is stored.
+    static var creditsAreEmpty: Bool { !hasOwnKey }
+
+    /// Re-reads the plan after the proxy said the account is locked.
     ///
     /// Coalesced, because a refused batch fails many requests at once and they
-    /// would otherwise each fetch the balance.
-    static func refreshTextRouterPolicy() {
+    /// would otherwise each fetch the account.
+    static func refreshAccess() {
         guard isSignedIn else { return }
-        let alreadyRunning = policyRefreshLock.withLock {
-            let running = policyRefreshInFlight
-            if !running { policyRefreshInFlight = true }
+        let alreadyRunning = accessRefreshLock.withLock {
+            let running = accessRefreshInFlight
+            if !running { accessRefreshInFlight = true }
             return running
         }
         guard !alreadyRunning else { return }
         Task.detached(priority: .utility) {
             defer {
-                policyRefreshLock.withLock { policyRefreshInFlight = false }
+                accessRefreshLock.withLock { accessRefreshInFlight = false }
             }
             // A failure here is not worth surfacing: the request that triggered
-            // it already reported the refusal, and the next balance fetch of the
-            // launch picks the policy up anyway.
+            // it already reported the refusal.
             _ = try? await balance()
         }
     }
 
-    private static let policyRefreshLock = AppLock()
-    nonisolated(unsafe) private static var policyRefreshInFlight = false
-
-    /// Last known answer to "can this account pay for an AI call?", durable so
-    /// code outside the UI can ask without a network round trip.
-    ///
-    /// Written by the two places that learn it for a fact: a balance fetch, and
-    /// the proxy refusing a call for want of credit. Defaults to false — an app
-    /// that has never asked must not behave as though the account were empty.
-    static var creditsAreEmpty: Bool {
-        get { Preferences.value(Prefs.Models.managedCreditsAreEmpty) ?? false }
-        set {
-            let wasEmpty = Preferences.value(Prefs.Models.managedCreditsAreEmpty) ?? false
-            Preferences.set(newValue, for: Prefs.Models.managedCreditsAreEmpty)
-            // Announce the edge, not the state: both writers (a balance fetch
-            // and an operator grant) can report a healthy balance repeatedly,
-            // and only the transition out of empty is a new fact for paused
-            // work to act on.
-            guard wasEmpty, !newValue else { return }
-            Task { @MainActor in
-                NotificationCenter.default.post(name: .managedAICreditsRestored, object: nil)
-            }
-        }
-    }
-
-    /// Records the account's transport policy from the two places that learn it:
-    /// signing in and fetching the balance.
-    ///
-    /// The top-level field is the account-wide policy and outranks everything
-    /// else. The comp block is still read as a fallback so a client talking to a
-    /// worker that predates the account-wide field keeps working; a comp no
-    /// longer means a *different* router, only that the same policy arrived by
-    /// the older route.
-    ///
-    /// A response carrying neither clears the stored token, which resolves to
-    /// the shipped default rather than to "no policy" — the app has no third
-    /// state where text has no transport.
-    static func applyTextRouterPolicy(_ accountWide: String?, comp row: CompRow?) {
-        let compToken = row?.active == true ? row?.textRouter : nil
-        requiredTextRouterToken = accountWide ?? compToken
-    }
-
-    /// The router this account's text models must use, as the server named it.
-    /// Persisted because routing is resolved synchronously at the moment a
-    /// request is dispatched, including before the first balance fetch of a
-    /// launch: the proxy refuses a request that names a different transport, so
-    /// the last policy this device was told is the only safe thing to open with.
-    ///
-    /// Never a synced preference: this is server policy for one account, not a
-    /// choice to carry onto another device's launch.
-    static var requiredTextRouterToken: String? {
-        get { Preferences.value(Prefs.Models.managedRequiredTextRouter) }
-        set {
-            guard let newValue, !newValue.isEmpty else {
-                Preferences.reset(Prefs.Models.managedRequiredTextRouter)
-                return
-            }
-            Preferences.set(newValue, for: Prefs.Models.managedRequiredTextRouter)
-        }
-    }
-
-    /// nil when this device has not been told a policy yet, or was told one it
-    /// does not understand. Both resolve to the shipped default at the call
-    /// site: a token from a newer server than this build must never silently
-    /// become "route however you like".
-    static var requiredTextRoutingMode: AITextRoutingMode? {
-        guard let token = requiredTextRouterToken else { return nil }
-        return AITextRoutingMode(serverToken: token)
-    }
+    private static let accessRefreshLock = AppLock()
+    nonisolated(unsafe) private static var accessRefreshInFlight = false
 
     private static func send<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -1804,89 +1200,5 @@ extension URLSession {
         } catch {
             throw ManagedAI.namingUnreachableService(error)
         }
-    }
-}
-
-/// Which models the account may pick, as the proxy says on every session and
-/// balance read (`model_access`): its makers' models and, when `freeModels`,
-/// OpenRouter's free ones. A subsidized ("covered") account gets Anthropic and
-/// OpenAI; everyone else gets nil, which is any model (product owner,
-/// 2026-11-09: subsidized users "should not see all the models").
-///
-/// It binds only while ForeverLM pays, so it lapses while the learner's own
-/// OpenRouter key is stored: that key pays for whatever it runs. The proxy
-/// refuses any other model for the account; the pickers hide what it would
-/// refuse, and `permittedSlug` moves a stored pick it would refuse onto one it
-/// serves, so the account's work runs instead of failing.
-struct AIModelAccess: Codable, Equatable, Sendable {
-    let makers: [String]
-    let freeModels: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case makers
-        case freeModels = "free_models"
-    }
-
-    /// What runs in place of a stored pick the account may not use: Anthropic's
-    /// cheapest current model, which reads images and runs every background
-    /// task, on the Anthropic credits the account is covered by.
-    static let substituteSlug = "anthropic/claude-haiku-5.5"
-
-    /// Whether an OpenRouter slug (`maker/model`) is one this access covers.
-    func allows(slug: String) -> Bool {
-        let id = slug.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if freeModels, id == "openrouter/free" || id.hasSuffix(":free") { return true }
-        guard let slash = id.firstIndex(of: "/") else { return false }
-        return makers.contains { $0.lowercased() == id[..<slash] }
-    }
-
-    private static let lock = AppLock()
-    nonisolated(unsafe) private static var cache: AIModelAccess??
-
-    /// The limit in force: nil while any model may be picked.
-    static var current: AIModelAccess? {
-        guard !ManagedAI.hasOwnKey else { return nil }
-        return stored
-    }
-
-    /// Read outside the lock: UserDefaults is never touched under one.
-    private static var stored: AIModelAccess? {
-        if let cached = lock.withLock({ cache }) { return cached }
-        let loaded = Preferences.value(Prefs.Models.managedModelAccess)
-            .flatMap { try? JSONDecoder().decode(AIModelAccess.self, from: $0) }
-        lock.withLock { if cache == nil { cache = .some(loaded) } }
-        return loaded
-    }
-
-    /// Keeps what the proxy last said. A change rebuilds every picker.
-    static func store(_ access: AIModelAccess?) {
-        guard stored != access else { return }
-        if let access, let data = try? JSONEncoder().encode(access) {
-            Preferences.set(data, for: Prefs.Models.managedModelAccess)
-        } else {
-            Preferences.reset(Prefs.Models.managedModelAccess)
-        }
-        lock.withLock { cache = .some(access) }
-        // `.aiProviderDidChange` by its name, which this file shares with
-        // targets that do not compile KeychainService.
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: Notification.Name("aiProviderDidChange"), object: nil)
-        }
-    }
-
-    /// Whether a picker may list this OpenRouter slug.
-    static func allows(slug: String) -> Bool {
-        current?.allows(slug: slug) ?? true
-    }
-
-    /// The slug to send: the one given, or `substitute` when the account may
-    /// not use it.
-    static func permittedSlug(_ slug: String, substitute: String = substituteSlug) -> String {
-        current?.permitted(slug, substitute: substitute) ?? slug
-    }
-
-    /// `slug` when this access covers it, else `substitute`.
-    func permitted(_ slug: String, substitute: String = AIModelAccess.substituteSlug) -> String {
-        allows(slug: slug) ? slug : substitute
     }
 }

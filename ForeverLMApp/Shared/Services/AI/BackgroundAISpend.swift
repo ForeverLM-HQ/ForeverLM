@@ -226,9 +226,8 @@ enum BackgroundAIDailyCap {
     /// Synced: the cap is the learner's decision about their account's spend,
     /// and every Mac on the account reads the same ledger.
     static let preferenceKey = Prefs.Spend.backgroundDailyCapUSD.name
-    /// The largest cap chat may set. Billing's own monthly limit tops out at
-    /// $250 (`set_billing_settings`), and a daily background ceiling above the
-    /// largest monthly one the account offers limits nothing.
+    /// The largest cap chat may set: a daily background ceiling this high
+    /// limits nothing a learner would meaningfully spend in a day.
     static let maximumUSD: Double = 250
 
     static let didChange = Notification.Name("foreverlmBackgroundAIDailyCapDidChange")

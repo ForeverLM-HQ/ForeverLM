@@ -69,7 +69,6 @@ struct StudioNavigationRail: View {
     @PreferenceStorage(Prefs.MCP.showStatusLight) private var showsMCPStatusLight
     /// Observed so a rename, here or on another client, redraws the footer.
     @PreferenceStorage(Prefs.Account.displayName) private var savedDisplayName: String
-    @PreferenceStorage(Prefs.Account.showsCompCrown) private var showsCompCrown
     @AppStorage(Prefs.Planner.suggestPlanningTheDay) private var asksToPlanTheDay
     @PreferenceStorage(Prefs.Memory.draftNudges) private var showsDraftNudges: Bool
     /// What the learner's own key has spent since local midnight, in USD, read
@@ -1394,14 +1393,6 @@ struct StudioNavigationRail: View {
         ) {
             accountMenu
         }
-        .onChange(of: showsAccountMenu) { _, isShown in
-            guard isShown else { return }
-            // Whether usage is comped is only as fresh as the last balance fetch,
-            // which is otherwise launch and Settings. Opening the menu asks again.
-            if showsCompOnScreen {
-                Task { await account.refresh(minimumInterval: 30, silently: true) }
-            }
-        }
     }
 
     private var accountMenuLabel: some View {
@@ -1409,7 +1400,6 @@ struct StudioNavigationRail: View {
         // 2026-10-06: "fewer buttons and bells and whistles"). The open
         // team's badge says whose library this is, and the MCP status light
         // rides inside the button only while the connection needs attention;
-        // the comp crown is the account menu's "Usage is paid for" row.
         // Their click actions live in the menu this button opens.
         HStack(spacing: 8) {
             accountAvatar(size: 22)
@@ -1594,43 +1584,17 @@ struct StudioNavigationRail: View {
             .accessibilityHidden(true)
     }
 
-    // MARK: Comp
-
-    /// The comp pays only for what goes through the proxy. With the learner's
-    /// own key stored and allowed to run (a comp is unlocked), everything the key
-    /// covers goes straight to its router and is billed there, so the comp row
-    /// said "Usage is paid for by ForeverLM · $0.00 used today" while the key
-    /// paid for the day's chats (2026-09-27). The help text names the key instead.
-    private var ownKeyPays: Bool { account.ownKey != nil && account.ownKeyAllowed }
-
-    private var compHelpText: String {
-        if let own = account.ownKey, ownKeyPays {
-            return "\(own.router.billedScopeCapitalized) are billed to your \(own.router.label) account"
-        }
-        return "Usage is paid for by ForeverLM on this account"
-    }
-
-    /// The button's tooltip and the comp refresh on opening the menu: on for a comped account unless the learner switched the crown
-    /// off, and never while screen record mode is filming (usage stays off
-    /// screen). The button itself carries no crown.
-    private var showsCompOnScreen: Bool {
-        account.usageIsComped && showsCompCrown && !vm.isScreenRecordModeActive
-    }
-
     private var accountButtonHelpText: String {
         var parts = ["Account menu"]
         if let team = vm.activeTeam {
             parts.append(team.canEdit ? "Team library: \(team.name)" : "Team library: \(team.name), read only")
         }
-        // The tooltip is on screen too; VoiceOver's value below keeps it.
-        if showsCompOnScreen { parts.append(compHelpText) }
         if showsMCPStatusLight { parts.append(mcpStatusLightLabel) }
         return parts.joined(separator: " · ")
     }
 
     private var accountButtonAccessibilityValue: String {
         var parts: [String] = ["Library: \(vm.activeLibraryTitle)"]
-        if account.usageIsComped { parts.append(compHelpText) }
         if showsMCPStatusLight { parts.append(mcpStatusLightLabel) }
         return parts.joined(separator: ", ")
     }

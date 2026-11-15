@@ -92,4 +92,20 @@ extension MCPDataStore {
             "assignments": tasks.map(notebookTaskPayload),
         ] as [String: Any])
     }
+
+    private func resolveFamilyMember(_ raw: String?, members: [TeamMemberRecord], teamName: String) throws -> TeamMemberRecord {
+        let wanted = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !wanted.isEmpty else {
+            throw MCPError.invalidInput("member is required: a user_record_name or display name from list_teams.")
+        }
+        if let exact = members.first(where: { $0.userRecordName == wanted }) { return exact }
+        let byName = members.filter { $0.displayName.caseInsensitiveCompare(wanted) == .orderedSame }
+        if byName.count == 1, let only = byName.first { return only }
+        let known = members.map { "\($0.displayName) (\($0.userRecordName))" }.joined(separator: ", ")
+        throw MCPError.invalidInput(
+            byName.isEmpty
+                ? "\(wanted) is not a member of ‘\(teamName)’. Members: \(known.isEmpty ? "none on this Mac yet" : known)."
+                : "More than one member of ‘\(teamName)’ is called \(wanted). Pass a user_record_name: \(known)."
+        )
+    }
 }

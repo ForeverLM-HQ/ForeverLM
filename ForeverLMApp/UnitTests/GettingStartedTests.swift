@@ -395,12 +395,10 @@ struct GettingStartedTests {
         // The proxy refuses the key on an account it may not run on: a locked
         // one in the paid app (2026-10-10; the free days run it). So a key
         // alone, or an unlocked account alone, pays for nothing.
-        #expect(GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: true, canPayWithoutKey: false))
-        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: false, canPayWithoutKey: false))
-        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: true, canPayWithoutKey: false))
-        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: false, canPayWithoutKey: false))
-        // A comp, or balance left from before top-ups were retired, still pays.
-        #expect(GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: false, canPayWithoutKey: true))
+        #expect(GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: true))
+        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: false))
+        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: true))
+        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: false))
     }
 
     @Test("Every Setup step that asks a question names its options and can be answered")

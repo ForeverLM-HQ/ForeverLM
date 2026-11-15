@@ -14,7 +14,6 @@ enum MacAccountUser {
     /// (the Mac's account button carries none). On unless
     /// the learner hides them, for a screenshot or a recording; Settings ›
     /// AI Usage still says who pays.
-    static let showsCompCrownPreferenceKey = Prefs.Account.showsCompCrown.name
     /// The web Studio's name field takes the same length.
     static let maximumDisplayNameLength = 120
 
@@ -62,14 +61,6 @@ enum MacAccountUser {
         guard let name = normalizedDisplayName(raw) else { return false }
         Preferences.set(name, for: Prefs.Account.displayName)
         return true
-    }
-
-    static var showsCompCrown: Bool {
-        Preferences.value(Prefs.Account.showsCompCrown)
-    }
-
-    static func setShowsCompCrown(_ shows: Bool) {
-        Preferences.set(shows, for: Prefs.Account.showsCompCrown)
     }
 
     /// Shown in place of the learner's name while Screen record mode is on. A
