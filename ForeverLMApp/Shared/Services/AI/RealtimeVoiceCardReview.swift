@@ -138,7 +138,7 @@ enum RealtimeVoiceCardReview {
         )
     }
 
-    private static func clipped(_ text: String) -> String {
+    static func clipped(_ text: String) -> String {
         let flat = text
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)

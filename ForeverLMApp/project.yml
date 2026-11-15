@@ -503,6 +503,8 @@ targets:
       # conversation.
       - Shared/Services/AI/RealtimeVoiceCardReview.swift
       - iOS/MobileRealtimeCardReview.swift
+      - Shared/Services/AI/RealtimeVoiceCardsToCheck.swift
+      - iOS/MobileRealtimeCardsToCheck.swift
       # Memory Check by Voice: the cards, then today's memory review, graded
       # through the typed review's grading.
       - Shared/Services/AI/RealtimeVoiceMemoryCheck.swift

@@ -136,6 +136,10 @@ enum MobileRealtimeAssistant {
                     description: "Today's review cards (spaced repetition), each with its question and answer, for a card review out loud when the learner asks for their review or their cards. Ask one card's question at a time, let them answer, say plainly whether they had it and the answer in a sentence, then call grade_card before the next."
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
+                RealtimeVoiceCardsToCheck.listTool(
+                    description: "The cards waiting in To Check (drafted from what the learner read, not yet kept or skipped), for going through them out loud when the learner asks to check their new cards. Ask one card's question at a time, let them answer, say the answer in a sentence, then ask whether to keep, change or skip it, and call decide_card only on their word."
+                ),
+                RealtimeVoiceCardsToCheck.decideTool,
                 RealtimeVoiceListen.toolDefinition,
                 RealtimeVoiceChange.toolDefinition,
             ] + RealtimeVoiceReach.toolDefinitions
@@ -198,6 +202,9 @@ enum MobileRealtimeAssistant {
                 tasks.markStoppedByVoice(id)
                 return await MobileVoiceMac.call("voice_stop_background_task", ["task_id": id])
             default:
+                if let answer = await toCheck.run(name: name, argumentsJSON: argumentsJSON, onlyNew: false) {
+                    return answer
+                }
                 return await cards.run(name: name, argumentsJSON: argumentsJSON, onlyNew: false)
                     ?? #"{"error":"Unknown tool."}"#
             }
@@ -328,6 +335,8 @@ enum MobileRealtimeAssistant {
 
         /// Today's cards over every notebook, and their grades.
         private let cards = MobileRealtimeCardTools(scope: .allNotebooks)
+        /// The cards waiting in To Check over every notebook, and what was decided.
+        private let toCheck = MobileRealtimeToCheckTools(scope: .allNotebooks)
 
         // MARK: Library
 

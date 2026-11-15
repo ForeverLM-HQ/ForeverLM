@@ -42,6 +42,7 @@ struct MobileMemoryScreen: View {
 
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @ObservedObject private var goal = MobileMemoryGoalModel.shared
+    @ObservedObject private var realtime = MobileRealtimeVoice.controller
     @State private var section: MobileMemorySection = .review
     @State private var counts = MemoryCardDayCounts.zero
     @State private var cards: [MemoryCardListing] = []
@@ -342,8 +343,20 @@ struct MobileMemoryScreen: View {
         MobileCardsToCheckList(scope: .allNotebooks) { sourceID in
             open(.source(sourceID, notebookID: nil))
         } header: {
-            sectionPicker
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: MobileDesign.Spacing.medium) {
+                sectionPicker
+                Spacer(minLength: 0)
+                Button {
+                    Task { await MobileRealtimeVoice.startCardsToCheck(scope: .allNotebooks, scopeTitle: "") }
+                } label: {
+                    Label("Check by Voice", systemImage: "waveform")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(realtime.isActive || vm.cardsToCheckTotal == 0)
+                .accessibilityLabel("Check Cards by Voice")
+                .accessibilityIdentifier("memory.toCheck.voice")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

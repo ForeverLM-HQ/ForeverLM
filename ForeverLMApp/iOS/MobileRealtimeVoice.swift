@@ -145,6 +145,25 @@ enum MobileRealtimeVoice {
         }
     }
 
+    /// Check Cards by Voice: the cards waiting in To Check, asked, then kept,
+    /// changed or skipped on the learner's word (`MobileRealtimeCardsToCheck`).
+    static func startCardsToCheck(scope: MemoryReviewScope, scopeTitle: String) async {
+        if await offersVoiceChoice(then: { await startCardsToCheck(scope: scope, scopeTitle: scopeTitle) }) { return }
+        await prepareToTalk()
+        currentSource = nil
+        if case .notebook(let notebookID) = scope {
+            currentNotebookID = notebookID
+        } else {
+            currentNotebookID = nil
+        }
+        await controller.start(
+            title: RealtimeVoiceCardsToCheck.title,
+            status: "Dealing the cards to check…"
+        ) {
+            try await MobileRealtimeCardsToCheck.brief(scope: scope, scopeTitle: scopeTitle)
+        }
+    }
+
     /// Memory Check by Voice: today's cards, then today's memory review,
     /// out loud (`MobileRealtimeMemoryCheck`). The review half is saved on
     /// the day's review as it goes, so it is not filed again as a voice chat.

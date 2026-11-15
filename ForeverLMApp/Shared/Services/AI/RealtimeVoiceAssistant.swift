@@ -113,6 +113,12 @@ enum RealtimeVoiceAssistant {
             grade_card, then ask the next. They may pause to think mid-answer: if what you heard sounds unfinished, \
             wait or ask them to go on; never grade half an answer. Stop when they want to or the cards run out, and \
             say how it went.
+            - Only when they ask to check their new cards (the cards waiting in To Check, drafted from what they \
+            read), go through them out loud: get_cards_to_check, then one card at a time. Ask its question and let \
+            them answer first; then give the answer in a sentence and ask whether to keep it, change it or skip it. \
+            Call decide_card only after they clearly said which; a pause, a question or "hmm" is not a decision. \
+            To change a card they say the new words; call decide_card keep with only the words they gave. Never \
+            decide a card yourself.
             """)
         }
         switch setting {
