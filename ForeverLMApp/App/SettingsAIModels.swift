@@ -348,8 +348,6 @@ struct VoiceSettingsDetailView: View {
     @State private var speechToTextProvider: SpeechToTextProvider = .openai
     @State private var speechToTextModel = ""
     @State private var recordingsModel = ""
-    /// Which transcription model the Speech to text list chooses.
-    @State private var transcriptionPurpose: ManagedTranscriptionClient.Purpose = .dictation
     @State private var textToSpeechProvider = MacArticleSpeechSettings.defaultProvider
     @State private var model = ""
     @State private var voice = ""
@@ -361,38 +359,22 @@ struct VoiceSettingsDetailView: View {
     @State private var catalogRevision = 0
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                SettingsSection(
-                    title: "Speech to text",
-                    description: transcriptionPurpose == .dictation
-                        ? "The model that turns what you say in a chat or a review into text."
-                        : "The model meeting recordings, podcast episodes and course videos are transcribed with."
-                ) {
-                    Picker("Speech to text", selection: $transcriptionPurpose) {
-                        Text(ManagedTranscriptionClient.Purpose.dictation.settingsLabel)
-                            .tag(ManagedTranscriptionClient.Purpose.dictation)
-                        Text(ManagedTranscriptionClient.Purpose.media.settingsLabel)
-                            .tag(ManagedTranscriptionClient.Purpose.media)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
-                    .accessibilityIdentifier("settings.voice.speechToText.purpose")
+                transcriptionSection(
+                    .dictation,
+                    title: "Dictation",
+                    description: "The model that turns what you say in a chat or a review into text.",
+                    model: $speechToTextModel
+                )
 
-                    storedValueCards {
-                        TranscriptionSettingsView(
-                            purpose: transcriptionPurpose,
-                            provider: speechToTextProvider,
-                            model: transcriptionPurpose == .dictation ? $speechToTextModel : $recordingsModel,
-                            directory: transcriptionDirectory,
-                            catalogRevision: catalogRevision,
-                            retryDirectory: { Task { await readDirectories(force: true) } }
-                        )
-                        // A fresh list per model: the one it opened on is that model's.
-                        .id(transcriptionPurpose)
-                    }
-                }
+                transcriptionSection(
+                    .media,
+                    title: "Recordings & podcasts",
+                    description: "The model meeting recordings, podcast episodes and course videos are transcribed with.",
+                    model: $recordingsModel
+                )
 
                 SettingsSection(
                     title: "Text to speech",
@@ -428,7 +410,9 @@ struct VoiceSettingsDetailView: View {
             catalogRevision &+= 1
         }
         .onAppear {
-            if let requested = TranscriptionModelRequest.take() { transcriptionPurpose = requested }
+            if let requested = TranscriptionModelRequest.take() {
+                proxy.scrollTo(requested, anchor: .top)
+            }
         }
         .task {
             guard !hasLoadedStoredValues else { return }
@@ -444,6 +428,30 @@ struct VoiceSettingsDetailView: View {
             hasLoadedStoredValues = true
             await readDirectories(force: false)
         }
+        }
+    }
+
+    /// One transcription model's section: dictation and recordings each pick
+    /// their own, so each has its own list rather than a tab over one.
+    private func transcriptionSection(
+        _ purpose: ManagedTranscriptionClient.Purpose,
+        title: String,
+        description: String,
+        model: Binding<String>
+    ) -> some View {
+        SettingsSection(title: title, description: description) {
+            storedValueCards {
+                TranscriptionSettingsView(
+                    purpose: purpose,
+                    provider: speechToTextProvider,
+                    model: model,
+                    directory: transcriptionDirectory,
+                    catalogRevision: catalogRevision,
+                    retryDirectory: { Task { await readDirectories(force: true) } }
+                )
+            }
+        }
+        .id(purpose)
     }
 
     /// Reads both directories (a fresh read answers at once), then repairs

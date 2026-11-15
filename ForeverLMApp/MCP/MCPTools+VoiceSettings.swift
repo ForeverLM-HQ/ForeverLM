@@ -129,8 +129,8 @@ extension MCPDataStore {
             ),
             AppSettingEntry(
                 id: "speech_to_text.recordings_model",
-                pane: "Voice › Recordings & Podcasts",
-                title: "Recordings & Podcasts model",
+                pane: "Voice › Recordings & podcasts",
+                title: "Recordings & podcasts model",
                 detail: "The model meeting recordings and podcast episodes are transcribed with, in the background, where accuracy beats latency. Changes what every transcribed hour is billed at; each option carries its price. Like the pane's text field, a model id outside the list is stored as given.",
                 // `stt_model_media` is absent from `SyncedPreferenceKeys.synced`,
                 // so this pick stays on the Mac it was made on.

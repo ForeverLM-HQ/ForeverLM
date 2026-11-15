@@ -66,7 +66,7 @@ enum ManagedTranscriptionClient {
         var settingsLabel: String {
             switch self {
             case .dictation: return "Dictation"
-            case .media: return "Recordings & Podcasts"
+            case .media: return "Recordings & podcasts"
             }
         }
     }

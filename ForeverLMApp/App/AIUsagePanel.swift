@@ -352,7 +352,7 @@ enum AIModelSetting {
         case .slot:
             return "Runs on your chat's model: Settings › Chat"
         case .transcription(let purpose):
-            return "Settings › Voice › Speech to text › \(purpose.settingsLabel)"
+            return "Settings › Voice › \(purpose.settingsLabel)"
         case .pane(.aiTextToSpeech):
             return "Settings › Voice › Text to speech"
         case .pane(.aiVideos):
