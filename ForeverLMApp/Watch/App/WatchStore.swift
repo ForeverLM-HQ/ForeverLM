@@ -45,6 +45,13 @@ final class WatchStore: NSObject, ObservableObject {
     }
 
     func start() {
+        #if DEBUG
+        if WatchSample.isOn {
+            day = WatchSample.day()
+            answered = []
+            return
+        }
+        #endif
         guard let session, session.delegate == nil else { return }
         session.delegate = self
         session.activate()
@@ -76,6 +83,12 @@ final class WatchStore: NSObject, ObservableObject {
     /// Forgot or Remembered on a card whose back is shown.
     func grade(_ card: WatchCard, remembered: Bool) {
         guard !answered.contains(card.itemID) else { return }
+        #if DEBUG
+        if WatchSample.isOn {
+            answered.insert(card.itemID)
+            return
+        }
+        #endif
         let grade = WatchGrade(
             itemID: card.itemID,
             prompt: card.prompt,

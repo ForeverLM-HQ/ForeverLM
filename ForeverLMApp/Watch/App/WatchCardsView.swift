@@ -5,7 +5,7 @@ import SwiftUI
 /// speak the answer"). The phone writes each grade as its own review would.
 struct WatchCardsView: View {
     @EnvironmentObject private var store: WatchStore
-    @State private var shownBackOf: String?
+    @State private var shownBackOf: String? = Self.openingBack
 
     var body: some View {
         Group {
@@ -16,6 +16,13 @@ struct WatchCardsView: View {
             }
         }
         .navigationTitle(title)
+    }
+
+    private static var openingBack: String? {
+        #if DEBUG
+        if WatchSample.revealsBack { return WatchStore.shared.cardsLeft.first?.itemID }
+        #endif
+        return nil
     }
 
     private var title: String {

@@ -40,7 +40,7 @@ enum WatchRoute: Hashable {
 
 struct WatchHomeView: View {
     @EnvironmentObject private var store: WatchStore
-    @State private var path: [WatchRoute] = []
+    @State private var path: [WatchRoute] = Self.openingPath
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -75,6 +75,13 @@ struct WatchHomeView: View {
             guard let route = WatchRoute(url: url) else { return }
             path = [route]
         }
+    }
+
+    private static var openingPath: [WatchRoute] {
+        #if DEBUG
+        if let route = WatchSample.route { return [route] }
+        #endif
+        return []
     }
 
     private var listenDetail: String {
