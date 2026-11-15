@@ -68,15 +68,20 @@ struct ReviewChatSavedCardsView: View {
                     .frame(maxWidth: .infinity, minHeight: 96)
             }
         }
-        .padding(14)
-        .frame(maxWidth: Self.maxWidth, alignment: .leading)
+        // Inline, the deck sits in its own tinted box under the reply. In a
+        // popover the popover is the box: no second one inside it, so the
+        // header and card share one even margin and nothing runs past it.
+        .padding(onOpenedInMemory == nil ? 14 : 0)
+        .frame(maxWidth: onOpenedInMemory == nil ? Self.maxWidth : .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.primary.opacity(colorScheme == .dark ? 0.05 : 0.035))
+                .opacity(onOpenedInMemory == nil ? 1 : 0)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                .opacity(onOpenedInMemory == nil ? 1 : 0)
         )
         .textSelection(.disabled)
         .task(id: reloadKey) { await load() }

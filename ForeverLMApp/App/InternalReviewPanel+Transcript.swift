@@ -233,12 +233,16 @@ extension InternalReviewPanelContent {
         var shownDeck = ReviewChatSavedCardsView(saved: saved)
         shownDeck.onOpenedInMemory = { [weak popover] in popover?.close() }
         let deck = shownDeck
-            .padding(12)
-            .frame(width: 560)
+            .padding(16)
+            .frame(width: 520)
+            .fixedSize(horizontal: true, vertical: true)
             .environment(vm)
             .environment(windowState)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: deck)
+        let host = NSHostingController(rootView: deck)
+        // The popover takes the deck's own size, as the cards load in.
+        host.sizingOptions = .preferredContentSize
+        popover.contentViewController = host
         let anchor = NSRect(
             x: rect.minX,
             y: view.isFlipped ? rect.minY : view.bounds.height - rect.maxY,
