@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import os
 
 /// Codex-style chat navigation rail. It is the app's primary navigation surface,
 /// led by the notebooks (docs/notebooks-design.md, "The
@@ -93,6 +94,8 @@ struct StudioNavigationRail: View {
     @State private var dragStartRailWidth: CGFloat?
 
     enum Style { case strip, homeSidebar }
+
+    private static let homeClickLogger = Logger(subsystem: "com.foreverlm", category: "HomeClick")
 
     private var railWidth: CGFloat {
         if isCompact { return Self.compactRailWidth }
@@ -866,7 +869,27 @@ struct StudioNavigationRail: View {
             identifier: "studio.navigation.home",
             isCompact: true
         ) {
+            // Diagnostic for "Home sometimes does nothing" (`log stream
+            // --predicate 'category == "HomeClick"'`): whether the click
+            // arrived, in which window, and whether Chat came to the front.
+            let before = Self.isChatVisible(in: windowState)
             vm.inWindow(windowState) { vm.requestBlankReviewChat() }
+            Self.homeClickLogger.notice("""
+                Home click window=\(windowState.id.uuidString, privacy: .public) \
+                chatVisibleBefore=\(before, privacy: .public) \
+                chatVisibleAfter=\(Self.isChatVisible(in: windowState), privacy: .public) \
+                panes=\(windowState.centerTabGroups.groups.map { $0.activeTab.rawValue }.joined(separator: ","), privacy: .public) \
+                holdsChat=\(windowState.centerTabGroups.groups.contains { $0.tabs.contains(.chat) }, privacy: .public) \
+                onHome=\(windowState.isOnHome, privacy: .public) \
+                fullScreenPane=\(windowState.fullScreenGroupID != nil, privacy: .public)
+                """)
+            DispatchQueue.main.async {
+                Self.homeClickLogger.notice("""
+                    Home click settled window=\(windowState.id.uuidString, privacy: .public) \
+                    chatVisible=\(Self.isChatVisible(in: windowState), privacy: .public) \
+                    pendingReset=\(vm.reviewChatResetRequestID != nil, privacy: .public)
+                    """)
+            }
         }
         // Draggable like New chat: dropped at either edge of the center area
         // it opens a fresh chat in its own pane.
