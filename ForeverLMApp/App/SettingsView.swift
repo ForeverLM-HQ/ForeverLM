@@ -26,10 +26,12 @@ enum SettingsPane: Hashable {
     /// Paying for ForeverLM: the Early user deal, and switching or cancelling
     /// a subscription bought before the lock.
     case aiBilling
-    /// What runs AI and what it cost: the own key, spending and limits, and
-    /// the activity by task. Not a pane: it opens from the rail's OpenRouter
-    /// button beside what is running now (`AIUsagePlace`), so a request for
-    /// this pane goes there.
+    /// The OpenRouter key, where spending is read and the background limits
+    /// (product owner, 2026-11-14: "maybe this api key stuff should live in
+    /// settings?"). The OpenAI key for voice mode is in Voice.
+    case aiKeys
+    /// What is running and what it cost: not a pane, it opens from the rail's
+    /// OpenRouter button (`AIUsagePlace`), so a request for it goes there.
     case aiUsage
     case mcp
     case mcpPairing
@@ -158,12 +160,12 @@ struct SettingsView: View {
         case .aiChatModels:
             ChatModelsSettingsDetailView(
                 pane: .chat,
-                onRequestAPIKey: { navigate(to: .aiUsage) }
+                onRequestAPIKey: { navigate(to: .aiKeys) }
             )
         case .aiBackgroundModels:
             ChatModelsSettingsDetailView(
                 pane: .background,
-                onRequestAPIKey: { navigate(to: .aiUsage) }
+                onRequestAPIKey: { navigate(to: .aiKeys) }
             )
         case .aiTextToSpeech:
             VoiceSettingsDetailView()
@@ -171,6 +173,8 @@ struct SettingsView: View {
             ImageGenerationSettingsDetailView()
         case .aiVideos:
             VideoGenerationSettingsDetailView()
+        case .aiKeys:
+            APIKeysSettingsDetailView(onOpenBilling: { navigate(to: .aiBilling) })
         case .aiBilling:
             BillingSettingsDetailView()
         case .aiUsage:
@@ -296,6 +300,15 @@ enum SettingsSearchCatalog {
                 destination: .aiVideos,
                 icon: "film.fill",
                 tint: .red
+            ),
+            SettingsSearchItem(
+                id: "api-keys",
+                title: "API Keys",
+                subtitle: "Account",
+                keywords: ["key", "api key", "openrouter", "openai", "voice key", "spend", "spending", "limit", "daily limit", "background limit", "credits", "free credits", "byok"],
+                destination: .aiKeys,
+                icon: "key.fill",
+                tint: .yellow
             ),
             SettingsSearchItem(
                 id: "billing",
@@ -473,6 +486,7 @@ private struct SettingsSidebar: View {
 
         Group {
             groupHeader("Account")
+            row(.aiKeys, icon: "key.fill", title: "API Keys", tint: .yellow)
             row(.aiBilling, icon: "creditcard.fill", title: "Billing", tint: .purple)
             row(.dataPrivacy, icon: "hand.raised.fill", title: "Data & Privacy", tint: .gray)
         }
@@ -1292,6 +1306,22 @@ private struct ReadOnlyPlainTextView: NSViewRepresentable {
 /// Settings → Billing: paying for ForeverLM, and nothing else
 /// (`AppPlanSettingsSection`): the subscription stands apart from all the AI
 /// usage, which is Settings › AI Usage (product owner, 2026-09-28).
+/// Settings › API Keys: the OpenRouter key, spending and the background
+/// limits, moved here from the rail's AI Usage popover.
+private struct APIKeysSettingsDetailView: View {
+    let onOpenBilling: () -> Void
+
+    var body: some View {
+        ScrollView {
+            AIUsageAccountSections(onOpenBilling: onOpenBilling)
+                .padding(24)
+                .frame(maxWidth: 760, alignment: .leading)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .navigationTitle("API Keys")
+    }
+}
+
 private struct BillingSettingsDetailView: View {
     @Environment(ManagedAIAccountModel.self) private var account
 

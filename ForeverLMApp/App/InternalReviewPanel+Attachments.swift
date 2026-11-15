@@ -540,10 +540,10 @@ extension InternalReviewPanelContent {
                     clearDisplayedError()
                     NotificationCenter.default.post(
                         name: .requestOpenStudioSettings,
-                        object: SettingsPane.aiUsage
+                        object: SettingsPane.aiKeys
                     )
                 } label: {
-                    Label("Open AI Usage", systemImage: "sparkles")
+                    Label("Open API Keys", systemImage: "key.fill")
                 }
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)

@@ -37,7 +37,6 @@ struct AIUsageAccountSections: View {
             } else {
                 signedOutSection
             }
-            RealtimeVoiceOwnKeySection()
             spendingSection
             if account.isSignedIn { CompanySpendCapsSection() }
 
@@ -1160,8 +1159,9 @@ enum AIUsagePlace {
 
 /// What the rail's OpenRouter button opens (product owner, 2026-10-15: "ai
 /// usage should instead be under that openrouter button … both what is
-/// running now and what has run in the past"): the work running now, what has
-/// run, then the learner's own key and its limits. It was a Settings pane.
+/// running now and what has run in the past"): today's spend, the work
+/// running now and what has run. The key and its limits are Settings › API
+/// Keys again (product owner, 2026-11-14).
 struct AIUsagePanel: View {
     @ObservedObject var monitor: BackgroundWorkMonitor
     let title: (BackgroundWorkItem) -> String
@@ -1179,7 +1179,7 @@ struct AIUsagePanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 AIUsageSpentToday()
-                if keyComesFirst { accountSections }
+                if keyComesFirst { keyPointer }
                 SettingsSection(title: "Running now") {
                     SettingsCard {
                         BackgroundWorkList(
@@ -1192,7 +1192,6 @@ struct AIUsagePanel: View {
                     }
                 }
                 AIActivitySettingsSection(onOpenSettings: onOpenSettings, onClose: onClose)
-                if !keyComesFirst { accountSections }
             }
             .padding(20)
         }
@@ -1200,8 +1199,15 @@ struct AIUsagePanel: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private var accountSections: some View {
-        AIUsageAccountSections(onOpenBilling: { onOpenSettings(.aiBilling) })
+    /// The key is Settings › API Keys; with none, this is the way there.
+    private var keyPointer: some View {
+        SettingsCard {
+            BillingRow(title: "Add your OpenRouter key", detail: "AI features run on it, billed at cost") {
+                Button("Open API Keys") { onOpenSettings(.aiKeys) }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("aiUsage.openAPIKeys")
+            }
+        }
     }
 }
 
@@ -1432,7 +1438,7 @@ private struct CompanySpendCapEditor: View {
     }
 }
 
-/// Settings › AI Usage › Voice mode: the learner's own OpenAI key for voice
+/// Settings › Voice › Voice mode: the learner's own OpenAI key for voice
 /// mode (product owner, 2026-11-08: "let people put their own openai key for
 /// the voice mode"). With one, voice sessions open straight with OpenAI on it
 /// and OpenAI bills the learner; without one, voice runs on ForeverLM's own
@@ -1513,8 +1519,11 @@ struct RealtimeVoiceOwnKeySection: View {
                     .buttonStyle(.bordered)
                 }
             }
-            Link("Get an OpenAI key", destination: ManagedAI.ownOpenAIVoiceKeysURL)
-                .font(.caption)
+            HStack(spacing: 12) {
+                Link("Get an OpenAI key", destination: ManagedAI.ownOpenAIVoiceKeysURL)
+                Link("Free API credits with a ChatGPT subscription", destination: ManagedAI.openAISubscriberCreditsURL)
+            }
+            .font(.caption)
             Label(Self.privacyNote, systemImage: "lock.fill")
                 .font(.caption)
                 .foregroundStyle(.secondary)

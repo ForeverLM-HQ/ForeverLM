@@ -1616,6 +1616,7 @@ struct MobileRealtimeVoiceOwnKeySection: View {
             .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving)
 
             Link("Get an OpenAI key", destination: ManagedAI.ownOpenAIVoiceKeysURL)
+            Link("Free API credits with a ChatGPT subscription", destination: ManagedAI.openAISubscriberCreditsURL)
 
             if let errorMessage {
                 Text(errorMessage)

@@ -725,15 +725,10 @@ struct ArticleRow: View {
 
     private func fixPaperIngestionFailure(_ action: PaperIngestionRecoveryAction) {
         switch action {
-        case .configureAI:
+        case .configureAI, .addBalance:
             NotificationCenter.default.post(
                 name: .requestOpenStudioSettings,
-                object: SettingsPane.aiUsage
-            )
-        case .addBalance:
-            NotificationCenter.default.post(
-                name: .requestOpenStudioSettings,
-                object: SettingsPane.aiUsage
+                object: SettingsPane.aiKeys
             )
         case .attachPDF:
             Task {

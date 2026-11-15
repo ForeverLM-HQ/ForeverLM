@@ -30,6 +30,13 @@ extension ManagedAI {
     /// it, like the OpenRouter key.
     static let ownOpenAIVoiceKeysURL = URL(string: "https://platform.openai.com/api-keys")!
 
+    /// OpenAI's help page on the monthly API credits an eligible ChatGPT
+    /// subscription (Pro, Business) brings, claimed in OpenAI's billing
+    /// settings (product owner, 2026-11-14: "a link to how people get a
+    /// certain number of api credits for free ... when they have a
+    /// subscription already").
+    static let openAISubscriberCreditsURL = URL(string: "https://help.openai.com/en/articles/20001626-api-credits-benefit-for-eligible-chatgpt-subscriptions")!
+
     private static let ownOpenAIVoiceKeyLock = AppLock()
     /// `nil` until read this launch; then the answer, which every write keeps.
     nonisolated(unsafe) private static var ownOpenAIVoiceKeyCache: String??

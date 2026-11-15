@@ -1522,7 +1522,7 @@ private struct CreditsEmptySheet: View {
                     dismiss()
                     NotificationCenter.default.post(
                         name: .requestOpenStudioSettings,
-                        object: SettingsPane.aiUsage
+                        object: SettingsPane.aiKeys
                     )
                 }
                 .buttonStyle(.borderedProminent)
