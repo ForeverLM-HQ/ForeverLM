@@ -54,11 +54,42 @@ struct AIToolCallRequest {
     let name: String
     /// Raw JSON string of the arguments exactly as streamed by the provider.
     let argumentsJSON: String
+    /// What the stream carried for the arguments: nothing at all, bytes that do
+    /// not parse, or a whole JSON object. An explicit `{}` is `.complete`; only
+    /// a call with no argument bytes is `.empty`, so the log can tell a model
+    /// that chose to send nothing from a stream that lost the arguments.
+    let argumentsState: AIToolArgumentsState
+    /// The provider stopped the reply for length, so arguments may be cut off.
+    let replyCutForLength: Bool
 
-    init(id: String, name: String, argumentsJSON: String) {
+    init(
+        id: String,
+        name: String,
+        argumentsJSON: String,
+        argumentsState: AIToolArgumentsState = .complete,
+        replyCutForLength: Bool = false
+    ) {
         self.id = id
         self.name = name
         self.argumentsJSON = argumentsJSON
+        self.argumentsState = argumentsState
+        self.replyCutForLength = replyCutForLength
+    }
+
+    /// Why this call cannot run, when it arrived with no usable arguments for a
+    /// tool that needs some. A call that carries some arguments but misses one
+    /// is left to the tool's own, more specific error.
+    func unusableArguments(for spec: AIToolSpec?) -> AIToolArgumentProblem? {
+        switch argumentsState {
+        case .malformed:
+            return replyCutForLength ? .cutOffForLength : .malformedJSON
+        case .empty, .complete:
+            let required = spec?.inputSchema["required"] as? [String] ?? []
+            guard !required.isEmpty, arguments.isEmpty else { return nil }
+            return argumentsState == .empty
+                ? .noArgumentBytes(required: required)
+                : .emptyObject(required: required)
+        }
     }
 
     var arguments: [String: Any] {
@@ -67,6 +98,45 @@ struct AIToolCallRequest {
             return [:]
         }
         return object
+    }
+}
+
+enum AIToolArgumentsState: Equatable {
+    case empty
+    case malformed
+    case complete
+}
+
+/// A tool call that cannot run because its arguments did not arrive usable.
+enum AIToolArgumentProblem: Equatable {
+    /// The stream carried no argument bytes for the call.
+    case noArgumentBytes(required: [String])
+    /// The model sent `{}` for a tool with required fields.
+    case emptyObject(required: [String])
+    /// The reply ended at its length limit inside the arguments.
+    case cutOffForLength
+    case malformedJSON
+
+    /// A short name for the log, which is how the cause of these gets told apart.
+    var logLabel: String {
+        switch self {
+        case .noArgumentBytes: return "no argument bytes streamed"
+        case .emptyObject: return "model sent {}"
+        case .cutOffForLength: return "arguments cut off at the length limit"
+        case .malformedJSON: return "arguments were not valid JSON"
+        }
+    }
+
+    /// What the model reads back. Nothing ran, so it retries with the fields.
+    func message(toolName: String) -> String {
+        switch self {
+        case .noArgumentBytes(let required), .emptyObject(let required):
+            return "Nothing ran: this \(toolName) call arrived with no arguments, and it needs \(required.joined(separator: ", ")). Call \(toolName) again with \(required.count == 1 ? "it" : "them") filled in."
+        case .cutOffForLength:
+            return "Nothing ran: the reply ended before this \(toolName) call's arguments were complete. Call it again with shorter arguments."
+        case .malformedJSON:
+            return "Nothing ran: this \(toolName) call's arguments were not valid JSON. Call it again with a well-formed JSON object."
+        }
     }
 }
 
@@ -370,6 +440,7 @@ struct AIToolCallStreamAccumulator {
     private var partials: [Int: PartialCall] = [:]
     private var order: [Int] = []
     private(set) var sawToolUseStop = false
+    private(set) var sawLengthStop = false
     private var citationSeen: Set<String> = []
     private(set) var webCitations: [AIWebCitation] = []
 
@@ -383,6 +454,9 @@ struct AIToolCallStreamAccumulator {
         for choice in choices {
             if choice["finish_reason"] as? String == "tool_calls" {
                 sawToolUseStop = true
+            }
+            if choice["finish_reason"] as? String == "length" {
+                sawLengthStop = true
             }
             // Web-search citations. OpenRouter normalizes them to url_citation
             // annotations; depending on engine and stream shape they ride on the
@@ -445,10 +519,20 @@ struct AIToolCallStreamAccumulator {
         order.compactMap { index in
             guard let partial = partials[index], !partial.name.isEmpty else { return nil }
             let json = partial.argumentsJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+            let state: AIToolArgumentsState
+            if json.isEmpty {
+                state = .empty
+            } else if (try? JSONSerialization.jsonObject(with: Data(json.utf8))) is [String: Any] {
+                state = .complete
+            } else {
+                state = .malformed
+            }
             return AIToolCallRequest(
                 id: partial.id.isEmpty ? "call_\(index)" : partial.id,
                 name: partial.name,
-                argumentsJSON: json.isEmpty ? "{}" : json
+                argumentsJSON: json.isEmpty ? "{}" : json,
+                argumentsState: state,
+                replyCutForLength: sawLengthStop
             )
         }
     }

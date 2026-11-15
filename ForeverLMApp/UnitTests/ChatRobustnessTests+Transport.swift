@@ -334,6 +334,34 @@ extension ChatRobustnessTests {
         #expect(calls.first?.arguments["date"] as? String == "2026-07-16")
     }
 
+    @Test("A call with no argument bytes is told apart from an explicit {} and from cut-off JSON")
+    func emptyToolCallsAreClassified() {
+        let spec = AIToolSpec(
+            name: "search_sources_keyword",
+            description: "x",
+            inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": ["keywords"]]
+        )
+        func calls(arguments: String?, finish: String? = nil) -> [AIToolCallRequest] {
+            var accumulator = AIToolCallStreamAccumulator()
+            var function: [String: Any] = ["name": "search_sources_keyword"]
+            if let arguments { function["arguments"] = arguments }
+            accumulator.consume(["choices": [["delta": ["tool_calls": [["index": 0, "id": "c1", "function": function]]]]]])
+            if let finish { accumulator.consume(["choices": [["finish_reason": finish, "delta": [:]]]]) }
+            return accumulator.toolCalls
+        }
+
+        #expect(calls(arguments: nil).first?.unusableArguments(for: spec) == .noArgumentBytes(required: ["keywords"]))
+        #expect(calls(arguments: "{}").first?.unusableArguments(for: spec) == .emptyObject(required: ["keywords"]))
+        #expect(calls(arguments: "{\"keywords\": [\"mt").first?.unusableArguments(for: spec) == .malformedJSON)
+        #expect(calls(arguments: "{\"keywords\": [\"mt", finish: "length").first?.unusableArguments(for: spec) == .cutOffForLength)
+        #expect(calls(arguments: "{\"keywords\": [\"mtDNA\"]}").first?.unusableArguments(for: spec) == nil)
+        // A tool with nothing required is never refused for having no arguments.
+        let bare = AIToolSpec(name: "search_sources_keyword", description: "x", inputSchema: ["type": "object"])
+        #expect(calls(arguments: nil).first?.unusableArguments(for: bare) == nil)
+        // Some arguments with one missing is left to the tool's own error.
+        #expect(calls(arguments: "{\"limit\": 5}").first?.unusableArguments(for: spec) == nil)
+    }
+
     @Test("Malformed tool arguments degrade to an empty dictionary, not a crash")
     func malformedToolArgumentsDegradeGracefully() {
         let call = AIToolCallRequest(id: "call_1", name: "list_sources", argumentsJSON: "{broken json")

@@ -1238,6 +1238,20 @@ extension ReviewSessionManager {
                 try Task.checkCancellation()
                 if userStoppedGeneration { throw CancellationError() }
 
+                // A call that arrived with no usable arguments cannot run. It is
+                // answered at once, without a failed row in the transcript, and
+                // the model retries it; the log says which way it arrived.
+                if let problem = call.unusableArguments(for: tools.first(where: { $0.name == call.name })) {
+                    logger.notice("Tool call \(call.name, privacy: .public) not run: \(problem.logLabel, privacy: .public) (\(config.provider.rawValue, privacy: .public) \(config.model, privacy: .public))")
+                    results.append(AIToolResultPayload(
+                        callID: call.id,
+                        toolName: call.name,
+                        text: problem.message(toolName: call.name),
+                        isError: true
+                    ))
+                    continue
+                }
+
                 switch call.name {
                 case "record_memory_attempt":
                     let recorded = await stageMemoryAttempt(
