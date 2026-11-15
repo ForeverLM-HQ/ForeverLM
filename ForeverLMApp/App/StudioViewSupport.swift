@@ -265,7 +265,12 @@ enum StudioTopBar {
     /// `StudioPanelChrome.headerHeight` (54pt), so +2 makes the two match.
     /// Not seen in the app yet: if the lights sit off the toggle's line, this
     /// is the one constant to move.
-    static let extraBandHeight: CGFloat = 2
+    ///
+    /// 6pt (2026-11-15, product owner: "this top tab is a bit too narrow;
+    /// make it taller ... when not in full screen mode"): the 2pt was still
+    /// short, so the windowed band is 58pt. +8 was the earlier failure; stay
+    /// under it. Not seen in the app yet.
+    static let extraBandHeight: CGFloat = 6
     /// Left edge of the window's own controls beside the lights, Codex's:
     /// ‹ › and the sidebar toggle, 30pt each (~92→186pt).
     static let leadingControlsLeading: CGFloat = 92
