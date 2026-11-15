@@ -63,7 +63,7 @@ final class RealtimeVoiceController: ObservableObject {
 
     /// What was said, for the saved chat: ForeverLM's words as the realtime
     /// model gave them with its audio, and a mark for each time the learner
-    /// spoke (their words are never transcribed). Never shown while talking.
+    /// spoke (their words fill in from OpenAI's transcript on the same call). Never shown while talking.
     private(set) var transcript: [RealtimeVoiceTurn] = []
 
     var isActive: Bool { phase != .idle }
@@ -571,10 +571,10 @@ final class RealtimeVoiceController: ObservableObject {
             }
             statusText = "Listening"
 
-        case .speechStopped:
+        case .speechStopped(let itemID):
             isLearnerSpeaking = false
             transcript.append(RealtimeVoiceTurn(
-                id: "learner-\(UUID().uuidString)",
+                id: itemID.isEmpty ? "learner-\(UUID().uuidString)" : itemID,
                 role: .learner,
                 text: RealtimeVoiceTurn.spokenMark
             ))
@@ -622,6 +622,14 @@ final class RealtimeVoiceController: ObservableObject {
                     advanceIfQuiet()
                 }
             }
+
+        case .inputTranscriptDone(let itemID, let text):
+            // Kept for the saved chat; the learner's words are never shown
+            // while talking.
+            let said = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !said.isEmpty,
+                  let index = transcript.lastIndex(where: { $0.id == itemID && $0.role == .learner }) else { return }
+            transcript[index].text = said
 
         case .outputTranscriptDelta(let itemID, let delta):
             guard let index = transcript.lastIndex(where: { $0.id == itemID }) else { return }

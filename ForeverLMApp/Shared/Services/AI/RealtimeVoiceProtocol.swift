@@ -16,8 +16,9 @@ import Foundation
 // do any sneaky text-to-speech or speech-to-text ... simplify the code and just
 // follow OpenAI's documentation closely"): the learner's audio goes up a WebRTC
 // track and the model's comes down one; the server detects turns, handles
-// interruptions and trims unheard audio. No separate transcription model runs
-// on the learner's words. What the model says comes with its audio
+// interruptions and trims unheard audio. The learner's words are transcribed by
+// OpenAI on the same call, for the saved chat only (product owner, 2026-11-15:
+// "it always just says spoken"; he had declined this on 2026-11-11). What the model says comes with its audio
 // (`response.output_audio_transcript.*`) and is kept for the saved chat only;
 // nothing is shown as text while the conversation runs.
 //
@@ -67,7 +68,10 @@ enum RealtimeVoiceServerEvent: Equatable {
     /// trims the reply itself.
     case speechStarted
     /// The learner's turn ended; the server answers it on its own.
-    case speechStopped
+    case speechStopped(itemID: String)
+    /// OpenAI's own transcript of one spoken learner turn, from the same call.
+    /// It arrives after the turn ended, often once the reply has begun.
+    case inputTranscriptDone(itemID: String, transcript: String)
     case responseCreated(responseID: String)
     case outputItemAdded(itemID: String)
     /// The model's audio began playing on the learner's device.
@@ -150,8 +154,11 @@ enum OpenAIRealtimeWire {
     /// do. OpenAI's far-field noise reduction cleans the microphone before turn
     /// detection and the model hear it, so road and room noise is not taken
     /// for speech: phones on a dashboard, car microphones and laptop
-    /// microphones are all far from the mouth. No input transcription: nothing
-    /// runs on the learner's words but the realtime model.
+    /// microphones are all far from the mouth. The learner's words are
+    /// transcribed by OpenAI on the same call (`gpt-4o-mini-transcribe`) only so
+    /// the saved chat holds what they said (2026-11-15: "it always just says
+    /// spoken"). The transcript is never shown while talking and the realtime
+    /// model still hears the audio itself, not this text.
     static func sessionConfiguration(
         instructions: String,
         tools: [[String: Any]],
@@ -187,6 +194,7 @@ enum OpenAIRealtimeWire {
                     // server-VAD default and lets noise split spoken replies.
                     "turn_detection": turnDetection,
                     "noise_reduction": noiseReduction,
+                    "transcription": ["model": "gpt-4o-mini-transcribe"] as [String: Any],
                 ] as [String: Any],
                 "output": ["voice": voice],
             ] as [String: Any],
@@ -203,7 +211,10 @@ enum OpenAIRealtimeWire {
         case "input_audio_buffer.speech_started":
             return .speechStarted
         case "input_audio_buffer.speech_stopped":
-            return .speechStopped
+            return .speechStopped(itemID: (json["item_id"] as? String) ?? "")
+        case "conversation.item.input_audio_transcription.completed":
+            guard let itemID = json["item_id"] as? String else { return nil }
+            return .inputTranscriptDone(itemID: itemID, transcript: (json["transcript"] as? String) ?? "")
         case "response.created":
             let response = json["response"] as? [String: Any]
             return .responseCreated(responseID: (response?["id"] as? String) ?? "")

@@ -112,6 +112,7 @@ struct RealtimeVoiceTutorTests {
         #expect(!json.contains("server_vad") && !json.contains("silence_duration_ms"))
         #expect(json.contains(#""noise_reduction":{"type":"far_field"}"#))
         #expect(json.contains(#""interrupt_response":true"#))
+        #expect(json.contains(#""transcription":{"model":"gpt-4o-mini-transcribe"}"#))
         #expect(json.contains(#""retention_ratio":0.8"#))
         #expect(!json.contains("transcription"))
         // The proxy sets the type and the model.
@@ -300,6 +301,11 @@ struct RealtimeVoiceTutorTests {
     func decoding() {
         // Over WebRTC the audio is a media track; the data channel says when
         // it plays, stops, and is cut off.
+        #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "input_audio_buffer.speech_stopped", "item_id": "item_1"]) == .speechStopped(itemID: "item_1"))
+        #expect(OpenAIRealtimeWire.decodeServerEvent([
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "item_1", "transcript": "They make ATP.",
+        ]) == .inputTranscriptDone(itemID: "item_1", transcript: "They make ATP."))
         #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "output_audio_buffer.started"]) == .outputAudioStarted)
         #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "output_audio_buffer.stopped"]) == .outputAudioStopped)
         #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "output_audio_buffer.cleared"]) == .outputAudioCleared)
