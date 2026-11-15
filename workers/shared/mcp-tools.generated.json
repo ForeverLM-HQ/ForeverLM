@@ -12584,7 +12584,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Rename a review session or chat, file it under a Notebook, pin it, or hide it from the sidebar — what the chat's sidebar row offers. Omit a field to keep it; pass notebook_id \"\" to move the chat out of its Notebook into the ungrouped Chats list. Linked sources are changed with update_review_session_sources.",
+    "description" : "Rename a review session or chat, move it into a Notebook (file it under one), pin it, or hide it from the sidebar — what the chat's sidebar row offers. Omit a field to keep it; pass notebook_id \"\" to move the chat out of its Notebook into the ungrouped Chats list. Called from ForeverLM's own chat, leave session_id out to mean this chat: \"move this chat to my Bioelectricity notebook\" is notebook_id from list_notebooks and nothing else, and the chat then follows into the Notebook. Linked sources are changed with update_review_session_sources.",
     "inputSchema" : {
       "properties" : {
         "is_hidden" : {
@@ -12600,7 +12600,7 @@
           "type" : "string"
         },
         "session_id" : {
-          "description" : "Review session ID from get_review_sessions.",
+          "description" : "Review session ID from get_review_sessions. Required over MCP; omitted in ForeverLM's own chat it is the chat the call is made from.",
           "type" : "string"
         },
         "title" : {
@@ -12608,9 +12608,6 @@
           "type" : "string"
         }
       },
-      "required" : [
-        "session_id"
-      ],
       "type" : "object"
     },
     "name" : "update_review_session",

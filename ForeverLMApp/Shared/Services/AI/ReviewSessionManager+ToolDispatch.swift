@@ -72,6 +72,14 @@ extension ReviewSessionManager {
         if call.name == "create_notebook", !result.isError {
             await followNotebookThisChatMade()
         }
+        // A chat moved into a Notebook follows it, as one that made a Notebook
+        // does. Only a move of this chat counts: another chat's id leaves this
+        // one where it is.
+        if call.name == "update_review_session", !result.isError,
+           let sessionID,
+           Self.nonEmptyTrimmed(call.arguments["session_id"] as? String).map({ $0 == sessionID }) ?? true {
+            await followNotebookThisChatMade()
+        }
         return result
     }
 

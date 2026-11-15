@@ -200,6 +200,19 @@ struct ChatToolSurfaceTests {
         #expect(overlap.isEmpty, "\(overlap.sorted())")
     }
 
+    @Test("A chat carries update_review_session, so moving it into a Notebook needs no load step")
+    func updateReviewSessionTravelsWithTheCoreTools() {
+        #expect(ReviewSessionManager.coreAppToolNames.contains("update_review_session"))
+    }
+
+    @Test("update_review_session needs no session_id: in chat it means this chat")
+    func updateReviewSessionTakesNoRequiredSessionID() throws {
+        let tool = try #require(MCPToolRegistry.shared.tools.first { $0.name == "update_review_session" })
+        #expect(tool.inputSchema["required"] == nil)
+        let properties = try #require(tool.inputSchema["properties"] as? [String: Any])
+        #expect(properties["notebook_id"] != nil)
+    }
+
     @Test("A notebook chat carries update_notebook, so renaming one needs no load step")
     func updateNotebookTravelsWithTheCoreTools() {
         #expect(ReviewSessionManager.coreAppToolNames.contains("update_notebook"))

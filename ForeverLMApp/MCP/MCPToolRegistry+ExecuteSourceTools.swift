@@ -21,8 +21,11 @@ extension MCPToolRegistry {
                 sourceIDs: arguments["source_ids"] as? [String] ?? []
             )
         case "update_review_session":
+            // In ForeverLM's own chat the session is the chat itself, so "move
+            // this chat" needs no id the chat cannot see.
+            let givenSessionID = MCPDataStore.reviewSessionID(from: arguments["session_id"])
             return try store.updateReviewSession(
-                sessionID: MCPDataStore.reviewSessionID(from: arguments["session_id"]),
+                sessionID: givenSessionID.isEmpty ? (hostSessionID ?? "") : givenSessionID,
                 title: arguments["title"] as? String,
                 notebookID: arguments["notebook_id"] as? String,
                 isHidden: arguments["is_hidden"] as? Bool,
