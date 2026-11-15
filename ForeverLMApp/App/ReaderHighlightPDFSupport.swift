@@ -156,7 +156,7 @@ enum ReaderPDFHighlightSupport {
             }
             guard let anchor = resolvedPDFAnchor(for: highlight, in: document, pageRange: pageRange),
                   let page = document.page(at: anchor.pageIndex) else { continue }
-            for rect in anchor.rects where !rect.isNull && !rect.isEmpty {
+            for rect in withoutOverlap(anchor.rects) where !rect.isNull && !rect.isEmpty {
                 let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
                 annotation.color = color(for: highlight.color)
                 annotation.userName = annotationPrefix + highlight.id
@@ -170,6 +170,27 @@ enum ReaderPDFHighlightSupport {
             }
         }
         return installed
+    }
+
+    /// A line's selection bounds run a little taller than the line pitch, so
+    /// neighbouring line rects overlap, and PDFKit multiplies a highlight's
+    /// colour where two of them cross: a darker band under every line. The
+    /// overlap is split down the middle so each line keeps its own strip.
+    static func withoutOverlap(_ rects: [CGRect]) -> [CGRect] {
+        var result = rects
+        let order = result.indices.sorted { result[$0].midY > result[$1].midY }
+        for (position, upper) in order.enumerated() {
+            for lower in order[(position + 1)...] {
+                let a = result[upper], b = result[lower]
+                guard a.minX < b.maxX, b.minX < a.maxX, a.minY < b.maxY else { continue }
+                let seam = (a.minY + b.maxY) / 2
+                guard seam > b.minY, seam < a.maxY else { continue }
+                result[upper].size.height = a.maxY - seam
+                result[upper].origin.y = seam
+                result[lower].size.height = seam - b.minY
+            }
+        }
+        return result
     }
 
     static func remove(_ annotations: [PDFAnnotation]) {
