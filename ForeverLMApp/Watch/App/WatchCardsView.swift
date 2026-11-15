@@ -56,20 +56,15 @@ struct WatchCardsView: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    HStack {
-                        Button {
+                    // An icon over a small word, so both fit side by side on
+                    // the smallest watch ("Remembered" broke mid-word as text).
+                    HStack(spacing: 8) {
+                        gradeButton("Forgot", symbol: "xmark", tint: .red) {
                             answer(card, remembered: false)
-                        } label: {
-                            Text("Forgot")
                         }
-                        .tint(.red)
-                        Button {
+                        gradeButton("Remembered", symbol: "checkmark", tint: .green) {
                             answer(card, remembered: true)
-                        } label: {
-                            Text("Remembered")
-                                .minimumScaleFactor(0.7)
                         }
-                        .tint(.green)
                     }
                     .padding(.top, 4)
                 } else {
@@ -81,6 +76,22 @@ struct WatchCardsView: View {
             }
         }
         .id(card.itemID)
+    }
+
+    private func gradeButton(_ title: String, symbol: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: symbol)
+                    .font(.title3.weight(.semibold))
+                Text(title)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .tint(tint)
+        .accessibilityLabel(title)
     }
 
     private var done: some View {

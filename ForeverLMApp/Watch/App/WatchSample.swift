@@ -30,18 +30,18 @@ enum WatchSample {
             sittingKey: "cards-sample",
             cards: [
                 WatchCard(
-                    itemID: "sample-1",
-                    prompt: "What tells a cut planarian fragment which end should grow a head?",
-                    back: "Its bioelectric pattern: the voltage across the tissue marks one end as head and the other as tail.",
-                    why: ["Change the pattern and the same fragment grows two heads, with no change to its genes."],
-                    sourceTitle: "Levin · Cell, 2021",
-                    isNew: false
-                ),
-                WatchCard(
                     itemID: "sample-2",
                     prompt: "What is a resting potential?",
                     back: "The steady voltage across a cell's membrane, set by ion channels and pumps.",
                     why: [],
+                    sourceTitle: "Levin · Cell, 2021",
+                    isNew: false
+                ),
+                WatchCard(
+                    itemID: "sample-1",
+                    prompt: "What tells a cut planarian fragment which end should grow a head?",
+                    back: "Its bioelectric pattern: the voltage across the tissue marks one end as head and the other as tail.",
+                    why: ["Change the pattern and the same fragment grows two heads, with no change to its genes."],
                     sourceTitle: "Levin · Cell, 2021",
                     isNew: false
                 ),

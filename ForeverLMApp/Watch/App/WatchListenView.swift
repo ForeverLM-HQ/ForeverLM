@@ -76,13 +76,19 @@ private struct WatchNowPlayingRow: View {
                     store.send(playing.isPlaying ? .pause : .resume)
                 } label: {
                     Image(systemName: playing.isPlaying ? "pause.fill" : "play.fill")
+                        .frame(maxWidth: .infinity)
                 }
+                // Each button its own style: inside a List row, buttons with
+                // the default style take the whole row's tap together.
+                .buttonStyle(.bordered)
                 .accessibilityLabel(playing.isPlaying ? "Pause" : "Play")
                 Button {
                     store.send(.stop)
                 } label: {
                     Image(systemName: "stop.fill")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
                 .accessibilityLabel("Stop")
             }
             .disabled(store.isSending)
