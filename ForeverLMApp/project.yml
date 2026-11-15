@@ -965,8 +965,13 @@ targets:
         TARGETED_DEVICE_FAMILY: "4"
         SKIP_INSTALL: "YES"
         CODE_SIGN_ENTITLEMENTS: Watch/App/ForeverLMWatch.entitlements
-        CODE_SIGN_STYLE: Automatic
+        # Manual: Xcode's cloud signing refuses this Mac's App Store Connect key
+        # (AppStoreExportOptions.plist says why), so the watch targets have no
+        # Xcode-managed profile. These development profiles were made with
+        # POST /v1/profiles (2026-11-15) and cover the team's registered devices.
+        CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Apple Development"
+        PROVISIONING_PROFILE_SPECIFIER: "ForeverLM Watch Development"
         DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # The watch face's complications and Smart Stack card.
@@ -992,8 +997,9 @@ targets:
         APPLICATION_EXTENSION_API_ONLY: "YES"
         SKIP_INSTALL: "YES"
         CODE_SIGN_ENTITLEMENTS: Watch/Complications/ForeverLMWatchComplications.entitlements
-        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Apple Development"
+        PROVISIONING_PROFILE_SPECIFIER: "ForeverLM Watch Complications Development"
         DEVELOPMENT_TEAM: XXXXXXXXXX
 
   ForeverLMShareExtension:
