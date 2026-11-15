@@ -80,7 +80,7 @@ struct AppPlanTests {
     func states() throws {
         for (raw, state) in [
             ("free_days", ManagedAI.AppAccess.State.freeDays), ("paid_once", .paidOnce), ("monthly", .monthly),
-            ("comped", .comped), ("family", .family), ("locked", .locked),
+            ("comped", .comped), ("locked", .locked),
         ] {
             #expect(try decode(#"{"state":"free","app_state":"\#(raw)"}"#).state == state, "\(raw)")
         }

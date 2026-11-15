@@ -163,7 +163,7 @@ struct AppPlanSettingsSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        case .paidOnce, .monthly, .comped, .family:
+        case .paidOnce, .monthly, .comped:
             SettingsSection(title: "Plan") {
                 planCard(access)
             }
@@ -281,7 +281,6 @@ struct AppPlanSettingsSection: View {
         case .paidOnce: return "Paid once"
         case .monthly: return "\(access.planName) plan"
         case .comped: return "Plan"
-        case .family: return "Family plan"
         case .free, .freeDays, .locked: return "Plan"
         }
     }
@@ -305,8 +304,6 @@ struct AppPlanSettingsSection: View {
             return access.plan == "believer" ? "Renews \(date). Your price never goes up." : "Renews \(date)"
         case .comped:
             return "Included with your account"
-        case .family:
-            return "Covered by your family's plan"
         case .free, .freeDays, .locked:
             return ""
         }
@@ -321,12 +318,12 @@ struct AppPlanSettingsSection: View {
 
     /// Whether there is a Stripe customer to open: the proxy refuses the page
     /// (`no_purchases`) for an account that has never paid, which a founding
-    /// grant, a comped or a family account has not.
+    /// grant, or a comped account has not.
     private func paysThroughStripe(_ access: ManagedAI.AppAccess) -> Bool {
         switch access.state {
         case .monthly: return true
         case .paidOnce: return !access.founding
-        case .free, .freeDays, .locked, .comped, .family: return false
+        case .free, .freeDays, .locked, .comped: return false
         }
     }
 }

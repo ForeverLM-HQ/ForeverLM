@@ -1445,7 +1445,7 @@ private struct CompanySpendCapEditor: View {
 /// OpenAI account. The key is checked with OpenAI before it is stored, and
 /// sits in iCloud Keychain beside the OpenRouter key, shared with the iPhone.
 struct RealtimeVoiceOwnKeySection: View {
-    static let description = "Voice mode runs on ForeverLM's OpenAI account unless you add your own OpenAI API key. With yours, OpenAI bills you for voice, and ForeverLM's daily limit on voice sessions no longer applies."
+    static let description = "Voice mode runs on your own OpenAI API key, and OpenAI bills you for it. Without a key, voice mode is off."
     static let privacyNote = "Kept in your iCloud Keychain and sent only to OpenAI, never to ForeverLM."
 
     @State private var suffix: String?
@@ -1473,7 +1473,7 @@ struct RealtimeVoiceOwnKeySection: View {
                             }
                             .buttonStyle(.bordered)
                             .disabled(saving)
-                            .help("Voice mode goes back to ForeverLM's OpenAI account")
+                            .help("Voice mode turns off until you add a key")
                         }
                     }
                     if loaded, suffix == nil || isReplacing {

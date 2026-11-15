@@ -67,9 +67,6 @@ extension ManagedAI {
             case paidOnce = "paid_once"
             case monthly
             case comped
-            /// A child in a family team whose parent's plan is live
-            /// (docs/managed-ai-billing.md → Family plans).
-            case family
             case locked
 
             init(serverValue: String?) {
@@ -79,7 +76,6 @@ extension ManagedAI {
                 case "paid_once", "forever", "pro": self = .paidOnce
                 case "monthly", "subscribed": self = .monthly
                 case "comped": self = .comped
-                case "family": self = .family
                 case "locked": self = .locked
                 default: self = .freeDays
                 }
@@ -178,10 +174,10 @@ extension ManagedAI {
         var unlocked: Bool { unlockedField ?? true }
 
         /// Whether the account has paid in some form: paid once, a
-        /// subscription, a comp or a family plan.
+        /// subscription or a comp.
         var isPaid: Bool {
             switch state {
-            case .paidOnce, .monthly, .comped, .family: return true
+            case .paidOnce, .monthly, .comped: return true
             case .free, .freeDays, .locked: return false
             }
         }

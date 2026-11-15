@@ -1572,7 +1572,7 @@ enum MobileKeyScreenCopy {
 /// The learner's own OpenAI key for voice mode (product owner, 2026-11-08),
 /// the same iCloud Keychain item the Mac writes. With one, voice sessions open
 /// straight with OpenAI on it and OpenAI bills the learner; without one, voice
-/// runs on ForeverLM's OpenAI account. Checked with OpenAI before it is stored.
+/// mode is off. Checked with OpenAI before it is stored.
 struct MobileRealtimeVoiceOwnKeySection: View {
     @State private var suffix: String?
     @State private var loaded = false
@@ -1626,7 +1626,7 @@ struct MobileRealtimeVoiceOwnKeySection: View {
         } header: {
             Text("Voice mode")
         } footer: {
-            Text("Voice mode runs on ForeverLM's OpenAI account unless you add your own OpenAI API key. With yours, OpenAI bills you for voice, and ForeverLM's daily limit on voice sessions no longer applies. The key is kept in your iCloud Keychain, shared with your Mac, and sent only to OpenAI.")
+            Text("Voice mode runs on your own OpenAI API key, and OpenAI bills you for it. Without a key, voice mode is off. The key is kept in your iCloud Keychain, shared with your Mac, and sent only to OpenAI.")
         }
         .task { await load() }
     }

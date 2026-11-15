@@ -24,9 +24,8 @@ extension ManagedAI {
     /// owner, 2026-11-08: "let people put their own openai key for the voice
     /// mode"). With one stored, every voice session is opened straight with
     /// OpenAI on it: the key never reaches ForeverLM's server, OpenAI bills the
-    /// learner, and ForeverLM's daily allowance of voice sessions does not
-    /// apply. Without one, voice runs on ForeverLM's own OpenAI account as
-    /// before. The key sits in iCloud Keychain, so the Mac and the iPhone share
+    /// learner. Without one, voice mode is off (product owner, 2026-11-15:
+    /// realtime voice requires the learner's own OpenAI key). The key sits in iCloud Keychain, so the Mac and the iPhone share
     /// it, like the OpenRouter key.
     static let ownOpenAIVoiceKeysURL = URL(string: "https://platform.openai.com/api-keys")!
 
@@ -167,131 +166,39 @@ extension ManagedAI {
         )
     }
 
-    /// A Realtime client secret for the session: minted straight with OpenAI
-    /// on the learner's own OpenAI key when one is stored
-    /// (`ownOpenAIVoiceKey`), and otherwise asked of the proxy, which mints it
-    /// on ForeverLM's own OpenAI account (voice mode is free for the learner;
-    /// see `RealtimeVoiceProtocol.swift`). The proxy route needs Sign in with
-    /// Apple; the learner's OpenRouter key plays no part in either.
-    /// `session` is OpenAI's session object without its type and model, which the
-    /// proxy sets (`OpenAIRealtimeWire.sessionConfiguration`).
+    /// A Realtime client secret for the session, minted straight with OpenAI on
+    /// the learner's own OpenAI key. Voice mode runs on that key alone
+    /// (product owner, 2026-11-15: realtime voice requires the learner's own
+    /// OpenAI key); ForeverLM's server mints nothing and sees nothing.
+    /// `session` is OpenAI's session object without its type and model
+    /// (`OpenAIRealtimeWire.sessionConfiguration`).
     static func mintRealtimeVoiceSecret(
         model: String = RealtimeVoiceDefaults.model,
         session: [String: Any]
     ) async throws -> RealtimeVoiceSecret {
-        if let ownKey = ownOpenAIVoiceKey {
-            return try await mintRealtimeVoiceSecretOnOwnKey(ownKey, model: model, session: session)
+        guard let ownKey = ownOpenAIVoiceKey else {
+            throw ServiceError(
+                code: "no_openai_key",
+                message: "Voice mode runs on your own OpenAI key. Add it in Settings, then try again."
+            )
         }
-        struct Body: Encodable {
-            let model: String
-            let session: RealtimeSessionJSON
-        }
-        struct Response: Decodable {
-            let value: String?
-            let expiresAt: TimeInterval?
-            let model: String?
-            let sessionsLeftToday: Int?
-
-            enum CodingKeys: String, CodingKey {
-                case value
-                case expiresAt = "expires_at"
-                case model
-                case sessionsLeftToday = "sessions_left_today"
-            }
-        }
-        let response: Response = try await post(
-            "/v1/realtime/client_secrets",
-            body: Body(model: model, session: try RealtimeSessionJSON(session)),
-            authenticated: true
-        )
-        guard let value = response.value, !value.isEmpty else {
-            throw ServiceError(code: "bad_response", message: "The voice service sent no session key. Try again.")
-        }
-        return RealtimeVoiceSecret(
-            value: value,
-            expiresAt: Date(timeIntervalSince1970: response.expiresAt ?? 0),
-            model: response.model ?? model,
-            sessionsLeftToday: response.sessionsLeftToday
-        )
+        return try await mintRealtimeVoiceSecretOnOwnKey(ownKey, model: model, session: session)
     }
 
-    /// Records one reply's tokens in the proxy's usage ledger, as spent on
-    /// ForeverLM's own OpenAI credits: AI Usage on the Mac and the iPhone show
-    /// it with that capsule, and nothing is charged. Idempotent on the reply id,
-    /// so a retry never counts twice. Fire and forget: a conversation never
+    /// Keeps one reply's tokens in the Mac's own usage ledger as an own-key
+    /// call at OpenAI's list price. The iPhone keeps no local ledger, and
+    /// OpenAI's usage page has the rest. Fire and forget: a conversation never
     /// waits on its bookkeeping.
     static func reportRealtimeVoiceUsage(
         _ usage: RealtimeVoiceUsage,
         model: String,
         sourceTitle: String?,
         activityID: String,
-        paidByOwnKey: Bool = false
+        paidByOwnKey: Bool = true
     ) {
-        // A session on the learner's own key has no mint in ForeverLM's ledger
-        // to record against, and OpenAI bills the learner. The Mac keeps it in
-        // its own usage ledger as an own-key call at OpenAI's list price; the
-        // iPhone keeps no local ledger, and OpenAI's usage page has the rest.
-        if paidByOwnKey {
-            #if os(macOS)
-            recordOwnKeyRealtimeVoiceUsage(usage, model: model, sourceTitle: sourceTitle, activityID: activityID)
-            #endif
-            return
-        }
-        struct Body: Encodable {
-            let model: String
-            let responseID: String
-            let textInputTokens: Int
-            let audioInputTokens: Int
-            let cachedTextInputTokens: Int
-            let cachedAudioInputTokens: Int
-            let textOutputTokens: Int
-            let audioOutputTokens: Int
-            let sourceTitle: String?
-
-            enum CodingKeys: String, CodingKey {
-                case model
-                case responseID = "response_id"
-                case textInputTokens = "text_input_tokens"
-                case audioInputTokens = "audio_input_tokens"
-                case cachedTextInputTokens = "cached_text_input_tokens"
-                case cachedAudioInputTokens = "cached_audio_input_tokens"
-                case textOutputTokens = "text_output_tokens"
-                case audioOutputTokens = "audio_output_tokens"
-                case sourceTitle = "source_title"
-            }
-        }
-        struct Response: Decodable {
-            let recorded: Bool?
-        }
-        let body = Body(
-            model: model,
-            responseID: usage.responseID,
-            textInputTokens: usage.textInputTokens,
-            audioInputTokens: usage.audioInputTokens,
-            cachedTextInputTokens: usage.cachedTextInputTokens,
-            cachedAudioInputTokens: usage.cachedAudioInputTokens,
-            textOutputTokens: usage.textOutputTokens,
-            audioOutputTokens: usage.audioOutputTokens,
-            sourceTitle: sourceTitle.map { String($0.prefix(200)) }
-        )
-        Task.detached(priority: .utility) {
-            for attempt in 0..<3 {
-                do {
-                    let _: Response = try await post(
-                        "/v1/realtime/usage",
-                        body: body,
-                        authenticated: true,
-                        usageActivityID: activityID
-                    )
-                    return
-                } catch {
-                    if let service = error as? ServiceError, service.isInvalidSession || service.code == "bad_request" {
-                        return
-                    }
-                    try? await Task.sleep(for: .seconds(Double(2 << attempt)))
-                }
-            }
-        }
+        #if os(macOS)
+        recordOwnKeyRealtimeVoiceUsage(usage, model: model, sourceTitle: sourceTitle, activityID: activityID)
+        #endif
     }
 }
 
