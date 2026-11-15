@@ -33,6 +33,25 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.221.0 (build 301) — 2026-11-15
+
+**Highlights:**
+- **ForeverLM pays for no AI: every request runs on your own key.**
+- **Voice mode and Listen's OpenAI voice run on your own OpenAI key.**
+- **Voice goes through your cards, including To Check.**
+
+- **ForeverLM pays for no AI.** There is no AI balance, comp, spending limit, covered account or family plan any more: every AI request runs on your own OpenRouter key and goes straight from your Mac to OpenRouter, never through a ForeverLM server. With no key stored, AI says so ("AI runs on your own OpenRouter key. Add it in Settings") and work that needs one waits until you add it. Assigning things to a team member stays.
+- **Voice mode and Listen's OpenAI voice run on your own OpenAI key.** Voice mode says so and stops without one; add the key under Voice. The OpenAI voice for Listen (GPT Realtime 2.1 Mini) is now read on your key too, checked word for word against the text.
+- **Voice goes through your cards.** Ask it to search every card you have kept, list them by topic, or go through the cards in To Check out loud, keeping, changing or skipping each by voice.
+- **What you said in a voice chat is saved,** taken from OpenAI's transcript on the same call.
+- **A chat can move itself into a notebook** when you ask it to.
+- **Settings has an API Keys pane** holding the OpenRouter key, with the OpenAI voice key under Voice, and Voice's Dictation and Recordings & podcasts are two sections, not tabs.
+- **The top tab strip is a little taller when the window is not full screen.**
+- **Board cards show no row of small icons;** the due date, assignee, link and notes appear when set and are added from the card's menu.
+- **Selected text in a chat no longer leaves a white stripe, and PDF highlights no longer have a darker band under each line.**
+- **A chat tool call that arrives with no arguments is retried quietly,** and the log says how it arrived.
+- **The saved-cards popover keeps one even margin** and is sized to its deck so nothing is cut off.
+
 ## 0.220.0 (build 300) — 2026-11-14
 
 **Highlights:**
