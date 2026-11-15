@@ -144,15 +144,6 @@ enum KeychainService {
         /// learner. Its own slot, not the retired `openAIAPIKey` one, which
         /// the upgrade purge deletes.
         case ownOpenAIVoiceKey = "own_openai_voice_key"
-        /// This account's X25519 private key for family plans, raw and base64
-        /// (docs/family-design.md). A parent seals a child's OpenRouter key to
-        /// its public half; only this Keychain can open it. Synced, so a
-        /// child's other Macs open the same sealed key.
-        case familyDeviceKey = "family_device_key"
-        /// `updated_at` of the family key the own key was last set from, so
-        /// the same sealed key is applied once and a key the learner set
-        /// themselves is never replaced by one from the family.
-        case familyAppliedKeyStamp = "family_applied_key_stamp"
         case elevenLabsAPIKey = "elevenlabs_api_key"
         case togetherAIAPIKey = "together_api_key"
         case wisprAPIKey = "wispr_api_key"
@@ -259,10 +250,6 @@ enum KeychainService {
         .ownOpenRouterKey,
         // The voice key too, so the iPhone's voice mode runs on it as well.
         .ownOpenAIVoiceKey,
-        // A child's other Macs open the same sealed family key, and know it
-        // was the family's key that they hold (docs/family-design.md).
-        .familyDeviceKey,
-        .familyAppliedKeyStamp,
         .googleDriveAccounts,
         .googleDriveDefaultAccountID,
         .youtubeAutoImportEnabled,

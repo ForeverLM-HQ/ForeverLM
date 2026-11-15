@@ -161,8 +161,6 @@ const destructive = new Set([
   "clear_schedule_day",
   // A team Notebook's task leaves every member's board.
   "delete_notebook_task",
-  // Off ends every member's coverage under this account's plan.
-  "set_family_plan",
   // An event leaves the learner's calendar, on every device it syncs to.
   "delete_calendar_event",
   // A span of the day's log is forgotten; the log is the learner's own record
@@ -866,14 +864,10 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "create_notebook_task",
   "update_notebook_task",
   "delete_notebook_task",
-  // Assignments live on a team's board and family plans on a team's record
-  // and the proxy's family link (docs/family-design.md): the same team zones
-  // and roster the hosted account does not have.
+  // Assignments live on a team's board (docs/family-design.md): the same team
+  // zones and roster the hosted account does not have.
   "assign_to_member",
   "list_assignments",
-  "get_family_plan",
-  "set_family_plan",
-  "connect_family_member_key",
   "request_share",
   "list_share_requests",
   "fulfil_share_request",

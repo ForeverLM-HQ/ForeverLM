@@ -583,7 +583,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "list_teams", "list_notebook_tasks",
         // A team's requests for sources, read.
         "list_share_requests",
-        "list_assignments", "get_family_plan",
+        "list_assignments",
         "get_calendar_events", "get_day_activity",
         "list_doc_chats", "list_doc_comments",
         "list_open_questions",
@@ -858,8 +858,6 @@ final class MCPToolRegistry: @unchecked Sendable {
         "delete_scheduled_task",
         // A team Notebook's task disappears from every member's board.
         "delete_notebook_task",
-        // Off ends every member's coverage under this account's plan.
-        "set_family_plan",
         // An event leaves the learner's calendar, on every device it syncs to.
         "delete_calendar_event",
         "request_share",

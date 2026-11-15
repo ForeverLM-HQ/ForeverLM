@@ -1307,28 +1307,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Make an OpenRouter key for one member of a family team and hand it to their Mac. Opens OpenRouter's sign-in in the browser on this Mac; the learner finishes it there and this call waits for it (up to five minutes). The key is sealed to the member's device, so only their Mac can open it, and it bills this account's OpenRouter account. The member must have joined the family plan first (get_family_plan).",
-    "inputSchema" : {
-      "properties" : {
-        "member" : {
-          "description" : "The member's user_record_name or unique display name.",
-          "type" : "string"
-        },
-        "team_id" : {
-          "description" : "Team ID from list_teams.",
-          "type" : "string"
-        }
-      },
-      "required" : [
-        "team_id",
-        "member"
-      ],
-      "type" : "object"
-    },
-    "name" : "connect_family_member_key",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Add an event to the Mac's Calendar — how a day is planned: each block of work, reading, review, admin or a break is an event on the learner's clock, titled in the learner's words. It lands on the calendar of the group its title or notes name (groups in get_calendar_settings: one context of the learner's work, one calendar, one colour), else on the calendar new events go to (new_events_calendar in get_calendar_events; the learner chooses it in Plugins › Calendar), unless calendar_id names another that takes events. It shows at once in the Calendar app and in ForeverLM's Now chip, and reaches the learner's phone through their calendar account. Pass date and start, and end or duration_minutes (an event past midnight takes duration_minutes); all_day true makes an all-day event on date; repeat makes it recur (daily, weekdays, or weekly on its weekday) until repeat_until, or with no end. Blocks of work are best 90–120 minutes and never under 30. Put what the hour is for in notes — the next step, and the foreverlm:// link of a source or Doc it reads — so it opens from the event. A block on one topic may also carry its notebook's [Title](foreverlm://notebook/<id>) link in its notes, so ForeverLM's Now chip opens that notebook from the block and a bout started there is filed under it. Plan into the free stretches get_calendar_events gives, and never over a meeting with other people: the calendar itself allows overlapping events, so read the day first. Returns the event with its event_id.",
     "inputSchema" : {
       "properties" : {
@@ -4365,17 +4343,6 @@
       "type" : "object"
     },
     "name" : "get_due_cards",
-    "readOnlyHint" : true
-  },
-  {
-    "description" : "Family plans: for each team, whether this account's plan covers its members (family_plan), and for each member whether their Mac has joined and whether they have an OpenRouter key; and membership, when another account's plan covers this one. A covered member's AI runs on an OpenRouter key the owner connected for them, billed to the owner's OpenRouter account.",
-    "inputSchema" : {
-      "properties" : {
-
-      },
-      "type" : "object"
-    },
-    "name" : "get_family_plan",
     "readOnlyHint" : true
   },
   {
@@ -10433,27 +10400,6 @@
       "type" : "object"
     },
     "name" : "set_day_settings",
-    "readOnlyHint" : false
-  },
-  {
-    "description" : "Turn a team's family plan on or off (team owner only). On needs this account to have paid for ForeverLM itself and makes its payment cover every member of the team; their Macs join by themselves. Off ends the coverage for every member of that team. The same switch as Pay for members' AI in the team's Members settings.",
-    "inputSchema" : {
-      "properties" : {
-        "enabled" : {
-          "type" : "boolean"
-        },
-        "team_id" : {
-          "description" : "Team ID from list_teams.",
-          "type" : "string"
-        }
-      },
-      "required" : [
-        "team_id",
-        "enabled"
-      ],
-      "type" : "object"
-    },
-    "name" : "set_family_plan",
     "readOnlyHint" : false
   },
   {

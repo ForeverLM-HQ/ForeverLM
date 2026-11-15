@@ -442,7 +442,7 @@ struct SpaceService {
     }
 
     /// A family's plan code, which members' Macs present to join the plan (docs/family-design.md);
-    /// nil ends it. Owner only, as generation 1's `setFamilyPlan`.
+    /// nil ends it. Owner only.
     func setFamilyPlanCode(_ space: SpaceSummary, _ code: String?) async throws {
         guard space.isOwned else { throw SpaceServiceError.notOwner }
         var changes: [String: RecordPatch.Change] = ["familyPlanCode": .value(code.map(SyncJSON.string) ?? .null)]

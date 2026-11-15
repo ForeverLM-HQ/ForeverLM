@@ -240,64 +240,6 @@ struct FamilyAssignmentsTests {
         let withToday = try store.loadAssignedToMe(recentlyDoneSince: Calendar.current.startOfDay(for: Date()))
         #expect(withToday.map(\.id) == ["soon", "later", "undated", "done"])
     }
-
-    // MARK: Family plan code (schema 137)
-
-    // MARK: Migration
-
-    private static func temporaryRoot(_ name: String) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("foreverlm-\(name)-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-
-    private static func scalar(at root: URL, _ sql: String) -> Int {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(root.appendingPathComponent("knowledge.db").path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return -1 }
-        defer { sqlite3_close(db) }
-        var statement: OpaquePointer?
-        var value = -1
-        if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, sqlite3_step(statement) == SQLITE_ROW {
-            value = Int(sqlite3_column_int64(statement, 0))
-        }
-        sqlite3_finalize(statement)
-        return value
-    }
-
-    // MARK: Sealing
-
-    @Test("A key sealed to a child's device opens only with that device's private key")
-    func sealingRoundTrip() throws {
-        let child = Curve25519.KeyAgreement.PrivateKey()
-        let stranger = Curve25519.KeyAgreement.PrivateKey()
-        let sealed = try FamilyKeySealing.seal(
-            "sk-or-v1-child-key",
-            toPublicKeyBase64: child.publicKey.rawRepresentation.base64EncodedString()
-        )
-        #expect(!sealed.sealedKey.contains("child-key"))
-        #expect(Data(base64Encoded: sealed.encapsulation)?.count == 32, "the proxy checks for a 32-byte encapsulation")
-        let wire = FamilyPlanClient.SealedKey(sealedKey: sealed.sealedKey, encapsulation: sealed.encapsulation, label: nil, updatedAt: nil)
-        #expect(try FamilyKeySealing.open(wire, with: child) == "sk-or-v1-child-key")
-        #expect(throws: (any Error).self) {
-            _ = try FamilyKeySealing.open(wire, with: stranger)
-        }
-    }
-
-    @Test("The proxy's family status decodes, a parent's families and a child's sealed key alike")
-    func statusDecodes() throws {
-        let json = #"""
-        {"max_members":5,
-         "families":[{"team_id":"t1","family_plan":true,"members":[{"member_id":"m1","display_name":"Elin","cloudkit_user_record_name":"_kid","device_public_key":"AAAA","has_key":true,"key_label":"ForeverLM · Elin","key_updated_at":"2026-09-25 10:00:00","joined_at":"2026-09-25 09:00:00"}]}],
-         "membership":{"team_id":"t2","member_id":"m9","covered":true,"device_public_key":"BBBB","key":{"sealed_key":"CCCC","encapsulation":"DDDD","label":null,"updated_at":"2026-09-25 11:00:00"}}}
-        """#
-        let status = try JSONDecoder().decode(FamilyPlanClient.Status.self, from: Data(json.utf8))
-        #expect(status.maxMembers == 5)
-        #expect(status.family(teamID: "t1")?.members.first?.hasKey == true)
-        #expect(status.family(teamID: "t1")?.members.first?.cloudKitUserRecordName == "_kid")
-        #expect(status.membership?.covered == true)
-        #expect(status.membership?.key?.sealedKey == "CCCC")
-    }
 }
 
 /// The MCP twins: assign_to_member copies the source into the team and puts
@@ -317,12 +259,11 @@ struct MCPFamilyToolsTests {
     func registryAdvertisesFamilyTools() throws {
         let tools = MCPToolRegistry(store: MCPDataStore()).tools
         let byName = Dictionary(uniqueKeysWithValues: tools.map { ($0.name, $0) })
-        for name in ["assign_to_member", "list_assignments", "get_family_plan", "set_family_plan", "connect_family_member_key"] {
+        for name in ["assign_to_member", "list_assignments"] {
             let tool = try #require(byName[name], "\(name) is not registered")
             #expect(tool.inputSchema["type"] as? String == "object")
         }
         #expect(byName["assign_to_member"]?.inputSchema["required"] as? [String] == ["team_id", "member"])
-        #expect(byName["set_family_plan"]?.inputSchema["required"] as? [String] == ["team_id", "enabled"])
     }
 }
 

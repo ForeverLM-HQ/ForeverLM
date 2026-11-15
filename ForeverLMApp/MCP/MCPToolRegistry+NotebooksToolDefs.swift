@@ -329,35 +329,6 @@ extension MCPToolRegistry {
                 ]
             ),
             MCPToolDef(
-                name: "get_family_plan",
-                description: "Family plans: for each team, whether this account's plan covers its members (family_plan), and for each member whether their Mac has joined and whether they have an OpenRouter key; and membership, when another account's plan covers this one. A covered member's AI runs on an OpenRouter key the owner connected for them, billed to the owner's OpenRouter account.",
-                inputSchema: ["type": "object", "properties": [:]]
-            ),
-            MCPToolDef(
-                name: "set_family_plan",
-                description: "Turn a team's family plan on or off (team owner only). On needs this account to have paid for ForeverLM itself and makes its payment cover every member of the team; their Macs join by themselves. Off ends the coverage for every member of that team. The same switch as Pay for members' AI in the team's Members settings.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "team_id": ["type": "string", "description": "Team ID from list_teams."],
-                        "enabled": ["type": "boolean"],
-                    ],
-                    "required": ["team_id", "enabled"],
-                ]
-            ),
-            MCPToolDef(
-                name: "connect_family_member_key",
-                description: "Make an OpenRouter key for one member of a family team and hand it to their Mac. Opens OpenRouter's sign-in in the browser on this Mac; the learner finishes it there and this call waits for it (up to five minutes). The key is sealed to the member's device, so only their Mac can open it, and it bills this account's OpenRouter account. The member must have joined the family plan first (get_family_plan).",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "team_id": ["type": "string", "description": "Team ID from list_teams."],
-                        "member": ["type": "string", "description": "The member's user_record_name or unique display name."],
-                    ],
-                    "required": ["team_id", "member"],
-                ]
-            ),
-            MCPToolDef(
                 name: "get_calendar_events",
                 description: "Read the learner's day from the Mac's Calendar — the day and the week are the calendar, planned onto it and moved around as they go; the quarter they serve is a plan Page that get_plan reads: every event on the calendars ForeverLM shows (Plugins › Calendar; get_calendar_settings), for one day or up to 14 from date. Each event has event_id (with occurrence_date for one occurrence of a recurring event — pass both to change it), title, calendar and calendar_id, start and end on the learner's clock (HH:MM) and start_at and end_at in ISO 8601 with the offset, all_day, when (ended, now with minutes_left, or ahead), location, join_link (the Teams, Zoom or Meet link, when there is one), notes, attendees, has_other_people (a meeting: it stays at its time and only the Calendar app may change it), and editable (whether update_calendar_event and delete_calendar_event may touch it). Each day also says its weekday, where it sits against today (relative_day), the hours the learner's day runs (day_starts, day_ends; get_day_settings), and the free stretches inside those hours — free_from_now on today, free on a day ahead — which is where a plan goes. new_events_calendar is where create_calendar_event puts an event unless told otherwise. Needs the Mac's Calendar on; the error says how to turn it on. To plan a day or a week: read it (days 7 for a week), the quarter's plan with get_plan, and get_day_activity for how recent days actually went, propose a first draft of the whole day or week with one line on what you assumed, revise it with the learner as often as they like (replying with the whole revised list each time), and once they agree add each block as an event with create_calendar_event.",
                 inputSchema: [

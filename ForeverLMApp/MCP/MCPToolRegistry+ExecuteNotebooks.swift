@@ -195,18 +195,6 @@ extension MCPToolRegistry {
                 mine: arguments["mine"] as? Bool,
                 includeDone: arguments["include_done"] as? Bool
             )
-        case "get_family_plan":
-            return try await store.getFamilyPlan()
-        case "set_family_plan":
-            return try await store.setFamilyPlan(
-                teamID: arguments["team_id"] as? String,
-                enabled: arguments["enabled"] as? Bool
-            )
-        case "connect_family_member_key":
-            return try await store.connectFamilyMemberKey(
-                teamID: arguments["team_id"] as? String,
-                member: arguments["member"] as? String
-            )
         case "list_notebook_tasks":
             return try await store.listNotebookTasks(
                 notebookID: arguments["notebook_id"] as? String,

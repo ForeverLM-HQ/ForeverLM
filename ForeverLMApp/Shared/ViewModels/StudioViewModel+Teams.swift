@@ -127,12 +127,10 @@ extension StudioViewModel {
             if loaded != teams { teams = loaded }
             await refreshSharedDocs()
             await refreshShareRequests()
-            // Assignments and family plans follow the teams
-            // (docs/family-design.md): who can be assigned to, what is
-            // assigned here, and a family plan a team just started carrying.
+            // Assignments follow the teams (docs/family-design.md): who can be
+            // assigned to, and what is assigned here.
             await refreshAssignableMembers()
             await refreshAssignedToMe()
-            scheduleFamilyPlanSync()
             // The library on screen may have gone: the owner deleted the team,
             // or this account was removed.
             if let activeTeamID, !loaded.contains(where: { $0.id == activeTeamID }) {

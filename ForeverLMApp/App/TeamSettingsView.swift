@@ -628,8 +628,6 @@ struct TeamMembersSettingsDetailView: View {
                     }
                 }
 
-                FamilyPlanSettingsSection(team: team, members: members)
-
                 SettingsSection(
                     title: "Inviting and removing",
                     description: isOwner

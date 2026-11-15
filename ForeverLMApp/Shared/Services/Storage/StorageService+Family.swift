@@ -1,12 +1,9 @@
 import Foundation
 import OSLog
 
-// Assignments and family plans (docs/family-design.md). An assignment is a
-// task in the team's Assignments Notebook that points at the team's copy of a
-// source or Doc; a family plan is the owner's plan covering the team's
-// members, with each member's OpenRouter key sealed to their device.
+// Assignments (docs/family-design.md). An assignment is a task in the team's
+// Assignments Notebook that points at the team's copy of a source or Doc.
 extension StorageService {
-    private static let familyLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Family")
 
     // MARK: - Assignments
 
@@ -109,113 +106,5 @@ extension StorageService {
     /// (`KnowledgeStore.loadAssignedToMe`).
     func loadAssignedToMe(recentlyDoneSince: Date? = nil) throws -> [AssignedTask] {
         try notebookFilesKnowledgeStore().loadAssignedToMe(recentlyDoneSince: recentlyDoneSince)
-    }
-
-    // MARK: - Family plan (owner)
-
-    /// Turn the family plan on or off for a team this account owns. On asks
-    /// the proxy for a code (which needs this account's own plan) and writes
-    /// it into the team's record, so every member's Mac joins by itself; off
-    /// ends every membership that came through the team and clears the code.
-    @discardableResult
-    func setFamilyPlan(teamID: String, enabled: Bool) async throws -> TeamRecord {
-        let store = try notebookFilesKnowledgeStore()
-        guard var team = try store.loadTeam(teamID) else { throw TeamError.unknownTeam(teamID) }
-        guard team.role == .owner else { throw AssignmentError.ownerOnly(team.name) }
-        if enabled {
-            team.familyPlanCode = try await FamilyPlanClient.enable(teamID: teamID)
-        } else {
-            try await FamilyPlanClient.disable(teamID: teamID)
-            team.familyPlanCode = nil
-        }
-        team.updatedAt = Date()
-        try store.saveTeam(team)
-        // Generation 2 carries the code in the family space's root (§3.5.1).
-        try await setFamilyPlanCodeInSpace(teamID: teamID, code: team.familyPlanCode)
-        scheduleImmediateCloudKitSyncForTeams()
-        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
-        return team
-    }
-
-    // MARK: - Family plan (member)
-
-    /// What this Mac did about the account's family on one pass.
-    struct FamilyPlanSyncResult: Equatable, Sendable {
-        var joinedTeamID: String?
-        var leftTeamID: String?
-        var keyApplied = false
-        var keyRemoved = false
-        var status: FamilyPlanClient.Status?
-    }
-
-    /// A member's side, run on events (app activation, a team arriving or
-    /// changing): join the family a team this account belongs to is carrying,
-    /// leave one whose team is gone from this Mac, and keep the own key in
-    /// step with the key the parent sealed for this account. Idempotent;
-    /// every step is a no-op once the state already matches.
-    func syncFamilyPlanMembership() async throws -> FamilyPlanSyncResult {
-        let store = try notebookFilesKnowledgeStore()
-        let teams = try store.loadTeams()
-        var result = FamilyPlanSyncResult()
-        var status = try await FamilyPlanClient.status()
-
-        if let membership = status.membership,
-           !teams.contains(where: { $0.id == membership.teamID && $0.role == .member }) {
-            // The child left the team, or the parent deleted it: the family
-            // they paid through goes too.
-            try await FamilyPlanClient.leave()
-            result.leftTeamID = membership.teamID
-            status = try await FamilyPlanClient.status()
-        }
-
-        if status.membership == nil,
-           let team = teams.first(where: { $0.role == .member && $0.familyPlanCode != nil }),
-           let code = team.familyPlanCode {
-            let me = try store.loadTeamMembers(teamID: team.id).first(where: \.isCurrentUser)
-            do {
-                let joined = try await FamilyPlanClient.join(
-                    code: code,
-                    displayName: me?.displayName ?? "",
-                    cloudKitUserRecordName: me?.userRecordName
-                )
-                result.joinedTeamID = joined.teamID
-                status = try await FamilyPlanClient.status()
-            } catch let error as ManagedAI.ServiceError
-                where ["family_taken", "family_code_unknown", "family_full", "family_own"].contains(error.code) {
-                // Not this Mac's to fix: another family, a renewed code the
-                // team record has not delivered yet, or a full family. Logged,
-                // and the next pass tries again.
-                Self.familyLogger.notice("Family plan join for team \(team.id, privacy: .public) refused: \(error.code, privacy: .public)")
-            }
-        }
-
-        let applied = try applyFamilyKey(status.membership)
-        result.keyApplied = applied == .applied
-        result.keyRemoved = applied == .removed
-        result.status = status
-        return result
-    }
-
-    enum FamilyKeyChange: Equatable { case unchanged, applied, removed }
-
-    /// Keep the own key in step with the family's sealed key. A key the
-    /// learner set themselves (no applied stamp) is never replaced; a family
-    /// key is replaced when the parent seals a new one and removed when the
-    /// parent takes it away or the family ends.
-    func applyFamilyKey(_ membership: FamilyPlanClient.Membership?) throws -> FamilyKeyChange {
-        let appliedStamp = KeychainService.load(.familyAppliedKeyStamp)
-        guard let membership, membership.covered, let sealed = membership.key else {
-            guard appliedStamp != nil else { return .unchanged }
-            ManagedAI.setOwnKey(nil, router: .openRouter)
-            KeychainService.delete(.familyAppliedKeyStamp)
-            return .removed
-        }
-        let stamp = sealed.updatedAt ?? sealed.encapsulation
-        if appliedStamp == stamp { return .unchanged }
-        if appliedStamp == nil, ManagedAI.hasOwnKey { return .unchanged }
-        let key = try FamilyKeySealing.open(sealed, with: FamilyDeviceKey.privateKey())
-        ManagedAI.setOwnKey(key, router: .openRouter)
-        KeychainService.save(stamp, for: .familyAppliedKeyStamp)
-        return .applied
     }
 }

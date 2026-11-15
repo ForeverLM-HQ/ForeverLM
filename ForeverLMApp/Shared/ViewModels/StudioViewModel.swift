@@ -1092,11 +1092,6 @@ class StudioViewModel {
     /// Each editable team's members other than this account, read from the
     /// stored roster, for the Assign to menu in any library.
     var assignableMembersByTeamID: [String: [TeamMemberRecord]] = [:]
-    /// The proxy's view of this account's families, as last fetched.
-    var familyPlanStatus: FamilyPlanClient.Status?
-    /// When the member side of family plans last ran, for its cooldown.
-    @ObservationIgnored var familyPlanSyncedAt: Date?
-    @ObservationIgnored var familyPlanSyncTask: Task<Void, Never>?
     /// Open requests for sources this Mac can answer: an editable team asked
     /// for something My Library holds (docs/teams-design.md, decision 14).
     var fulfillableShareRequests: [StorageService.FulfillableShareRequest] = []

@@ -101,12 +101,6 @@ extension StorageService {
         NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
     }
 
-    /// A family's plan code goes into the space's root too, where members' Macs read it.
-    func setFamilyPlanCodeInSpace(teamID: String, code: String?) async throws {
-        let service = try SpaceService.current()
-        try await service.setFamilyPlanCode(try await space(forTeam: teamID, service), code)
-    }
-
     /// After a copy into a team under generation 2: every row the copy wrote takes its wire id and its
     /// identity in the team's space, so the feeder sends it there (§4.3, §13.7 step 3); every team's
     /// copy writer ends in `scheduleImmediateCloudKitSyncForTeams`, which calls this. Generation 1
