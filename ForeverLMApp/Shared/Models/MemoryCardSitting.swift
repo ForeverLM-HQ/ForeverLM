@@ -522,8 +522,10 @@ struct MemoryCardSitting: Equatable, Sendable {
             attempts: [MemoryAttempt],
             state: (MemoryCard) -> MemoryCardState?
         ) -> Card? {
-            guard let face = MemoryCard.face(of: entry.item, attempts: attempts) else { return nil }
-            let row = state(face)
+            guard let kept = MemoryCard.face(of: entry.item, attempts: attempts) else { return nil }
+            let row = state(kept)
+            // What the learner edited since it was kept is asked and graded, not the item's own face.
+            let face = kept.applying(row)
             let asked = MemoryCardWording.asked(card: face, state: row, attempts: attempts)
             let anchors = entry.item.sources.sorted {
                 if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
@@ -973,6 +975,15 @@ struct MemoryCardListing: Equatable, Identifiable, Sendable {
             links: anchors.map { CardSourceLink(sourceID: $0.sourceID, quote: $0.excerpt) },
             goalID: item.goalID,
             schedule: MemoryTutorScheduler.schedule(item: item, attempts: attempts, calendar: calendar)
+        )
+    }
+
+    /// The listing as the card stands now: its face with the learner's edits
+    /// laid over it (`MemoryCard.applying`).
+    func applying(_ state: MemoryCardState?) -> MemoryCardListing {
+        MemoryCardListing(
+            itemID: itemID, face: face.applying(state), sourceIDs: sourceIDs, links: links,
+            goalID: goalID, schedule: schedule
         )
     }
 

@@ -401,6 +401,7 @@ extension KnowledgeStore {
                 variants[Self.variantKey(text)] = ["text": .string(text), "madeAt": SyncJSON(at), "retired": true]
             }
             if let front = state.editedFront { variants["front"] = ["text": .string(front), "madeAt": SyncJSON(at), "retired": false] }
+            if let face = state.editedFace { variants[MemoryCardFaceEdit.variantKey] = face.variantElement(at: at) }
             if let varied = state.variedAt {
                 variants[Self.cardVariedVariantKey] = ["text": "", "madeAt": SyncJSON(SyncTime.milliseconds(varied)), "retired": true]
             }

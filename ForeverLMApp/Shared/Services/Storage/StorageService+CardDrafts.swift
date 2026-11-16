@@ -543,14 +543,13 @@ enum MemoryCardTriageWriter {
 /// What a change to a kept card writes, shared by All Cards' editor and menu
 /// and `update_card` (docs/memory-design.md, "Cards: identity and Keep"):
 ///
-/// - a new front alone rewords the card in its deck's state (`editedFront`:
-///   the Card's `front` variant under generation 2, the `cards.state.<deckID>`
-///   row under generation 1); the item and its schedule are untouched, and the
-///   front it was kept with clears the rewording;
-/// - a new back or why starts it over: the item is retired with its answers
-///   and a revision under a new card id is kept on the same passages, first
-///   asked the day after (`KnowledgeStore.startMemoryCardOver`), then
-///   recorded in the row (`MemoryCardDeckState.recordStartOver`).
+/// - an edit of a kept card is laid over it in its deck's state, in place (`edit`): a new front is
+///   `editedFront`, a new answer, why or pictures `editedFace`. The item, its schedule and its answers
+///   are untouched, and every device reads the edited card (`MemoryCard.applying`);
+/// - starting over is the learner's own choice, never a side effect of an edit: the item is retired
+///   with its answers and a revision under a new card id is kept on the same passages, first asked the
+///   day after (`KnowledgeStore.startMemoryCardOver`), then recorded in the row
+///   (`MemoryCardDeckState.recordStartOver`).
 ///
 /// "Always ask it this way" is `MemoryCardStateStore.setAlwaysAsk`, and
 /// retiring is `StorageService.retireMemoryCard`. The rows are written on the
@@ -594,6 +593,39 @@ enum MemoryCardEditWriter {
             state.editedFront = reworded
             state.updatedAt = now
             row.cards[face.cardID] = state
+        }
+        return true
+    }
+
+    /// An edit of a kept card, in place: a new front rewords it, and a new
+    /// answer, why or picture list is laid over its face in its state
+    /// (`MemoryCardState.editedFace`). Its item, schedule and answers are
+    /// untouched; starting over is `startOver`, the learner's own choice.
+    /// False, with nothing written, when the front or answer is empty or
+    /// nothing differs from the card as it is asked now.
+    @MainActor
+    @discardableResult
+    static func edit(
+        _ card: MemoryCardListing,
+        to edit: MemoryCardEdit,
+        defaults: UserDefaults = .standard,
+        at now: Date = Date()
+    ) -> Bool {
+        let front = edit.front.trimmingCharacters(in: .whitespacesAndNewlines)
+        let face = MemoryCardFaceEdit(back: edit.back, why: edit.why, frontImages: edit.frontImages, backImages: edit.backImages)
+        guard !front.isEmpty, !face.back.isEmpty, let deckID = stateDeckID(card) else { return false }
+        let frontChanged = front != wording(card, defaults: defaults)
+        let faceChanged = face != MemoryCardFaceEdit(card.face)
+        guard frontChanged || faceChanged else { return false }
+        let kept = card.face
+        MemoryCardStateStore.update(deckID: deckID, defaults: defaults) { row in
+            var state = row.cards[kept.cardID] ?? MemoryCardState(status: .kept, memoryItemID: card.itemID, updatedAt: now)
+            state.status = .kept
+            state.memoryItemID = card.itemID
+            if frontChanged { state.editedFront = front == kept.front ? nil : front }
+            if faceChanged { state.editedFace = face }
+            state.updatedAt = now
+            row.cards[kept.cardID] = state
         }
         return true
     }

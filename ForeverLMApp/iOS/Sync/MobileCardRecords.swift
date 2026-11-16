@@ -48,6 +48,8 @@ struct MobileCardRecord: Equatable, Sendable {
     let draftedAt: Date?
     let alwaysAsk: Bool
     let variants: [Variant]
+    /// The answer, why and pictures the learner edited on the Mac, laid over the kept item's face.
+    let editedFace: MemoryCardFaceEdit?
     let editedAt: Date?
 
     init(id: String, fields: [String: SyncJSON]) {
@@ -77,6 +79,7 @@ struct MobileCardRecord: Equatable, Sendable {
             return Variant(key: key, text: text, madeAt: object["madeAt"]?.int64Value ?? 0, retired: object["retired"]?.boolValue ?? false)
         }
         .sorted { ($0.madeAt, $0.key) < ($1.madeAt, $1.key) }
+        editedFace = MemoryCardFaceEdit(variantElement: fields["variants"]?.objectValue?[MemoryCardFaceEdit.variantKey])
         editedAt = fields["editedAt"]?.int64Value.map(SyncTime.date(milliseconds:))
     }
 
@@ -95,6 +98,7 @@ struct MobileCardRecord: Equatable, Sendable {
             status: status == "skipped" ? .skipped : (status == "draft" ? .draft : .kept),
             memoryItemID: isDraft || status == "skipped" ? nil : id,
             editedFront: editedFront,
+            editedFace: editedFace,
             variants: rewordings.filter { !$0.retired }.map(\.text),
             retiredVariants: rewordings.filter(\.retired).map(\.text),
             alwaysAsk: alwaysAsk,

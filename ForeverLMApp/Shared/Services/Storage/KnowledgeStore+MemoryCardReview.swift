@@ -25,6 +25,17 @@ struct MemoryCardReviewSnapshot: Sendable {
     /// (`MemoryCardTriage.toCheck`). Empty when the read did not ask for them.
     let toCheck: [MemoryCardToCheck]
 
+    /// The same read with each listing's face as the learner has edited it
+    /// since the card was kept (`MemoryCardListing.applying`); `state` gives a
+    /// face's state row.
+    func applyingEdits(_ state: (MemoryCard, [String]) -> MemoryCardState?) -> MemoryCardReviewSnapshot {
+        MemoryCardReviewSnapshot(
+            today: today, practice: practice,
+            cards: cards.map { $0.applying(state($0.face, $0.sourceIDs)) },
+            attemptsByItemID: attemptsByItemID, toCheck: toCheck
+        )
+    }
+
     static let empty = MemoryCardReviewSnapshot(today: .empty, practice: [], cards: [], attemptsByItemID: [:], toCheck: [])
 
     var counts: MemoryCardDayCounts {

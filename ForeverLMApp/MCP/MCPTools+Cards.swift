@@ -386,6 +386,7 @@ extension MCPDataStore {
                 let state = (card.face.deckID ?? card.sourceIDs.first.map(MemoryCard.draftDeckID(sourceID:))).flatMap {
                     MemoryCardStateStore.state(cardID: card.face.cardID, deckID: $0, defaults: cardStateDefaults)
                 }
+                let card = card.applying(state)
                 var entry: [String: Any] = [
                     "card_id": card.face.cardID,
                     "item_id": card.itemID,
@@ -1105,16 +1106,23 @@ extension MCPDataStore {
             }
             throw MCPError.notFound(message)
         }
-        let (item, attempts, face) = kept
+        let (item, attempts, keptFace) = kept
         let frontImages = hasFrontImages
             ? try Self.cardImages(rawFrontImages, cardIndex: 0, field: "front_images", store: store)
             : nil
         let backImages = hasBackImages
             ? try Self.cardImages(rawBackImages, cardIndex: 0, field: "back_images", store: store)
             : nil
-        guard let listing = MemoryCardListing(item: item, attempts: attempts) else {
+        guard let keptListing = MemoryCardListing(item: item, attempts: attempts) else {
             throw MCPError.invalidInput("\(item.id) is a memory item with no card to change.")
         }
+        // The card as it stands: its kept face with what the learner has edited since laid over it.
+        let listing = keptListing.applying(
+            MemoryCardEditWriter.stateDeckID(keptListing).flatMap {
+                MemoryCardStateStore.state(cardID: keptFace.cardID, deckID: $0, defaults: cardStateDefaults)
+            }
+        )
+        let face = listing.face
         if retire {
             let wasRetired = item.status == .retired
             if !wasRetired { try await notebookFileStorage.retireMemoryCard(memoryItemID: item.id) }
@@ -1164,31 +1172,32 @@ extension MCPDataStore {
                 throw MCPError.invalidInput("Nothing was changed. \(reason) Ask about the subject itself, or name the source.")
             }
         }
+        // An edit changes the card in place, its schedule and answers kept; only an explicit
+        // start_over makes a new card.
         let startsOver = startOverAsked
-            || (back.map { $0 != face.back } ?? false)
-            || (why.map { $0 != face.why } ?? false)
-            || (frontImages.map { $0 != face.frontImages } ?? false)
-            || (backImages.map { $0 != face.backImages } ?? false)
         var resultCardID = face.cardID
         var resultItemID = item.id
         var changes: [String] = []
+        let currentWording = MemoryCardEditWriter.wording(listing, defaults: defaults)
+        let edit = MemoryCardEdit(
+            front: front ?? currentWording,
+            back: back ?? face.back,
+            why: why ?? face.why,
+            frontImages: frontImages ?? face.frontImages,
+            backImages: backImages ?? face.backImages
+        )
         if startsOver {
-            let currentWording = MemoryCardEditWriter.wording(listing, defaults: defaults)
-            let edit = MemoryCardEdit(
-                front: front ?? currentWording,
-                back: back ?? face.back,
-                why: why ?? face.why,
-                frontImages: frontImages ?? face.frontImages,
-                backImages: backImages ?? face.backImages
-            )
             let revision = try await MemoryCardEditWriter.startOver(listing, edit: edit, storage: notebookFileStorage, defaults: defaults)
             resultCardID = revision.cardID
             resultItemID = revision.item.id
             changes.append("started over as a new card, first asked tomorrow; its answers so far stay with the old one")
-        } else if let front {
-            if await MemoryCardEditWriter.reword(listing, front: front, defaults: defaults) {
-                changes.append(front == face.front ? "asked in the words it was kept with again" : "reworded: asked in the new front, its schedule untouched")
+        } else if await MemoryCardEditWriter.edit(listing, to: edit, defaults: defaults) {
+            if edit.front != currentWording {
+                changes.append(edit.front == face.front ? "asked in the words it was kept with again" : "reworded: asked in the new front")
             }
+            if edit.back != face.back || edit.why != face.why { changes.append("its answer changed") }
+            if edit.frontImages != face.frontImages || edit.backImages != face.backImages { changes.append("its pictures changed") }
+            changes.append("edited in place: its schedule and answers so far are kept")
         }
         if let alwaysAsk, let deckID = MemoryCardEditWriter.stateDeckID(listing) {
             let current = MemoryCardStateStore.state(cardID: resultCardID, deckID: deckID, defaults: defaults)?.alwaysAsk ?? false

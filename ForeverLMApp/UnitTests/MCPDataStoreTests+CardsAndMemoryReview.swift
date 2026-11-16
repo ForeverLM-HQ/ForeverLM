@@ -765,10 +765,26 @@ extension MCPDataStoreTests {
         #expect(held?.editedFront == nil)
         #expect(held?.alwaysAsk == true)
 
-        // A new back starts it over: a new card, the old one retired.
-        let restarted = try parseJSON(try await store.updateCard(
+        // A new back edits it in place: the same card and item, its schedule and answers kept, the
+        // item's own face untouched, and every reader shows the edited card.
+        let edited = try parseJSON(try await store.updateCard(
             cardID: card.cardID, itemID: nil, front: nil, back: "Practising retrieval.", why: nil,
             startOver: nil, alwaysAsk: nil, retire: nil
+        ))
+        #expect(edited["changed"] as? Bool == true)
+        #expect(edited["started_over"] == nil)
+        #expect(edited["item_id"] as? String == item.id && edited["card_id"] as? String == card.cardID)
+        #expect(try knowledge.loadMemoryItem(item.id)?.status == .active)
+        #expect(try knowledge.loadMemoryItem(item.id)?.target == "Retrieval practice.", "the kept item is never rewritten")
+        let editedState = MemoryCardStateStore.state(cardID: card.cardID, deckID: deckID, defaults: defaults)
+        #expect(editedState?.editedFace?.back == "Practising retrieval.")
+        let listed = try parseJSON(try await store.listCards(status: "kept", notebookID: nil, sourceID: nil, limit: nil))
+        #expect((listed["kept"] as? [[String: Any]])?.first?["back"] as? String == "Practising retrieval.")
+
+        // Only start_over makes a new card: the old one retired, the edit carried over.
+        let restarted = try parseJSON(try await store.updateCard(
+            cardID: card.cardID, itemID: nil, front: nil, back: nil, why: nil,
+            startOver: true, alwaysAsk: nil, retire: nil
         ))
         #expect(restarted["started_over"] as? Bool == true)
         #expect(restarted["previous_item_id"] as? String == item.id)

@@ -741,9 +741,9 @@ struct MemoryPane: View {
 
 // MARK: - Editing a card
 
-/// A kept card's front, back and why. A new front alone rewords the card
-/// (its state row); a new back or why starts it over, which the sheet says
-/// before it saves (docs/memory-design.md, "Cards: identity and Keep").
+/// A kept card's front, back and why. Saving changes the card in place: its
+/// schedule and answers stay (docs/memory-design.md, "Cards: identity and
+/// Keep"). Starting it over is the card's own menu item.
 struct MemoryCardEditorSheet: View {
     let card: MemoryCardListing
     let wording: String
@@ -753,7 +753,8 @@ struct MemoryCardEditorSheet: View {
     @State private var front: String
     @State private var back: String
     @State private var why: String
-    @State private var confirmingStartOver = false
+    @State private var frontImages: [MemoryCardImage]
+    @State private var backImages: [MemoryCardImage]
 
     init(card: MemoryCardListing, wording: String, save: @escaping (MemoryCardEdit) -> Void, cancel: @escaping () -> Void) {
         self.card = card
@@ -763,6 +764,8 @@ struct MemoryCardEditorSheet: View {
         _front = State(initialValue: wording)
         _back = State(initialValue: card.face.back)
         _why = State(initialValue: card.face.why.joined(separator: "\n"))
+        _frontImages = State(initialValue: card.face.frontImages)
+        _backImages = State(initialValue: card.face.backImages)
     }
 
     private var edit: MemoryCardEdit {
@@ -770,13 +773,9 @@ struct MemoryCardEditorSheet: View {
             front: front.trimmingCharacters(in: .whitespacesAndNewlines),
             back: back.trimmingCharacters(in: .whitespacesAndNewlines),
             why: why.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
-            frontImages: card.face.frontImages,
-            backImages: card.face.backImages
+            frontImages: frontImages,
+            backImages: backImages
         )
-    }
-
-    private var startsOver: Bool {
-        edit.back != card.face.back || edit.why != card.face.why
     }
 
     var body: some View {
@@ -784,23 +783,15 @@ struct MemoryCardEditorSheet: View {
             front: $front,
             back: $back,
             why: $why,
-            frontImages: card.face.frontImages,
-            backImages: card.face.backImages,
+            frontImages: frontImages,
+            backImages: backImages,
+            removeFrontImage: { frontImages.remove(at: $0) },
+            removeBackImage: { backImages.remove(at: $0) },
             primaryTitle: "Save",
             canSave: !edit.front.isEmpty && !edit.back.isEmpty,
             cancel: cancel
         ) {
-            if startsOver {
-                confirmingStartOver = true
-            } else {
-                save(edit)
-            }
-        }
-        .alert("Start this card over?", isPresented: $confirmingStartOver) {
-            Button("Start Over") { save(edit) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A new answer makes a new card, first asked tomorrow. Its answers so far stay with the old one.")
+            save(edit)
         }
         .accessibilityIdentifier("memory.pane.editor")
     }

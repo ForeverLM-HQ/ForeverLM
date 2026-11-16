@@ -542,6 +542,40 @@ struct MemoryCardTests {
         )
     }
 
+    @Test("A kept card's edited answer, why and pictures lay over its face, survive the row and the record, and leave the item alone")
+    func editedFaceInPlace() throws {
+        let kept = drafted()
+        let picture = try #require(MemoryCardImage(target: "foreverlm://image/src_a/slide/13", alt: "Figure 2"))
+        let edit = MemoryCardFaceEdit(back: "A proton gradient.", why: ["Leak ends ATP."], frontImages: [], backImages: [picture])
+        let row = MemoryCardState(status: .kept, memoryItemID: "memory-card-v1-a", editedFace: edit, updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+
+        // Laid over the face; the front and identity stay, and no edit reads as kept.
+        let shown = kept.applying(row)
+        #expect(shown.back == "A proton gradient." && shown.why == ["Leak ends ATP."] && shown.backImages == [picture])
+        #expect(shown.cardID == kept.cardID && shown.front == kept.front)
+        #expect(kept.applying(nil) == kept)
+        #expect(kept.applying(MemoryCardState(status: .kept, updatedAt: Date())) == kept)
+        #expect(shown.criteria == ["Leak ends ATP."])
+
+        // The preference row keeps it, and an edit changes the tie-break so two devices agree.
+        let back = try #require(MemoryCardDeckState(preferenceValue: MemoryCardDeckState(cards: ["card-A": row]).preferenceValue))
+        #expect(back.cards["card-A"]?.editedFace == edit)
+        var other = row
+        other.editedFace = MemoryCardFaceEdit(back: "Another.", why: [], frontImages: [], backImages: [])
+        #expect(MemoryCardState.merged(row, other) == MemoryCardState.merged(other, row))
+
+        // The card's record carries it as an element no older reader asks.
+        let element = edit.variantElement(at: 1_800_000_000_000)
+        #expect(element["text"]?.stringValue == "" && element["retired"]?.boolValue == true)
+        #expect(MemoryCardFaceEdit(variantElement: element) == edit)
+        let held = KnowledgeStore.mergedVariants([:], from: nil, to: row, at: 1_800_000_000_000)
+        #expect(MemoryCardFaceEdit(variantElement: held[MemoryCardFaceEdit.variantKey]) == edit)
+        #expect(KnowledgeStore.variantState(held).rewordings.isEmpty)
+        var cleared = row
+        cleared.editedFace = nil
+        #expect(KnowledgeStore.mergedVariants(held, from: row, to: cleared, at: 1)[MemoryCardFaceEdit.variantKey] == nil)
+    }
+
     @Test("A deck's state row survives the property-list trip and reads back whole")
     func stateRowRoundTrip() throws {
         let row = MemoryCardDeckState(cards: [

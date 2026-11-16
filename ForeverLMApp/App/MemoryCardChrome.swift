@@ -120,10 +120,13 @@ struct MemoryCardEditorForm: View {
     @Binding var front: String
     @Binding var back: String
     @Binding var why: String
-    /// The pictures on each side, shown as the review shows them. They are not
-    /// edited here: the edit carries them through unchanged.
+    /// The pictures on each side, shown as the review shows them. A kept
+    /// card's editor can take one off (`removeFrontImage`, `removeBackImage`);
+    /// a draft's carries them through unchanged.
     var frontImages: [MemoryCardImage] = []
     var backImages: [MemoryCardImage] = []
+    var removeFrontImage: ((Int) -> Void)? = nil
+    var removeBackImage: ((Int) -> Void)? = nil
     /// What the pill says: Keep for a draft, Save for a kept card.
     let primaryTitle: String
     let canSave: Bool
@@ -141,6 +144,7 @@ struct MemoryCardEditorForm: View {
             if !frontImages.isEmpty {
                 MemoryCardImageGrid(images: frontImages, animationStartsAtOnce: false)
                     .padding(.top, 8)
+                if let removeFrontImage { MemoryCardImageRemoveRow(images: frontImages, remove: removeFrontImage) }
             }
             MemoryCardFold()
                 .padding(.vertical, 12)
@@ -150,7 +154,9 @@ struct MemoryCardEditorForm: View {
             )
             if !backImages.isEmpty {
                 MemoryCardImageGrid(images: backImages, animationStartsAtOnce: false)
-                    .padding(.vertical, 8)
+                    .padding(.top, 8)
+                if let removeBackImage { MemoryCardImageRemoveRow(images: backImages, remove: removeBackImage) }
+                Color.clear.frame(height: 8)
             }
             MemoryCardEditorField(
                 text: $why, prompt: "Why the answer holds", font: MemoryCardMetrics.whyFont, label: "Why",
@@ -172,6 +178,27 @@ struct MemoryCardEditorForm: View {
         .padding(.top, 28)
         .padding(.bottom, 24)
         .frame(width: 560)
+    }
+}
+
+/// A quiet line under a face's pictures that takes one off: "Remove picture",
+/// numbered when there are several.
+struct MemoryCardImageRemoveRow: View {
+    let images: [MemoryCardImage]
+    let remove: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ForEach(Array(images.enumerated()), id: \.offset) { index, _ in
+                Button(images.count == 1 ? "Remove picture" : "Remove picture \(index + 1)") { remove(index) }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("memory.card.editor.removeImage.\(index)")
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 4)
     }
 }
 

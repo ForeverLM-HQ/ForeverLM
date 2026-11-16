@@ -141,7 +141,8 @@ struct MobileMemoryScreen: View {
         let chats = await vm.memoryReviewChatDays()
         guard !Task.isCancelled else { return }
         counts = read.counts
-        cards = listings
+        // A card shows as the learner last edited it, on the Mac or here.
+        cards = listings.map { $0.applying(held[$0.itemID]?.state) }
         records = held
         reviewChats = chats
         hasLoaded = true

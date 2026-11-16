@@ -204,7 +204,7 @@ extension StudioViewModel {
         includesToCheck: Bool = true,
         now: Date = Date()
     ) async throws -> MemoryCardReviewSnapshot {
-        try await storage.memoryCardReviewSnapshot(
+        let snapshot = try await storage.memoryCardReviewSnapshot(
             now: now,
             budgetMinutes: MemoryReviewBudget.minutes,
             newPerDay: MemoryCardSettings.newCardsPerDay(),
@@ -213,6 +213,13 @@ extension StudioViewModel {
             includesListings: includesListings,
             includesToCheck: includesToCheck
         )
+        guard includesListings else { return snapshot }
+        // A kept card shows, and is edited as, what the learner has made of it since.
+        return snapshot.applyingEdits { face, sourceIDs in
+            (face.deckID ?? sourceIDs.first.map(MemoryCard.draftDeckID(sourceID:))).flatMap {
+                MemoryCardStateStore.state(cardID: face.cardID, deckID: $0)
+            }
+        }
     }
 
     // MARK: Starting a review
@@ -618,18 +625,11 @@ extension StudioViewModel {
         MemoryCardEditWriter.stateDeckID(card)
     }
 
-    /// The card editor's Save. A new front alone rewords the card: the state
-    /// row's edited front, the item and its schedule untouched (back to the
-    /// kept front clears it). A new back or why starts the card over
-    /// (`startMemoryCardOver`). An edit that changes nothing writes nothing.
-    /// `update_card` writes through the same `MemoryCardEditWriter`.
+    /// The card editor's Save: the card changes in place, its schedule and answers kept
+    /// (`MemoryCardEditWriter.edit`). An edit that changes nothing writes nothing. Starting over is
+    /// the card's own menu item. `update_card` writes through the same writer.
     func applyMemoryCardEdit(_ edit: MemoryCardEdit, to card: MemoryCardListing) async {
-        let face = card.face
-        guard edit.back == face.back, edit.why == face.why else {
-            await startMemoryCardOver(card, revisedFace: edit)
-            return
-        }
-        guard MemoryCardEditWriter.reword(card, front: edit.front) else { return }
+        guard MemoryCardEditWriter.edit(card, to: edit) else { return }
         memoryCardRevision &+= 1
     }
 

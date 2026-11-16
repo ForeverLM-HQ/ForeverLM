@@ -156,10 +156,12 @@ extension KnowledgeStore {
         let variants = variantState(row.variants)
         var times = [row.draftedAt, row.skippedAt, row.retiredAt, row.item?.createdAt].compactMap { $0 }
         times += variants.madeAt.map { SyncTime.cocoaSeconds(milliseconds: $0) }
+        if let madeAt = row.variants[MemoryCardFaceEdit.variantKey]?["madeAt"]?.int64Value { times.append(SyncTime.cocoaSeconds(milliseconds: madeAt)) }
         return MemoryCardState(
             status: status,
             memoryItemID: row.item != nil || status == .kept ? row.cardID : nil,
             editedFront: variants.front,
+            editedFace: MemoryCardFaceEdit(variantElement: row.variants[MemoryCardFaceEdit.variantKey]),
             variants: variants.rewordings,
             retiredVariants: variants.retired,
             alwaysAsk: row.alwaysAsk,
@@ -183,6 +185,7 @@ extension KnowledgeStore {
                 varied = madeAt
                 continue
             }
+            if key == MemoryCardFaceEdit.variantKey { continue }
             guard let text = object["text"]?.stringValue, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             let retired = object["retired"]?.boolValue ?? false
             if key == cardFrontVariantKey {
@@ -452,11 +455,20 @@ extension KnowledgeStore {
                 variants[cardFrontVariantKey] = nil
             }
         }
+        if before == nil || before?.editedFace != state.editedFace {
+            if let face = state.editedFace {
+                if MemoryCardFaceEdit(variantElement: held[MemoryCardFaceEdit.variantKey]) != face {
+                    variants[MemoryCardFaceEdit.variantKey] = face.variantElement(at: ms)
+                }
+            } else if before != nil {
+                variants[MemoryCardFaceEdit.variantKey] = nil
+            }
+        }
         func put(_ text: String, retired: Bool) {
             let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !words.isEmpty else { return }
             let key = variants.keys.sorted().first { key in
-                key != cardFrontVariantKey && key != cardVariedVariantKey
+                key != cardFrontVariantKey && key != cardVariedVariantKey && key != MemoryCardFaceEdit.variantKey
                     && variants[key]?["text"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) == words
             } ?? variantKey(words)
             let element: SyncJSON = [

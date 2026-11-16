@@ -327,6 +327,21 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
         return front
     }
 
+    /// The card as it stands now: the face its item was kept with, with the
+    /// answer, why and pictures the learner changed since
+    /// (`MemoryCardState.editedFace`). The item is never rewritten; this is
+    /// the one place the change is laid over it, so every reader that holds
+    /// the card's state shows and grades the edited card. The front is not
+    /// laid over: `wording(state:)` reads the learner's own.
+    func applying(_ state: MemoryCardState?) -> MemoryCard {
+        guard let edit = state?.editedFace else { return self }
+        let edited = MemoryCard(
+            cardID: cardID, front: front, back: edit.back, why: edit.why, origin: origin,
+            deckID: deckID, frontImages: edit.frontImages, backImages: edit.backImages
+        )
+        return edited.back.isEmpty ? self : edited
+    }
+
     /// What the card's item is graded by: its why, or its back when it has none.
     var criteria: [String] {
         why.isEmpty ? [back] : why
@@ -526,6 +541,96 @@ enum MemoryCardStatus: String, CaseIterable, Sendable {
     case skipped
 }
 
+/// The answer, why and pictures of a kept card as the learner last edited
+/// them. A kept card's item is written once (its fingerprint covers them), so
+/// an edit lives beside it, in the card's state, and is laid over the item's
+/// face by `MemoryCard.applying`; the card keeps its schedule and answers
+/// (product owner, 2026-11-16: "it should be possible to edit a card even if
+/// it's already kept").
+struct MemoryCardFaceEdit: Equatable, Sendable {
+    let back: String
+    let why: [String]
+    let frontImages: [MemoryCardImage]
+    let backImages: [MemoryCardImage]
+
+    /// `face`'s answer, why and pictures, as `MemoryCard` normalizes them.
+    init(_ face: MemoryCard) {
+        back = face.back
+        why = face.why
+        frontImages = face.frontImages
+        backImages = face.backImages
+    }
+
+    init(back: String, why: [String], frontImages: [MemoryCardImage], backImages: [MemoryCardImage]) {
+        self.init(MemoryCard(
+            cardID: "edit", front: "edit", back: back, why: why, origin: .drafted,
+            frontImages: frontImages, backImages: backImages
+        ))
+    }
+
+    /// Property-list form, in a card's entry of `cards.state.<deckID>`.
+    var preferenceValue: [String: Any] {
+        var value: [String: Any] = ["back": back, "why": why]
+        if !frontImages.isEmpty { value["frontImages"] = frontImages.map(\.rubricObject) }
+        if !backImages.isEmpty { value["backImages"] = backImages.map(\.rubricObject) }
+        return value
+    }
+
+    init?(preferenceValue value: Any?) {
+        guard let entry = value as? [String: Any],
+              let back = (entry["back"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !back.isEmpty else { return nil }
+        self.init(
+            back: back,
+            why: (entry["why"] as? [String]) ?? [],
+            frontImages: MemoryCardImage.readRubric(entry["frontImages"]),
+            backImages: MemoryCardImage.readRubric(entry["backImages"])
+        )
+    }
+
+    /// The variant key the edit is kept under on the card's record: an element
+    /// with no `text` and `retired`, so a build that does not know it reads
+    /// it as nothing (the phone and the web read only elements with text).
+    static let variantKey = "face"
+
+    /// The record's variant element for this edit, made at `ms`.
+    func variantElement(at ms: Int64) -> SyncJSON {
+        func images(_ list: [MemoryCardImage]) -> SyncJSON {
+            .array(list.map { .object(["target": .string($0.target), "alt": .string($0.alt)]) })
+        }
+        return .object([
+            "text": .string(""), "madeAt": SyncJSON(ms), "retired": .bool(true),
+            "back": .string(back), "why": .array(why.map { .string($0) }),
+            "frontImages": images(frontImages), "backImages": images(backImages),
+        ])
+    }
+
+    /// The edit a record's variant element carries; nil for an element that holds none.
+    init?(variantElement element: SyncJSON?) {
+        guard let object = element?.objectValue,
+              let back = object["back"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !back.isEmpty else { return nil }
+        func images(_ value: SyncJSON?) -> [MemoryCardImage] {
+            (value?.arrayValue ?? []).compactMap { entry in
+                guard let entry = entry.objectValue, let target = entry["target"]?.stringValue else { return nil }
+                return MemoryCardImage(target: target, alt: entry["alt"]?.stringValue ?? "")
+            }
+        }
+        self.init(
+            back: back,
+            why: (object["why"]?.arrayValue ?? []).compactMap(\.stringValue),
+            frontImages: images(object["frontImages"]),
+            backImages: images(object["backImages"])
+        )
+    }
+
+    /// Stable text for the state's tie-break.
+    var tieText: String {
+        let images = (frontImages + backImages).map(\.target).joined(separator: "\u{2}")
+        return [back, why.joined(separator: "\u{1}"), "\(frontImages.count)", images].joined(separator: "\u{3}")
+    }
+}
+
 /// What the learner changed about one card, outside its item.
 struct MemoryCardState: Equatable, Sendable {
     var status: MemoryCardStatus
@@ -534,6 +639,9 @@ struct MemoryCardState: Equatable, Sendable {
     /// The learner's own wording of the front, asked instead of the front the
     /// card was kept with (`MemoryCard.wording(state:)`).
     var editedFront: String?
+    /// The learner's own answer, why and pictures, laid over the item's face
+    /// (`MemoryCard.applying`); nil while the card reads as it was kept.
+    var editedFace: MemoryCardFaceEdit?
     /// Rewordings that ask for the same back, in the order they were made.
     var variants: [String]
     /// Variants taken out of the rotation, by their words.
@@ -553,6 +661,7 @@ struct MemoryCardState: Equatable, Sendable {
         status: MemoryCardStatus,
         memoryItemID: String? = nil,
         editedFront: String? = nil,
+        editedFace: MemoryCardFaceEdit? = nil,
         variants: [String] = [],
         retiredVariants: [String] = [],
         alwaysAsk: Bool = false,
@@ -563,6 +672,7 @@ struct MemoryCardState: Equatable, Sendable {
         self.status = status
         self.memoryItemID = memoryItemID
         self.editedFront = editedFront
+        self.editedFace = editedFace
         self.variants = variants
         self.retiredVariants = retiredVariants
         self.alwaysAsk = alwaysAsk
@@ -587,6 +697,7 @@ struct MemoryCardState: Equatable, Sendable {
             status.rawValue,
             memoryItemID ?? "",
             editedFront ?? "",
+            editedFace?.tieText ?? "",
             variants.joined(separator: "\u{1}"),
             retiredVariants.joined(separator: "\u{1}"),
             alwaysAsk ? "1" : "0",
@@ -599,6 +710,7 @@ struct MemoryCardState: Equatable, Sendable {
     fileprivate static let statusKey = "status"
     fileprivate static let memoryItemKey = "item"
     fileprivate static let frontKey = "front"
+    fileprivate static let faceKey = "face"
     fileprivate static let variantsKey = "variants"
     fileprivate static let retiredKey = "retired"
     fileprivate static let alwaysAskKey = "alwaysAsk"
@@ -616,6 +728,7 @@ struct MemoryCardState: Equatable, Sendable {
         ]
         if let memoryItemID { value[Self.memoryItemKey] = memoryItemID }
         if let editedFront { value[Self.frontKey] = editedFront }
+        if let editedFace { value[Self.faceKey] = editedFace.preferenceValue }
         if let seed { value[Self.seedKey] = seed }
         if let variedAt { value[Self.variedAtKey] = variedAt.timeIntervalSince1970 }
         return value
@@ -629,6 +742,7 @@ struct MemoryCardState: Equatable, Sendable {
             status: status,
             memoryItemID: entry[Self.memoryItemKey] as? String,
             editedFront: entry[Self.frontKey] as? String,
+            editedFace: MemoryCardFaceEdit(preferenceValue: entry[Self.faceKey]),
             variants: (entry[Self.variantsKey] as? [String]) ?? [],
             retiredVariants: (entry[Self.retiredKey] as? [String]) ?? [],
             alwaysAsk: (entry[Self.alwaysAskKey] as? Bool) ?? false,
@@ -731,7 +845,7 @@ struct MemoryCardDeckState: Equatable, Sendable {
         )
     }
 
-    /// The row's value: `["cards": [cardID: ["status":, "item":?, "front":?,
+    /// The row's value: `["cards": [cardID: ["status":, "item":?, "front":?, "face":?,
     /// "variants":, "retired":, "alwaysAsk":, "seed":?, "varied":? and "t":
     /// unix seconds]]]`.
     var preferenceValue: [String: Any] {
