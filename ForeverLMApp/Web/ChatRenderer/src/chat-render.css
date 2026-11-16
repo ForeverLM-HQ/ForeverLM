@@ -22,6 +22,13 @@
      needs would double every blank line. */
   white-space: normal;
   line-height: 1.625;
+  /* A whole number of pixels, whatever size the reader chose. At a size where
+     1.625 leaves a fraction (17px gives 27.625), WebKit paints each selected
+     line's band at a rounded edge and a one-pixel seam of plain background
+     shows between two lines, under part of one line (product owner,
+     2026-11-16: "why is there still a white line? I never wanted that").
+     Whole-pixel lines have no fraction to round, so no seam. */
+  line-height: round(1.625em, 1px);
   color: var(--chat-fg, CanvasText);
   /* A positioned block paints its own selection gaps in WebKit. In the Mac
      transcript no ancestor of a reply does (the reply is a flex item of a flex
