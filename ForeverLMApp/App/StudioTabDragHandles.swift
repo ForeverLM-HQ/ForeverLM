@@ -125,6 +125,9 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
     var onSplitRight: () -> Void = {}
     var onClose: () -> Void = {}
     var onRename: (() -> Void)?
+    /// An inactive tab's × stands at its leading edge, the active one's at its trailing.
+    var closeSlotOnLeading: Bool { !isActive }
+    private static let closeSlotWidth: CGFloat = 26
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -155,8 +158,14 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
         switch result {
         case .click:
             WindowMoveLock.unlock(window)
+            // The × has its own surface, but when the band's router hands the
+            // press to this tab instead, a click on the × still closes the tab
+            // (product owner, 2026-11-15: "i'm trying to click x on some of
+            // these but it's not working").
+            if pressIsInCloseSlot(event) {
+                onClose()
             // A double-click names the tab, as a terminal's does.
-            if event.clickCount >= 2, let onRename {
+            } else if event.clickCount >= 2, let onRename {
                 onRename()
             } else {
                 onActivate()
@@ -166,6 +175,13 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
         case .cancelled:
             WindowMoveLock.unlock(window)
         }
+    }
+
+    /// Whether `event` pressed where the tab's × stands: the trailing end of
+    /// the active tab, the icon's place on an inactive one (`StudioCenterTabButton`).
+    private func pressIsInCloseSlot(_ event: NSEvent) -> Bool {
+        let x = convert(event.locationInWindow, from: nil).x
+        return closeSlotOnLeading ? x <= Self.closeSlotWidth : x >= bounds.width - Self.closeSlotWidth
     }
 
     override func beginTabDrag(with event: NSEvent) {
