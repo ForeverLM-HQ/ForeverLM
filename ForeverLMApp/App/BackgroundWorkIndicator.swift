@@ -332,8 +332,10 @@ final class BackgroundWorkMonitor: ObservableObject {
         for entry in MCPRunningWork.shared.snapshot
         where entry.spendLimitUSD != nil && entry.stopRequestedAt == nil && entry.tool != "generate_source_audio" {
             var spend: String?
-            if let limit = entry.spendLimitUSD, entry.spentUSD > 0 {
-                spend = String(format: "$%.2f of $%.2f", entry.spentUSD, limit)
+            // The ceiling still stops the call, but the row never shows it, and a
+            // job that rounds to $0.00 (free models) shows no spend at all.
+            if entry.spentUSD >= 0.005 {
+                spend = String(format: "$%.2f", entry.spentUSD)
             }
             items.append(BackgroundWorkItem(
                 id: "registry-\(entry.id)",
