@@ -33,6 +33,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.222.0 (build 302) — 2026-11-16
+
+**Highlights:**
+- **A click on a tab's × closes it** even when the press reaches the tab itself.
+- **Every place in the Space sidebar wears the green Beta tag.**
+
+- **A click on a tab's × closes it** even when the press reaches the tab itself.
+- **The saved-cards deck no longer keeps an empty read as its last word;** an empty read is read again.
+- **Chat citations whose link text opens in lower case mid-sentence stay as plain words,** not links.
+- **The OpenAI key sits with the API keys,** and its errors point you there.
+- **The window's three traffic-light buttons share one row** and are put back after a resize or a change of key window or screen.
+- **Every place in the Space sidebar wears the green Beta tag.**
+- **A running job's row never shows its spend ceiling,** and a job that rounds to $0.00 shows no spend.
+- **A call queued behind a long write answers busy after 90 seconds** instead of waiting on.
+- **A source in the Library never says "To check" on its own.**
+
 ## 0.221.0 (build 301) — 2026-11-15
 
 **Highlights:**
