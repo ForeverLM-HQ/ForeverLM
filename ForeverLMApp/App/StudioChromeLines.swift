@@ -141,6 +141,26 @@ final class StudioWindowChromeView: NSView {
                 self.recenterLights(in: window)
             }
         })
+        // AppKit also re-places the lights on these without a frame change we
+        // can see in time, so re-apply now and once more after its layout pass.
+        for name in [NSWindow.didResizeNotification, NSWindow.didEndLiveResizeNotification,
+                     NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification,
+                     NSWindow.didChangeScreenNotification] {
+            lightObservers.append(NotificationCenter.default.addObserver(
+                forName: name, object: window, queue: .main
+            ) { [weak self, weak window] _ in
+                guard let self, let window else { return }
+                MainActor.assumeIsolated {
+                    self.recenterLights(in: window)
+                    DispatchQueue.main.async { [weak self, weak window] in
+                        MainActor.assumeIsolated {
+                            guard let self, let window else { return }
+                            self.recenterLights(in: window)
+                        }
+                    }
+                }
+            })
+        }
         // In fullscreen AppKit keeps the (empty) unified toolbar on screen and
         // paints an opaque titlebar backdrop over the band, hiding every header
         // the panels hang up into it — while the top safe-area inset stays at
@@ -173,13 +193,17 @@ final class StudioWindowChromeView: NSView {
         // In fullscreen the buttons live in the auto-revealed menu bar strip;
         // leave them to AppKit (there is no visual band to center in anyway).
         guard !window.styleMask.contains(.fullScreen) else { return }
-        for type in Self.lightButtons {
-            guard let button = window.standardWindowButton(type),
-                  let titlebar = button.superview,
-                  titlebar.frame.height >= 20 else { continue }
-            let visualBand = titlebar.frame.height + StudioTopBar.extraBandHeight
-            // Non-flipped titlebar view: y is measured from its bottom edge.
-            let targetY = (titlebar.frame.height - visualBand / 2 - button.frame.height / 2).rounded()
+        let buttons = Self.lightButtons.compactMap { window.standardWindowButton($0) }
+        guard let first = buttons.first,
+              let titlebar = first.superview,
+              titlebar.frame.height >= 20 else { return }
+        let visualBand = titlebar.frame.height + StudioTopBar.extraBandHeight
+        // One row for all three: AppKit re-places the lights one at a time, and
+        // a button it moved last (the zoom light on a resize or a key change)
+        // must not be left higher than its neighbours.
+        // Non-flipped titlebar view: y is measured from its bottom edge.
+        let targetY = (titlebar.frame.height - visualBand / 2 - first.frame.height / 2).rounded()
+        for button in buttons where button.superview === titlebar {
             if abs(button.frame.origin.y - targetY) > 0.5 {
                 button.setFrameOrigin(NSPoint(x: button.frame.origin.x, y: targetY))
             }
