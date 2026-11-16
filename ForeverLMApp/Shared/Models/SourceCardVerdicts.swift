@@ -40,11 +40,13 @@ enum SourceCardState: Equatable, Sendable {
 
     var hasCards: Bool { self != .none }
 
-    /// "To check", "1 card", "12 cards", "Retired"; nil with none.
+    /// "1 card", "12 cards", "Retired"; nil with none, and nil with only
+    /// drafts waiting: a Library row never says "To check" on its own (product
+    /// owner, 2026-11-16: "i don't want it to randomly say 'to check' on a
+    /// source"); drafts are reviewed in Memory.
     var label: String? {
         switch self {
-        case .none: return nil
-        case .toCheck: return "To check"
+        case .none, .toCheck: return nil
         case .cards(let count): return count == 1 ? "1 card" : "\(count) cards"
         case .retired: return "Retired"
         }

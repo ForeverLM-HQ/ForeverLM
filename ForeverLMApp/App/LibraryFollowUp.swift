@@ -51,7 +51,7 @@ extension StudioViewModel {
 }
 
 /// A Library row's one trailer: where the source stands on cards ("2 cards",
-/// "To check", "Retired"), in the row's grey ("Lists are monochrome",
+/// "Retired"), in the row's grey ("Lists are monochrome",
 /// docs/ui-design.md). A click opens the source's cards and, under them, the
 /// passages still set aside to follow up or doubt, each opening the Reader at
 /// its mark, with its check to mark it followed up. A source with no card but

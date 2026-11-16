@@ -25,7 +25,7 @@ struct SourceCardVerdictsTests {
     @Test("A row says how many cards it has and offers Make Cards, or Make More Cards once it has some")
     func labelsAndVerdictTitles() {
         #expect(SourceCardState.none.label == nil)
-        #expect(SourceCardState.toCheck.label == "To check")
+        #expect(SourceCardState.toCheck.label == nil)
         #expect(SourceCardState.cards(1).label == "1 card")
         #expect(SourceCardState.cards(12).label == "12 cards")
         #expect(SourceCardState.retired.label == "Retired")
