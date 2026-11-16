@@ -143,7 +143,7 @@ extension ManagedAI {
             if status == 401 || status == 403 {
                 throw ServiceError(
                     code: "own_openai_key_rejected",
-                    message: "OpenAI didn't accept your OpenAI key for voice mode. Replace or remove it in Settings, under AI Usage."
+                    message: "OpenAI didn't accept your OpenAI key for voice mode. Replace or remove it in Settings, under API keys."
                 )
             }
             let detail = ((json?["error"] as? [String: Any])?["message"] as? String)

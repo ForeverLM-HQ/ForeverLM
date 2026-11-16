@@ -11,7 +11,7 @@ Voice mode runs on OpenAI's realtime voice model, on your own OpenAI API key: Op
 
 ## Your own OpenAI key
 
-Paste your OpenAI API key under **Voice mode** in AI Usage, which the OpenRouter button at the bottom left of the Mac window opens, or **Settings › API keys › Voice mode** on the iPhone. ForeverLM checks it with OpenAI before saving it. Every voice conversation opens straight with OpenAI on it. The key is kept in your iCloud Keychain, shared between your Mac and iPhone, and sent only to OpenAI, never to ForeverLM's server. Remove it and voice mode turns off. Get a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+Paste your OpenAI API key under **API keys** in AI Usage, which the OpenRouter button at the bottom left of the Mac window opens, or **Settings › Key**, under **OpenAI API key** on the iPhone. ForeverLM checks it with OpenAI before saving it. Every voice conversation opens straight with OpenAI on it. The key is kept in your iCloud Keychain, shared between your Mac and iPhone, and sent only to OpenAI, never to ForeverLM's server. Remove it and voice mode turns off. Get a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
 
 It is all one model: ForeverLM hears you and answers in its own voice. No separate speech-to-text or text-to-speech runs, and nothing is shown as text while you talk.
 

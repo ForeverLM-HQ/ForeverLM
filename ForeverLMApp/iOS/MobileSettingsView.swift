@@ -1570,9 +1570,9 @@ struct MobileRealtimeVoiceOwnKeySection: View {
                     .foregroundStyle(.red)
             }
         } header: {
-            Text("Voice mode")
+            Text("OpenAI API key")
         } footer: {
-            Text("Voice mode runs on your own OpenAI API key, and OpenAI bills you for it. Without a key, voice mode is off. The key is kept in your iCloud Keychain, shared with your Mac, and sent only to OpenAI.")
+            Text("Voice mode and the OpenAI voices in Listen run on your own OpenAI API key, and OpenAI bills you for it. Without a key, they are off. The key is kept in your iCloud Keychain, shared with your Mac, and sent only to OpenAI.")
         }
         .task { await load() }
     }

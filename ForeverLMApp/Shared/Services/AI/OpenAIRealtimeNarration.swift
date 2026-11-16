@@ -81,7 +81,7 @@ enum OpenAIRealtimeNarration {
             return answer(
                 status: 401,
                 code: "no_openai_key",
-                message: "OpenAI voices run on your own OpenAI key. Add it in Settings, under AI Usage."
+                message: "OpenAI voices run on your own OpenAI key. Add it in Settings, under API keys."
             )
         }
         let text = body.input
@@ -225,7 +225,7 @@ enum OpenAIRealtimeNarration {
             return Failure(
                 status: 401,
                 code: "own_openai_key_rejected",
-                message: "OpenAI didn't accept your OpenAI key. Replace or remove it in Settings, under AI Usage."
+                message: "OpenAI didn't accept your OpenAI key. Replace or remove it in Settings, under API keys."
             )
         }
         return Failure(

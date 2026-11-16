@@ -400,8 +400,6 @@ struct VoiceSettingsDetailView: View {
                         VoiceModeVoicePicker()
                     }
                 }
-
-                RealtimeVoiceOwnKeySection()
             }
             .padding(24)
             .frame(maxWidth: 760, alignment: .leading)

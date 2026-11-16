@@ -37,6 +37,10 @@ struct AIUsageAccountSections: View {
             } else {
                 signedOutSection
             }
+            // The OpenAI key is an API key like the OpenRouter one, so it
+            // sits with it (product owner, 2026-11-15: "it should live under
+            // API keys in settings"), not under Voice.
+            RealtimeVoiceOwnKeySection()
             spendingSection
 
             accountError
@@ -1217,13 +1221,13 @@ private struct AIUsageSpentToday: View {
     }
 }
 
-/// Settings › Voice › Voice mode: the learner's own OpenAI key for voice
+/// Settings › AI Usage › API keys, beside the OpenRouter key: the learner's own OpenAI key for voice
 /// mode (product owner, 2026-11-08: "let people put their own openai key for
 /// the voice mode"). With one, voice sessions open straight with OpenAI on it
 /// and OpenAI bills the learner; without one, voice mode is off. The key is checked with OpenAI before it is stored, and
 /// sits in iCloud Keychain beside the OpenRouter key, shared with the iPhone.
 struct RealtimeVoiceOwnKeySection: View {
-    static let description = "Voice mode runs on your own OpenAI API key, and OpenAI bills you for it. Without a key, voice mode is off."
+    static let description = "Voice mode and the OpenAI voices in Listen run on your own OpenAI API key, and OpenAI bills you for it. Without a key, they are off."
     static let privacyNote = "Kept in your iCloud Keychain and sent only to OpenAI, never to ForeverLM."
 
     @State private var suffix: String?
@@ -1234,7 +1238,7 @@ struct RealtimeVoiceOwnKeySection: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        SettingsSection(title: "Voice mode", description: Self.description) {
+        SettingsSection(title: "OpenAI API key", description: Self.description) {
             BillingCard {
                 VStack(alignment: .leading, spacing: 0) {
                     if let suffix {
