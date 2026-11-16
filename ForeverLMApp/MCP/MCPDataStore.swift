@@ -19,15 +19,27 @@ import SQLite3
 private actor MCPKnowledgeStoreOperationGate {
     private var sharedHolders = 0
     private var exclusiveHeld = false
-    private var waiters: [(mode: MCPStoreOperationMode, continuation: CheckedContinuation<Void, Never>)] = []
+    private var nextWaiterID: UInt64 = 0
+    private var waiters: [(id: UInt64, mode: MCPStoreOperationMode, continuation: CheckedContinuation<Bool, Never>)] = []
 
-    func acquire(_ mode: MCPStoreOperationMode) async {
+    /// Waits for the gate. With a `timeout`, a caller still queued when it runs
+    /// out is taken off the queue and gets false, so a read behind a long write
+    /// answers "busy" instead of waiting out its caller's own watchdog.
+    func acquire(_ mode: MCPStoreOperationMode, timeout: TimeInterval? = nil) async -> Bool {
         if waiters.isEmpty, canAdmit(mode) {
             admit(mode)
-            return
+            return true
         }
-        await withCheckedContinuation { continuation in
-            waiters.append((mode, continuation))
+        nextWaiterID += 1
+        let id = nextWaiterID
+        if let timeout {
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(timeout))
+                await self?.expire(id)
+            }
+        }
+        return await withCheckedContinuation { continuation in
+            waiters.append((id, mode, continuation))
         }
     }
 
@@ -37,10 +49,22 @@ private actor MCPKnowledgeStoreOperationGate {
         } else {
             sharedHolders = max(0, sharedHolders - 1)
         }
+        admitWaiters()
+    }
+
+    private func expire(_ id: UInt64) {
+        guard let index = waiters.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = waiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
+        // A writer that gave up may have been the one holding readers back.
+        admitWaiters()
+    }
+
+    private func admitWaiters() {
         while let next = waiters.first, canAdmit(next.mode) {
             waiters.removeFirst()
             admit(next.mode)
-            next.continuation.resume()
+            next.continuation.resume(returning: true)
         }
     }
 
@@ -199,8 +223,9 @@ final class MCPDataStore {
     /// connection so future dispatch surfaces cannot accidentally grow a second,
     /// uncoordinated lock. The default is the exclusive hold, which is always
     /// safe; `MCPToolRegistry.storeGateMode(for:)` decides when a tool may share.
-    func acquireToolOperation(_ mode: MCPStoreOperationMode = .exclusive) async {
-        await operationGate.acquire(mode)
+    @discardableResult
+    func acquireToolOperation(_ mode: MCPStoreOperationMode = .exclusive, timeout: TimeInterval? = nil) async -> Bool {
+        await operationGate.acquire(mode, timeout: timeout)
     }
 
     func releaseToolOperation() async {
@@ -224,7 +249,7 @@ final class MCPDataStore {
             }
             return try await body()
         }
-        await operationGate.acquire(mode)
+        _ = await operationGate.acquire(mode)
         let hold = MCPStoreGateHold(mode)
         do {
             let value = try await MCPStoreGateHold.$current.withValue(hold, operation: body)

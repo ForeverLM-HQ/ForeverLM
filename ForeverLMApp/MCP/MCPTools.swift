@@ -376,7 +376,16 @@ final class MCPToolRegistry: @unchecked Sendable {
             && !Self.selfGatedToolNames.contains(name)
             && !Self.settingsParityToolNames.contains(name)
         let gateMode = Self.storeGateMode(for: name)
-        if holdsStoreGate { await store.acquireToolOperation(gateMode) }
+        // A call queued behind a long write gives up after `storeGateWaitSeconds`
+        // and says so, rather than leaving its caller (a chat's source read,
+        // abandoned only by the five-minute watchdog) with a spinner and a
+        // bare "could not be loaded".
+        if holdsStoreGate, !(await store.acquireToolOperation(gateMode, timeout: Self.storeGateWaitSeconds)) {
+            return ToolCallOutcome(
+                text: "Error: \(name) could not start: the library is busy with another write that has run for over \(Int(Self.storeGateWaitSeconds)) seconds. Nothing was done. Try \(name) again in a minute.",
+                isError: true
+            )
+        }
         // Stopped while it waited for the gate, most often behind the very
         // writer the learner stopped with it: nothing has run, so nothing runs.
         if Task.isCancelled {
@@ -635,6 +644,9 @@ final class MCPToolRegistry: @unchecked Sendable {
     /// not milliseconds — and the library query it ends with opens a connection
     /// of its own. A Linear read is the same round trip and touches the store
     /// not at all; so is a GitHub read, and so is a Notion read.
+    /// Longest a call waits for the store gate before it answers "busy".
+    static let storeGateWaitSeconds: TimeInterval = 90
+
     static let storeGateExemptToolNames: Set<String> = [
         // The Map lives in the Studio view model on the main actor; its one
         // library read (the cards' first highlights) goes through the storage
