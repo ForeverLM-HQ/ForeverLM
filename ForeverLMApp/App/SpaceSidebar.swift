@@ -207,19 +207,23 @@ enum SpaceDestination: Hashable, Sendable {
         }
     }
 
-    /// The green tag after the place's name in the sidebar: Beta on
-    /// Canvases, which is still a beta feature (`BetaFeatures`) (product
-    /// owner, 2026-10-10: "add a green 'beta' button to show that it's still
-    /// in beta"); nil for every other place.
+    /// The green tag after the place's name in the sidebar: Beta on every
+    /// place of the Space (product owner, 2026-11-16: "please mark all items
+    /// in spaces as beta"; Canvases since 2026-10-10: "add a green 'beta'
+    /// button to show that it's still in beta"); nil for the rows that are
+    /// no place of the Space's own (All, Home, Trash, a team, a space, a list).
     var badge: String? {
-        self == .canvases ? "Beta" : nil
+        Self.places.contains(self) && self != .all ? "Beta" : nil
     }
 
     /// What the badge means, shown when the pointer rests on it (product
     /// owner, 2026-10-12: "we are actively developing the canvases feature
     /// to make it look and feel nice"); nil where there is no badge.
     var badgeNote: String? {
-        self == .canvases ? "We're actively developing Canvases to make them look and feel right." : nil
+        switch self {
+        case .canvases: return "We're actively developing Canvases to make them look and feel right."
+        default: return badge == nil ? nil : "\(title) is still in beta: we're actively developing it to make it look and feel right."
+        }
     }
 
     /// The Pages home's kind a place opens in a pane of its own, for the
