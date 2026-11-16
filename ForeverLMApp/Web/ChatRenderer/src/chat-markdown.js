@@ -129,6 +129,32 @@ export function normalizeModelLineBreaks(markdown) {
     .replace(/\n{3,}/g, "\n\n");
 }
 
+/// A model sometimes wraps a phrase in a bare `<a>…</a>` (no `href`) meaning a
+/// link it has no address for. markdown-it keeps raw HTML off, so the tags
+/// showed as literal text. A link with no address is its words; keep the words.
+/// Only attribute-free anchors go, and never inside a code span or fence.
+export function stripBareAnchorTags(markdown) {
+  let fence = null;
+  return String(markdown ?? "")
+    .split("\n")
+    .map((line) => {
+      const opener = line.match(/^[ \t]{0,3}(`{3,}|~{3,})/);
+      if (fence) {
+        if (opener && opener[1][0] === fence[0] && opener[1].length >= fence.length) fence = null;
+        return line;
+      }
+      if (opener) {
+        fence = opener[1];
+        return line;
+      }
+      return line
+        .split(/(`+[^`]*`+)/)
+        .map((piece, index) => (index % 2 === 1 ? piece : piece.replace(/<\/?a\s*>/gi, "")))
+        .join("");
+    })
+    .join("\n");
+}
+
 function tableCells(line) {
   let value = String(line ?? "").trim();
   if (!value.includes("|")) return [];
@@ -648,7 +674,7 @@ export function splitVisualizations(markdown) {
 /// so the Markdown-shaped repairs cannot reach inside it.
 export function normalizeChatMarkdown(markdown) {
   const collapsed = collapseRepeatedSourceTitleLinks(splitFollowUps(markdown).markdown);
-  const breaks = normalizeModelLineBreaks(collapsed);
+  const breaks = stripBareAnchorTags(normalizeModelLineBreaks(collapsed));
   const latex = normalizeLatexDisplayBlocks(breaks);
   const protectedMath = protectMath(latex);
   const tables = normalizeMarkdownTables(protectedMath.markdown);
