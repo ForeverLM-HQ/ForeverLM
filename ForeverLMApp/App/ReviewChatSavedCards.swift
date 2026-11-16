@@ -379,15 +379,38 @@ struct ReviewChatSavedCardsView: View {
         }
     }
 
+    /// Reads the cards, and reads again a few times a second apart while the
+    /// read finds none or fails: an empty answer is never kept as the last
+    /// word, since the cards of a reply a moment old (or of a chat opened on a
+    /// Mac their rows are still reaching) can land after the first read. Only
+    /// a read that found cards is remembered for the next time the deck opens.
     private func load() async {
-        guard let read = await vm.chatSavedCards(saved) else {
-            readFailed = cards == nil
-            return
+        let attempts = 4
+        var lastWasEmpty = false
+        for attempt in 0..<attempts {
+            if let read = await vm.chatSavedCards(saved) {
+                if !read.isEmpty {
+                    readFailed = false
+                    cards = read
+                    ChatSavedCardsMemory.cards["\(saved.destination)"] = read
+                    if page >= read.count { page = max(0, read.count - 1) }
+                    return
+                }
+                lastWasEmpty = true
+            }
+            guard attempt < attempts - 1 else { break }
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return }
         }
-        readFailed = false
-        cards = read
-        ChatSavedCardsMemory.cards["\(saved.destination)"] = read
-        if page >= read.count { page = max(0, read.count - 1) }
+        // Nothing found: say so (never from a stale remembered empty deck) or,
+        // when every read failed and none ever answered, that it could not be read.
+        ChatSavedCardsMemory.cards["\(saved.destination)"] = nil
+        if lastWasEmpty {
+            readFailed = false
+            cards = []
+        } else {
+            readFailed = cards == nil
+        }
     }
 }
 
