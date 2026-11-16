@@ -451,6 +451,12 @@ function titleBelongsToSentence(link) {
   if (before === null) return false;
   const after = link.nextSibling ? String(link.nextSibling.textContent ?? "") : "";
   if (before === "" || ENDS_A_SENTENCE.test(before)) return CARRIES_ON.test(after);
+  // Link text that opens in lower case, in the middle of a sentence, is the
+  // sentence's own words ("The authors had [a small sample], so ..."): a title
+  // is capitalised. Drawn as a chip it left "The authors had,6 so the paper"
+  // (product owner, 2026-11-15: "it should still say the text; otherwise the
+  // sentence isn't complete").
+  if (/^\p{Ll}/u.test(String(link.textContent ?? "").trim())) return true;
   if (OPENS_A_PHRASE.test(before)) return CLOSES_A_PHRASE.test(after);
   const lastWord = before.match(/([\p{L}'’]+)$/u)?.[1].toLowerCase();
   return lastWord !== undefined && LEADS_INTO_A_TITLE.has(lastWord);

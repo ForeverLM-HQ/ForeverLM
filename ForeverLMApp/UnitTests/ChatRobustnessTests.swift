@@ -468,7 +468,8 @@ struct ChatRobustnessTests {
         The first piece is by **Ada Vance**, [Data Gaps](foreverlm://source/gaps-1). \
         The second piece is [Seven Ways](foreverlm://source/ways-2). \
         [Seven Ways](foreverlm://source/ways-2) argues that the rate can change. \
-        Complex I pumps protons [Data Gaps](foreverlm://source/gaps-1).
+        Complex I pumps protons [Data Gaps](foreverlm://source/gaps-1). \
+        The authors had [a small sample](foreverlm://source/ways-2), so the rate is unclear.
         """
         let encodedMarkdown = try #require(String(data: JSONEncoder().encode(markdown), encoding: .utf8))
         let encodedCards = """
@@ -484,7 +485,8 @@ struct ChatRobustnessTests {
         })();
         """
         let expected = "The first piece is by Ada Vance, Data Gaps.[1] The second piece is Seven Ways.[2] "
-            + "Seven Ways[2] argues that the rate can change. Complex I pumps protons.[1]"
+            + "Seven Ways[2] argues that the rate can change. Complex I pumps protons.[1] "
+            + "The authors had a small sample,[2] so the rate is unclear."
 
         // Drawn as chips before any card is known, then with the cards, then redecorated.
         _ = try await webView.evaluateJavaScript("window.setMarkdown(\(encodedMarkdown));")
