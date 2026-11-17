@@ -32,9 +32,7 @@ extension ManagedAI {
         var id: String { rawValue }
 
         /// The proxy's plan id, older ones included: `forever` and `pro` were
-        /// paid once too. Monthly, Believer and Yearly are subscriptions no
-        /// longer sold, so they read as nil here; `AppAccess.planName` still
-        /// names one bought before.
+        /// paid once too. Anything else is not sold, so it reads as nil.
         init?(serverValue: String) {
             switch serverValue {
             case "once", "forever", "pro": self = .once
@@ -65,7 +63,6 @@ extension ManagedAI {
             case free
             case freeDays = "free_days"
             case paidOnce = "paid_once"
-            case monthly
             case comped
             case locked
 
@@ -74,7 +71,9 @@ extension ManagedAI {
                 case "free": self = .free
                 case "free_days": self = .freeDays
                 case "paid_once", "forever", "pro": self = .paidOnce
-                case "monthly", "subscribed": self = .monthly
+                // The one subscription that ever existed was cancelled; a
+                // paid account of any older kind is simply paid.
+                case "monthly", "subscribed": self = .paidOnce
                 case "comped": self = .comped
                 case "locked": self = .locked
                 default: self = .freeDays
@@ -82,42 +81,33 @@ extension ManagedAI {
             }
         }
 
-        /// Today's prices, from the proxy. A subscription keeps the price it
-        /// started at, which is `AppAccess.priceCents`. Nil when the proxy did
-        /// not say: the app never makes a price up.
+        /// Today's price, from the proxy. Nil when the proxy did not say: the
+        /// app never makes a price up.
         struct Prices: Codable, Equatable, Sendable {
             let onceCents: Int?
-            /// Monthly's price from before the lock, which the proxy still
-            /// reports. Nothing offers it; it is what a subscription from
-            /// before reads as until Stripe says its own.
-            let monthlyCents: Int?
 
             enum CodingKeys: String, CodingKey {
                 case onceCents = "once_cents"
-                case monthlyCents = "monthly_cents"
                 /// The paid-once price under its earlier name.
                 case proCents = "pro_cents"
             }
 
-            init(onceCents: Int?, monthlyCents: Int?) {
+            init(onceCents: Int?) {
                 self.onceCents = onceCents
-                self.monthlyCents = monthlyCents
             }
 
             init(from decoder: Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 onceCents = try container.decodeIfPresent(Int.self, forKey: .onceCents)
                     ?? container.decodeIfPresent(Int.self, forKey: .proCents)
-                monthlyCents = try container.decodeIfPresent(Int.self, forKey: .monthlyCents)
             }
 
             func encode(to encoder: Encoder) throws {
                 var container = encoder.container(keyedBy: CodingKeys.self)
                 try container.encodeIfPresent(onceCents, forKey: .onceCents)
-                try container.encodeIfPresent(monthlyCents, forKey: .monthlyCents)
             }
 
-            static let unknown = Prices(onceCents: nil, monthlyCents: nil)
+            static let unknown = Prices(onceCents: nil)
         }
 
         /// What the paid app sells when the proxy does not list it: the Early
@@ -125,18 +115,6 @@ extension ManagedAI {
         static let paidAppPlans: [AppPlan] = [.once]
 
         let state: State
-        /// The proxy's plan id as sent, so a retired plan (Believer, Yearly)
-        /// still reads as what it is (`planName`).
-        let plan: String?
-        let founding: Bool
-        let renewsAt: Date?
-        /// What a subscription charges each period: the price it started at.
-        let priceCents: Int?
-        let cancelAtPeriodEnd: Bool
-        let paymentFailed: Bool
-        /// A subscription in its free trial: Monthly's 30 days, from before
-        /// the lock (`renewsAt` is its first charge).
-        let trialing: Bool
         let prices: Prices
         /// What may be bought now: the plans this build sells that the proxy
         /// lists, so never a subscription, whatever else it lists. Missing
@@ -157,13 +135,9 @@ extension ManagedAI {
         /// with the `plan_access` block of the plans sold before the lock,
         /// still decodes.
         enum CodingKeys: String, CodingKey {
-            case plan, founding, prices, trialing, unlocked
+            case prices, unlocked
             /// The paid app's state inside `access`.
             case appState = "app_state"
-            case renewsAt = "renews_at"
-            case priceCents = "price_cents"
-            case cancelAtPeriodEnd = "cancel_at_period_end"
-            case paymentFailed = "payment_failed"
             case plansOnSale = "plans_on_sale"
             case freeUntil = "free_until"
             case freeDaysTotal = "free_days_total"
@@ -173,34 +147,12 @@ extension ManagedAI {
         /// missing answer never locks.
         var unlocked: Bool { unlockedField ?? true }
 
-        /// Whether the account has paid in some form: paid once, a
-        /// subscription or a comp.
+        /// Whether the account has paid: paid once, or a comp.
         var isPaid: Bool {
             switch state {
-            case .paidOnce, .monthly, .comped: return true
+            case .paidOnce, .comped: return true
             case .free, .freeDays, .locked: return false
             }
-        }
-
-        /// A subscription's name, the retired ones included.
-        var planName: String {
-            switch plan {
-            case "believer": return "Believer"
-            case "yearly": return "Yearly"
-            case "once", "forever", "pro": return "Paid once"
-            default: return "Monthly"
-            }
-        }
-
-        /// Whether the subscription renews yearly: Believer and Yearly did.
-        var renewsYearly: Bool { plan == "believer" || plan == "yearly" }
-
-        /// What the subscription charges each period, from what it started at
-        /// or, before Stripe has said, today's monthly price.
-        var subscriptionPriceCents: Int? {
-            guard state == .monthly else { return nil }
-            if let priceCents { return priceCents }
-            return renewsYearly ? nil : prices.monthlyCents
         }
 
         /// Whether the app is locked at `serverNow`, a moment on the proxy's
@@ -244,13 +196,6 @@ extension ManagedAI {
 
         init(
             state: State,
-            plan: String? = nil,
-            founding: Bool = false,
-            renewsAt: Date? = nil,
-            priceCents: Int? = nil,
-            cancelAtPeriodEnd: Bool = false,
-            paymentFailed: Bool = false,
-            trialing: Bool = false,
             prices: Prices = .unknown,
             plansOnSale: [AppPlan] = AppAccess.paidAppPlans,
             freeUntil: Date? = nil,
@@ -258,13 +203,6 @@ extension ManagedAI {
             unlocked: Bool? = nil
         ) {
             self.state = state
-            self.plan = plan
-            self.founding = founding
-            self.renewsAt = renewsAt
-            self.priceCents = state == .monthly ? priceCents : nil
-            self.cancelAtPeriodEnd = cancelAtPeriodEnd
-            self.paymentFailed = paymentFailed
-            self.trialing = state == .monthly && trialing
             self.prices = prices
             self.plansOnSale = plansOnSale
             self.freeUntil = freeUntil
@@ -294,9 +232,7 @@ extension ManagedAI {
         func filling(_ top: TopLevelFields?) -> AppAccess {
             guard let top else { return self }
             return AppAccess(
-                state: top.state.map { State(serverValue: $0) } ?? state, plan: plan, founding: founding, renewsAt: renewsAt,
-                priceCents: priceCents, cancelAtPeriodEnd: cancelAtPeriodEnd,
-                paymentFailed: paymentFailed, trialing: trialing, prices: prices,
+                state: top.state.map { State(serverValue: $0) } ?? state, prices: prices,
                 plansOnSale: plansOnSale,
                 freeUntil: freeUntil ?? Self.date(top.freeUntil),
                 freeDaysTotal: freeDaysTotal,
@@ -321,13 +257,6 @@ extension ManagedAI {
             let appState = try container.decodeIfPresent(String.self, forKey: .appState)
             self.init(
                 state: State(serverValue: appState),
-                plan: try container.decodeIfPresent(String.self, forKey: .plan),
-                founding: try container.decodeIfPresent(Bool.self, forKey: .founding) ?? false,
-                renewsAt: Self.date(try container.decodeIfPresent(String.self, forKey: .renewsAt)),
-                priceCents: try container.decodeIfPresent(Int.self, forKey: .priceCents),
-                cancelAtPeriodEnd: try container.decodeIfPresent(Bool.self, forKey: .cancelAtPeriodEnd) ?? false,
-                paymentFailed: try container.decodeIfPresent(Bool.self, forKey: .paymentFailed) ?? false,
-                trialing: try container.decodeIfPresent(Bool.self, forKey: .trialing) ?? false,
                 prices: try container.decodeIfPresent(Prices.self, forKey: .prices) ?? .unknown,
                 plansOnSale: plans,
                 freeUntil: Self.date(try container.decodeIfPresent(String.self, forKey: .freeUntil)),
@@ -339,13 +268,6 @@ extension ManagedAI {
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(state.rawValue, forKey: .appState)
-            try container.encodeIfPresent(plan, forKey: .plan)
-            try container.encode(founding, forKey: .founding)
-            try container.encodeIfPresent(renewsAt.map(Self.string), forKey: .renewsAt)
-            try container.encodeIfPresent(priceCents, forKey: .priceCents)
-            try container.encode(cancelAtPeriodEnd, forKey: .cancelAtPeriodEnd)
-            try container.encode(paymentFailed, forKey: .paymentFailed)
-            try container.encode(trialing, forKey: .trialing)
             try container.encode(prices, forKey: .prices)
             try container.encode(plansOnSale.map(\.rawValue), forKey: .plansOnSale)
             try container.encodeIfPresent(freeUntil.map(Self.string), forKey: .freeUntil)
@@ -369,7 +291,7 @@ extension ManagedAI {
         }
     }
 
-    /// A price as the app writes it: "$19", "$6.70". Prices are set in US
+    /// A price as the app writes it: "$19". Prices are set in US
     /// dollars, so they read the same everywhere.
     static func dollars(_ cents: Int) -> String {
         let value = Double(cents) / 100
@@ -456,84 +378,9 @@ extension ManagedAI {
     /// still has the last word (`app_locked`).
     static var ownKeyAllowed: Bool { !isAppLocked }
 
-    /// Why a learner cancels (product owner, 2026-09-26: "if they cancel, they
-    /// should be able to let us know why"). The raw values are Stripe's own
-    /// cancellation feedback values, which `POST /v1/plan/cancel` takes.
-    enum PlanCancellationReason: String, CaseIterable, Identifiable, Sendable {
-        case tooExpensive = "too_expensive"
-        case unused
-        case missingFeatures = "missing_features"
-        case lowQuality = "low_quality"
-        case tooComplex = "too_complex"
-        case switchedService = "switched_service"
-        case other
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .tooExpensive: return "It costs too much"
-            case .unused: return "I don't use it enough"
-            case .missingFeatures: return "It's missing something I need"
-            case .lowQuality: return "The answers weren't good enough"
-            case .tooComplex: return "It's hard to use"
-            case .switchedService: return "I'm switching to something else"
-            case .other: return "Something else"
-            }
-        }
-    }
-
-    /// What `POST /v1/plan/cancel` answers: the plan runs to `endsAt` (the
-    /// paid period's end) and is not charged again.
-    struct PlanCancellation: Decodable, Equatable, Sendable {
-        let endsAt: Date?
-        enum CodingKeys: String, CodingKey { case endsAt = "ends_at" }
-        init(endsAt: Date?) { self.endsAt = endsAt }
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            endsAt = AppAccess.date(try container.decodeIfPresent(String.self, forKey: .endsAt))
-        }
-    }
-
-    /// The comment is cut where the proxy cuts it.
-    static let planCancellationCommentLimit = 2_000
-
-    /// Cancels the subscription at the end of what is paid for (before its
-    /// first charge, nothing is ever charged), telling the proxy why when the
-    /// learner said. Both answers are optional.
-    static func cancelPlan(reason: PlanCancellationReason?, comment: String) async throws -> PlanCancellation {
-        struct Body: Encodable {
-            let reason: String?
-            let comment: String
-            let client: String
-        }
-        let trimmed = String(comment.trimmingCharacters(in: .whitespacesAndNewlines).prefix(planCancellationCommentLimit))
-        return try await post(
-            "/v1/plan/cancel",
-            body: Body(reason: reason?.rawValue, comment: trimmed, client: planCancellationClient),
-            authenticated: true
-        )
-    }
-
-    /// Takes a cancellation back before the period ends.
-    static func resumePlan() async throws {
-        struct Response: Decodable { let cancelAtPeriodEnd: Bool
-            enum CodingKeys: String, CodingKey { case cancelAtPeriodEnd = "cancel_at_period_end" } }
-        let _: Response = try await post("/v1/plan/resume", body: [String: String](), authenticated: true)
-    }
-
-    private static var planCancellationClient: String {
-        #if os(iOS)
-        return "ios"
-        #else
-        return "mac"
-        #endif
-    }
-
     /// Stripe Checkout for a plan, opened in the browser: `.once` is a
     /// one-time payment, the one plan sold (a retired plan's checkout answers
-    /// `plan_retired`). Checkout takes promotion codes itself, so a
-    /// friends-and-family code needs nothing here.
+    /// `plan_retired`). Checkout takes promotion codes itself.
     static func planCheckoutURL(_ plan: AppPlan) async throws -> URL {
         struct Body: Encodable { let plan: String }
         struct Response: Decodable {

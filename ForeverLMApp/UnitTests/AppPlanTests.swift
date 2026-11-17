@@ -33,7 +33,6 @@ struct AppPlanTests {
         #expect(access.freeDaysTotal == 7)
         #expect(access.plansOnSale == [.once])
         #expect(access.prices.onceCents == 1900)
-        #expect(access.prices.monthlyCents == 400, "Monthly's price from before the lock, which the proxy still reports")
         #expect(!access.isPaid)
         #expect(!access.isLocked(at: now))
         let roundTrip = try JSONDecoder().decode(ManagedAI.AppAccess.self, from: JSONEncoder().encode(access))
@@ -68,7 +67,7 @@ struct AppPlanTests {
         #expect(EarlyUserDealOffer.welcomeLine(access: access) == "ForeverLM is free, MCP included.")
         #expect(EarlyUserDealOffer.welcomeLine(access: nil) == "Free to start, then pay once. No subscription.")
         #expect(EarlyUserDealOffer.freeTitle == "MCP is free")
-        let selling = ManagedAI.AppAccess(state: .freeDays, prices: .init(onceCents: 1900, monthlyCents: nil), freeDaysTotal: 30)
+        let selling = ManagedAI.AppAccess(state: .freeDays, prices: .init(onceCents: 1900), freeDaysTotal: 30)
         #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "30 days free, then $19 once. No subscription.")
         for text in [EarlyUserDealOffer.freeWelcomeLine, EarlyUserDealOffer.freeTitle] {
             #expect(!text.contains("$"))
@@ -79,7 +78,7 @@ struct AppPlanTests {
     @Test("The paid app's state is access.app_state; access.state is not read")
     func states() throws {
         for (raw, state) in [
-            ("free_days", ManagedAI.AppAccess.State.freeDays), ("paid_once", .paidOnce), ("monthly", .monthly),
+            ("free_days", ManagedAI.AppAccess.State.freeDays), ("paid_once", .paidOnce),
             ("comped", .comped), ("locked", .locked),
         ] {
             #expect(try decode(#"{"state":"free","app_state":"\#(raw)"}"#).state == state, "\(raw)")
@@ -87,6 +86,8 @@ struct AppPlanTests {
         // Shipped builds read access.state, so a paid-once account still says
         // forever there; app_state is what counts.
         #expect(try decode(#"{"state":"forever","app_state":"paid_once"}"#).state == .paidOnce)
+        // The one subscription there ever was is simply paid now.
+        #expect(try decode(#"{"app_state":"monthly"}"#).state == .paidOnce)
         #expect(try decode(#"{"state":"free","app_state":"locked"}"#).state == .locked)
         // An access block with only the old state says nothing about the paid
         // app, so it reads as the free days.
@@ -129,8 +130,6 @@ struct AppPlanTests {
 
         let paidOnce = try decode(#"{"app_state":"paid_once","plan":"forever","founding":true}"#)
         #expect(paidOnce.isPaid)
-        #expect(paidOnce.planName == "Paid once")
-        #expect(paidOnce.subscriptionPriceCents == nil)
     }
 
     @Test("Older keys still decode, and app_lock and own_key_allowed decide nothing: the lock is unlocked and the state")
@@ -313,52 +312,17 @@ struct AppPlanTests {
         #expect(!AICreditEntitlement.isBlockedByBudget("The model timed out."))
     }
 
-    @Test("A subscriber from before the lock is paid, keeps its price, and is offered the switch to the deal")
-    func subscriberFromBeforeTheLock() throws {
+    @Test("An account that was ever a subscriber is just paid: never locked, nothing to cancel or renew")
+    func formerSubscriberIsPaid() throws {
         let subscriber = try decode("""
         {"state":"subscribed","app_state":"monthly","plan":"monthly","app_lock":true,"unlocked":true,
          "own_key_allowed":true,"price_cents":400,"renews_at":"2026-11-05T09:00:00Z","plans_on_sale":["once"],
          "prices":{"once_cents":1900,"monthly_cents":400}}
         """)
-        #expect(subscriber.state == .monthly)
+        #expect(subscriber.state == .paidOnce)
         #expect(subscriber.isPaid)
         #expect(!subscriber.isLocked(at: now.addingTimeInterval(365 * 86_400)))
-        #expect(subscriber.planName == "Monthly")
-        #expect(!subscriber.renewsYearly)
-        #expect(subscriber.subscriptionPriceCents == 400)
-        #expect(subscriber.renewsAt == ISO8601DateFormatter().date(from: "2026-11-05T09:00:00Z"))
-        #expect(subscriber.plansOnSale == [.once], "Switch to Paid Once is the deal, and nothing else")
-        // Before Stripe has said its price, Monthly reads as the proxy's
-        // monthly price, never one of the build's own.
-        let unpriced = try decode(#"{"app_state":"monthly","plan":"monthly","prices":{"monthly_cents":400}}"#)
-        #expect(unpriced.subscriptionPriceCents == 400)
-        #expect(try decode(#"{"app_state":"monthly","plan":"monthly"}"#).subscriptionPriceCents == nil)
-        // A yearly subscription keeps its own name and price, and has no
-        // monthly price to fall back on.
-        let believer = try decode(#"{"app_state":"monthly","plan":"believer","price_cents":1900}"#)
-        #expect(believer.planName == "Believer")
-        #expect(believer.renewsYearly)
-        #expect(believer.subscriptionPriceCents == 1900, "a subscription keeps the price it started at")
-        let yearly = try decode(#"{"app_state":"monthly","plan":"yearly","prices":{"monthly_cents":400}}"#)
-        #expect(yearly.planName == "Yearly")
-        #expect(yearly.subscriptionPriceCents == nil)
-        // Cancelled, it is still paid until the period ends.
-        let ending = try decode(#"{"app_state":"monthly","plan":"monthly","unlocked":true,"cancel_at_period_end":true}"#)
-        #expect(ending.cancelAtPeriodEnd)
-        #expect(ending.isPaid)
-    }
-
-    @Test("A monthly plan in its free trial (bought before the lock) reads as trialing; nothing else does")
-    func trialing() throws {
-        let access = try decode("""
-        {"app_state":"monthly","plan":"monthly","trialing":true,
-         "renews_at":"2026-10-03T09:00:00Z","cancel_at_period_end":false,"own_key_allowed":true}
-        """)
-        #expect(access.trialing)
-        #expect(access.renewsAt == ISO8601DateFormatter().date(from: "2026-10-03T09:00:00Z"))
-        #expect(!ManagedAI.AppAccess(state: .freeDays, trialing: true).trialing)
-        #expect(ManagedAI.AppAccess(state: .monthly, plan: "monthly", priceCents: 400).subscriptionPriceCents == 400)
-        #expect(ManagedAI.AppAccess(state: .paidOnce, priceCents: 1900).priceCents == nil)
+        #expect(subscriber.prices.onceCents == 1900)
     }
 
     @Test("The proxy's clock comes from a response's Date header")
@@ -375,16 +339,5 @@ struct AppPlanTests {
         direct.arrivedWithoutGateway = true
         #expect(MCPProtocolHandler.appLockRefusal(for: direct, locked: true) == ManagedAI.appLockedMCPMessage)
         #expect(MCPProtocolHandler.appLockRefusal(for: direct, locked: false) == nil)
-    }
-
-    @Test("Cancellation reasons are Stripe's feedback values, and the answer carries the end date")
-    func cancellation() throws {
-        #expect(ManagedAI.PlanCancellationReason.allCases.map(\.rawValue) == [
-            "too_expensive", "unused", "missing_features", "low_quality", "too_complex", "switched_service", "other",
-        ])
-        let ended = try JSONDecoder().decode(ManagedAI.PlanCancellation.self, from: Data(#"{"cancel_at_period_end":true,"ends_at":"2026-10-03T09:00:00.000Z"}"#.utf8))
-        #expect(ended.endsAt == ISO8601DateFormatter().date(from: "2026-10-03T09:00:00Z"))
-        let unknown = try JSONDecoder().decode(ManagedAI.PlanCancellation.self, from: Data(#"{"cancel_at_period_end":true,"ends_at":null}"#.utf8))
-        #expect(unknown.endsAt == nil)
     }
 }

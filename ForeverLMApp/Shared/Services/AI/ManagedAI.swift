@@ -811,10 +811,10 @@ enum ManagedAI {
 
     // MARK: - Account API
 
-    /// What `/v1/balance` still says that the app uses. ForeverLM pays for no
-    /// AI, so there is no balance, comp, spending limit or usage ledger any
-    /// more (product owner, 2026-11-15); the response also carries the plan,
-    /// which `fetchBalance` stores.
+    /// What `GET /v1/access` says that the app uses. ForeverLM pays for no
+    /// AI, so there is no balance, spending limit or usage ledger (product
+    /// owner, 2026-11-15); the response also carries the plan, which
+    /// `fetchBalance` stores.
     struct Balance: Sendable {
         /// An operator closed the account (a Stripe dispute, say).
         let disabled: Bool
@@ -959,7 +959,7 @@ enum ManagedAI {
         }
 
         let response: Response = try await get(
-            "/v1/balance",
+            "/v1/access",
             headers: ["X-ForeverLM-Day-Start": dayStartHeaderValue()]
         )
         storeAppAccess(
@@ -973,8 +973,7 @@ enum ManagedAI {
         return Balance(disabled: response.disabled ?? false, isAdmin: response.admin ?? false)
     }
 
-    /// Permanently removes the managed-AI account, including its balance,
-    /// usage history, and saved billing profile. The private iCloud knowledge
+    /// Permanently removes the managed-AI account and its payment record. The private iCloud knowledge
     /// library is owned by the user's Apple account and is not sent here.
     static func deleteAccount(identityToken: String, authorizationCode: String) async throws {
         struct Response: Decodable {
@@ -994,20 +993,6 @@ enum ManagedAI {
             throw ServiceError(code: "bad_response", message: "ForeverLM AI did not confirm account deletion.")
         }
         clearSession()
-    }
-
-    /// Stripe billing-portal URL: the user's plan, invoices, and receipts,
-    /// under their own Stripe login.
-    static func billingPortalURL() async throws -> URL {
-        struct Response: Decodable {
-            let portalURL: String
-            enum CodingKeys: String, CodingKey { case portalURL = "portal_url" }
-        }
-        let response: Response = try await post("/v1/credits/portal", body: [String: String](), authenticated: true)
-        guard let url = URL(string: response.portalURL) else {
-            throw ServiceError(code: "bad_response", message: "Billing history returned an address the app couldn't open.")
-        }
-        return url
     }
 
     // MARK: - Transport

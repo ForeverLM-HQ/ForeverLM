@@ -23,8 +23,7 @@ enum SettingsPane: Hashable {
     case aiImages
     /// The model and resolution that film explainer videos.
     case aiVideos
-    /// Paying for ForeverLM: the Early user deal, and switching or cancelling
-    /// a subscription bought before the lock.
+    /// Paying for ForeverLM: the Early user deal, $19 once.
     case aiBilling
     /// The OpenRouter key, where spending is read and the background limits
     /// (product owner, 2026-11-14: "maybe this api key stuff should live in
@@ -314,7 +313,7 @@ enum SettingsSearchCatalog {
                 id: "billing",
                 title: "Billing",
                 subtitle: "Account",
-                keywords: ["plan", "early user deal", "deal", "paid once", "pay once", "buy", "purchase", "free days", "unlock", "monthly", "subscription", "manage subscription", "cancel", "cancel plan", "cancel subscription", "unsubscribe", "renew", "payment", "card", "stripe", "receipts", "invoices"],
+                keywords: ["plan", "early user deal", "deal", "paid once", "pay once", "buy", "purchase", "free days", "unlock", "payment", "card", "stripe", "receipts"],
                 destination: .aiBilling,
                 icon: "creditcard.fill",
                 tint: .purple
@@ -1304,8 +1303,8 @@ private struct ReadOnlyPlainTextView: NSViewRepresentable {
 }
 
 /// Settings → Billing: paying for ForeverLM, and nothing else
-/// (`AppPlanSettingsSection`): the subscription stands apart from all the AI
-/// usage, which is Settings › AI Usage (product owner, 2026-09-28).
+/// (`AppPlanSettingsSection`), apart from all the AI usage, which is
+/// Settings › AI Usage (product owner, 2026-09-28).
 /// Settings › API Keys: the OpenRouter key, spending and the background
 /// limits, moved here from the rail's AI Usage popover.
 private struct APIKeysSettingsDetailView: View {

@@ -48,8 +48,6 @@ final class ManagedAIAccountModel {
     }
     /// The plan whose checkout is being opened, so only its button spins.
     private(set) var planCheckoutInFlight: ManagedAI.AppPlan?
-    /// A cancel or keep-plan call on its way to the proxy.
-    private(set) var planChangeInFlight = false
     /// Reads the account again every few seconds after checkout opens, while
     /// the app is locked, so the pay screen opens the app by itself once
     /// Stripe's webhook lands (product owner, 2026-10-13: no "I've Paid").
@@ -560,61 +558,6 @@ final class ManagedAIAccountModel {
                 await self.refresh(silently: true)
             }
             self.scheduleFreeDaysTick()
-        }
-    }
-
-    /// Cancels the monthly plan at the end of the period paid for, telling
-    /// the proxy why when the learner said (product owner, 2026-09-26: "if
-    /// they cancel, they should be able to let us know why"). The plan card
-    /// reads "ending" once the refresh lands.
-    func cancelPlan(reason: ManagedAI.PlanCancellationReason?, comment: String) async -> Bool {
-        guard !planChangeInFlight else { return false }
-        planChangeInFlight = true
-        defer { planChangeInFlight = false }
-        errorMessage = nil
-
-        do {
-            _ = try await ManagedAI.cancelPlan(reason: reason, comment: comment)
-            await refresh()
-            return true
-        } catch let error as ManagedAI.ServiceError {
-            show(error)
-        } catch {
-            logger.warning("Plan cancel failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = "Couldn't cancel your plan. Check your connection and try again."
-        }
-        return false
-    }
-
-    /// Takes a cancellation back before the period ends.
-    func resumePlan() async {
-        guard !planChangeInFlight else { return }
-        planChangeInFlight = true
-        defer { planChangeInFlight = false }
-        errorMessage = nil
-
-        do {
-            try await ManagedAI.resumePlan()
-            await refresh()
-        } catch let error as ManagedAI.ServiceError {
-            show(error)
-        } catch {
-            logger.warning("Plan resume failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = "Couldn't keep your plan. Check your connection and try again."
-        }
-    }
-
-    /// Opens the user's Stripe billing portal: their plan, invoices, receipts.
-    func openBillingHistory() async {
-        errorMessage = nil
-        do {
-            let url = try await ManagedAI.billingPortalURL()
-            open(url)
-        } catch let error as ManagedAI.ServiceError {
-            show(error)
-        } catch {
-            logger.warning("Managed AI portal failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = "Couldn't open your billing history. Check your connection and try again."
         }
     }
 
