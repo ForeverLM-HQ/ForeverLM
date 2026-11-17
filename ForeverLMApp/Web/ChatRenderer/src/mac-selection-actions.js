@@ -256,31 +256,139 @@ export function installSelectionActions({ document: document_ = document, action
     });
   };
 
-  // WebKit draws the selection in pieces as a drag grows it, and in the Mac
-  // app a piece can go unredrawn: a strip of plain background under one line
-  // of an otherwise solid band (product owner, 2026-11-08: "still seeing a
-  // weird line when i highlight stuff"). The same page, text, width and drag
-  // in the same system WebKit drew one clean band, so this redraws every reply
-  // the finished selection touches, in one pass: a change of background image
-  // that paints nothing still repaints the whole reply.
-  const repaintSelection = () => {
+  // The selection band is drawn here, not by WebKit. WebKit paints each
+  // selected line at the height of its font and fills the space between
+  // lines, and between paragraphs, from a separate pass that invalidates
+  // separately: while a drag grew the selection, that pass left a strip of
+  // plain background under one line of an otherwise solid band (product owner,
+  // 2026-11-08 and again 2026-11-16: "when i highlight text i get the stripe").
+  // Repainting the reply afterwards, and whole-pixel line heights, did not
+  // remove it. Here every line is a box of the whole line height, boxes that
+  // meet share one edge, and the space between paragraphs is its own box, so
+  // there is no gap pass left to go stale. WebKit's own band is made
+  // transparent by `.chat-own-selection` (`chat-render.css`).
+  const layer = document_.createElement("div");
+  layer.setAttribute("aria-hidden", "true");
+  layer.id = "chat-selection-layer";
+  layer.style.cssText = "position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:-1;";
+  document_.documentElement.classList.add("chat-own-selection");
+
+  const BLOCK_GAP_LIMIT = 80;
+  let paintFrame = null;
+
+  const blockOf = (element, root) => {
+    let node = element;
+    while (node && node !== root) {
+      const display = window_.getComputedStyle(node).display;
+      if (!display.startsWith("inline") && display !== "contents") return node;
+      node = node.parentElement;
+    }
+    return root;
+  };
+
+  /// The lines of the selection inside one reply: one box per visual line, as
+  /// tall as the reply's line height, with the text's own left and right.
+  const linesOf = (range, reply) => {
+    const found = [];
+    const walker = document_.createTreeWalker(reply, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!range.intersectsNode(node)) continue;
+      const start = node === range.startContainer ? range.startOffset : 0;
+      const end = node === range.endContainer ? range.endOffset : node.length;
+      if (end <= start) continue;
+      const parent = node.parentElement;
+      if (!parent) continue;
+      const sub = document_.createRange();
+      sub.setStart(node, start);
+      sub.setEnd(node, end);
+      const lineHeight = Number.parseFloat(window_.getComputedStyle(parent).lineHeight);
+      const block = blockOf(parent, reply);
+      for (const rect of sub.getClientRects()) {
+        if (rect.width < 0.5 || rect.height <= 0) continue;
+        const pad = Number.isFinite(lineHeight) && lineHeight > rect.height ? (lineHeight - rect.height) / 2 : 0;
+        found.push({ top: rect.top - pad, bottom: rect.bottom + pad, left: rect.left, right: rect.right, block, reply });
+      }
+    }
+    found.sort((a, b) => a.top - b.top || a.left - b.left);
+    // Pieces of one line (words, a chip, an inline code run) become one box.
+    const lines = [];
+    for (const piece of found) {
+      const line = lines[lines.length - 1];
+      const overlap = line ? Math.min(line.bottom, piece.bottom) - Math.max(line.top, piece.top) : 0;
+      if (line && line.block === piece.block && overlap > 0.5 * Math.min(line.bottom - line.top, piece.bottom - piece.top)) {
+        line.top = Math.min(line.top, piece.top);
+        line.bottom = Math.max(line.bottom, piece.bottom);
+        line.left = Math.min(line.left, piece.left);
+        line.right = Math.max(line.right, piece.right);
+      } else {
+        lines.push({ ...piece });
+      }
+    }
+    return lines;
+  };
+
+  const paintSelection = () => {
+    paintFrame = null;
     const selection = window_.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0);
-    const replies = [...document_.querySelectorAll(".chat-rendered")].filter((reply) => range.intersectsNode(reply));
-    for (const reply of replies) reply.classList.add("chat-selection-repaint");
-    // Two frames, not one: a class added and taken off before a frame paints
-    // changes nothing on screen, so the repaint never happened.
-    window_.requestAnimationFrame(() => {
-      window_.requestAnimationFrame(() => {
-        for (const reply of replies) reply.classList.remove("chat-selection-repaint");
+    const boxes = [];
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const lines = [];
+      for (const reply of document_.querySelectorAll(".chat-rendered")) {
+        if (range.intersectsNode(reply)) lines.push(...linesOf(range, reply));
+      }
+      // A line that is followed by another runs to the edge of its block, as
+      // a selection does in any text view; only the last line stops at its words.
+      lines.forEach((line, index) => {
+        if (index === lines.length - 1) return;
+        const style = window_.getComputedStyle(line.block);
+        const edge = line.block.getBoundingClientRect().right - Number.parseFloat(style.paddingRight || "0");
+        if (edge > line.right) line.right = edge;
       });
+      const scaleOf = window_.devicePixelRatio || 1;
+      const snap = (value) => Math.round(value * scaleOf) / scaleOf;
+      const scrollX = window_.scrollX;
+      const scrollY = window_.scrollY;
+      lines.forEach((line, index) => {
+        line.top = snap(line.top + scrollY);
+        line.bottom = snap(line.bottom + scrollY);
+        line.left = snap(line.left + scrollX);
+        line.right = snap(line.right + scrollX);
+        const above = lines[index - 1];
+        if (!above) return;
+        // Lines that meet share one edge, and the space between two blocks of
+        // one reply is a box of its own, so nothing is left unpainted.
+        if (line.top >= above.bottom - 2) {
+          const gap = line.top - above.bottom;
+          if (gap > 0 && gap <= BLOCK_GAP_LIMIT && above.reply === line.reply) {
+            boxes.push({ left: Math.min(above.left, line.left), right: Math.max(above.right, line.right), top: above.bottom, bottom: line.top });
+          } else if (gap < 0) {
+            line.top = above.bottom;
+          }
+        }
+      });
+      for (const line of lines) {
+        if (line.bottom > line.top && line.right > line.left) boxes.push(line);
+      }
+    }
+    const nodes = boxes.map((box) => {
+      const element = document_.createElement("div");
+      element.style.cssText =
+        `position:absolute;left:${box.left}px;top:${box.top}px;width:${box.right - box.left}px;` +
+        `height:${box.bottom - box.top}px;background:var(--chat-selection, color-mix(in srgb, Highlight 60%, transparent));`;
+      return element;
     });
+    layer.replaceChildren(...nodes);
+    if (nodes.length > 0 && !layer.isConnected) document_.body.append(layer);
+  };
+
+  const schedulePaint = () => {
+    if (paintFrame) return;
+    paintFrame = window_.requestAnimationFrame(paintSelection);
   };
 
   const check = () => {
     if (selectionText()) {
-      repaintSelection();
       place();
     } else hide();
   };
@@ -303,10 +411,14 @@ export function installSelectionActions({ document: document_ = document, action
     true,
   );
   document_.addEventListener("selectionchange", () => {
+    schedulePaint();
     if (!selectionText()) hide();
   });
   window_.addEventListener("scroll", schedulePlace, { passive: true });
-  window_.addEventListener("resize", schedulePlace, { passive: true });
+  window_.addEventListener("resize", () => {
+    schedulePlace();
+    schedulePaint();
+  }, { passive: true });
 
   // A redraw that takes the selected words out of the document drops the
   // selection without a `selectionchange`, and the bar stayed up over words
@@ -314,6 +426,7 @@ export function installSelectionActions({ document: document_ = document, action
   // 2026-11-13: "it's not nicely selecting what i'm expecting"). A redraw
   // that only moves the words takes the bar with them.
   const refresh = () => {
+    schedulePaint();
     if (!host || host.style.display === "none") return;
     if (selectionText()) place();
     else hide();

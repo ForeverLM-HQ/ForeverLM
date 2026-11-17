@@ -39,10 +39,12 @@
   position: relative;
 }
 
-/* Set for one frame when a selection gesture ends (`mac-selection-actions.js`):
-   an image that draws nothing, so WebKit repaints the whole reply and no strip
-   of a half-drawn selection band is left behind. */
-.chat-rendered.chat-selection-repaint { background-image: linear-gradient(transparent, transparent); }
+/* The Mac pages draw the selection band themselves (`mac-selection-actions.js`),
+   because WebKit's own left a strip of background unpainted under a line while
+   a drag grew it. Its band is made see-through there; the text keeps its colour.
+   Web Studio never sets the class and keeps the browser's. */
+.chat-own-selection .chat-rendered ::selection,
+.chat-own-selection .chat-rendered::selection { background: transparent; }
 
 .chat-rendered p { margin: 0 0 0.25em; }
 .chat-rendered > p:not(:first-child) { margin-top: 0.5em; }
