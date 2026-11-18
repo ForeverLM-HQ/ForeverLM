@@ -91,12 +91,19 @@ extension ReviewSessionManager {
         // The transcript row holds the prose alone, which the persistence
         // stamp below matches; the turn's own tool row draws the cards.
         // The pages it wrote go first, the same way (`ChatWrittenPage`).
-        let stored = ChatWrittenPage.storing(
-            ChatSavedCards.storing(response, with: stagedSavedCards),
-            with: stagedWrittenPages
+        // A plan that changed since the transcript last stored one goes
+        // first of all (`ChatReviewPlan`).
+        let planToStore = reviewPlan != storedReviewPlan ? reviewPlan : nil
+        let stored = ChatReviewPlan.storing(
+            ChatWrittenPage.storing(
+                ChatSavedCards.storing(response, with: stagedSavedCards),
+                with: stagedWrittenPages
+            ),
+            with: planToStore
         )
         stagedSavedCards = nil
         stagedWrittenPages = []
+        if planToStore != nil { storedReviewPlan = reviewPlan }
 
         if isFirst {
             let sequence = try await storage.addReviewPrompt(

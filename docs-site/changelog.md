@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A quiz chat keeps its plan beside the composer.** Ask a chat to quiz you on a source and its plan sits on the composer's tray as **Topic 2 of 7**: click it for every topic with its points ticked off as you answer, the open question, what was parked for later and the plans it replaced. When the chat wanders into side questions the tray says **off plan** and shows the path back; **Back to plan** asks the open question again. The tutor stops reprinting the plan as a checklist in its replies.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.

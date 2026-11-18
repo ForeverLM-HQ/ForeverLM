@@ -347,6 +347,7 @@ extension ReviewSessionManager {
                 case "forget_working_note": return "Forgot a note about your work"
                 case "delete_walkthrough": return "Removed walkthrough"
                 case "focus_source_anchor": return "Pointed at the source"
+                case "update_review_plan": return "Updated the plan"
                 case "list_doc_chats": return "Listed page chats"
                 case "list_source_highlights": return "Read the highlights"
                 case "search_source_highlights": return "Searched highlights"

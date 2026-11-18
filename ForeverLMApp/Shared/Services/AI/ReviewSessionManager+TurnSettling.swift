@@ -333,6 +333,9 @@ extension ReviewSessionManager {
         modelProvider: String?,
         modelID: String?
     ) -> [Message] {
+        // The plan's line is drawn by the chip beside the composer, never in
+        // the transcript (`ChatReviewPlan`).
+        let text = ChatReviewPlan.prose(of: text)
         guard let kept = Self.displayableAssistantContentKeepingSourceTurns(text) else { return [] }
         // A played walkthrough step opens with its marker line; the row it
         // becomes carries the marker as a field and shows the prose under it.

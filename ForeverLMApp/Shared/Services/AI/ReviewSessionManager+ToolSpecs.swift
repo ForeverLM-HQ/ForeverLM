@@ -780,6 +780,11 @@ extension ReviewSessionManager {
             ))
         }
 
+        // The review plan beside the composer (`ChatReviewPlan`).
+        if offersReviewPlanTool {
+            specs.append(reviewPlanToolSpec)
+        }
+
         // The walkthrough's focus, callable by the tutor: the Reader opens
         // beside the chat and scrolls to and outlines what the reply is about,
         // the way a played step does (walkthrough-design.md, "Focus is a chat

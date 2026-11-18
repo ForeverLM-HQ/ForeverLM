@@ -1412,6 +1412,18 @@ extension ReviewSessionManager {
                         isError: shown.isError,
                         images: shown.images
                     ))
+                case ChatReviewPlan.toolName:
+                    let activityID = appendToolActivity(
+                        for: AppToolCall(name: call.name, arguments: call.arguments)
+                    )
+                    let updated = updateReviewPlan(arguments: call.arguments)
+                    completeToolActivity(activityID, result: updated)
+                    results.append(AIToolResultPayload(
+                        callID: call.id,
+                        toolName: call.name,
+                        text: updated.text,
+                        isError: updated.isError
+                    ))
                 case "focus_source_anchor":
                     let activityID = appendToolActivity(
                         for: AppToolCall(name: call.name, arguments: call.arguments)

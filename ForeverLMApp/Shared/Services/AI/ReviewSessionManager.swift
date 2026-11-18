@@ -325,6 +325,16 @@ final class ReviewSessionManager {
     /// they belong to: `persistAssistantResponse` stores a line for each at
     /// its head, so a reopened chat draws their cards again.
     @ObservationIgnored var stagedWrittenPages: [ChatWrittenPage] = []
+    /// The review plan this chat is working through (`ChatReviewPlan`),
+    /// drawn beside the composer. Set by `update_review_plan` and read back
+    /// off the transcript when the chat reopens.
+    var reviewPlan: ChatReviewPlan?
+    /// The titles of the plans this chat's plan replaced, oldest first.
+    var earlierReviewPlanTitles: [String] = []
+    /// The plan the transcript last stored. A reply is saved with the plan's
+    /// line at its head whenever `reviewPlan` differs from it, so a plan set
+    /// in a turn that failed rides with the next reply that is saved.
+    @ObservationIgnored var storedReviewPlan: ChatReviewPlan?
     /// The course quiz this chat is running (`startCourseQuiz`): its
     /// questions sit in the prompt's cached head and `grade_quiz_answer`
     /// grades against it. Reopening the quiz chat restores the grader too,
@@ -1022,6 +1032,7 @@ final class ReviewSessionManager {
             modelProvider: session.modelProvider,
             modelID: session.modelID
         )
+        restoreReviewPlan(from: exchanges)
         // The chat that lands decides the walk; the chat's own walk, if it
         // has one, is picked back up below (`restoreWalkthroughPlaybackIfNeeded`).
         releaseWalkthroughPlaybackForReopenedChat(session.id)
@@ -1350,6 +1361,9 @@ final class ReviewSessionManager {
         sessionActive = false
         chatMessages = []
         resetHistoryDigest()
+        reviewPlan = nil
+        earlierReviewPlanTitles = []
+        storedReviewPlan = nil
         foundSources = []
         toolSourceTitles = ChatSourceTitleIndex()
         contextDocs = []
@@ -1413,6 +1427,9 @@ final class ReviewSessionManager {
     /// which is what keeps this from being `endSession()`.
     private func discardResumedTranscript() {
         chatMessages = []
+        reviewPlan = nil
+        earlierReviewPlanTitles = []
+        storedReviewPlan = nil
         topic = ""
         titleIsProvisional = false
         resetHistoryDigest()

@@ -228,9 +228,10 @@ extension ReviewSessionManager {
     }
 
     /// A stored reply's prose without the lines the app put at its head for
-    /// the turn's pages and saved cards (`ChatWrittenPage`, `ChatSavedCards`).
+    /// the turn's pages, saved cards and review plan (`ChatWrittenPage`,
+    /// `ChatSavedCards`, `ChatReviewPlan`).
     static func storedProse(_ text: String) -> String {
-        ChatSavedCards.prose(of: ChatWrittenPage.prose(of: text))
+        ChatSavedCards.prose(of: ChatWrittenPage.prose(of: ChatReviewPlan.prose(of: text)))
     }
 
     func messages(

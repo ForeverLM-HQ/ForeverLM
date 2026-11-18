@@ -183,6 +183,9 @@ extension ReviewSessionManager {
         }
         volatile += workingLogTurnContext()
         volatile += memoryCompanionTurnContext()
+        // The plan beside the composer, every turn, so the tutor keeps the
+        // plot after a run of side questions (`ChatReviewPlan`).
+        volatile += reviewPlanTurnContext()
         if let courseQuiz {
             // Changes with every grade, so it stays out of the cached head.
             volatile += "\n\n" + courseQuiz.progressNote

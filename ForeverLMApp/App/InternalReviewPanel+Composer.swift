@@ -518,6 +518,18 @@ extension InternalReviewPanelContent {
                 if chips.context {
                     attachedSourcesChip
                 }
+                if let plan = manager.reviewPlan, manager.offersReviewPlanTool {
+                    ReviewPlanChip(
+                        plan: plan,
+                        earlierTitles: manager.earlierReviewPlanTitles,
+                        onBackToPlan: {
+                            Task { await sendReviewChatMessage(ChatReviewPlan.backToPlanMessage) }
+                        },
+                        onGoToTopic: { index, title in
+                            Task { await sendReviewChatMessage(ChatReviewPlan.goToTopicMessage(index: index, title: title)) }
+                        }
+                    )
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -539,7 +551,8 @@ extension InternalReviewPanelContent {
         let onScreen = onScreenChipSources
         let card = onScreenCardChipCard
         let open = openItemChipItems
-        return (notebook, context, onScreen, card, open, notebook || context || !onScreen.isEmpty || card != nil || !open.isEmpty || manager.canvasContext != nil)
+        let plan = manager.reviewPlan != nil && manager.offersReviewPlanTool
+        return (notebook, context, onScreen, card, open, notebook || context || plan || !onScreen.isEmpty || card != nil || !open.isEmpty || manager.canvasContext != nil)
     }
 
     /// The Pages, Sites, web pages and courses on screen in any
