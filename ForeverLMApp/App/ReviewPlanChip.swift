@@ -141,7 +141,7 @@ struct ReviewPlanPopover: View {
                 .padding(.vertical, 8)
             }
         }
-        .frame(width: 360)
+        .frame(width: 372)
         .frame(maxHeight: 520)
     }
 
@@ -368,19 +368,28 @@ private struct ReviewPlanTopicHeader: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 6)
-            if let onGo, isHovering {
-                Button(action: onGo) {
-                    Image(systemName: "arrow.right")
-                        .font(.caption.weight(.semibold))
-                        .frame(width: 18, height: 18)
+            // The trailing slot is always there, so hovering swaps the count for
+            // the arrow without the title wrapping onto another line.
+            ZStack(alignment: .trailing) {
+                if !topic.points.isEmpty, topic.status != .done {
+                    Text("\(topic.donePoints)/\(topic.points.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .opacity(onGo != nil && isHovering ? 0 : 1)
                 }
-                .buttonStyle(.hoverWash(in: Circle(), inset: -2))
-                .help("Go to this topic")
-            } else if !topic.points.isEmpty, topic.status != .done {
-                Text("\(topic.donePoints)/\(topic.points.count)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                if let onGo {
+                    Button(action: onGo) {
+                        Image(systemName: "arrow.right")
+                            .font(.caption.weight(.semibold))
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.hoverWash(in: Circle(), inset: -2))
+                    .help("Go to this topic")
+                    .opacity(isHovering ? 1 : 0)
+                    .allowsHitTesting(isHovering)
+                }
             }
+            .frame(width: 24, alignment: .trailing)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
