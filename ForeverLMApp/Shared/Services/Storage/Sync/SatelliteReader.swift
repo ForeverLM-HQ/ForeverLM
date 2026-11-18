@@ -21,6 +21,72 @@ struct SatelliteWish: Equatable, Sendable {
 extension KnowledgeStore {
     static let satelliteWishKinds = [ChatSatellites.queueKind, QuizSatellites.queueKind, InboundSourceFiles.queueKind, BookCovers.queueKind]
 
+    /// Gives every wish that failed five times one more try: what "waits for a later launch" means. Run once
+    /// a launch. A wish whose parts the server does not hold is left alone (only a newer version of its record,
+    /// which saves the wish again, can mend it); any other failure (a bad connection, a full disk, a crash
+    /// mid-install) could have passed, and before this a paper whose PDF failed five times stayed "PDF needed"
+    /// on that Mac for good. Returns the wishes given another try.
+    @discardableResult
+    func retryExhaustedSatelliteWishes() throws -> Int {
+        let kinds = Self.satelliteWishKinds
+        try execute("""
+            UPDATE ck_backfill_queue SET attempts = 4
+            WHERE kind IN (\(kinds.map { _ in "?" }.joined(separator: ", "))) AND attempts >= 5
+              AND COALESCE(last_error, '') NOT LIKE 'missingParts%'
+        """, kinds.map { SQLiteValue.text($0) })
+        return changedRowCount
+    }
+
+    /// The learner's own ready papers whose record names a PDF this Mac never received (no `local_path` on
+    /// the pointer) while `papers.local_file_path` names a file anyway: a path this Mac wrote itself (an
+    /// ingestion it started before another Mac finished the paper) or an older build's. Both the apply
+    /// (`InboundSourceFiles.take`) and the adoption pass skip a paper with a path, so if that file is gone the
+    /// PDF the record names is never fetched. The caller checks the disk.
+    func papersHoldingAPathInsteadOfTheirPDF() throws -> [(id: String, path: String)] {
+        var rows: [(id: String, path: String)] = []
+        try query("""
+            SELECT p.source_id, p.local_file_path FROM papers p
+            JOIN sources s ON s.id = p.source_id
+            JOIN source_files f ON f.source_id = p.source_id AND f.role = 'pdf'
+            WHERE s.team_id IS NULL AND s.status = 'active' AND s.state = 'ready'
+              AND json_extract(f.file_ref, '$.heldBy') IS NULL
+              AND COALESCE(f.local_path, '') = '' AND COALESCE(p.local_file_path, '') != ''
+              AND NOT EXISTS (SELECT 1 FROM ck_backfill_queue q WHERE q.kind = ? AND q.target = p.source_id)
+        """, [.text(InboundSourceFiles.queueKind)]) { row in
+            if let id = row.text(0), let path = row.text(1) { rows.append((id, path)) }
+        }
+        return rows
+    }
+
+    /// Forgets the path of papers whose file is gone, so the adoption pass queues the PDF their record names.
+    /// Only while the path is still the one the disk was checked for. Under the apply guard: nothing is sent.
+    func forgetMissingPaperFiles(_ papers: [(id: String, path: String)]) throws {
+        guard !papers.isEmpty else { return }
+        try replica.apply { _ in
+            for paper in papers {
+                try execute(
+                    "UPDATE papers SET local_file_path = NULL WHERE source_id = ? AND local_file_path = ?",
+                    [.text(paper.id), .text(paper.path)]
+                )
+            }
+        }
+    }
+
+    /// The relative file paths of papers and books, for moving home the ones that sit in the iCloud Drive
+    /// folder the library left (`StrandedSourceFiles`).
+    func relativeSourceFilePaths() throws -> [String] {
+        var paths: [String] = []
+        for table in ["papers", "book_sources"] {
+            try query("""
+                SELECT DISTINCT local_file_path FROM \(table)
+                WHERE COALESCE(local_file_path, '') != '' AND local_file_path NOT LIKE '/%' AND local_file_path NOT LIKE '%://%'
+            """, []) { row in
+                if let path = row.text(0) { paths.append(path) }
+            }
+        }
+        return paths
+    }
+
     /// The wishes still worth trying, oldest first; a record that failed five times waits for a later
     /// launch (a newer version of it, which saves its wish again, starts it over).
     func dueSatelliteWishes(limit: Int = 20) throws -> [SatelliteWish] {
@@ -177,14 +243,21 @@ final class SatelliteReader: @unchecked Sendable {
     private let zonedFetch: (@Sendable (FileRef, String) async throws -> Data)?
     private let lock = AppLock()
     private var running = false
+    /// The once-a-launch repairs (`launchRepairs`) ran in this process.
+    private var repairedThisLaunch = false
+
+    /// Whether the launch repairs move files out of the old iCloud Drive folder: the live reader's, never a
+    /// test's, which must not touch the learner's own folders.
+    private let movesStrandedFiles: Bool
 
     init(
         store: MacPrivateSyncStore, fetch: @escaping @Sendable (FileRef) async throws -> Data,
-        zonedFetch: (@Sendable (FileRef, String) async throws -> Data)? = nil
+        zonedFetch: (@Sendable (FileRef, String) async throws -> Data)? = nil, movesStrandedFiles: Bool = false
     ) {
         self.store = store
         self.fetch = fetch
         self.zonedFetch = zonedFetch
+        self.movesStrandedFiles = movesStrandedFiles
     }
 
     static func live(blobs: BlobStore, store: MacPrivateSyncStore) -> SatelliteReader {
@@ -195,7 +268,8 @@ final class SatelliteReader: @unchecked Sendable {
                     throw CloudError(.zoneNotFound, message: "the space's root is not held yet")
                 }
                 return try await blobs.fetch(file, from: zone)
-            }
+            },
+            movesStrandedFiles: true
         )
     }
 
@@ -222,6 +296,12 @@ final class SatelliteReader: @unchecked Sendable {
         var adopted = 0
         var sourcesWritten = false
         var coversWritten = false
+        let repair = lock.withLock { () -> Bool in
+            guard !repairedThisLaunch else { return false }
+            repairedThisLaunch = true
+            return true
+        }
+        if repair { await launchRepairs() }
         // First what the records applied before this Mac took their work left behind, and the sources
         // whose satellite pointer arrived after the record did: queued as the apply queues them.
         do {
@@ -253,6 +333,38 @@ final class SatelliteReader: @unchecked Sendable {
         if sourcesWritten || adopted > 0 { Self.announceSourcesChanged() }
         if coversWritten { Self.announceBooksChanged() }
         return written
+    }
+
+    /// What keeps a paper from staying "PDF needed" on one Mac while another holds its PDF, once a launch:
+    /// files written into the old iCloud Drive folder move into the content root and the emptied folders go,
+    /// so the publisher and every reader find them where new files go; a receiving Mac whose own path for a
+    /// paper names a file that is gone drops it, so the PDF the record names is fetched; and wishes that
+    /// failed five times get another try. Each repair is logged and never stops the drain. The move runs
+    /// before the path check, so a file it just brought home is found there.
+    private func launchRepairs() async {
+        if movesStrandedFiles {
+            do {
+                let paths = try await store.onStore { try $0.relativeSourceFilePaths() }
+                let moved = StrandedSourceFiles.moveIntoContentRoot(paths)
+                if moved > 0 { Self.logger.notice("Moved \(moved) source files from the old iCloud Drive folder into the content root") }
+            } catch {
+                Self.logger.error("Moving source files home stopped: \(String(describing: error), privacy: .public)")
+            }
+        }
+        do {
+            let candidates = try await store.onStore { try $0.papersHoldingAPathInsteadOfTheirPDF() }
+            let gone = candidates.filter { StorageService.locateSourceFile($0.path) == nil }
+            try await store.onStore { try $0.forgetMissingPaperFiles(gone) }
+            if !gone.isEmpty { Self.logger.notice("\(gone.count) papers named a file that is gone; fetching the PDF their record names") }
+        } catch {
+            Self.logger.error("Checking papers' files stopped: \(String(describing: error), privacy: .public)")
+        }
+        do {
+            let retried = try await store.onStore { try $0.retryExhaustedSatelliteWishes() }
+            if retried > 0 { Self.logger.notice("Trying \(retried) satellites that failed five times again") }
+        } catch {
+            Self.logger.error("Retrying exhausted satellites stopped: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// The rows under the view model's sources changed (text, a PDF, an attestation): the same event an inbound
@@ -322,6 +434,9 @@ final class SatelliteReader: @unchecked Sendable {
                 let taken = try await store.onStore { try $0.receiveSatellite(wish, key: key, body: body, installedPath: installedPath) }
                 if taken { written += 1 } else { failure = "the bytes of \(key) are not the ones wanted" }
             } catch {
+                // Offline, rate limited, signed out: nothing about this wish, so it spends no attempt. Five
+                // drains while the network was down used to exhaust every wish they met.
+                if SourceFilePublisher.isTransient(error) { throw error }
                 failure = String(describing: error)
             }
         }
@@ -329,6 +444,96 @@ final class SatelliteReader: @unchecked Sendable {
             try await store.onStore { try $0.failSatelliteWish(wish, message: failure) }
         }
         return written
+    }
+}
+
+/// The iCloud Drive folder the library left (`StorageService.ubiquityContentRootPath`) is emptied and removed.
+/// Until 2026-11-18 the MCP tools still saved papers' PDFs there; the app opened them through its old-root
+/// fallback, but the sync publisher read the content root alone, so those papers reached the learner's other
+/// Macs with no PDF. Each file a row on this Mac names is moved to the same relative path under the content
+/// root: copied (which downloads an evicted file), checked, then deleted from the old folder; one that differs
+/// from the file already at that path comes home beside it as `name-from-icloud`. Then every empty
+/// folder under the container's `Documents` goes. A file no row here names is left for the Mac whose row names
+/// it, which moves it when it runs this; a paper that loses its file that way fetches the PDF its record
+/// names (`papersHoldingAPathInsteadOfTheirPDF`).
+enum StrandedSourceFiles {
+    /// Moves every relative path the old folder holds into the content root, and removes the old folders left
+    /// empty. Returns the files moved. Touches the disk: off the main actor only.
+    @discardableResult
+    static func moveIntoContentRoot(
+        _ relativePaths: [String],
+        contentRoot: String = StorageService.libraryRootPath,
+        oldRoot: String = StorageService.ubiquityContentRootPath
+    ) -> Int {
+        guard contentRoot != oldRoot else { return 0 }
+        let fileManager = FileManager.default
+        var moved = 0
+        for path in Set(relativePaths) where !path.hasPrefix("/") && !path.contains("..") {
+            let source = (oldRoot as NSString).appendingPathComponent(path)
+            guard fileManager.fileExists(atPath: source) else { continue }
+            var target = (contentRoot as NSString).appendingPathComponent(path)
+            if fileManager.fileExists(atPath: target), !fileManager.contentsEqual(atPath: source, andPath: target) {
+                // A different file under the same name (an MCP import that collided with one already home, a
+                // newer version of a preprint): the rows name the one at home, and this one comes home beside it
+                // under a name of its own, so the old folder can go without losing it.
+                target = freeName(beside: target, fileManager: fileManager)
+            }
+            do {
+                if !fileManager.fileExists(atPath: target) {
+                    try fileManager.createDirectory(
+                        atPath: (target as NSString).deletingLastPathComponent, withIntermediateDirectories: true
+                    )
+                    do {
+                        // Copying an evicted file downloads it, and the download can time out halfway.
+                        try fileManager.copyItem(atPath: source, toPath: target)
+                    } catch {
+                        try? fileManager.removeItem(atPath: target)
+                        throw error
+                    }
+                }
+                guard fileManager.contentsEqual(atPath: source, andPath: target) else {
+                    try? fileManager.removeItem(atPath: target)
+                    continue
+                }
+                try fileManager.removeItem(atPath: source)
+                moved += 1
+            } catch {
+                continue
+            }
+        }
+        removeEmptyFolders(under: (oldRoot as NSString).deletingLastPathComponent)
+        if moved > 0 { StudioArticle.invalidateAllResolvedPathCaches() }
+        return moved
+    }
+
+    /// `name-from-icloud.pdf` beside `path`, numbered when that is taken too.
+    private static func freeName(beside path: String, fileManager: FileManager) -> String {
+        let folder = (path as NSString).deletingLastPathComponent
+        let ext = (path as NSString).pathExtension
+        let base = ((path as NSString).lastPathComponent as NSString).deletingPathExtension + "-from-icloud"
+        var candidate = (folder as NSString).appendingPathComponent(ext.isEmpty ? base : "\(base).\(ext)")
+        var number = 2
+        while fileManager.fileExists(atPath: candidate) {
+            let name = "\(base)-\(number)"
+            candidate = (folder as NSString).appendingPathComponent(ext.isEmpty ? name : "\(name).\(ext)")
+            number += 1
+        }
+        return candidate
+    }
+
+    /// Removes every folder under `root` that holds nothing (Finder's `.DS_Store` counts as nothing), deepest
+    /// first; `root` itself stays, since the system owns the container.
+    static func removeEmptyFolders(under root: String) {
+        let fileManager = FileManager.default
+        guard let entries = try? fileManager.contentsOfDirectory(atPath: root) else { return }
+        for entry in entries {
+            let path = (root as NSString).appendingPathComponent(entry)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
+            removeEmptyFolders(under: path)
+            let left = ((try? fileManager.contentsOfDirectory(atPath: path)) ?? ["?"]).filter { $0 != ".DS_Store" }
+            if left.isEmpty { try? fileManager.removeItem(atPath: path) }
+        }
     }
 }
 

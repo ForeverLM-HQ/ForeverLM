@@ -260,6 +260,109 @@ struct SourceIngestAdoptionTests {
         ]) == 0)
     }
 
+    // MARK: A paper never stays "PDF needed" on one Mac while another holds its PDF
+
+    @Test("A paper whose own path names a file that is gone fetches the PDF its record names")
+    func goneOwnPathFetchesTheRecordsPDF() async throws {
+        let (root, store) = try Self.makeStore("ingest-gone-path")
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("ingest-gone-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: folder)
+        }
+        try F.apply(store, [try Self.record(Self.paperID)])
+        // This Mac wrote a path of its own (an ingestion it started itself) whose file is not on disk.
+        let gonePath = "Papers/gone-\(UUID().uuidString).pdf"
+        try store.execute("UPDATE papers SET local_file_path = ? WHERE source_id = ?", [.text(gonePath), .text(Self.paperID)])
+        try store.execute("DELETE FROM ck_backfill_queue")
+        #expect(try store.papersHoldingAPathInsteadOfTheirPDF().map(\.id) == [Self.paperID])
+
+        let reader = SatelliteReader(store: .direct(store)) { file in file.role == "pdf" ? Self.pdf : Data(Self.text.utf8) }
+        _ = await KnowledgeStore.$installedSourceFileRootOverride.withValue(folder) { await reader.drain() }
+
+        let path = try #require(try F.text(store, "SELECT local_file_path FROM papers WHERE source_id = ?", [.text(Self.paperID)]))
+        #expect(path != gonePath)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == Self.pdf)
+        #expect(try F.pending(store)["Source:\(Self.paperID)"] == nil, "the repair sends nothing")
+        #expect(try store.papersHoldingAPathInsteadOfTheirPDF().isEmpty)
+    }
+
+    @Test("A paper whose own path names a file on disk is left alone")
+    func presentOwnPathIsKept() async throws {
+        let (root, store) = try Self.makeStore("ingest-present-path")
+        let held = FileManager.default.temporaryDirectory.appendingPathComponent("held-\(UUID().uuidString).pdf")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: held)
+        }
+        try F.apply(store, [try Self.record(Self.paperID, text: nil)])
+        try Data("%PDF-1.7 this Mac's own copy".utf8).write(to: held)
+        try store.execute("UPDATE papers SET local_file_path = ? WHERE source_id = ?", [.text(held.path), .text(Self.paperID)])
+        try store.execute("DELETE FROM ck_backfill_queue")
+
+        let reader = SatelliteReader(store: .direct(store)) { _ in Issue.record("nothing is fetched"); return Data() }
+        _ = await reader.drain()
+        #expect(try F.text(store, "SELECT local_file_path FROM papers WHERE source_id = ?", [.text(Self.paperID)]) == held.path)
+    }
+
+    @Test("A wish that failed five times gets one more try a launch, unless the server lacks its parts")
+    func exhaustedWishesAreRetriedOnceALaunch() throws {
+        let (root, store) = try Self.makeStore("ingest-exhausted")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let failedID = "src_33333333333333333333333333333333"
+        let goneID = "src_44444444444444444444444444444444"
+        try F.apply(store, [try Self.record(failedID), try Self.record(goneID)])
+        try store.execute("UPDATE ck_backfill_queue SET attempts = 5, last_error = 'failed(write error)' WHERE target = ?", [.text(failedID)])
+        try store.execute("UPDATE ck_backfill_queue SET attempts = 5, last_error = 'missingParts([\"ct:x\"])' WHERE target = ?", [.text(goneID)])
+        #expect(try store.dueSatelliteWishes().isEmpty)
+
+        #expect(try store.retryExhaustedSatelliteWishes() == 1)
+        #expect(try store.dueSatelliteWishes().map(\.target) == [failedID])
+    }
+
+    @Test("A fetch that fails for want of a network spends no attempt")
+    func transientFailureSpendsNoAttempt() async throws {
+        let (root, store) = try Self.makeStore("ingest-offline")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try F.apply(store, [try Self.record(Self.paperID)])
+        let offline = SatelliteReader(store: .direct(store)) { _ in throw CloudError(.networkUnavailable, message: "offline") }
+        for _ in 0..<6 { _ = await offline.drain() }
+        #expect(try F.count(store, "SELECT attempts FROM ck_backfill_queue WHERE kind = 'sourceSatellites'") == 0)
+    }
+
+    @Test("Files in the old iCloud Drive folder move home, a differing one under its own name, and the emptied folders go")
+    func strandedFilesMoveHomeAndTheOldFolderGoes() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("stranded-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let content = base.appendingPathComponent("Content", isDirectory: true)
+        let documents = base.appendingPathComponent("Container/Documents", isDirectory: true)
+        let old = documents.appendingPathComponent("ForeverLM", isDirectory: true)
+        let fork = documents.appendingPathComponent("ForeverLM 2", isDirectory: true)
+        let fm = FileManager.default
+        for folder in [old.appendingPathComponent("Papers"), content.appendingPathComponent("Papers"), fork] {
+            try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+        try Data("stranded".utf8).write(to: old.appendingPathComponent("Papers/a.pdf"))
+        try Data("current".utf8).write(to: old.appendingPathComponent("Papers/same.pdf"))
+        try Data("current".utf8).write(to: content.appendingPathComponent("Papers/same.pdf"))
+        try Data("old copy".utf8).write(to: old.appendingPathComponent("Papers/differs.pdf"))
+        try Data("new copy".utf8).write(to: content.appendingPathComponent("Papers/differs.pdf"))
+
+        let moved = StrandedSourceFiles.moveIntoContentRoot(
+            ["Papers/a.pdf", "Papers/same.pdf", "Papers/differs.pdf", "Papers/missing.pdf", "../escape.pdf"],
+            contentRoot: content.path, oldRoot: old.path
+        )
+        #expect(moved == 3)
+        #expect(try Data(contentsOf: content.appendingPathComponent("Papers/a.pdf")) == Data("stranded".utf8))
+        #expect(!fm.fileExists(atPath: old.appendingPathComponent("Papers/a.pdf").path))
+        #expect(!fm.fileExists(atPath: old.appendingPathComponent("Papers/same.pdf").path))
+        #expect(try Data(contentsOf: content.appendingPathComponent("Papers/differs.pdf")) == Data("new copy".utf8), "the file the rows name stays")
+        #expect(try Data(contentsOf: content.appendingPathComponent("Papers/differs-from-icloud.pdf")) == Data("old copy".utf8), "the other one is kept")
+        #expect(!fm.fileExists(atPath: fork.path), "an empty fork folder goes")
+        #expect(!fm.fileExists(atPath: old.path), "nothing is left of the old folder")
+        #expect(fm.fileExists(atPath: documents.path), "the container's own folder stays")
+    }
+
     @Test("Text another Mac sends over this Mac's copy drops the search index built from the old words, even at the same length")
     func replacedTextDropsTheOldIndex() async throws {
         let (root, store) = try Self.makeStore("ingest-reindex")
