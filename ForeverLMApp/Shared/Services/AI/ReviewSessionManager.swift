@@ -219,6 +219,12 @@ final class ReviewSessionManager {
     /// "in context" count, and it is remembered beside the saved chat so a
     /// reopen restores it (`persistLoadedSourceIDs`).
     var loadedSourceIDs: Set<String> = []
+    /// Sources the learner brought in that the chat reads on demand rather
+    /// than holding their text: a whole book's chapters (product owner,
+    /// 2026-11-17, after nine of a book's chapters filled the source budget
+    /// and the rest were left out without a word). They are in the catalog,
+    /// `retrieve_sources` reads them, and the "in context" pill counts them.
+    var onDemandSourceIDs: Set<String> = []
 
     /// Sources the learner has brought into this conversation since their last
     /// message — the ones the transcript will say were "added to context" above
@@ -1116,6 +1122,11 @@ final class ReviewSessionManager {
             sourceContext = restored.text
             perSourcePromptShares = restored.shares
             loadedSourceIDs = restored.loadedIDs
+            onDemandSourceIDs = Self.onDemandSourceIDsOnResume(
+                attached: activeSourceIDs,
+                loaded: loadedSourceIDs,
+                exchanges: exchanges
+            )
             if remembered == nil {
                 await persistLoadedSourceIDs()
             }
@@ -1318,6 +1329,7 @@ final class ReviewSessionManager {
         sourceContext = ""
         fullSourceRetrievalOffsets = [:]
         loadedSourceIDs = []
+        onDemandSourceIDs = []
         pendingContextAdditions = []
         pendingMemoryReviewNotes = []
         perSourcePromptShares = []
@@ -1349,6 +1361,7 @@ final class ReviewSessionManager {
         sourceContext = ""
         fullSourceRetrievalOffsets = [:]
         loadedSourceIDs = []
+        onDemandSourceIDs = []
         pendingContextAdditions = []
         pendingMemoryReviewNotes = []
         perSourcePromptShares = []

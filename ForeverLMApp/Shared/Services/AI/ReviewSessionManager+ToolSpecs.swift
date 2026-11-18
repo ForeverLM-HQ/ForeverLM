@@ -459,6 +459,19 @@ extension ReviewSessionManager {
     /// a chat with a single attached source is about that source whether or
     /// not a turn linked it — and never a Notebook pool that was only ever
     /// catalog.
+    /// What a reopened chat reads on demand: the sources its transcript says
+    /// the learner added ("Added 9 book chapters to context") that are still
+    /// attached and whose text is not held. Read off the marks, so nothing
+    /// new is stored for it.
+    nonisolated static func onDemandSourceIDsOnResume(
+        attached: [String],
+        loaded: Set<String>,
+        exchanges: [ReviewExchangeRecord]
+    ) -> Set<String> {
+        let added = exchanges.flatMap { ChatContextAdditions.parse(contextContent: $0.contextContent).added.map(\.id) }
+        return Set(added).intersection(attached).subtracting(loaded)
+    }
+
     nonisolated static func sourceIDsToReloadOnResume(
         remembered: [String]?,
         attached: [String],

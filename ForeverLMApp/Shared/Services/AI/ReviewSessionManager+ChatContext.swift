@@ -8,7 +8,9 @@ extension ReviewSessionManager {
         let requestedArticles = articles.filter { article in
             seenIDs.insert(article.id).inserted
         }
-        let articlesToLoad = requestedArticles.filter { !loadedSourceIDs.contains($0.id) }
+        let articlesToLoad = requestedArticles.filter {
+            !loadedSourceIDs.contains($0.id) && !onDemandSourceIDs.contains($0.id)
+        }
         let newArticles = requestedArticles.filter { !activeSourceIDs.contains($0.id) }
         guard !articlesToLoad.isEmpty else { return }
 
@@ -16,7 +18,7 @@ extension ReviewSessionManager {
         await refreshSourceContextBudgetFromSelectedModel()
         let requestedContext = await loadSourceContext(from: articlesToLoad)
 
-        guard !requestedContext.readableSourceIDs.isEmpty else {
+        guard !requestedContext.readableSourceIDs.isEmpty || !Self.onDemandDrop(articlesToLoad).isEmpty else {
             isSearching = false
             errorMessage = "No readable source content is available for the dropped source."
             return
@@ -37,13 +39,20 @@ extension ReviewSessionManager {
         // Notebook pool. The pool itself stays catalog-only.
         // Appended rather than rebuilt so text loaded earlier in the session
         // survives and stays byte-identical for the cache.
+        // A book's chapters are the exception: they join on demand
+        // (`onDemandSourceIDs`), so the whole book is in the chat and none of
+        // it is pasted in.
+        let onDemand = Self.onDemandDrop(articlesToLoad)
         let dropped = await loadSourceTextBlock(
-            for: articlesToLoad,
+            for: articlesToLoad.filter { !onDemand.contains($0.id) },
             budget: max(0, sourceContextCharacterLimit - sourceContext.count)
         )
         isSearching = false
         appendLoadedSourceText(dropped)
-        recordContextAdditions(articlesToLoad.filter { dropped.loadedIDs.contains($0.id) })
+        onDemandSourceIDs.formUnion(onDemand)
+        recordContextAdditions(articlesToLoad.filter {
+            dropped.loadedIDs.contains($0.id) || onDemand.contains($0.id)
+        })
 
         if let sessionID {
             do {
@@ -65,6 +74,15 @@ extension ReviewSessionManager {
                 }
             }
         }
+    }
+
+    /// The chapters of a drop that join on demand: book chapters, when the
+    /// drop carries more than one (a whole book, or several of its chapters).
+    /// One chapter dropped alone is read in, like an article.
+    nonisolated static func onDemandDrop(_ articles: [StudioArticle]) -> Set<String> {
+        let chapters = articles.filter { $0.sourceType == .book }
+        guard chapters.count > 1 else { return [] }
+        return Set(chapters.map(\.id))
     }
 
     /// Attach a Doc to this chat, or refresh one already attached to the
@@ -283,6 +301,7 @@ extension ReviewSessionManager {
         sourceContext = reloaded.text
         perSourcePromptShares = reloaded.shares
         loadedSourceIDs = reloaded.loadedIDs
+        onDemandSourceIDs.subtract(sourceIDs)
         // Detached before a message was sent: there is nothing to say it was added.
         pendingContextAdditions.removeAll { sourceIDs.contains($0.id) }
 

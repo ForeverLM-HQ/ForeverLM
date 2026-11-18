@@ -113,6 +113,8 @@ extension ReviewSessionManager {
         // its visible context count and making the first request catalog-only.
         let stagedPreloadIDs = sessionID == nil && !sessionActive ? loadedSourceIDs : []
         let effectivePreloadIDs = preloadIDs.union(stagedPreloadIDs)
+        // A book dropped on the idle composer joins the new chat on demand.
+        let stagedOnDemandIDs = sessionID == nil && !sessionActive ? onDemandSourceIDs : []
         foundSources = context.sources
         sourceManifest = context.manifest
         fullSourceRetrievalOffsets = [:]
@@ -131,6 +133,7 @@ extension ReviewSessionManager {
         sourceContext = loaded.text
         perSourcePromptShares = loaded.shares
         loadedSourceIDs = loaded.loadedIDs
+        onDemandSourceIDs = stagedOnDemandIDs.intersection(activeSourceIDs).subtracting(loadedSourceIDs)
     }
 
     func loadSourceContext(from articles: [StudioArticle]) async -> SourceContext {

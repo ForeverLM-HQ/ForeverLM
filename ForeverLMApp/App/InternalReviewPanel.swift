@@ -416,9 +416,10 @@ struct InternalReviewPanelContent: View {
 
     /// Sources whose text is actually in the model's context right now,
     /// because the learner dropped them in or the assistant went and read
-    /// them. Grows during a conversation.
+    /// them, and a dropped book's chapters, which the chat reads on demand
+    /// (`onDemandSourceIDs`). Grows during a conversation.
     var loadedSources: [StudioArticle] {
-        reviewSources.filter { manager.loadedSourceIDs.contains($0.id) }
+        reviewSources.filter { manager.loadedSourceIDs.contains($0.id) || manager.onDemandSourceIDs.contains($0.id) }
     }
 
     var reviewChatDropTypes: [UTType] {
