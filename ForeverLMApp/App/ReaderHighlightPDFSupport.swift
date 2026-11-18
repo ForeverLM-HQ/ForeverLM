@@ -156,7 +156,7 @@ enum ReaderPDFHighlightSupport {
             }
             guard let anchor = resolvedPDFAnchor(for: highlight, in: document, pageRange: pageRange),
                   let page = document.page(at: anchor.pageIndex) else { continue }
-            for rect in withoutOverlap(anchor.rects) where !rect.isNull && !rect.isEmpty {
+            for rect in withoutOverlap(joiningLineFragments(anchor.rects)) where !rect.isNull && !rect.isEmpty {
                 let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
                 annotation.color = color(for: highlight.color)
                 annotation.userName = annotationPrefix + highlight.id
@@ -170,6 +170,29 @@ enum ReaderPDFHighlightSupport {
             }
         }
         return installed
+    }
+
+    /// PDFKit splits a line's selection around a glyph it cannot map to a
+    /// character, such as the "fl" ligature some publisher fonts draw as one
+    /// glyph ("in ammation"), and leaves a hole where that glyph sits. Rects on
+    /// one baseline whose gap is narrower than the line is tall are one run of
+    /// text, so they are joined; a column gutter is wider and stays apart.
+    static func joiningLineFragments(_ rects: [CGRect]) -> [CGRect] {
+        var result: [CGRect] = []
+        for rect in rects {
+            let neighbour = result.firstIndex { other in
+                let tolerance = min(other.height, rect.height) * 0.5
+                guard abs(other.midY - rect.midY) <= tolerance else { return false }
+                let gap = max(rect.minX - other.maxX, other.minX - rect.maxX)
+                return gap <= max(other.height, rect.height)
+            }
+            if let neighbour {
+                result[neighbour] = result[neighbour].union(rect)
+            } else {
+                result.append(rect)
+            }
+        }
+        return result
     }
 
     /// A line's selection bounds run a little taller than the line pitch, so
