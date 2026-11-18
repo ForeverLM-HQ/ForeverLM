@@ -20,6 +20,8 @@ ForeverLM classifies a source as a paper in two steps:
 
 **Step 2 — LLM classification.** Journals like Science and Nature publish both research papers and shorter editorial content (news articles, commentary, perspectives). These live on the same domain, so URL detection alone can't tell them apart. Before downloading a PDF, ForeverLM sends the URL and title to a lightweight LLM call on your Background text model (the **Source Classification** task in **Settings → Background → Tasks**) that classifies the source as a paper or article. Editorial content is automatically moved to the Articles tab.
 
+**Conference abstracts.** A meeting abstract, such as one in a society's annual-meeting supplement, is the whole publication: no full paper or PDF stands behind it. When the AI browser sees that, the source is not marked paywalled and does not wait for a PDF. It moves to the Articles tab and reads as the page it is. **Recheck all** on paywalled papers moves abstracts that were marked paywalled earlier.
+
 This also works in the other direction: if a web article turns out to be an academic paper (e.g., a preprint hosted on a personal blog), the LLM reclassifies it after fetching the content.
 
 ## Adding a Paper

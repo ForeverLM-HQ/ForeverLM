@@ -1057,6 +1057,13 @@ extension StudioViewModel {
             logger.info("AI browser found that \(articleId) is not a paper: \(reason)")
             await reclassifyPaperAsArticle(articleId: articleId, reason: reason)
             return .notAPaper(reason)
+        } catch SourceDiscovery.PaperAIBrowserDownloadService.BrowserAgentError.conferenceAbstract(let reason) {
+            // The abstract is the whole publication: no PDF to wait for, no
+            // paywall to mark. It is read as the page it is, in Articles.
+            logger.info("AI browser found that \(articleId) is a conference abstract: \(reason)")
+            let moved = "Conference abstract with no full paper: \(reason)"
+            await reclassifyPaperAsArticle(articleId: articleId, reason: moved)
+            return .notAPaper(moved)
         } catch {
             logger.warning("AI browser paper download failed for \(articleId): \(error.localizedDescription)")
             return .failed(error)

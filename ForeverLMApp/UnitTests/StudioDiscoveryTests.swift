@@ -1675,3 +1675,20 @@ struct XBookmarkServiceTests {
     }
 }
 #endif
+
+@Suite("Paper browser agent: conference abstracts")
+struct PaperBrowserConferenceAbstractTests {
+    @Test("The agent can name a conference abstract, and is told it is not a paywall")
+    func promptOffersConferenceAbstract() {
+        #expect(Prompts.paperBrowserAgent.contains("\"action\":\"conference_abstract\""))
+        #expect(Prompts.paperBrowserAgent.contains("nothing is paywalled"))
+    }
+
+    @Test("A conference abstract reads as its own outcome, not a paywall")
+    func conferenceAbstractDescription() {
+        let error = SourceDiscovery.PaperAIBrowserDownloadService.BrowserAgentError
+            .conferenceAbstract("Annual meeting abstract printed in full")
+        #expect(error.errorDescription?.hasPrefix("Conference abstract") == true)
+        #expect(error.errorDescription?.contains("aywall") == false)
+    }
+}

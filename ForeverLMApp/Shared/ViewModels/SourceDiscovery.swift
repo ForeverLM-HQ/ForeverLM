@@ -1060,6 +1060,11 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
         /// comment), so there is no PDF to find and the source should leave
         /// the paper pipeline rather than wait for a recheck.
         case notAPaper(String)
+        /// The page is a conference abstract: the abstract on it is the whole
+        /// publication, so no PDF exists to find and nothing is paywalled. It
+        /// leaves the paper pipeline like `notAPaper`, because a paper is a
+        /// file and this has none.
+        case conferenceAbstract(String)
         case blockedAction(String)
         case invalidAgentResponse(String)
         case downloadFailed(String)
@@ -1079,6 +1084,8 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
                 return "Looks paywalled: \(detail)"
             case .notAPaper(let detail):
                 return "Not a paper: \(detail)"
+            case .conferenceAbstract(let detail):
+                return "Conference abstract with no full paper: \(detail)"
             case .blockedAction(let detail):
                 return "Stopped before unsafe action: \(detail)"
             case .invalidAgentResponse(let detail):
@@ -1296,6 +1303,9 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
 
             case "not_a_paper":
                 throw BrowserAgentError.notAPaper(Self.reasonOrDefault(reason, fallback: "The page is a news story or commentary, not a scholarly paper."))
+
+            case "conference_abstract":
+                throw BrowserAgentError.conferenceAbstract(Self.reasonOrDefault(reason, fallback: "The page is a conference abstract; no full paper or PDF exists."))
 
             case "give_up":
                 throw BrowserAgentError.noOpenAccessPDF(reason.isEmpty ? "No open-access PDF found." : reason)
