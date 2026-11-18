@@ -1274,7 +1274,8 @@ struct GettingStartedGuide: View {
         Group {
             switch aiPage {
             case .key: openRouterKeyPage
-            case .models: GettingStartedModelsPage(isReady: $modelsReady)
+            case .models:
+                GettingStartedModelsPage(isReady: $modelsReady) { show(.providerCredits) }
             }
         }
         .frame(maxWidth: .infinity)
@@ -1287,7 +1288,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "key.fill",
                 title: "Connect OpenRouter",
-                detail: "ForeverLM's AI runs on your own OpenRouter account, which reaches every major AI model at cost. Free models cost nothing."
+                detail: "ForeverLM's AI runs on your own OpenRouter account, which reaches every major AI model at cost. Free models cost nothing, and OpenAI or Anthropic API credits you already have can pay for those companies' models."
             )
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
@@ -1356,10 +1357,13 @@ struct GettingStartedGuide: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             // Shown connected or not: the credits are set up on OpenRouter's
-            // site, before or after this key.
-            secondaryAction("Have OpenAI or Anthropic API credits? Use them through OpenRouter") {
-                show(.providerCredits)
-            }
+            // site, before or after this key. A bordered button, not the quiet
+            // link: the product owner asked for this to be "super clear"
+            // (2026-11-11), and a grey line under the blue button was missed.
+            Button("Use my OpenAI or Anthropic API credits") { show(.providerCredits) }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .accessibilityIdentifier("gettingStarted.providerCredits")
         }
     }
 
@@ -1388,6 +1392,7 @@ struct GettingStartedGuide: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .setupCard()
             primaryAction("Open OpenRouter Integrations") { open(Self.openRouterIntegrationsURL) }
+            pageNote(Self.subscriptionIsNotCredit)
             pageNote("Voice mode doesn't go through OpenRouter and needs no key. To run it on your own OpenAI key, add the key later under the OpenRouter button at the bottom left, in Voice mode.")
         }
     }
@@ -1398,8 +1403,13 @@ struct GettingStartedGuide: View {
         "On OpenRouter, open Settings › Integrations",
         "Add your OpenAI or Anthropic API key under that company's name",
         "Choose Never use shared capacity, so those models never bill your OpenRouter credits",
-        "Then pick their models here: under Choose my own on the next page, or later in Settings",
+        "Then pick their models in ForeverLM: under Choose my own on the models page, or later in Settings",
     ]
+
+    /// A ChatGPT or Claude subscription is the mistake this page heads off:
+    /// it pays for that company's own app, not for API calls, so it has no
+    /// key to add here.
+    static let subscriptionIsNotCredit = "A ChatGPT or Claude subscription isn't API credit and can't be used here. API credits are bought, or granted, at platform.openai.com or console.anthropic.com."
 
     static let openRouterIntegrationsURL = URL(string: "https://openrouter.ai/settings/integrations")!
 
@@ -1480,6 +1490,12 @@ struct GettingStartedGuide: View {
     }
 
     private func goForward() {
+        // The credits page opened from the models page goes back to it:
+        // the models are still that page's question.
+        if step == .enhancements, aiPage == .models, page == .providerCredits {
+            withAnimation(.easeInOut(duration: 0.2)) { pages = [] }
+            return
+        }
         // The key page leads to the models page; the models page says
         // background work draws on what they chose.
         if step == .enhancements, aiPage == .key {

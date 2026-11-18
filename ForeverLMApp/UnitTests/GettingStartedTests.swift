@@ -119,6 +119,8 @@ struct GettingStartedTests {
         // Without it, a call the key cannot serve bills OpenRouter credits.
         #expect(steps.contains { $0.contains("Never use shared capacity") })
         #expect(GettingStartedGuide.openRouterIntegrationsURL.host == "openrouter.ai")
+        // A ChatGPT or Claude subscription is not API credit; the page says so.
+        #expect(GettingStartedGuide.subscriptionIsNotCredit.contains("subscription isn't API credit"))
     }
 
     @Test("The connector plan knows each AI app by the name it registered")

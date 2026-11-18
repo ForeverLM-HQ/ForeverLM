@@ -10,6 +10,9 @@ import SwiftUI
 /// waits for it.
 struct GettingStartedModelsPage: View {
     @Binding var isReady: Bool
+    /// Opens Setup's page on running OpenAI and Anthropic models on the
+    /// learner's own API credits, for anyone who passed it on the key page.
+    var onUseProviderCredits: (() -> Void)? = nil
 
     @State private var choice: RecommendedModels.Choice?
     @State private var loadError: String?
@@ -48,6 +51,11 @@ struct GettingStartedModelsPage: View {
                 Link(ManagedAI.OwnKeyRouter.openRouter.creditsLinkTitle, destination: ManagedAI.OwnKeyRouter.openRouter.creditsURL)
                     .accessibilityIdentifier("gettingStarted.openRouterCredits")
                     .help("Free models answer 50 requests a day until you have bought $10 of credits in total, then 1,000.")
+                if let onUseProviderCredits {
+                    Button("Or pay with your OpenAI or Anthropic API credits", action: onUseProviderCredits)
+                        .buttonStyle(.link)
+                        .accessibilityIdentifier("gettingStarted.modelsProviderCredits")
+                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
