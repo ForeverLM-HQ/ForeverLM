@@ -33,6 +33,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.225.0 (build 305) — 2026-11-18
+
+**Highlights:**
+- **Dictation opens at once and no longer stutters the chat.**
+
+- **Recording and transcribing feel smooth.** The waveform shows the moment you click the mic, and the chat no longer stutters while you talk: the mic opens in the background, and only the waveform redraws as you speak.
+- **A message sent while a reply is being written waits behind it.** The review plan, slash commands, Skip and the memory-review buttons now queue like the composer does, so the tutor answers the message you just sent rather than the one before it.
+- **The chat no longer mistakes your message for part of its own notes.** A question sent in a long chat could be answered as if it had arrived empty.
+- **A paper's PDF reaches your other Mac,** even when it sat in the old iCloud folder, and nothing writes to that folder any more.
+- **Hovering a topic in the review plan no longer wraps its title.**
+- **Selecting a paragraph in a reply no longer paints a bar across the page** under it.
+
 ## 0.224.0 (build 304) — 2026-11-17
 
 **Highlights:**
