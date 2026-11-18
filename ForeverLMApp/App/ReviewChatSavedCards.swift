@@ -379,15 +379,21 @@ struct ReviewChatSavedCardsView: View {
         }
     }
 
-    /// Reads the cards, and reads again a few times a second apart while the
-    /// read finds none or fails: an empty answer is never kept as the last
-    /// word, since the cards of a reply a moment old (or of a chat opened on a
-    /// Mac their rows are still reaching) can land after the first read. Only
-    /// a read that found cards is remembered for the next time the deck opens.
+    /// Reads the cards, and while the read finds none or fails, reads again
+    /// for as long as the deck is on screen: at once, then further and further
+    /// apart, then every ten seconds. The cards of a reply a moment old can read
+    /// as none for longer than a few seconds (a popover opened right after the
+    /// reply said "not on this Mac" while the next open drew both cards), and
+    /// a chat opened on another Mac waits for their rows to arrive. So an empty
+    /// read is never the last word. Until about ten seconds have passed the deck
+    /// keeps its spinner; after that it says what it found and keeps looking.
+    /// Only a read that found cards is remembered for the next time it opens.
     private func load() async {
-        let attempts = 4
+        let pauses: [Double] = [0.5, 1, 1.5, 2, 2, 3]
+        var waited = 0.0
+        var attempt = 0
         var lastWasEmpty = false
-        for attempt in 0..<attempts {
+        while !Task.isCancelled {
             if let read = await vm.chatSavedCards(saved) {
                 if !read.isEmpty {
                     readFailed = false
@@ -398,16 +404,22 @@ struct ReviewChatSavedCardsView: View {
                 }
                 lastWasEmpty = true
             }
-            guard attempt < attempts - 1 else { break }
-            try? await Task.sleep(for: .seconds(1))
-            if Task.isCancelled { return }
+            if waited >= 10 { showNothingFound(lastWasEmpty: lastWasEmpty) }
+            let pause = attempt < pauses.count ? pauses[attempt] : 10
+            attempt += 1
+            waited += pause
+            try? await Task.sleep(for: .seconds(pause))
         }
-        // Nothing found: say so (never from a stale remembered empty deck) or,
-        // when every read failed and none ever answered, that it could not be read.
+    }
+
+    /// Says what the reads found: the cards are not here (never from a stale
+    /// remembered empty deck) or, when every read failed and none answered,
+    /// that they could not be read.
+    private func showNothingFound(lastWasEmpty: Bool) {
         ChatSavedCardsMemory.cards["\(saved.destination)"] = nil
         if lastWasEmpty {
             readFailed = false
-            cards = []
+            if cards != [] { cards = [] }
         } else {
             readFailed = cards == nil
         }
