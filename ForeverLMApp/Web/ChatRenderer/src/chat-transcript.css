@@ -42,6 +42,37 @@ body {
   line-height: 1.48;
 }
 
+/* The reply's own band is drawn by `mac-selection-actions.js`, but WebKit still
+   fills the space between two blocks wherever a selection runs on into the
+   next one, and a paragraph selected by a triple-click does: it ends at the
+   start of the suggested question under the reply, so a bar the width of the
+   page showed under the reply's icons (product owner, 2026-11-17: "why does
+   this gray bar show up? There's no reason for that"). That gap is painted from
+   the containers' own selection colour, which the reply's rule in
+   `chat-render.css` does not reach. The containers go see-through, and a
+   selection colour is inherited, so the text WebKit still paints itself (your
+   own messages, the reasoning, the summary and errors) is given its colour
+   back; a reply keeps the band `mac-selection-actions.js` draws. */
+.chat-own-selection::selection,
+.chat-own-selection body::selection,
+.chat-own-selection #transcript::selection,
+.chat-own-selection #blocks::selection,
+.chat-own-selection #tail::selection,
+.chat-own-selection .block::selection,
+.chat-own-selection .prose::selection,
+.chat-own-selection .answer-footer::selection,
+.chat-own-selection .suggested::selection { background: transparent; }
+
+.chat-own-selection .user-text::selection,
+.chat-own-selection .user-text ::selection,
+.chat-own-selection .work-reasoning::selection,
+.chat-own-selection .work-reasoning ::selection,
+.chat-own-selection .summary::selection,
+.chat-own-selection .error::selection,
+.chat-own-selection .suggested-question::selection {
+  background: color-mix(in srgb, Highlight 60%, transparent);
+}
+
 #transcript {
   max-width: var(--column-max);
   margin: 0 auto;
