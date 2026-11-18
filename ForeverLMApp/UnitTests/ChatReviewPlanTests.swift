@@ -134,4 +134,46 @@ struct ChatReviewPlanTests {
         ])
         #expect(plan.progressLabel == "2 of 3 done")
     }
+
+    @Test("Clearing the plan ends it on reopen, and it is listed as an earlier plan")
+    func clearedLine() {
+        let plan = Self.samplePlan()
+        let replies = [
+            ChatReviewPlan.storing("a", with: plan),
+            "b\n\n" + ChatReviewPlan.clearedLine,
+        ]
+        let found = ChatReviewPlan.latest(inStoredReplies: replies)
+        #expect(found.plan == nil)
+        #expect(found.earlierTitles == ["Episode on mitochondria"])
+        #expect(ChatReviewPlan.prose(of: replies[1]) == "b")
+        var next = plan
+        next.title = "Second pass"
+        let again = ChatReviewPlan.latest(inStoredReplies: replies + [ChatReviewPlan.storing("c", with: next)])
+        #expect(again.plan == next)
+        #expect(again.earlierTitles == ["Episode on mitochondria"])
+    }
+
+    @Test("A number the model put in front of a topic is left off")
+    func topicNumbers() throws {
+        #expect(ChatReviewPlan.withoutLeadingNumber("1. What mitochondria do") == "What mitochondria do")
+        #expect(ChatReviewPlan.withoutLeadingNumber("12) Supplements") == "Supplements")
+        #expect(ChatReviewPlan.withoutLeadingNumber("5-HT signalling") == "5-HT signalling")
+        #expect(ChatReviewPlan.withoutLeadingNumber("2024 trials") == "2024 trials")
+        let plan = try ChatReviewPlan.fromToolArguments([
+            "title": "T",
+            "topics": [["title": "3. Metformin", "status": "todo", "points": []]],
+        ])
+        #expect(plan.topics[0].title == "Metformin")
+        let stored = ChatReviewPlan.Topic(title: "2. Is dysfunction inevitable?", status: .todo)
+        #expect(stored.displayTitle == "Is dysfunction inevitable?")
+    }
+
+    @Test("A topic's progress counts partial points as half")
+    func progress() {
+        let topic = Self.samplePlan().topics[0]
+        #expect(abs(topic.progress - 0.5) < 0.0001)
+        #expect(ChatReviewPlan.Topic(title: "x", status: .done).progress == 1)
+        #expect(Self.samplePlan().totalPoints == 4)
+        #expect(Self.samplePlan().donePoints == 2)
+    }
 }

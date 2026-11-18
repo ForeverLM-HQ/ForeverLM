@@ -18,7 +18,7 @@ extension ReviewSessionManager {
         }
         return AIToolSpec(
             name: ChatReviewPlan.toolName,
-            description: "Keep the review plan the learner sees beside the composer. Call it whenever you quiz the learner on a source, an episode or a set of points: once to set the plan when the review starts, and again whenever it changes — after each answer you grade (tick the points the answer covered: done, or partial when only part was right), when you move to another topic, when you ask a new question (open_question), when the learner leaves the plan for a side question or a tangent (push a few words for it onto detours) or comes back (pop it; a return to the plan empties detours), and when something is promised for later (parked). Send the whole plan every time; it replaces the last one. List every point a topic has to cover, so a topic is done only when its points are, and never mark a topic done while points under it are not. Do not write the plan out as a checklist in the reply: the learner sees it beside the composer; say in a sentence where you are instead. When the learner says \"back to the plan\", empty detours and ask the open question again.",
+            description: "Keep the review plan the learner sees beside the composer. Call it whenever you quiz the learner on a source, an episode or a set of points: once to set the plan when the review starts, and again whenever it changes — after each answer you grade (tick only the points the learner's own answer covered: done when it was right, partial when only part was; a point you explained and the learner has not yet answered stays todo), when you move to another topic, when you ask a new question (open_question), when the learner leaves the plan for a side question or a tangent (push a few words for it onto detours) or comes back (pop it; a return to the plan empties detours), and when something is promised for later (parked). Send the whole plan every time; it replaces the last one. List every point a topic has to cover, so a topic is done only when its points are, and never mark a topic done while points under it are not. Do not write the plan out as a checklist in the reply: the learner sees it beside the composer; say in a sentence where you are instead. When the learner says \"back to the plan\", empty detours and ask the open question again.",
             inputSchema: [
                 "type": "object",
                 "properties": [
@@ -32,7 +32,7 @@ extension ReviewSessionManager {
                         "items": [
                             "type": "object",
                             "properties": [
-                                "title": ["type": "string", "description": "The topic in a few words."],
+                                "title": ["type": "string", "description": "The topic in a few words, without a number: the plan numbers its topics itself."],
                                 "status": status("active is the one being worked on, at most one.", ["todo", "active", "done", "skipped"]),
                                 "points": [
                                     "type": "array",
@@ -93,6 +93,30 @@ extension ReviewSessionManager {
             text: "Plan saved and shown beside the composer (\(plan.progressLabel)). Do not repeat it as a list in the reply.",
             isError: false
         )
+    }
+
+    /// The learner's Clear Plan: the chip goes, the tutor stops reading the
+    /// plan, and the chat's latest reply is marked cleared at once so a
+    /// reopened chat, and the other devices, hold no plan either. The tutor
+    /// can set a new one when asked.
+    func clearReviewPlan() async {
+        guard let plan = reviewPlan else { return }
+        if earlierReviewPlanTitles.last != plan.title {
+            earlierReviewPlanTitles.append(plan.title)
+        }
+        reviewPlan = nil
+        guard let sessionID, storedReviewPlan != nil else {
+            storedReviewPlan = nil
+            return
+        }
+        do {
+            try await storage.appendLineToLatestReviewReply(sessionID: sessionID, line: ChatReviewPlan.clearedLine)
+            storedReviewPlan = nil
+        } catch {
+            // The chip is gone for now; say the clear was not saved, so a
+            // reopened chat showing the plan again is not a surprise.
+            errorMessage = "The plan was cleared here but not saved: \(error.localizedDescription)"
+        }
     }
 
     /// The plan a reopened chat holds: the last one its replies stored.

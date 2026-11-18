@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The review plan reads more calmly and can be cleared.** One colour marks the topic you are on, ticks are grey, only that topic shows its points (click another to open it, or its arrow to go there), and a bar of seven segments shows how far each topic has got. Topics are no longer numbered twice. **Clear Plan** in the plan's **⋯** menu takes it out of the chat.
 - **A quiz chat keeps its plan beside the composer.** Ask a chat to quiz you on a source and its plan sits on the composer's tray as **Topic 2 of 7**: click it for every topic with its points ticked off as you answer, the open question, what was parked for later and the plans it replaced. When the chat wanders into side questions the tray says **off plan** and shows the path back; **Back to plan** asks the open question again. The tutor stops reprinting the plan as a checklist in its replies.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.

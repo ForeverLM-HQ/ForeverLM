@@ -626,4 +626,43 @@ extension KnowledgeStore {
         }
     }
 
+
+    /// Adds `line` on its own at the end of the chat's latest stored reply:
+    /// the evaluation of its last exchange, or that exchange's question when
+    /// it has no evaluation yet. Used for a mark the learner sets between
+    /// replies (`ChatReviewPlan.clearedLine`), which must hold before the
+    /// next reply is saved. The generated outbox triggers carry the change
+    /// to the other devices. False when the chat has no stored reply.
+    @discardableResult
+    func appendLineToLatestReviewReply(sessionID: String, line: String) throws -> Bool {
+        var target: (id: String, field: String)?
+        try queryBind("""
+            SELECT id,
+                   CASE WHEN evaluation IS NOT NULL AND TRIM(evaluation) <> '' THEN 'evaluation' ELSE 'question' END
+            FROM review_exchanges
+            WHERE session_id = ?
+              AND (TRIM(question) <> '' OR (evaluation IS NOT NULL AND TRIM(evaluation) <> ''))
+            ORDER BY sequence_number DESC
+            LIMIT 1
+        """, bind: { stmt in
+            bind(stmt, 1, sessionID)
+        }) { stmt in
+            if let id = self.string(stmt, 0), let field = self.string(stmt, 1) {
+                target = (id, field)
+            }
+        }
+        guard let target else { return false }
+        let column = target.field == "evaluation" ? "evaluation" : "question"
+        try execBind("""
+            UPDATE review_exchanges
+            SET \(column) = RTRIM(\(column)) || ? || ?
+            WHERE id = ? AND session_id = ?
+        """) { stmt in
+            bind(stmt, 1, "\n\n")
+            bind(stmt, 2, line)
+            bind(stmt, 3, target.id)
+            bind(stmt, 4, sessionID)
+        }
+        return true
+    }
 }

@@ -385,6 +385,13 @@ extension StorageService {
         scheduleCloudKitSync(.immediate)
     }
 
+    @discardableResult
+    func appendLineToLatestReviewReply(sessionID: String, line: String) throws -> Bool {
+        let appended = try knowledgeStore().appendLineToLatestReviewReply(sessionID: sessionID, line: line)
+        if appended { scheduleCloudKitSync(.immediate) }
+        return appended
+    }
+
     func deleteReviewSession(_ sessionId: String) throws {
         try knowledgeStore().deleteReviewSession(sessionId)
         scheduleCloudKitSync(.immediate)

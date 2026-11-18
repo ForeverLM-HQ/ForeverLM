@@ -527,6 +527,9 @@ extension InternalReviewPanelContent {
                         },
                         onGoToTopic: { index, title in
                             Task { await sendReviewChatMessage(ChatReviewPlan.goToTopicMessage(index: index, title: title)) }
+                        },
+                        onClear: {
+                            Task { await manager.clearReviewPlan() }
                         }
                     )
                 }

@@ -61,6 +61,31 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
 
         /// Points that are done, counting a partial one as not done.
         var donePoints: Int { points.filter { $0.status == .done }.count }
+
+        /// How far the topic has got, 0...1: done points count whole and
+        /// partial ones half. A topic with no points is all or nothing.
+        var progress: Double {
+            if status == .done || status == .skipped { return 1 }
+            guard !points.isEmpty else { return 0 }
+            let score = points.reduce(0.0) { sum, point in
+                sum + (point.status == .done ? 1 : point.status == .partial ? 0.5 : 0)
+            }
+            return score / Double(points.count)
+        }
+
+        /// The title as the plan shows it: the plan numbers its topics, so a
+        /// number the model wrote in front ("2. Metformin") is left off.
+        var displayTitle: String { ChatReviewPlan.withoutLeadingNumber(title) }
+    }
+
+    /// "2. Metformin", "2) Metformin", "2: Metformin" → "Metformin". Only a
+    /// number followed by its punctuation and a space is taken, so "5-HT
+    /// signalling" and "2024 trials" keep theirs.
+    static func withoutLeadingNumber(_ title: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespaces)
+        guard let range = trimmed.range(of: #"^\d{1,2}[.):]\s+"#, options: .regularExpression) else { return trimmed }
+        let rest = String(trimmed[range.upperBound...])
+        return rest.isEmpty ? trimmed : rest
     }
 
     /// What the plan covers: "Chandel episode #416".
@@ -111,6 +136,9 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
     var activeTopicIndex: Int? { topics.firstIndex { $0.status == .active } }
 
     var doneTopics: Int { topics.filter { $0.status == .done || $0.status == .skipped }.count }
+
+    var totalPoints: Int { topics.reduce(0) { $0 + $1.points.count } }
+    var donePoints: Int { topics.reduce(0) { $0 + $1.donePoints } }
 
     /// What the chip and the stored line say: "Topic 2 of 7" while one is
     /// being worked on, "3 of 7 done" otherwise.
@@ -175,7 +203,7 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
             title: clean(title),
             topics: topics.map { topic in
                 Topic(
-                    title: clean(topic.title),
+                    title: Self.withoutLeadingNumber(clean(topic.title)),
                     status: topic.status,
                     points: topic.points
                         .map { Point(text: clean($0.text), status: $0.status) }
@@ -242,6 +270,17 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
         return plan.markdownLine + "\n\n" + reply
     }
 
+    static let clearedState = "cleared"
+
+    /// The line that says the learner cleared the plan (`Clear Plan`): saved
+    /// on the chat's latest reply, so a reopened chat holds no plan from
+    /// there on until the tutor sets a new one.
+    static var clearedLine: String { "[Review plan cleared](\(linePrefix)\(clearedState))" }
+
+    static func isClearedLine(_ line: String) -> Bool {
+        line.trimmingCharacters(in: .whitespaces) == clearedLine
+    }
+
     /// The plan a line carries, or nil when the line is not a plan line.
     static func parse(line: String) -> ChatReviewPlan? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -271,23 +310,34 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
         guard text.contains(linePrefix) else { return text }
         let kept = text
             .components(separatedBy: "\n")
-            .filter { parse(line: $0) == nil }
+            .filter { parse(line: $0) == nil && !isClearedLine($0) }
             .joined(separator: "\n")
         return kept.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The plan a chat holds now and the titles of the plans it replaced, read
-    /// off its stored replies in order (oldest first).
+    /// The plan a chat holds now and the titles of the plans it replaced or
+    /// the learner cleared, read off its stored replies in order (oldest
+    /// first). A cleared line ends the plan before it.
     static func latest(inStoredReplies replies: [String]) -> (plan: ChatReviewPlan?, earlierTitles: [String]) {
-        var plans: [ChatReviewPlan] = []
-        for reply in replies {
-            if let plan = parse(storedReply: reply) { plans.append(plan) }
-        }
-        guard let current = plans.last else { return (nil, []) }
+        var current: ChatReviewPlan?
         var earlier: [String] = []
-        for plan in plans.dropLast() where plan.title != current.title {
-            if earlier.last != plan.title { earlier.append(plan.title) }
+        func retire(_ plan: ChatReviewPlan?, replacedBy next: ChatReviewPlan?) {
+            guard let plan, plan.title != next?.title, earlier.last != plan.title else { return }
+            earlier.append(plan.title)
         }
+        for reply in replies where reply.contains(linePrefix) {
+            for line in reply.split(separator: "\n", omittingEmptySubsequences: true).map(String.init) {
+                if let plan = parse(line: line) {
+                    retire(current, replacedBy: plan)
+                    current = plan
+                } else if isClearedLine(line) {
+                    retire(current, replacedBy: nil)
+                    current = nil
+                }
+            }
+        }
+        // A plan that came back under a title it had before is not "earlier".
+        if let current { earlier.removeAll { $0 == current.title } }
         return (current, earlier)
     }
 
