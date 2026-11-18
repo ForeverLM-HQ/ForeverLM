@@ -31,9 +31,9 @@ private final class TranscriptScrollMetrics {
 ///
 /// A playing recording publishes its position twice a second. Carrying that
 /// position as a stored property of the reader re-ran the reader's body on
-/// every tick, and that body is a *non-lazy* `ForEach` over every speaker turn
-/// — 900 of them for an hour-long meeting, each one re-slicing its paragraphs
-/// and rebuilding its attributed text. Measured on a shipped build,
+/// every tick, and that body is a `ForEach` over every speaker turn — 900 of
+/// them for an hour-long meeting (built eagerly then; lazily now, but a body
+/// pass still walks the whole list). Measured on a shipped build,
 /// `UIResponsivenessMonitor` recorded 1.0s, 1.5s and 3.1s
 /// main-thread stalls while a meeting recording played, which is what "I can't
 /// hit the X while a video is playing" actually was: the click sat in the queue
@@ -688,7 +688,13 @@ struct NativeTranscriptReaderView: View {
                 let selectedFindMatch = findMatches[safe: selectedFindMatchIndex]
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
+                    // Lazy, so only the turns on screen exist. An hour-long meeting is
+                    // ~900 turns, each with a seekable timestamp Button, and SwiftUI's
+                    // accessibility focus walk visits every live control on each
+                    // update: built eagerly, the frame that replaced "Preparing
+                    // transcript…" with the rows held the main thread 5.8 s (build 302,
+                    // 2026-11-17, every sample in `AccessibilityNode.updateFocus`).
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         header
                             .padding(.horizontal, 12)
                             .padding(.bottom, 20)
@@ -711,6 +717,13 @@ struct NativeTranscriptReaderView: View {
                                 proxy.frame(in: .named(Self.contentSpace))
                             } action: { frame in
                                 metrics.rowFrames[segment.index] = frame
+                            }
+                            // A row the lazy stack let go of is off screen; its last
+                            // frame may be stale once rows above are measured, and
+                            // no frame reads as "not known", which the follow rule
+                            // treats as "not in view".
+                            .onDisappear {
+                                metrics.rowFrames[segment.index] = nil
                             }
                         }
                     }
@@ -1348,8 +1361,19 @@ struct NativeTranscriptReaderView: View {
             field: match.field,
             sourceUTF16Offset: match.anchorLocation
         )
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scrollProxy.scrollTo(target, anchor: .center)
+        // The paragraph's id exists only once its row is built, and the column
+        // is lazy: land on the row first, then on the paragraph inside it.
+        if selection.hasView(for: target) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                scrollProxy.scrollTo(target, anchor: .center)
+            }
+        } else {
+            scrollProxy.scrollTo(match.segmentIndex, anchor: .top)
+            DispatchQueue.main.async {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    scrollProxy.scrollTo(target, anchor: .center)
+                }
+            }
         }
     }
 
@@ -1615,9 +1639,8 @@ struct SlideMarginThumb: View {
         didLoad = true
     }
 
-    /// Decodes a downsampled thumbnail instead of the full frame: the transcript
-    /// column is not lazy, so full-size frames for every slide would pin tens of
-    /// megabytes per video.
+    /// Decodes a downsampled thumbnail instead of the full frame: full-size
+    /// frames for every slide scrolled past would pin tens of megabytes per video.
     nonisolated static func loadThumbnail(path: String, maxPixel: CGFloat) -> NSImage? {
         // Resolve across every known content root, not just the single one that
         // `absoluteSourcePath` prepends. A build without the iCloud entitlement
