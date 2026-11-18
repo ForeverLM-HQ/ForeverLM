@@ -55,6 +55,30 @@ const markdown = new MarkdownIt({
   breaks: true,
 });
 
+// A model underlines a phrase with a bare `<u>…</u>`. Raw HTML stays off, so
+// the tags showed as literal text around the words. Teach the inline parser the
+// one tag: an opener only when a closer follows, a closer only when one is open,
+// so a stray `<u>` stays text. The words between still parse as Markdown.
+markdown.inline.ruler.before("html_inline", "underline_tag", (state, silent) => {
+  if (state.src.charCodeAt(state.pos) !== 0x3c) return false;
+  const match = /^<(\/?)u>/i.exec(state.src.slice(state.pos, state.pos + 4));
+  if (!match) return false;
+  const closing = match[1] === "/";
+  if (closing) {
+    const open = state.tokens.filter((token) => token.type === "underline_open").length;
+    const closed = state.tokens.filter((token) => token.type === "underline_close").length;
+    if (open <= closed) return false;
+  } else if (!/<\/u>/i.test(state.src.slice(state.pos + 3))) {
+    return false;
+  }
+  if (!silent) {
+    const token = state.push(closing ? "underline_close" : "underline_open", "u", closing ? -1 : 1);
+    token.markup = match[0];
+  }
+  state.pos += match[0].length;
+  return true;
+});
+
 // A source picture is emitted without a src: the reference is not a URL any
 // browser can fetch, and letting it try would log a failed load per picture.
 // The renderer fills the src in once the host has resolved the bytes.
