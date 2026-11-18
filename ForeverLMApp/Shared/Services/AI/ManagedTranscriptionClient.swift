@@ -65,8 +65,8 @@ enum ManagedTranscriptionClient {
 
         var settingsLabel: String {
             switch self {
-            case .dictation: return "Dictation"
-            case .media: return "Recordings & podcasts"
+            case .dictation: return "Voice Input"
+            case .media: return "Transcription"
             }
         }
     }
@@ -144,7 +144,7 @@ enum ManagedTranscriptionClient {
         let route = route(for: purpose.storedModel)
         guard !route.model.isEmpty else {
             throw TranscriptionError.badResponse(
-                "Choose a \(purpose.settingsLabel) model under Settings → Speech-to-Text."
+                "Choose a model under Settings › Voice › \(purpose.settingsLabel)."
             )
         }
 

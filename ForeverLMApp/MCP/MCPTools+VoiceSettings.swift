@@ -37,7 +37,7 @@ extension MCPDataStore {
         let key = Prefs.ReadAloud.voiceModeVoice
         return AppSettingEntry(
             id: "voice_mode.voice",
-            pane: "Voice › Voice mode",
+            pane: "Voice › Voice Mode",
             title: "Voice",
             detail: "The voice ForeverLM speaks in during a voice mode conversation, on the Mac, the iPhone and CarPlay. Applies from the next conversation. Voice mode runs on ForeverLM's own credits, so no voice costs the learner anything.",
             reach: .account,
@@ -106,8 +106,8 @@ extension MCPDataStore {
         [
             AppSettingEntry(
                 id: "speech_to_text.dictation_model",
-                pane: "Voice › Dictation",
-                title: "Dictation model",
+                pane: "Voice › Voice Input",
+                title: "Voice input model",
                 detail: "The model Chat and Review dictation is transcribed with, once the learner stops speaking. Spoken live, so speed matters most. Changes what dictation is billed at; each option carries its price. Like the pane's text field, a model id outside the list is stored as given.",
                 reach: .account,
                 kind: .text,
@@ -129,8 +129,8 @@ extension MCPDataStore {
             ),
             AppSettingEntry(
                 id: "speech_to_text.recordings_model",
-                pane: "Voice › Recordings & podcasts",
-                title: "Recordings & podcasts model",
+                pane: "Voice › Transcription",
+                title: "Transcription model",
                 detail: "The model meeting recordings and podcast episodes are transcribed with, in the background, where accuracy beats latency. Changes what every transcribed hour is billed at; each option carries its price. Like the pane's text field, a model id outside the list is stored as given.",
                 // `stt_model_media` is absent from `SyncedPreferenceKeys.synced`,
                 // so this pick stays on the Mac it was made on.

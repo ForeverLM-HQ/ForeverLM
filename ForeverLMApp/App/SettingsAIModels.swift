@@ -358,46 +358,76 @@ struct VoiceSettingsDetailView: View {
     /// redraw from the catalog statics they read.
     @State private var catalogRevision = 0
 
+    /// The pane's four jobs, one at a time (product owner, 2026-11-17: "differentiate
+    /// between transcription and voice input … and then also text to speech").
+    /// Each answers one question: what turns my speech into text as I talk,
+    /// what transcribes long audio in the background, what reads to me, and
+    /// what voice talks back in a conversation.
+    enum Tab: String, CaseIterable, Identifiable {
+        case voiceInput, transcription, textToSpeech, voiceMode
+        var id: Self { self }
+        var title: String {
+            switch self {
+            case .voiceInput: "Voice Input"
+            case .transcription: "Transcription"
+            case .textToSpeech: "Text to Speech"
+            case .voiceMode: "Voice Mode"
+            }
+        }
+    }
+
+    @State private var tab: Tab = .voiceInput
+
     var body: some View {
-        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                transcriptionSection(
-                    .dictation,
-                    title: "Dictation",
-                    description: "The model that turns what you say in a chat or a review into text.",
-                    model: $speechToTextModel
-                )
-
-                transcriptionSection(
-                    .media,
-                    title: "Recordings & podcasts",
-                    description: "The model meeting recordings, podcast episodes and course videos are transcribed with.",
-                    model: $recordingsModel
-                )
-
-                SettingsSection(
-                    title: "Text to speech",
-                    description: "The model, voice and speed articles, papers and books are read in."
-                ) {
-                    storedValueCards {
-                        TextToSpeechSettingsView(
-                            storedProvider: $textToSpeechProvider,
-                            modelText: $model,
-                            voiceText: $voice,
-                            directory: speechDirectory,
-                            catalogRevision: catalogRevision,
-                            retryDirectory: { Task { await readDirectories(force: true) } }
-                        )
-                    }
+                Picker("Voice", selection: $tab) {
+                    ForEach(Tab.allCases) { Text($0.title).tag($0) }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("settings.voice.tab")
 
-                SettingsSection(
-                    title: "Voice mode",
-                    description: "The voice ForeverLM speaks in when you talk to it, here, on the iPhone and in CarPlay."
-                ) {
-                    SettingsCard {
-                        VoiceModeVoicePicker()
+                switch tab {
+                case .voiceInput:
+                    transcriptionSection(
+                        .dictation,
+                        title: "Voice Input",
+                        description: "When you speak instead of type, in a chat or a review, this model turns it into text. It runs the moment you stop talking, so a fast model feels best.",
+                        model: $speechToTextModel
+                    )
+                case .transcription:
+                    transcriptionSection(
+                        .media,
+                        title: "Transcription",
+                        description: "Meeting recordings, podcast episodes and course videos are turned into text with this model, in the background. Hours of audio go through it, so its price and accuracy matter most.",
+                        model: $recordingsModel
+                    )
+                case .textToSpeech:
+                    SettingsSection(
+                        title: "Text to Speech",
+                        description: "When you press Listen, articles, papers and books are read to you with this model, in this voice and at this speed."
+                    ) {
+                        storedValueCards {
+                            TextToSpeechSettingsView(
+                                storedProvider: $textToSpeechProvider,
+                                modelText: $model,
+                                voiceText: $voice,
+                                directory: speechDirectory,
+                                catalogRevision: catalogRevision,
+                                retryDirectory: { Task { await readDirectories(force: true) } }
+                            )
+                        }
+                    }
+                case .voiceMode:
+                    SettingsSection(
+                        title: "Voice Mode",
+                        description: "The voice ForeverLM answers in when you talk with it out loud, here, on the iPhone and in CarPlay. It hears you itself, so Voice Input's model is not used."
+                    ) {
+                        SettingsCard {
+                            VoiceModeVoicePicker()
+                        }
                     }
                 }
             }
@@ -411,7 +441,7 @@ struct VoiceSettingsDetailView: View {
         }
         .onAppear {
             if let requested = TranscriptionModelRequest.take() {
-                proxy.scrollTo(requested, anchor: .top)
+                tab = requested == .dictation ? .voiceInput : .transcription
             }
         }
         .task {
@@ -427,7 +457,6 @@ struct VoiceSettingsDetailView: View {
             voice = snapshot.voice
             hasLoadedStoredValues = true
             await readDirectories(force: false)
-        }
         }
     }
 
@@ -451,7 +480,6 @@ struct VoiceSettingsDetailView: View {
                 )
             }
         }
-        .id(purpose)
     }
 
     /// Reads both directories (a fresh read answers at once), then repairs
@@ -632,12 +660,6 @@ private struct TranscriptionSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             SettingsCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    if purpose == .dictation {
-                        Text("The recording is transcribed after you stop.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
                     AudioDirectoryStatus(
                         state: directory,
                         subject: "transcription models",

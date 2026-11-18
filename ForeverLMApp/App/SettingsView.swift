@@ -277,7 +277,7 @@ enum SettingsSearchCatalog {
                 id: "voice",
                 title: "Voice",
                 subtitle: "AI Models",
-                keywords: ["dictation", "speech-to-text", "stt", "microphone", "tts", "text-to-speech", "read aloud", "listen", "speed"],
+                keywords: ["voice input", "dictation", "speech-to-text", "stt", "microphone", "transcription", "transcribe", "recordings", "podcasts", "meetings", "voice mode", "tts", "text-to-speech", "read aloud", "listen", "speed"],
                 destination: .aiTextToSpeech,
                 icon: "speaker.wave.2.fill",
                 tint: .indigo
