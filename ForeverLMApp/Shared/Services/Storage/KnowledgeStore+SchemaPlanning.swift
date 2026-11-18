@@ -476,7 +476,7 @@ extension KnowledgeStore {
             )
         """)
         // Notebook tasks (schema 96; `list_id`, one of the notebook's own
-        // Board lists, schema 177). Every Notebook can carry tasks; a team
+        // Board lists, schema 177; `chat_id`, the chat a card was taken into, schema 178). Every Notebook can carry tasks; a team
         // Notebook's tasks sync in the team zone and can name an assignee by
         // CloudKit user record name. notebook_id has no foreign key for the
         // same reason learning_goal_items.source_id has none: CloudKit may
@@ -501,7 +501,8 @@ extension KnowledgeStore {
                 updated_at REAL NOT NULL,
                 completed_at REAL,
                 order_key TEXT,
-                list_id TEXT
+                list_id TEXT,
+                chat_id TEXT
             )
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_notebook_tasks_notebook ON notebook_tasks(notebook_id, status, sort_order)")

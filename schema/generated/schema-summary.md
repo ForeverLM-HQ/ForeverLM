@@ -699,6 +699,7 @@ Home: `parent` (the zone of `notebookID`: Notebook).
 | `fulfilledSourceID` | id → Source | scalar | L |  | Share requests. |
 | `orderKey` | orderKey | scalar | L |  | Board order. |
 | `listID` | id | scalar | L |  | A to-do in one of its notebook's own Board lists (a key of Notebook.boardLists), open and not done; absent, it sits in its status's column. A key the notebook no longer holds reads as absent. |
+| `chatID` | id → Chat | scalar | L |  | The chat a to-do was taken into from the Board (Chat About This, or dropped into a chat); the card shows a chip that opens it. A chat this library does not hold reads as absent. |
 | `createdAt` | ms | scalar | S | ✓ |  |
 | `createdBy` | Person | scalar | S | spaces |  |
 | `resolvedAt` | ms | scalar | L |  |  |

@@ -970,6 +970,7 @@
         "fulfilledSourceID": {"json": "id", "ref": "Source", "kind": "scalar", "policy": "L", "required": false, "doc": "Share requests."},
         "orderKey": {"json": "orderKey", "kind": "scalar", "policy": "L", "required": false, "doc": "Board order."},
         "listID": {"json": "id", "kind": "scalar", "policy": "L", "required": false, "doc": "A to-do in one of its notebook's own Board lists (a key of Notebook.boardLists), open and not done; absent, it sits in its status's column. A key the notebook no longer holds reads as absent."},
+        "chatID": {"json": "id", "ref": "Chat", "kind": "scalar", "policy": "L", "required": false, "doc": "The chat a to-do was taken into from the Board (Chat About This, or dropped into a chat); the card shows a chip that opens it. A chat this library does not hold reads as absent."},
         "createdAt": {"json": "ms", "kind": "scalar", "policy": "S", "required": true, "doc": ""},
         "createdBy": {"json": "Person", "kind": "scalar", "policy": "S", "required": "space", "doc": ""},
         "resolvedAt": {"json": "ms", "kind": "scalar", "policy": "L", "required": false, "doc": ""},

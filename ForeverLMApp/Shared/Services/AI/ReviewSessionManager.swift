@@ -96,6 +96,11 @@ final class ReviewSessionManager {
     /// itself to it the moment the message is saved, as `recordDocAnchor`
     /// links a doc passage, so the reader can open this chat from the mark.
     var pendingSourceHighlightLink: String?
+    /// A Board card this chat was taken from (Chat About This, or the card
+    /// dropped in): the chat links itself to it the moment the message is
+    /// saved, as `pendingSourceHighlightLink` does for a reader mark, so the
+    /// card can open the chat and the answer stays reachable from the idea.
+    var pendingNotebookTaskLink: String?
     /// Wall-clock record of the steps between the learner's send and the request
     /// leaving the app — the stretch the transcript labels "Getting your sources
     /// ready". Each step is a hop through the shared storage actor or a network
@@ -1386,6 +1391,7 @@ final class ReviewSessionManager {
         titleIsProvisional = false
         sessionID = nil
         pendingSourceHighlightLink = nil
+        pendingNotebookTaskLink = nil
         activeSourceIDs = []
         activeArticles = []
         notebookSourceScopeID = nil

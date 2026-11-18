@@ -1164,6 +1164,7 @@ enum SyncTypeSpecs {
             SyncFieldSpec("fulfilledSourceID", json: "id", policy: .lastWriter, refs: [.source]),
             SyncFieldSpec("orderKey", json: "orderKey", policy: .lastWriter),
             SyncFieldSpec("listID", json: "id", policy: .lastWriter),
+            SyncFieldSpec("chatID", json: "id", policy: .lastWriter, refs: [.chat]),
             SyncFieldSpec("createdAt", json: "ms", policy: .serverFirst, requirement: .always),
             SyncFieldSpec("createdBy", json: "Person", policy: .serverFirst, requirement: .inSpace),
             SyncFieldSpec("resolvedAt", json: "ms", policy: .lastWriter),

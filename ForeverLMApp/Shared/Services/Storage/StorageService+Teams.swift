@@ -780,6 +780,19 @@ extension StorageService {
         return try notebookFilesKnowledgeStore().loadNotebookTask(task.id) ?? saved
     }
 
+    /// Links a Board card to the chat it was taken into (`nil` unlinks). Returns the
+    /// card as saved, or nil when the card is gone: a card deleted while its chat
+    /// was being opened leaves nothing to link.
+    @discardableResult
+    func linkNotebookTask(id: String, toChat sessionID: String?) throws -> NotebookTaskRecord? {
+        guard var task = try notebookFilesKnowledgeStore().loadNotebookTask(id) else { return nil }
+        let linked = sessionID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = linked?.isEmpty == false ? linked : nil
+        guard task.chatID != target else { return task }
+        task.chatID = target
+        return try saveNotebookTask(task)
+    }
+
     func deleteNotebookTask(_ id: String) throws {
         try notebookFilesKnowledgeStore().deleteNotebookTask(id)
         scheduleImmediateCloudKitSyncForTeams()

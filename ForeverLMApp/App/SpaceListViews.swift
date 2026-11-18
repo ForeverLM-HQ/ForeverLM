@@ -248,9 +248,6 @@ struct SpaceCreateStrip: View {
             Template(id: "goals", title: "Goals", systemImage: SpaceList.Kind.goals.symbolName, tint: SpaceKindStyle.tint(.goalList)) {
                 vm.makeAndOpenSpaceList(.goals, inPageSpace: spaceID, in: windowState)
             },
-            Template(id: "ideas", title: "Ideas", systemImage: SpaceList.Kind.ideas.symbolName, tint: SpaceKindStyle.tint(.ideaList)) {
-                vm.makeAndOpenSpaceList(.ideas, inPageSpace: spaceID, in: windowState)
-            },
         ]
         if vm.listsCanvases {
             templates.append(Template(id: "canvas", title: "Canvas", systemImage: KnowledgeMap.symbolName, tint: SpaceKindStyle.tint(.canvas)) {

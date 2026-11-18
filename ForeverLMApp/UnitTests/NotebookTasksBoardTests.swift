@@ -293,4 +293,24 @@ struct NotebookTasksBoardTests {
         #expect(NotebookTaskBoard.moving(inList, into: .list("bl_a"), before: nil, among: [inList], lists: Self.lists, now: Self.noon).isEmpty,
                 "dropped where it is")
     }
+
+    @Test("A card taken into a chat reads as its title, its notes and a request")
+    func boardCardChatDraftReadsAsTheCard() {
+        let bare = Self.task("  Why do bats not get cancer?  ")
+        #expect(StudioViewModel.boardCardChatDraft(bare)
+            == "I had this idea: \u{201C}Why do bats not get cancer?\u{201D}\n\nHelp me think it through.")
+
+        var noted = Self.task("Bats")
+        noted.notes = "\n Long-lived, high metabolism. \n"
+        #expect(StudioViewModel.boardCardChatDraft(noted)
+            == "I had this idea: \u{201C}Bats\u{201D}\n\nLong-lived, high metabolism.\n\nHelp me think it through.")
+    }
+
+    @Test("A card carries the chat it was taken into")
+    func cardCarriesItsChat() {
+        var card = Self.task("Bats")
+        #expect(card.chatID == nil)
+        card.chatID = "chat-1"
+        #expect(card.chatID == "chat-1")
+    }
 }

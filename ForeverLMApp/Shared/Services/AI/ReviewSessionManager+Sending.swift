@@ -241,6 +241,7 @@ extension ReviewSessionManager {
         }
         await recordDocAnchor(docAnchor, sessionID: sessionID)
         await recordSourceHighlightLink(sessionID: sessionID)
+        await recordNotebookTaskLink(sessionID: sessionID)
     }
 
     /// Links the reader mark this chat was opened on (What's New) to the chat,
@@ -257,6 +258,19 @@ extension ReviewSessionManager {
             NotificationCenter.default.post(name: .foreverLMDataDidChange, object: nil)
         } catch {
             logger.error("Failed to link a chat to the reader mark it was opened on: \(error.localizedDescription)")
+        }
+    }
+
+    /// Links the Board card this chat was taken from to the chat, on the send.
+    /// Logged and swallowed like `recordSourceHighlightLink`.
+    private func recordNotebookTaskLink(sessionID: String) async {
+        guard let taskID = pendingNotebookTaskLink else { return }
+        pendingNotebookTaskLink = nil
+        do {
+            try await storage.linkNotebookTask(id: taskID, toChat: sessionID)
+            NotificationCenter.default.post(name: .foreverLMDataDidChange, object: nil)
+        } catch {
+            logger.error("Failed to link a chat to the Board card it was opened from: \(error.localizedDescription)")
         }
     }
 

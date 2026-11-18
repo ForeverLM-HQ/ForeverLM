@@ -22,6 +22,43 @@ extension StudioViewModel {
         }
     }
 
+    /// **Chat About This** on a card (product owner, 2026-11-18: launch a chat
+    /// from a Board card and keep the link): a card already taken into a chat
+    /// this Mac holds opens it; otherwise a fresh chat opens with the card's
+    /// words ready under the composer, and the chat links itself to the card
+    /// when the first message is sent (`ReviewSessionManager.pendingNotebookTaskLink`).
+    func requestBoardCardChat(_ task: NotebookTaskRecord) {
+        if let chatID = task.chatID, reviewSessionLinks.contains(where: { $0.id == chatID }) {
+            requestResumeReviewSession(chatID)
+            return
+        }
+        pendingReviewChatNotebookID = nil
+        pendingReviewChatDraft = Self.boardCardChatDraft(task)
+        pendingReviewChatTaskID = task.id
+        reviewChatPanelMode = .chat
+        isChatTabActive = true
+        reviewChatResetRequestID = UUID()
+        reviewChatFocusRequestID = UUID()
+    }
+
+    /// A card as words for a chat: its title, then its notes. Pure, so it can be tested.
+    nonisolated static func boardCardChatDraft(_ task: NotebookTaskRecord) -> String {
+        let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let notes = task.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        var draft = "I had this idea: \u{201C}\(title)\u{201D}"
+        if !notes.isEmpty { draft += "\n\n\(notes)" }
+        draft += "\n\nHelp me think it through."
+        return draft
+    }
+
+    /// Every card the Board and the notebooks have loaded, by id.
+    func loadedNotebookTask(_ id: String) -> NotebookTaskRecord? {
+        for tasks in notebookTasksByNotebookID.values {
+            if let task = tasks.first(where: { $0.id == id }) { return task }
+        }
+        return nil
+    }
+
     /// Drops a card into a column, in front of `targetID` or at the bottom.
     /// `dueTodayBy` is the Today view's end of day: a card moved into To do
     /// there with no date, or a later one, is due today, so it stays in the

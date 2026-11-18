@@ -943,6 +943,7 @@ extension MCPDataStore {
             "doc_id": task.artifactID.map { $0 as Any } ?? NSNull(),
             "sort_order": task.sortOrder,
             "list_id": task.listID.map { $0 as Any } ?? NSNull(),
+            "chat_id": task.chatID.map { $0 as Any } ?? NSNull(),
             "created_at": iso.string(from: task.createdAt),
             "updated_at": iso.string(from: task.updatedAt),
             "completed_at": task.completedAt.map { iso.string(from: $0) as Any } ?? NSNull(),

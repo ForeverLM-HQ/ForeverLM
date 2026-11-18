@@ -1051,6 +1051,7 @@ export const TYPES = deepFreeze({
       "fulfilledSourceID": {"json":"id","kind":"scalar","policy":"L","required":false,"ref":["Source"]},
       "orderKey": {"json":"orderKey","kind":"scalar","policy":"L","required":false},
       "listID": {"json":"id","kind":"scalar","policy":"L","required":false},
+      "chatID": {"json":"id","kind":"scalar","policy":"L","required":false,"ref":["Chat"]},
       "createdAt": {"json":"ms","kind":"scalar","policy":"S","required":true},
       "createdBy": {"json":"Person","kind":"scalar","policy":"S","required":"space"},
       "resolvedAt": {"json":"ms","kind":"scalar","policy":"L","required":false},

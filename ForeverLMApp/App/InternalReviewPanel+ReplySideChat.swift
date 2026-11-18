@@ -597,6 +597,18 @@ extension InternalReviewPanelContent {
         }
     }
 
+    /// Puts a dropped Board card's words in the composer, after what is already
+    /// typed, and marks the chat to link to the card on the next send.
+    @MainActor
+    func addBoardCardToChat(_ taskID: String) {
+        guard let task = vm.loadedNotebookTask(taskID) else { return }
+        let words = StudioViewModel.boardCardChatDraft(task)
+        let typed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = typed.isEmpty ? words : typed + "\n\n" + words
+        manager.pendingNotebookTaskLink = task.id
+        vm.reviewChatFocusRequestID = UUID()
+    }
+
     func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         StudioDragVisibility.shared.endSoon()
         var handled = false
@@ -609,6 +621,19 @@ extension InternalReviewPanelContent {
                     Task { @MainActor in
                         await addDocToChatContext(transfer.artifactID)
                     }
+                }
+                continue
+            }
+
+            // A Board card dropped in: its words wait under the composer, and the
+            // chat links itself to the card when the message is sent.
+            if provider.hasItemConformingToTypeIdentifier(UTType.boardCard.identifier) {
+                handled = true
+                provider.loadDataRepresentation(forTypeIdentifier: UTType.boardCard.identifier) { data, _ in
+                    guard let data,
+                          let taskID = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !taskID.isEmpty else { return }
+                    Task { @MainActor in addBoardCardToChat(taskID) }
                 }
                 continue
             }

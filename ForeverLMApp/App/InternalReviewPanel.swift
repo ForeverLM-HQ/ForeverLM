@@ -423,7 +423,7 @@ struct InternalReviewPanelContent: View {
     }
 
     var reviewChatDropTypes: [UTType] {
-        [.studioArticle, .studioArtifact, .studioSourceID, .studioGroup, .plainText]
+        [.studioArticle, .studioArtifact, .studioSourceID, .studioGroup, .boardCard, .plainText]
             + supportedBookImportDropTypes
             + Self.chatImageDropTypes
     }
@@ -441,7 +441,7 @@ struct InternalReviewPanelContent: View {
     /// Dragged text is left out on purpose — the text view inserts it where
     /// the caret is, which `handleDrop` cannot. See `StudioDropCatcher`.
     private var reviewChatCaughtDropTypes: [UTType] {
-        [.studioArticle, .studioArtifact, .studioSourceID, .studioGroup, .fileURL]
+        [.studioArticle, .studioArtifact, .studioSourceID, .studioGroup, .boardCard, .fileURL]
             + Self.chatImageDropTypes
     }
 

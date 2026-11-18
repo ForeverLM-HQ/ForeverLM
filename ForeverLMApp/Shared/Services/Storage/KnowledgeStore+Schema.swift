@@ -33,10 +33,14 @@ extension KnowledgeStore {
     // 177: a notebook's own task Board lists. `notebook_task_lists` (one row per element of
     // `Notebook.boardLists`) is created empty, and `notebook_tasks.list_id` (`Task.listID`) is added,
     // NULL on every existing row: DDL only.
-    static let schemaVersion: Int32 = 177
+    //
+    // 178: the chat a Board card was taken into. `notebook_tasks.chat_id` (`Task.chatID`) is added,
+    // NULL on every existing row: DDL only.
+    static let schemaVersion: Int32 = 178
     static let generation1RemovalSchemaVersion: Int32 = 175
     static let deadObjectsRemovalSchemaVersion: Int32 = 176
     static let boardListsSchemaVersion: Int32 = 177
+    static let boardChatSchemaVersion: Int32 = 178
     /// The oldest store this build migrates: schema 174. An older store is
     /// refused (product owner, 2026-11: old versions are no longer supported).
     static let minimumMigratableSchemaVersion: Int32 = 174
@@ -137,6 +141,11 @@ extension KnowledgeStore {
                 // A store at 176 made `notebook_tasks` without it; the table's CREATE above was a no-op.
                 if try scalarInteger("SELECT COUNT(*) FROM pragma_table_info('notebook_tasks') WHERE name = 'list_id'") == 0 {
                     try exec("ALTER TABLE notebook_tasks ADD COLUMN list_id TEXT")
+                }
+            }
+            if currentVersion < Self.boardChatSchemaVersion {
+                if try scalarInteger("SELECT COUNT(*) FROM pragma_table_info('notebook_tasks') WHERE name = 'chat_id'") == 0 {
+                    try exec("ALTER TABLE notebook_tasks ADD COLUMN chat_id TEXT")
                 }
             }
             // Preparing the projection catches an older, structurally incompatible

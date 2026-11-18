@@ -415,7 +415,13 @@ struct NotebookTaskRow: View {
     private var nextStatus: NotebookTaskStatus { NotebookTaskBoard.next(for: task, inList: isInList) }
     private var isOverdue: Bool { NotebookTaskBoard.isOverdue(task, now: Date()) }
     private var hasDetails: Bool {
-        task.dueAt != nil || link != nil || (isTeamNotebook && task.assigneeRecordName != nil)
+        task.dueAt != nil || link != nil || chatSession != nil || (isTeamNotebook && task.assigneeRecordName != nil)
+    }
+
+    /// The chat this card was taken into, when this Mac holds it.
+    private var chatSession: ReviewSessionRecord? {
+        guard let chatID = task.chatID else { return nil }
+        return vm.reviewSessionLinks.first { $0.id == chatID }
     }
 
     private var statusTint: Color {
@@ -467,6 +473,7 @@ struct NotebookTaskRow: View {
                         if task.dueAt != nil { dueMenu }
                         if isTeamNotebook, task.assigneeRecordName != nil { assigneeMenu }
                         if link != nil { linkMenu }
+                        if let chat = chatSession { chatChip(chat) }
                         Spacer(minLength: 0)
                     }
                 }
@@ -485,6 +492,24 @@ struct NotebookTaskRow: View {
                         .padding(.top, 2)
                 }
             }
+
+            // Take the card into a chat: a hover button that opens the linked
+            // chat when there is one. Its width is always held, so the title
+            // does not reflow as the pointer passes over the card.
+            Button {
+                vm.requestBoardCardChat(task)
+            } label: {
+                Image(systemName: chatSession == nil ? "bubble.left" : "bubble.left.fill")
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -2))
+            .opacity(hovering ? 1 : 0)
+            .allowsHitTesting(hovering)
+            .help(chatSession == nil ? "Chat about this" : "Open the chat")
+            .accessibilityLabel(chatSession == nil ? "Chat about this" : "Open the chat")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -504,6 +529,10 @@ struct NotebookTaskRow: View {
             if !notesFocused { notes = newNotes }
         }
         .contextMenu {
+            Button(chatSession == nil ? "Chat About This" : "Open Chat", systemImage: "bubble.left") {
+                vm.requestBoardCardChat(task)
+            }
+            Divider()
             ForEach(NotebookTaskStatus.allCases, id: \.self) { status in
                 columnItem(.status(status), title: status.title, symbol: status.symbolName)
                 if status == .doing {
@@ -529,6 +558,28 @@ struct NotebookTaskRow: View {
                 }
             }
         }
+    }
+
+    /// A chip naming the chat the card was taken into; it opens that chat.
+    private func chatChip(_ chat: ReviewSessionRecord) -> some View {
+        Button {
+            vm.requestBoardCardChat(task)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "bubble.left")
+                    .zoomedSystemFont(size: 10, weight: .medium)
+                Text(chat.title)
+                    .zoomedSystemFont(size: 10, weight: .medium)
+                    .lineLimit(1)
+                    .frame(maxWidth: 180, alignment: .leading)
+            }
+            .foregroundStyle(Color.primary.opacity(0.75))
+            .padding(.horizontal, 5)
+            .frame(minHeight: 20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
+        .help("Open \u{201C}\(chat.title)\u{201D}")
     }
 
     /// The card's menu item for one column: a checkmark on the one it is in.

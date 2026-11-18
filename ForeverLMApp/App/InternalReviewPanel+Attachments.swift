@@ -245,12 +245,15 @@ extension InternalReviewPanelContent {
         if let request = vm.readerSelectionExplanationRequest, docPassageJoinsThisChat(request) {
             vm.pendingReviewChatNotebookID = nil
             vm.pendingReviewChatDraft = nil
+            vm.pendingReviewChatTaskID = nil
             vm.pendingReviewChatCanvasQuestions = []
             vm.pendingReviewChatMode = nil
             vm.pendingReviewChatCard = nil
             vm.reviewChatResetRequestID = nil
             return
         }
+        let boardCardID = vm.pendingReviewChatTaskID
+        vm.pendingReviewChatTaskID = nil
         if sessionStore.prepareForNewChat(requestID: requestID) {
             return
         }
@@ -263,6 +266,8 @@ extension InternalReviewPanelContent {
         // first moment, whatever takes that pane's place beside it.
         manager.pinnedCard = vm.pendingReviewChatCard
         vm.pendingReviewChatCard = nil
+        // A Board card this chat was started from links to it on the first send.
+        manager.pendingNotebookTaskLink = boardCardID
         // Cards asked for with this chat (Ask in Chat, Add to Chat with no
         // chat beside the canvas) are its context from the first moment.
         if let handOff = vm.pendingChatCanvasCards,

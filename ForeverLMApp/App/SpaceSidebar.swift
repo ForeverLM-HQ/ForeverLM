@@ -540,9 +540,6 @@ struct SpaceSidebar: View {
                     Button("New Goals List", systemImage: SpaceList.Kind.goals.symbolName) {
                         vm.makeAndOpenSpaceList(.goals, inPageSpace: selection?.pageSpaceID, in: windowState)
                     }
-                    Button("New Ideas List", systemImage: SpaceList.Kind.ideas.symbolName) {
-                        vm.makeAndOpenSpaceList(.ideas, inPageSpace: selection?.pageSpaceID, in: windowState)
-                    }
                 }
                 if vm.listsCanvases {
                     Button("New Canvas", systemImage: KnowledgeMap.symbolName) {

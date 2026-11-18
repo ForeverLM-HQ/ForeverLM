@@ -99,6 +99,12 @@ struct SpaceBoardPage: View {
         .task(id: isOwnLibrary) {
             if isOwnLibrary { await vm.loadBoard() }
         }
+        // A chat taken from a card links itself to it on the first send; the
+        // card then shows the chat's chip.
+        .onReceive(NotificationCenter.default.publisher(for: .foreverLMDataDidChange)) { _ in
+            guard isOwnLibrary, let board = vm.boardNotebook else { return }
+            Task { await vm.loadNotebookTasks(notebookID: board.id) }
+        }
     }
 }
 

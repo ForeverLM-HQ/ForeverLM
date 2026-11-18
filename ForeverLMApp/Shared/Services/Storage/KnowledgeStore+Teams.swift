@@ -232,7 +232,7 @@ extension KnowledgeStore {
     static let notebookTaskColumns = """
         id, notebook_id, team_id, title, notes, status, assignee_record_name, assignee_display_name,
         due_at, source_id, artifact_id, sort_order, created_by_record_name, created_by_display_name,
-        created_at, updated_at, completed_at, list_id
+        created_at, updated_at, completed_at, list_id, chat_id
     """
 
     func loadNotebookTasks(notebookID: String) throws -> [NotebookTaskRecord] {
@@ -297,7 +297,8 @@ extension KnowledgeStore {
             createdAt: date(14) ?? Date(),
             updatedAt: date(15) ?? Date(),
             completedAt: date(16),
-            listID: string(stmt, 17)
+            listID: string(stmt, 17),
+            chatID: string(stmt, 18)
         )
     }
 
@@ -310,7 +311,7 @@ extension KnowledgeStore {
         }
         try execBind("""
             INSERT INTO notebook_tasks (\(Self.notebookTaskColumns))
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 notebook_id = excluded.notebook_id,
                 team_id = excluded.team_id,
@@ -328,7 +329,8 @@ extension KnowledgeStore {
                 created_at = excluded.created_at,
                 updated_at = excluded.updated_at,
                 completed_at = excluded.completed_at,
-                list_id = excluded.list_id
+                list_id = excluded.list_id,
+                chat_id = excluded.chat_id
         """) { stmt in
             bind(stmt, 1, task.id)
             bind(stmt, 2, task.notebookID)
@@ -348,6 +350,7 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 16, task.updatedAt.timeIntervalSinceReferenceDate)
             bind(stmt, 17, task.completedAt.map(\.timeIntervalSinceReferenceDate))
             bind(stmt, 18, task.listID)
+            bind(stmt, 19, task.chatID)
         }
     }
 

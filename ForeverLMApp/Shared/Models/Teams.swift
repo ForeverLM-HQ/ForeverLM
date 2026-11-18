@@ -352,6 +352,10 @@ struct NotebookTaskRecord: Identifiable, Codable, Equatable, Sendable {
     /// card sits in one: an open card, drawn in that list instead of its
     /// status's column. A list the Notebook no longer holds reads as none.
     var listID: String?
+    /// The chat this card was taken into (product owner, 2026-11-18: launch a
+    /// chat from a Board card and keep the link), by its review session id.
+    /// A chat that is not in this library reads as none.
+    var chatID: String?
 
     init(
         id: String = UUID().uuidString.lowercased(),
@@ -371,7 +375,8 @@ struct NotebookTaskRecord: Identifiable, Codable, Equatable, Sendable {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         completedAt: Date? = nil,
-        listID: String? = nil
+        listID: String? = nil,
+        chatID: String? = nil
     ) {
         self.id = id
         self.notebookID = notebookID
@@ -391,6 +396,7 @@ struct NotebookTaskRecord: Identifiable, Codable, Equatable, Sendable {
         self.updatedAt = updatedAt
         self.completedAt = completedAt
         self.listID = listID
+        self.chatID = chatID
     }
 
     var isOverdue: Bool {

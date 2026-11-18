@@ -19,6 +19,10 @@ Type in **Add a card** at the foot of any column but Done and press Return; the 
 
 Drag a card to another column, or to a different place in its column. The circle on a card moves it one column on (from one of your lists, that is Done), and Done wraps back to To do, so a card ticked by mistake reopens with one more click. Right-click a card to move it to any column or list, or to delete it.
 
+## Taking a card into a chat
+
+For an idea that needs an answer, hover a card and click the speech bubble, or right-click it and choose **Chat About This**. A fresh chat opens with the card's words ready under the composer; send it when you like. You can also drag a card onto an open chat, which adds its words after what you have typed. Once you send, the card shows a chip with the chat's name, and that chip (or **Open Chat** in the card's menu) brings the chat back. The link follows the card to your other devices.
+
 A card has a title, notes, an optional due date, and can point at a source or a Page. Moving a card into Done stamps when you finished it; moving it out clears the stamp.
 
 ## Planning the day
