@@ -620,6 +620,15 @@ extension InternalReviewPanelContent {
     ) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        // Every send waits under a running turn, not only the composer's: the
+        // plan chip, slash commands and the memory-review buttons came here
+        // directly, and a message put in the transcript mid-turn got the
+        // turn's reply after it (`ReviewSessionManager.sendAnswer`).
+        if manager.queuesSendsNow {
+            _ = manager.enqueueFollowUp(text, contextualContent: contextualContent, docAnchor: docAnchor)
+            await manager.resumeQueuedFollowUps()
+            return
+        }
         adoptLiveNotebookSelection()
         // A message sent in a notebook's chat is working in that notebook:
         // the next window opens it, and the home's Recent order leads with it.

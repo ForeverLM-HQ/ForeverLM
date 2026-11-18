@@ -10,6 +10,17 @@ extension ReviewSessionManager {
     ) async {
         let answer = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !answer.isEmpty else { return }
+        // A turn is still running. Appended now, the message sits ahead of
+        // that turn's later rounds: its reply lands after the message, the
+        // next request merges this message into the one before and ends on
+        // the tutor's own words, and the tutor goes on answering the older
+        // message (a podcast chat, 2026-11-17). It waits behind the turn
+        // instead, as a message typed into the composer does.
+        if isGenerating || activeGenerationTask != nil {
+            rollbackOptimisticUserMessage(answer)
+            enqueueFollowUp(answer, contextualContent: contextualContent, docAnchor: docAnchor)
+            return
+        }
         beginSendPreparationTraceIfNeeded()
         errorMessage = nil
         lastGenerationFailed = false

@@ -22,6 +22,26 @@ struct StudioAssistantSessionStoreTests {
         #expect(!manager.hasGenerationWorkInFlight)
     }
 
+    @Test("A message sent straight to the manager mid-turn waits in the queue, not in the transcript")
+    func directSendDuringTurnIsQueued() async {
+        let manager = ReviewSessionManager()
+        manager.chatMessages = [
+            .init(role: .user, content: "tell me about the knockouts"),
+            .init(role: .assistant, content: "Let me look that up."),
+        ]
+        manager.isGenerating = true
+
+        // The bubble goes up before the send, as the panel draws it.
+        manager.showUserMessage("go to the next topic")
+        await manager.sendAnswer("go to the next topic", contextualContent: "ctx")
+
+        // In the transcript it would sit ahead of the running turn's next
+        // round, and that round's reply would land after it.
+        #expect(manager.chatMessages.map(\.content) == ["tell me about the knockouts", "Let me look that up."])
+        #expect(manager.queuedFollowUps.map(\.text) == ["go to the next topic"])
+        #expect(manager.queuedFollowUps.first?.contextualContent == "ctx")
+    }
+
     @Test("A send during a turn is queued, not appended, and Stop hands it back")
     func sendDuringTurnIsQueued() {
         let manager = ReviewSessionManager()
