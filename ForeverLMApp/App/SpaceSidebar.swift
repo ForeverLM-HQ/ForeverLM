@@ -207,13 +207,16 @@ enum SpaceDestination: Hashable, Sendable {
         }
     }
 
-    /// The green tag after the place's name in the sidebar: Beta on every
-    /// place of the Space (product owner, 2026-11-16: "please mark all items
-    /// in spaces as beta"; Canvases since 2026-10-10: "add a green 'beta'
-    /// button to show that it's still in beta"); nil for the rows that are
-    /// no place of the Space's own (All, Home, Trash, a team, a space, a list).
+    /// The green tag after the place's name in the sidebar: Beta on Canvases
+    /// (product owner, 2026-10-10: "add a green 'beta' button to show that it's
+    /// still in beta") and on Pages (product owner, 2026-11-18: "don't work all
+    /// these things as beta, just canvases and probably pages"); nil for every
+    /// other row.
     var badge: String? {
-        Self.places.contains(self) && self != .all ? "Beta" : nil
+        switch self {
+        case .canvases, .pages: return "Beta"
+        default: return nil
+        }
     }
 
     /// What the badge means, shown when the pointer rests on it (product
@@ -222,7 +225,8 @@ enum SpaceDestination: Hashable, Sendable {
     var badgeNote: String? {
         switch self {
         case .canvases: return "We're actively developing Canvases to make them look and feel right."
-        default: return badge == nil ? nil : "\(title) is still in beta: we're actively developing it to make it look and feel right."
+        case .pages: return "We're actively developing Pages to make them look and feel right."
+        default: return nil
         }
     }
 
