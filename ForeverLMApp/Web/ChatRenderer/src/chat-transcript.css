@@ -336,7 +336,10 @@ body {
 /* Sources added just before a message, on the learner's side. */
 .user-added { display: flex; flex-direction: column; align-items: flex-end; -webkit-user-select: none; user-select: none; }
 
+.user-added-head { display: flex; align-items: center; gap: 2px; max-width: 100%; }
+
 .user-added-toggle,
+.user-added-undo,
 .user-added-source {
   all: unset;
   cursor: default;
@@ -352,6 +355,7 @@ body {
 
 .user-added-toggle { font-weight: 500; }
 .user-added-toggle:hover,
+.user-added-undo:hover,
 .user-added-source:hover { background: var(--wash); color: CanvasText; }
 .user-added-list { display: flex; flex-direction: column; align-items: flex-end; }
 .user-added-list[hidden] { display: none; }

@@ -517,6 +517,8 @@ struct ReviewChatContextAdditionsRow: View {
     let added: [ChatContextAdditions.Source]
     let maxContentWidth: CGFloat
     let openSource: (String) -> Void
+    /// Takes these sources back out; nil once none of them is in the chat.
+    var undo: (() -> Void)? = nil
 
     @State private var isExpanded = false
 
@@ -528,6 +530,7 @@ struct ReviewChatContextAdditionsRow: View {
         HStack(alignment: .top, spacing: 0) {
             Spacer(minLength: 64)
             VStack(alignment: .trailing, spacing: 1) {
+                HStack(spacing: 2) {
                 Button {
                     withAnimation(.easeOut(duration: 0.15)) { isExpanded.toggle() }
                 } label: {
@@ -550,6 +553,19 @@ struct ReviewChatContextAdditionsRow: View {
                 .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
                 .help(isExpanded ? "Hide which sources were added" : "Show which sources were added")
                 .accessibilityIdentifier("mac.chatContextAdditions.toggle")
+
+                if let undo {
+                    Button("Undo", action: undo)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .contentShape(Rectangle())
+                        .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
+                        .help("Take these sources back out of the chat")
+                        .accessibilityIdentifier("mac.chatContextAdditions.undo")
+                }
+                }
 
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 0) {

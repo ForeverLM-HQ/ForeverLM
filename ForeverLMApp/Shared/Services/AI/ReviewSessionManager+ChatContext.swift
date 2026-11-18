@@ -248,9 +248,17 @@ extension ReviewSessionManager {
     }
 
     func removeContextSource(_ sourceID: String, availableArticles: [StudioArticle]) async {
-        guard activeSourceIDs.contains(sourceID) else { return }
+        await removeContextSources([sourceID], availableArticles: availableArticles)
+    }
 
-        let remainingIDs = activeSourceIDs.filter { $0 != sourceID }
+    /// Takes several sources out of the chat in one pass: the Undo on an
+    /// "Added 9 book chapters to context" row (product owner, 2026-11-17:
+    /// "gimme an undo here"), which would otherwise rebuild the loaded text
+    /// once per chapter.
+    func removeContextSources(_ sourceIDs: Set<String>, availableArticles: [StudioArticle]) async {
+        guard activeSourceIDs.contains(where: sourceIDs.contains) else { return }
+
+        let remainingIDs = activeSourceIDs.filter { !sourceIDs.contains($0) }
         activeSourceIDs = remainingIDs
 
         let remainingArticles = remainingIDs.compactMap { id in
@@ -276,7 +284,7 @@ extension ReviewSessionManager {
         perSourcePromptShares = reloaded.shares
         loadedSourceIDs = reloaded.loadedIDs
         // Detached before a message was sent: there is nothing to say it was added.
-        pendingContextAdditions.removeAll { $0.id == sourceID }
+        pendingContextAdditions.removeAll { sourceIDs.contains($0.id) }
 
         if let sessionID {
             do {

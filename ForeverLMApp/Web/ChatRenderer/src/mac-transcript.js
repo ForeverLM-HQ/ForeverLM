@@ -348,7 +348,19 @@ function addedRow(added) {
       list.hidden = !list.hidden;
     });
   });
-  row.append(toggle, list);
+  const head = element("div", "user-added-head");
+  head.append(toggle);
+  if (added.undo) {
+    const undo = element("button", "user-added-undo", "Undo");
+    undo.type = "button";
+    undo.title = "Take these sources back out of the chat";
+    undo.addEventListener("click", (event) => {
+      event.preventDefault();
+      sendAction("undoContextAddition", null, { sourceIDs: added.sources.map((source) => source.id) });
+    });
+    head.append(undo);
+  }
+  row.append(head, list);
   return row;
 }
 

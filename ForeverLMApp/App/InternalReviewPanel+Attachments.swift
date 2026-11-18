@@ -205,6 +205,25 @@ extension InternalReviewPanelContent {
         }
     }
 
+    /// The Undo on an "Added … to context" row: every source it names that
+    /// the chat still holds comes out at once.
+    @MainActor
+    func removeSourcesFromChatContext(_ sourceIDs: [String]) {
+        let held = Set(manager.linkedSourceIDs)
+        let ids = Set(sourceIDs).intersection(held)
+        guard !ids.isEmpty else { return }
+        adoptLiveNotebookSelection()
+        for id in ids { vm.removeSourceFromContext(id) }
+        if reviewSources.isEmpty {
+            isContextSourcesPopoverPresented = false
+        }
+        Task {
+            await manager.removeContextSources(ids, availableArticles: vm.articles)
+            await vm.loadReviewSessionLinks()
+            await vm.loadLearningGoals()
+        }
+    }
+
     @MainActor
     func closeDeletedActiveSession() {
         if let sessionID = manager.currentSessionID {

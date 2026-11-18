@@ -87,6 +87,9 @@ struct ChatTranscriptPage: NSViewRepresentable {
 
         let summary: String
         let sources: [Source]
+        /// Undo beside the summary, while any of these sources is still in
+        /// the chat: it takes them back out.
+        var undo: Bool?
     }
 
     /// A video moment over the learner's question. The page asks for its
@@ -250,6 +253,8 @@ struct ChatTranscriptPage: NSViewRepresentable {
         case moreMenu(blockID: UUID, rect: CGRect, view: NSView)
         case openPassage(blockID: UUID)
         case openContextSource(sourceID: String)
+        /// Undo on an "Added … to context" row: take those sources back out.
+        case undoContextAddition(sourceIDs: [String])
         case suggestedQuestion(String)
         /// A video moment over a question: play from there.
         case openMoment(sourceID: String, seconds: Int)
@@ -397,7 +402,8 @@ struct ChatTranscriptPage: NSViewRepresentable {
         message: ReviewSessionManager.Message,
         canEdit: Bool,
         isFindMatch: Bool,
-        lane: String? = nil
+        lane: String? = nil,
+        inChat: Set<String> = []
     ) -> Block {
         // Pictures are drawn from the raw content over the bubble, which
         // shows only what was typed, or nothing when the message was the
@@ -419,7 +425,7 @@ struct ChatTranscriptPage: NSViewRepresentable {
             guess: ChatGuess.guess(contextContent: message.contextualContent),
             canEdit: canEdit ? true : nil,
             collapses: ChatLongUserMessage.isLong(text) ? true : nil,
-            added: added(stored.added),
+            added: added(stored.added, inChat: inChat),
             images: attached.images.isEmpty ? nil : attached.images
                 .map { $0.reference.markdown(alt: $0.alt) }
                 .joined(separator: "\n\n"),
@@ -437,11 +443,14 @@ struct ChatTranscriptPage: NSViewRepresentable {
     }
 
     /// "Added 3 articles to context" and the sources by name.
-    static func added(_ sources: [ChatContextAdditions.Source]) -> Added? {
+    /// `inChat` is the chat's sources now: the row offers Undo while any of
+    /// its own is among them.
+    static func added(_ sources: [ChatContextAdditions.Source], inChat: Set<String> = []) -> Added? {
         guard !sources.isEmpty else { return nil }
         return Added(
             summary: ChatContextAdditions.summary(added: sources),
-            sources: sources.map { Added.Source(id: $0.id, title: $0.title.isEmpty ? "Untitled source" : $0.title) }
+            sources: sources.map { Added.Source(id: $0.id, title: $0.title.isEmpty ? "Untitled source" : $0.title) },
+            undo: sources.contains { inChat.contains($0.id) } ? true : nil
         )
     }
 
@@ -711,6 +720,10 @@ struct ChatTranscriptPage: NSViewRepresentable {
             case "openContextSource":
                 if let sourceID = body["sourceID"] as? String, !sourceID.isEmpty {
                     parent.onAction(.openContextSource(sourceID: sourceID))
+                }
+            case "undoContextAddition":
+                if let sourceIDs = body["sourceIDs"] as? [String], !sourceIDs.isEmpty {
+                    parent.onAction(.undoContextAddition(sourceIDs: sourceIDs))
                 }
             case "suggestedQuestion":
                 if let question = body["question"] as? String, !question.isEmpty {

@@ -52,6 +52,8 @@ struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
     let messageMaxWidth: CGFloat
     /// A name in the sources-added row: that source opens in the reader.
     let openContextSource: (String) -> Void
+    /// Undo on the sources-added row: those sources come back out.
+    let undoContextAddition: ([String]) -> Void
     /// The ways on from a side question, drawn by the lane under the newest
     /// aside: back to the tutor's open question (answer it, or let it go), or
     /// on with the side question (a follow-up here, or a chat of its own).
@@ -174,7 +176,9 @@ struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
                     ReviewChatContextAdditionsRow(
                         added: manager.pendingContextAdditions,
                         maxContentWidth: messageMaxWidth,
-                        openSource: openContextSource
+                        openSource: openContextSource,
+                        undo: manager.pendingContextAdditions.contains { manager.linkedSourceIDs.contains($0.id) }
+                            ? { undoContextAddition(manager.pendingContextAdditions.map(\.id)) } : nil
                     )
                 }
 

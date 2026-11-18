@@ -178,6 +178,8 @@ extension InternalReviewPanelContent {
             openPassageInReader(passage)
         case .openContextSource(let sourceID):
             Task { await vm.openLinkedSourceInReader(sourceID) }
+        case .undoContextAddition(let sourceIDs):
+            removeSourcesFromChatContext(sourceIDs)
         case .suggestedQuestion(let question):
             askSuggestedQuestion(question)
         case .openMoment(let sourceID, let seconds):
@@ -367,6 +369,7 @@ extension InternalReviewPanelContent {
                         ? memoryReviewCardTextWidth - 2 * MemoryReviewCardSurface.contentInset
                         : chatMessageMaxWidth,
                     openContextSource: { sourceID in Task { await vm.openLinkedSourceInReader(sourceID) } },
+                    undoContextAddition: { removeSourcesFromChatContext($0) },
                     answerOpenQuestion: { returnToOpenQuestion() },
                     skipOpenQuestion: { Task { await skipOpenQuestion() } },
                     followUpSideQuestion: { followUpSideQuestion() },
@@ -485,7 +488,9 @@ extension InternalReviewPanelContent {
                 ReviewChatContextAdditionsRow(
                     added: stored.added,
                     maxContentWidth: chatMessageMaxWidth,
-                    openSource: { sourceID in Task { await vm.openLinkedSourceInReader(sourceID) } }
+                    openSource: { sourceID in Task { await vm.openLinkedSourceInReader(sourceID) } },
+                    undo: stored.added.contains { manager.linkedSourceIDs.contains($0.id) }
+                        ? { removeSourcesFromChatContext(stored.added.map(\.id)) } : nil
                 )
             }
             // The moment of a video the question was asked at, with the frame

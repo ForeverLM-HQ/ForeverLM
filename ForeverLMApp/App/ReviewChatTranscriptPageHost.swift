@@ -101,7 +101,7 @@ struct ReviewChatTranscriptPageHost: View {
         }
 
         var tail = ChatTranscriptPage.Tail()
-        tail.pending = ChatTranscriptPage.added(manager.pendingContextAdditions)
+        tail.pending = ChatTranscriptPage.added(manager.pendingContextAdditions, inChat: Set(manager.linkedSourceIDs))
         if let last = blocks.last, last.userMessage == nil {
             let insideAside = sections.contains { $0.isSideQuestion && $0.blocks.contains { $0.id == last.id } }
             let lastContext = context(last, insideAside: insideAside)
@@ -142,7 +142,8 @@ struct ReviewChatTranscriptPageHost: View {
                 message: user,
                 canEdit: user.id == editableMessageID,
                 isFindMatch: block.id == findMatchID,
-                lane: lane
+                lane: lane,
+                inChat: Set(manager.linkedSourceIDs)
             )
         }
         if let marker = block.answerMessages.first?.walkthroughStep {
