@@ -6,8 +6,11 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+<<<<<<< HEAD
 - **The review plan reads more calmly and can be cleared.** One colour marks the topic you are on, ticks are grey, only that topic shows its points (click another to open it, or its arrow to go there), and a bar of seven segments shows how far each topic has got. Topics are no longer numbered twice. **Clear Plan** in the plan's **⋯** menu takes it out of the chat.
 - **A quiz chat keeps its plan beside the composer.** Ask a chat to quiz you on a source and its plan sits on the composer's tray as **Topic 2 of 7**: click it for every topic with its points ticked off as you answer, the open question, what was parked for later and the plans it replaced. When the chat wanders into side questions the tray says **off plan** and shows the path back; **Back to plan** asks the open question again. The tutor stops reprinting the plan as a checklist in its replies.
+=======
+>>>>>>> 34e143c7b427ea443a3a4dd627f3d545d8831f56
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
@@ -34,6 +37,23 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.223.0 (build 303) — 2026-11-17
+
+**Highlights:**
+- **A quiz chat keeps its plan beside the composer,** with the path back from side questions.
+- **A whole book dropped into a chat joins on demand, every chapter of it.**
+
+- **A quiz chat keeps its plan beside the composer.** Ask a chat to quiz you on a source and its plan sits on the composer's tray as **Topic 2 of 7**: click it for every topic with its points ticked off as you answer, the open question, what was parked for later and the plans it replaced. When the chat wanders into side questions the tray says **off plan** and shows the path back; **Back to plan** asks the open question again. The tutor stops reprinting the plan as a checklist in its replies.
+- **A whole book dropped into a chat joins on demand, every chapter of it.** The chat reads a chapter when a question needs it, and the "in context" pill counts them all.
+- **"Added N sources to context" has an Undo** that takes them back out in one go.
+- **A reading chat can narrate its book,** with a free speech model when you ask for one.
+- **Settings › Voice has four tabs, one job each:** Voice Input, Transcription, Text to Speech and Voice Mode.
+- **Kept cards edit in place:** a new answer, why or picture keeps the card's schedule and answers.
+- **Opening a long transcript no longer beachballs;** only the turns on screen are built.
+- **Selecting text in a chat leaves no white seam or strip under a line,** and the dictation meter draws crisp.
+- **Underlined words and bare links in a reply show as words,** not as `<u>` or `<a>` tags.
+- **Setup's OpenAI and Anthropic API credits are a button,** not a grey footnote.
 
 ## 0.222.0 (build 302) — 2026-11-16
 
