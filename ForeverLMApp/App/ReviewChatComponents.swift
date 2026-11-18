@@ -21,13 +21,24 @@ struct ReviewDictationWaveform: View {
     /// even row of dots rather than collapsing onto the baseline.
     private static let silentLevel = 0.08
 
-    private let barWidth: CGFloat = 2.5
+    /// Whole points, so every bar edge lands on a device pixel. A 2.5pt bar
+    /// on a 4.5pt pitch put half the edges between pixels and the row read
+    /// as fuzzy.
+    private let barWidth: CGFloat = 2
     private let barSpacing: CGFloat = 2
     private let meterHeight: CGFloat = 20
     /// Gap between the end of the dotted rule and the oldest bar.
     private let leaderGap: CGFloat = 7
 
+    @Environment(\.displayScale) private var displayScale
+
     private var pitch: CGFloat { barWidth + barSpacing }
+
+    /// Rounds a coordinate to the nearest device pixel.
+    private func snapped(_ value: CGFloat) -> CGFloat {
+        let scale = max(displayScale, 1)
+        return (value * scale).rounded() / scale
+    }
 
     var body: some View {
         HStack(spacing: 9) {
@@ -97,10 +108,12 @@ struct ReviewDictationWaveform: View {
         let samples = Array(smoothed.suffix(capacity))
         guard !samples.isEmpty else { return }
 
-        let midY = size.height / 2
+        let midY = snapped(size.height / 2)
         let maxBarHeight = size.height
         let barsWidth = CGFloat(samples.count) * pitch - barSpacing
-        let originX = size.width - barsWidth
+        // The Canvas can be a fractional width; snapping the origin keeps
+        // every bar after it on the pixel grid too.
+        let originX = snapped(size.width - barsWidth)
 
         drawLeader(&context, upTo: originX - leaderGap, midY: midY)
 
@@ -111,7 +124,10 @@ struct ReviewDictationWaveform: View {
         for (index, level) in samples.enumerated() {
             let clamped = min(max(level, Self.silentLevel), 1)
             let normalized = (clamped - Self.silentLevel) / (1 - Self.silentLevel)
-            let height = max(barWidth, CGFloat(normalized) * maxBarHeight)
+            // Even pixel count, so the bar centres on midY without a half pixel.
+            let pixel = 1 / max(displayScale, 1)
+            let rawHeight = max(barWidth, CGFloat(normalized) * maxBarHeight)
+            let height = max(barWidth, (rawHeight / (2 * pixel)).rounded() * 2 * pixel)
             let rect = CGRect(
                 x: originX + CGFloat(index) * pitch,
                 y: midY - height / 2,
