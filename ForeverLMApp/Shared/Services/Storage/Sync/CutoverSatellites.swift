@@ -128,9 +128,7 @@ struct CutoverSatellites: Sendable {
     /// The bodies of `role` this Mac makes for a source from its rows today (a file is read mapped, so it is paged
     /// in only where it is hashed).
     static func tableBodies(sourceID: String, role: String, in store: KnowledgeStore) throws -> [Data] {
-        try SourceSatelliteRoles.localSatellites(sourceID: sourceID, connection: store, resolve: {
-            KnowledgeStore.sourceFileLocationOverride?($0) ?? URL(fileURLWithPath: StorageService.absoluteSourcePath($0))
-        }).filter { $0.role == role }.map(\.body)
+        try SourceSatelliteRoles.localSatellites(sourceID: sourceID, connection: store, resolve: KnowledgeStore.sourceFileURL).filter { $0.role == role }.map(\.body)
     }
 
     func upload() async throws -> CutoverSatelliteTotals {

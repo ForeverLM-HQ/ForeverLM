@@ -169,6 +169,15 @@ extension KnowledgeStore {
     /// way, never the Mac's own folders.
     @TaskLocal static var sourceFileLocationOverride: (@Sendable (String) -> URL)?
 
+    /// The file a source's stored path names, found where the app itself finds it (`locateSourceFile`, which
+    /// also looks in the iCloud Drive folder the library used before), else where it would be under this
+    /// Mac's content root. Reading the content root alone left a paper whose PDF sat in the old folder
+    /// published with its text and no PDF: it was ready here and "PDF needed" on every other Mac.
+    static func sourceFileURL(_ storedPath: String) -> URL {
+        if let override = sourceFileLocationOverride { return override(storedPath) }
+        return URL(fileURLWithPath: StorageService.locateSourceFile(storedPath) ?? StorageService.absoluteSourcePath(storedPath))
+    }
+
     /// Queues every source for the satellite backfill: the activation's last source step. Set-based and
     /// derived from the library alone (each queued as of when it was added), so it gives one result
     /// however often it runs; the queue's `(kind, target)` key queues nothing twice.
@@ -213,9 +222,7 @@ extension KnowledgeStore {
                 let owner = try scalarText("SELECT wire_key FROM sources WHERE id = ?", [.text(item.source)]) ?? item.source
                 var rows: [(map: SourceLocalSatellite.Map, role: String, file: FileRef, localPath: String?)] = []
                 var fileHash: String?
-                for satellite in try SourceSatelliteRoles.localSatellites(sourceID: item.source, connection: self, resolve: {
-                    Self.sourceFileLocationOverride?($0) ?? URL(fileURLWithPath: StorageService.absoluteSourcePath($0))
-                }) {
+                for satellite in try SourceSatelliteRoles.localSatellites(sourceID: item.source, connection: self, resolve: Self.sourceFileURL) {
                     let (file, stored) = try SourceSatelliteLayout.layout(satellite, owner: owner)
                     var localPath = satellite.localPath
                     if localPath == nil {
@@ -919,9 +926,7 @@ extension KnowledgeStore {
         try query(
             "SELECT enqueued_at FROM ck_backfill_queue WHERE kind = ? AND target = ?", [.text(Self.sourcePublishKind), .text(sourceID)]
         ) { queuedAt = $0.real(0) }
-        let satellites = try SourceSatelliteRoles.localSatellites(sourceID: sourceID, connection: self, resolve: {
-            Self.sourceFileLocationOverride?($0) ?? URL(fileURLWithPath: StorageService.absoluteSourcePath($0))
-        })
+        let satellites = try SourceSatelliteRoles.localSatellites(sourceID: sourceID, connection: self, resolve: Self.sourceFileURL)
         var items: [SourcePublishPlan.Item] = []
         for satellite in satellites {
             let table = satellite.map == .files ? "source_files" : "source_derived"

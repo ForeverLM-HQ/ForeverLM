@@ -189,11 +189,16 @@ final class MCPDataStore {
 
     var knowledgeDBPath: String { dbPathOverride ?? localAppDataDir.appendingPathComponent("knowledge.db").path }
 
+    /// Where MCP tools write a source's file (a paper's PDF, an attached file) and find a Notebook's
+    /// workspace: the app's own content root (`StorageService.libraryRootPath`), never the iCloud Drive
+    /// folder (`libraryDir`) the library left. A PDF written there opened on this Mac through the old-root
+    /// fallback, but the sync publisher read the content root, so the paper reached other Macs with its
+    /// text and no PDF and sat in their Papers that need attention.
     var sourceContentRoot: URL {
         if dbPathOverride != nil {
             return URL(fileURLWithPath: knowledgeDBPath).deletingLastPathComponent()
         }
-        return libraryDir
+        return URL(fileURLWithPath: StorageService.libraryRootPath, isDirectory: true)
     }
 
     /// Relativize a path under `sourceContentRoot`. In production the content root
