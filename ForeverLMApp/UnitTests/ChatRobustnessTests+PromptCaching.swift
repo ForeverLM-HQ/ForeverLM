@@ -637,7 +637,11 @@ extension ChatRobustnessTests {
         #expect(system.map { $0["text"] as? String } == ["HEAD", header + "SOURCES"])
         #expect(moved.tailIndex == 3)
         let tail = try #require(moved.messages[3]["content"] as? [[String: Any]])
-        #expect(tail.map { $0["text"] as? String } == ["TAIL"])
+        // Framed, so a provider that joins it to the learner's message after
+        // it does not read it as the learner's latest message.
+        #expect(tail.map { $0["text"] as? String } == [
+            AIService.volatileContextOpening, "TAIL", AIService.volatileContextClosing,
+        ])
         #expect(moved.messages[4]["content"] as? String == "three")
 
         // A system message with no tail is left alone, and reports none.

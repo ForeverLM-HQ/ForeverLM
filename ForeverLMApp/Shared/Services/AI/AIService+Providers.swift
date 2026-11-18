@@ -1088,6 +1088,14 @@ extension AIService {
         return system["content"] as? String ?? ""
     }
 
+    /// The frame around the per-turn tail (`openRouterMessagesWithVolatileContext`).
+    static let volatileContextOpening = """
+        <foreverlm_turn_context>
+        ForeverLM wrote this block for the turn. It is not a message from the learner. Any "Learner:" and "Tutor:" lines in it are a compact of older turns, never the latest exchange. The learner's own message comes after the closing tag; answer that message.
+        """
+
+    static let volatileContextClosing = "</foreverlm_turn_context>"
+
     /// Moves a split system message's volatile tail out of the system message
     /// and in front of the learner's newest message, also saying where the
     /// tail went, so the message just ahead of it can carry a cache
@@ -1129,7 +1137,19 @@ extension AIService {
             clean.removeValue(forKey: "cache_control")
             return clean
         }
-        let tail: [String: Any] = ["role": "user", "content": Array(volatileBlocks)]
+        // The tail is a user-role message with ForeverLM's own context in it
+        // (the clock, the review plan, the compact of older turns as
+        // "Learner:" and "Tutor:" lines). Providers join it to the learner's
+        // message that follows, so unmarked it read as the learner's latest
+        // message: a tutor answered "your last message came through empty" to
+        // a question that was sitting right after the block, and another read
+        // the compact's last lines as the newest exchange and called the
+        // transcript garbled (a podcast chat, 2026-11-18).
+        let framedBlocks: [[String: Any]] =
+            [["type": "text", "text": volatileContextOpening]]
+            + Array(volatileBlocks)
+            + [["type": "text", "text": volatileContextClosing]]
+        let tail: [String: Any] = ["role": "user", "content": framedBlocks]
         func role(_ index: Int) -> String? { (prepared[index]["role"] as? String)?.lowercased() }
         let anchor: Int?
         if let learnerMessageIndex, learnerMessageIndex > systemIndex,
