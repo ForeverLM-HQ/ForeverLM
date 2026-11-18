@@ -9,8 +9,11 @@ import SwiftUI
 /// samples enter at the right and scroll left, with a dotted rule marking the
 /// stretch of the row the wave hasn't travelled into yet.
 struct ReviewDictationWaveform: View {
-    let levels: [Double]
-    let seconds: Int
+    /// Observed here and nowhere above, so the 30Hz samples redraw this row
+    /// and not the pane that holds it.
+    @ObservedObject var meter: DictationMeter
+    private var levels: [Double] { meter.levels }
+    private var seconds: Int { meter.seconds }
     /// Stop, transcribe and send — the default, and what Return does too.
     let onStop: () -> Void
     /// Stop and transcribe, but leave the words in the draft to be edited or
@@ -19,7 +22,7 @@ struct ReviewDictationWaveform: View {
 
     /// Floor matching the service's own clamp, so a silent mic settles into an
     /// even row of dots rather than collapsing onto the baseline.
-    private static let silentLevel = 0.08
+    private static let silentLevel = DictationMeter.silentLevel
 
     /// Whole points, so every bar edge lands on a device pixel. A 2.5pt bar
     /// on a 4.5pt pitch put half the edges between pixels and the row read

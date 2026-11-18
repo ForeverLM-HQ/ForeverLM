@@ -90,8 +90,7 @@ private struct QuickAssistantBar: View {
     private var content: some View {
         if dictation.isRecording {
             ReviewDictationWaveform(
-                levels: dictation.audioLevels,
-                seconds: dictation.recordingSeconds,
+                meter: dictation.meter,
                 onStop: { Task { await model.finishListening(sending: true) } },
                 onKeepInDraft: { Task { await model.finishListening(sending: false) } }
             )

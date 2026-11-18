@@ -1006,8 +1006,7 @@ struct MemoryCardAttemptBox: View {
         HStack(spacing: 8) {
             if dictation.isRecording {
                 ReviewDictationWaveform(
-                    levels: dictation.audioLevels,
-                    seconds: dictation.recordingSeconds,
+                    meter: dictation.meter,
                     onStop: { finishDictation(thenCheck: true) },
                     onKeepInDraft: { finishDictation(thenCheck: false) }
                 )

@@ -12,18 +12,48 @@ private let dictationLogger = Logger(
     category: "Dictation"
 )
 
+/// The recording's level meter and second counter, apart from the service.
+///
+/// The meter changes 30 times a second. Published on the service itself, it
+/// re-ran the body of every view that holds the service — the whole chat pane,
+/// transcript included — 30 times a second for as long as the mic was open,
+/// which is what made recording feel glitchy. Only the meter's own views
+/// observe this.
 @MainActor
-final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderDelegate {
+final class DictationMeter: ObservableObject {
+    static let silentLevel = 0.08
+    @Published var levels = Array(repeating: DictationMeter.silentLevel, count: 48)
+    /// Whole seconds since the mic opened. Republished only when the second
+    /// ticks over.
+    @Published var seconds = 0
+
+    func reset() {
+        levels = Array(repeating: Self.silentLevel, count: levels.count)
+        if seconds != 0 { seconds = 0 }
+    }
+}
+
+/// Carries a recorder opened off the main thread back to it.
+private final class RecorderBox: @unchecked Sendable {
+    let recorder: AVAudioRecorder
+    init(_ recorder: AVAudioRecorder) { self.recorder = recorder }
+}
+
+@MainActor
+final class ReviewDictationService: NSObject, ObservableObject {
+    /// True from the click on: the waveform shows at once, while the mic is
+    /// still being opened (`openMic`), rather than after it.
     @Published var isRecording = false
     @Published var isTranscribing = false
-    @Published var audioLevels = Array(repeating: 0.08, count: 48)
-    /// Whole seconds since the mic opened, for the composer's recording counter.
-    /// Republished only when the second ticks over, so the 30Hz meter doesn't
-    /// invalidate the counter's text 30 times a second for no visible change.
-    @Published var recordingSeconds = 0
     @Published var errorMessage: String?
+    let meter = DictationMeter()
 
     private var recorder: AVAudioRecorder?
+    /// The mic being opened, off the main thread. Stop and cancel wait for it.
+    private var startTask: Task<Void, Never>?
+    /// Bumped by every start and cancel, so a mic that finishes opening after
+    /// the learner cancelled is closed rather than adopted.
+    private var recordingGeneration = 0
     private var recordingURL: URL?
     private var meteringTimer: Timer?
     private var recordingStartedAt: Date?
@@ -57,8 +87,32 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
         automaticallyStopsAfterSilence: Bool = false,
         onAutoStopAfterSilence: (() -> Void)? = nil
     ) async {
+        guard !isRecording, !isTranscribing else { return }
         errorMessage = nil
+        recordingGeneration += 1
+        let generation = recordingGeneration
+        // The waveform shows on the click itself. Opening the mic can take a
+        // few hundred milliseconds (more when AirPods switch profile), and
+        // that wait used to sit on the main thread with nothing on screen.
+        meter.reset()
+        isRecording = true
+        recordingStartedAt = Date()
+        shouldAutoStopAfterSilence = automaticallyStopsAfterSilence
+        hasDetectedSpeech = false
+        silenceStartedAt = nil
+        didRequestAutoStop = false
+        self.onAutoStopAfterSilence = onAutoStopAfterSilence
 
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.openMic(generation: generation)
+        }
+        startTask = task
+        await task.value
+    }
+
+    private func openMic(generation: Int) async {
+        defer { if generation == recordingGeneration { startTask = nil } }
         // Every recording is transcribed after it stops, through OpenRouter's
         // speech-to-text (`ManagedTranscriptionClient`). There is no live
         // realtime rail: it needed models that OpenRouter does not serve.
@@ -83,45 +137,86 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
                 AVEncoderBitRateKey: 32_000,
                 AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
             ]
-            let recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder.delegate = self
-            recorder.isMeteringEnabled = true
-            recorder.prepareToRecord()
-            guard recorder.record() else {
-                throw DictationError.recordingFailed
+            // Creating, preparing and starting the recorder wakes the audio
+            // hardware; it is done off the main thread so the click never
+            // stalls the window.
+            let box = try await Task.detached(priority: .userInitiated) { () throws -> RecorderBox in
+                let recorder = try AVAudioRecorder(url: url, settings: settings)
+                recorder.isMeteringEnabled = true
+                recorder.prepareToRecord()
+                guard recorder.record() else {
+                    throw DictationError.recordingFailed
+                }
+                return RecorderBox(recorder)
+            }.value
+            guard generation == recordingGeneration, isRecording else {
+                // Cancelled while the mic was opening.
+                Self.discard(box.recorder, at: url)
+                return
             }
-            self.recorder = recorder
+            self.recorder = box.recorder
             recordingURL = url
+            // The counter starts when the mic is really listening.
             recordingStartedAt = Date()
-            recordingSeconds = 0
-            shouldAutoStopAfterSilence = automaticallyStopsAfterSilence
-            hasDetectedSpeech = false
-            silenceStartedAt = nil
-            didRequestAutoStop = false
-            self.onAutoStopAfterSilence = onAutoStopAfterSilence
-            isRecording = true
             startMetering()
             // The upload this recording ends in should not start cold.
             ManagedTranscriptionClient.warmConnection(session: session)
         } catch {
+            guard generation == recordingGeneration else { return }
             errorMessage = error.localizedDescription
-            stopMetering()
+            resetRecordingState()
         }
+    }
+
+    private nonisolated static func discard(_ recorder: AVAudioRecorder, at url: URL) {
+        let box = RecorderBox(recorder)
+        Task.detached(priority: .utility) {
+            box.recorder.stop()
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// Stops the recorder off the main thread; `stop()` finalises the file,
+    /// which the transcription then reads.
+    private nonisolated static func finish(_ recorder: AVAudioRecorder) async {
+        let box = RecorderBox(recorder)
+        await Task.detached(priority: .userInitiated) {
+            box.recorder.stop()
+        }.value
+    }
+
+    private func resetRecordingState() {
+        stopMetering()
+        isRecording = false
+        recordingStartedAt = nil
+        shouldAutoStopAfterSilence = false
+        hasDetectedSpeech = false
+        silenceStartedAt = nil
+        didRequestAutoStop = false
+        onAutoStopAfterSilence = nil
     }
 
     func stopAndTranscribe() async -> String? {
         guard isRecording else { return nil }
+        // A stop that lands while the mic is still opening waits for it, so
+        // a quick click-click records the moment rather than failing.
+        if let startTask { await startTask.value }
+        guard isRecording else { return nil }
         stopMetering()
-        recorder?.stop()
-        recorder = nil
+        // The transcribing state shows before the file is finalised, so the
+        // row moves straight from the waveform to the spinner.
+        isTranscribing = true
         isRecording = false
+        let finishing = recorder
+        recorder = nil
+        if let finishing { await Self.finish(finishing) }
 
         guard let recordingURL else {
+            isTranscribing = false
             errorMessage = DictationError.missingRecording.localizedDescription
             return nil
         }
 
-        isTranscribing = true
         defer {
             isTranscribing = false
             // Delete the temp recording off-main; file I/O on the main actor is a
@@ -131,7 +226,7 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
             }
             self.recordingURL = nil
             self.recordingStartedAt = nil
-            self.recordingSeconds = 0
+            self.meter.reset()
             self.shouldAutoStopAfterSilence = false
             self.hasDetectedSpeech = false
             self.silenceStartedAt = nil
@@ -149,28 +244,25 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
     }
 
     func cancelRecording() {
-        stopMetering()
-        recorder?.stop()
-        recorder = nil
-        isRecording = false
-        if let recordingURL {
+        // A mic still opening is closed when it arrives (`openMic`).
+        recordingGeneration += 1
+        startTask = nil
+        if let recorder, let recordingURL {
+            Self.discard(recorder, at: recordingURL)
+        } else if let recordingURL {
             Task.detached(priority: .utility) {
                 try? FileManager.default.removeItem(at: recordingURL)
             }
         }
+        recorder = nil
         recordingURL = nil
-        recordingStartedAt = nil
-        recordingSeconds = 0
-        shouldAutoStopAfterSilence = false
-        hasDetectedSpeech = false
-        silenceStartedAt = nil
-        didRequestAutoStop = false
-        onAutoStopAfterSilence = nil
+        resetRecordingState()
+        meter.reset()
     }
 
     private func startMetering() {
         stopMetering(resetLevels: false)
-        audioLevels = Array(repeating: 0.08, count: audioLevels.count)
+        meter.reset()
         meteringTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.sampleAudioLevel()
@@ -182,7 +274,7 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
         meteringTimer?.invalidate()
         meteringTimer = nil
         if resetLevels {
-            audioLevels = Array(repeating: 0.08, count: audioLevels.count)
+            meter.reset()
         }
     }
 
@@ -192,12 +284,14 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
         let power = max(Double(recorder.averagePower(forChannel: 0)), -60)
         let linearPower = pow(10, power / 20)
         let level = min(max(pow(linearPower, 0.35), 0.08), 1)
-        audioLevels.removeFirst()
-        audioLevels.append(level)
+        var levels = meter.levels
+        levels.removeFirst()
+        levels.append(level)
+        meter.levels = levels
         if let recordingStartedAt {
             let seconds = Int(Date().timeIntervalSince(recordingStartedAt))
-            if seconds != recordingSeconds {
-                recordingSeconds = seconds
+            if seconds != meter.seconds {
+                meter.seconds = seconds
             }
         }
         updateAutomaticSilenceStop(level: level)

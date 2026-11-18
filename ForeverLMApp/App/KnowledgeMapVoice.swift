@@ -1484,10 +1484,18 @@ private struct CappedWidthLayout: Layout {
 
 /// The recorder's level while the canvas records for the Dictation model.
 private struct KnowledgeMapVoiceLevels: View {
-    @ObservedObject var dictation: ReviewDictationService
+    let dictation: ReviewDictationService
 
     var body: some View {
-        KnowledgeMapVoiceBars(levels: Array(dictation.audioLevels.suffix(9)))
+        KnowledgeMapVoiceLevelsMeter(meter: dictation.meter)
+    }
+}
+
+private struct KnowledgeMapVoiceLevelsMeter: View {
+    @ObservedObject var meter: DictationMeter
+
+    var body: some View {
+        KnowledgeMapVoiceBars(levels: Array(meter.levels.suffix(9)))
     }
 }
 

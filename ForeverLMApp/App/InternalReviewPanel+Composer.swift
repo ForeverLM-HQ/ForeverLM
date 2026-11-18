@@ -167,8 +167,7 @@ extension InternalReviewPanelContent {
                     // open: it is the only thing worth looking at then, and
                     // the width is what makes it read as a waveform at all.
                     ReviewDictationWaveform(
-                        levels: dictation.audioLevels,
-                        seconds: dictation.recordingSeconds,
+                        meter: dictation.meter,
                         onStop: { Task { await finishManualDictationAndSend() } },
                         onKeepInDraft: { Task { await finishManualDictationIntoDraft() } }
                     )
