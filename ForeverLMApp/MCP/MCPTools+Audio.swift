@@ -306,6 +306,7 @@ extension MCPDataStore {
         guard provider.isCloudProvider else {
             throw MCPError.invalidInput(
                 "Text to Speech is set to the on-device Apple voice, which plays live and does not produce audio files. Ask the learner to choose a cloud voice in ForeverLM Settings → Text-to-Speech, then call again."
+                    + Self.freeSpeechModelSentence(Self.freeSpeechModels())
             )
         }
         // The quote reads the model's price from OpenRouter's speech list,
@@ -346,8 +347,14 @@ extension MCPDataStore {
 
         let isFree = estimate.usd == 0
         if !isFree && !confirmCost {
+            // "Narrate this book with a free model" is a fair ask: OpenRouter
+            // lists speech models at $0. The quote names them, so a chat
+            // answers with the free route rather than "I can't make audio".
+            let freeModels = Self.freeSpeechModels()
+            if !freeModels.isEmpty { payload["free_models"] = freeModels }
             payload["status"] = "awaiting_confirmation"
             payload["message"] = "Nothing was started. This would generate \(estimate.summary(countingSourcesAs: "source")) with \(model). Show the learner the estimate, and only after they explicitly agree call generate_source_audio again with the same selection and confirm_cost: true."
+                + Self.freeSpeechModelSentence(freeModels)
             return try jsonString(payload)
         }
         if confirmCost, let estimated = estimate.usd, let approvedSpendUSD,
@@ -370,6 +377,37 @@ extension MCPDataStore {
         payload["queued_count"] = outcome.queued.count
         payload["message"] = "Queued \(outcome.queued.count) source(s). Generation runs in the ForeverLM app, \(SourceAudioGenerationQueue.maxConcurrentSources) sources at a time, and keeps going while the app is open. Call get_source_audio_status to follow progress; a long book takes a while."
         return try jsonString(payload)
+    }
+
+    /// The speech models OpenRouter's list prices at $0, as `read_aloud.model`
+    /// options: what the learner can switch to when they want audio that
+    /// costs nothing.
+    static func freeSpeechModels() -> [[String: Any]] {
+        freeSpeechModels(
+            among: MacArticleSpeechSettings.preferredModels(for: .openRouter),
+            rate: { AIProviderPricing.ttsDisplayRatePerMillionCharacters(provider: MacArticleSpeechMode.openRouter.rawValue, model: $0) },
+            name: { ArticleSpeechCatalog.model(id: $0)?.name }
+        )
+    }
+
+    /// Only a model the rate card prices at exactly zero counts: an unpriced
+    /// one is never offered as free.
+    static func freeSpeechModels(
+        among models: [String],
+        rate: (String) -> Double?,
+        name: (String) -> String?
+    ) -> [[String: Any]] {
+        models.filter { rate($0) == 0 }.map { model in
+            ["value": model, "label": name(model) ?? model] as [String: Any]
+        }
+    }
+
+    /// The sentence that tells an assistant how to narrate for free, or ""
+    /// when no free model is listed.
+    static func freeSpeechModelSentence(_ freeModels: [[String: Any]]) -> String {
+        let values = freeModels.compactMap { $0["value"] as? String }
+        guard !values.isEmpty else { return "" }
+        return " To narrate at no cost instead, offer the learner a free speech model (\(values.joined(separator: ", "))): once they choose one, set it with set_app_setting setting read_aloud.model, which changes the voice all their listening uses, then call generate_source_audio again with the same selection."
     }
 
     /// `get_source_audio_status`.

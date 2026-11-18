@@ -60,6 +60,25 @@ struct MCPSourceAudioToolsTests {
         ]))
     }
 
+    @Test("only a speech model priced at exactly zero is offered as free, and the quote says how to switch")
+    func freeSpeechModelsAreOffered() {
+        let rates: [String: Double] = ["a/free:free": 0, "b/paid": 15]
+        let free = MCPDataStore.freeSpeechModels(
+            among: ["a/free:free", "b/paid", "c/unpriced"],
+            rate: { rates[$0] },
+            name: { $0 == "a/free:free" ? "A Free" : nil }
+        )
+        #expect(free.count == 1)
+        #expect(free.first?["value"] as? String == "a/free:free")
+        #expect(free.first?["label"] as? String == "A Free")
+
+        let sentence = MCPDataStore.freeSpeechModelSentence(free)
+        #expect(sentence.contains("a/free:free"))
+        #expect(sentence.contains("set_app_setting"))
+        #expect(sentence.contains("read_aloud.model"))
+        #expect(MCPDataStore.freeSpeechModelSentence([]).isEmpty)
+    }
+
     @Test("source types are validated and audio-native types are refused by name")
     func sourceTypeParsing() throws {
         #expect(try MCPDataStore.audioGenerationSourceTypes(from: ["book", "Book ", "article"]) == [.book, .article])

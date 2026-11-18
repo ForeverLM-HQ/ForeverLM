@@ -166,6 +166,15 @@ extension ReviewSessionManager {
         // list_notebooks finds a Notebook the learner names by its title.
         "open_in_app",
         "list_notebooks",
+        // "Can you make audio of this book, with a free voice?" is said in the
+        // chat about the book. Without these a reading chat answered that it
+        // could not generate speech and sent the learner to Terminal's `say`
+        // (2026-11-17). set_app_setting switches to a free speech model when
+        // the learner picks one from generate_source_audio's quote.
+        "generate_source_audio",
+        "get_source_audio_status",
+        "cancel_source_audio_generation",
+        "set_app_setting",
     ]
 
     /// What Deep Research carries beyond the study surface: the reader's

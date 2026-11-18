@@ -81,6 +81,17 @@ struct ChatToolSurfaceTests {
         #expect(!withoutOpening.contains("open_in_app"))
     }
 
+    @Test("A reading chat asked for audio of its book can narrate it, with a free model if asked")
+    func studyChatsCanNarrate() {
+        // 2026-11-17: asked for text to speech of a textbook with a free
+        // model, the chat on the book said it could not make audio and
+        // pointed at Terminal's `say`.
+        #expect(ReviewSessionManager.studySurfaceToolNames.isSuperset(of: [
+            "generate_source_audio", "get_source_audio_status",
+            "cancel_source_audio_generation", "set_app_setting",
+        ]))
+    }
+
     @Test("Nothing the study surface lists is excluded from the agent chat")
     func studySurfaceIsNeverExcluded() {
         let overlap = ReviewSessionManager.studySurfaceToolNames
