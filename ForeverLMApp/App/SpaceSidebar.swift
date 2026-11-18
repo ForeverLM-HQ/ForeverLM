@@ -209,12 +209,12 @@ enum SpaceDestination: Hashable, Sendable {
 
     /// The green tag after the place's name in the sidebar: Beta on Canvases
     /// (product owner, 2026-10-10: "add a green 'beta' button to show that it's
-    /// still in beta") and on Pages (product owner, 2026-11-18: "don't work all
-    /// these things as beta, just canvases and probably pages"); nil for every
-    /// other row.
+    /// still in beta"), on Pages (product owner, 2026-11-18: "don't work all
+    /// these things as beta, just canvases and probably pages") and on Sites
+    /// (2026-11-18: "sites also beta"); nil for every other row.
     var badge: String? {
         switch self {
-        case .canvases, .pages: return "Beta"
+        case .canvases, .pages, .sites: return "Beta"
         default: return nil
         }
     }
@@ -226,6 +226,7 @@ enum SpaceDestination: Hashable, Sendable {
         switch self {
         case .canvases: return "We're actively developing Canvases to make them look and feel right."
         case .pages: return "We're actively developing Pages to make them look and feel right."
+        case .sites: return "We're actively developing Sites to make them look and feel right."
         default: return nil
         }
     }
