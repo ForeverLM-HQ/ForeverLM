@@ -33,6 +33,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.227.0 (build 307) — 2026-11-18
+
+**Highlights:**
+- **Remove Source leaves the card row, and the chat checks a garbled transcript against the paper.**
+
+- **Remove Source moves into the ⋯ menu on a card to check,** off the row beside Skip and Edit, so a source-level action is no longer one tap from a card-level one.
+- **The review plan chip no longer says Off plan.** It listed an on-plan request as a detour; the popover still shows the detours the plan recorded, with the way back.
+- **A garbled transcript line is checked against the speaker's paper.** Before the chat tells you a transcript is garbled and guesses, it looks for the claim in a clearer source in your library and names both.
+
 ## 0.226.0 (build 306) — 2026-11-18
 
 **Highlights:**
