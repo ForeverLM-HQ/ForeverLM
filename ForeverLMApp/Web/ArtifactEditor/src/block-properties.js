@@ -29,6 +29,11 @@
 // over a parsed page (artifact-editor.js) that hands each block the comment
 // after it.
 
+/// The widths a picture can be given, as a share of the page's column in steps
+/// of five: '10' … '100'. 'auto' (the default) is its own size, never wider
+/// than the column.
+export const pictureWidths = Array.from({ length: 19 }, (_, index) => String(10 + index * 5))
+
 /// What each kind of block takes: its keys, the values each allows (the first
 /// is the default, the one that writes no comment), in the order they are
 /// written.
@@ -39,6 +44,12 @@ export const properties = {
   },
   highlight: {
     color: ['yellow', 'red', 'orange', 'green', 'blue', 'purple', 'gray'],
+  },
+  // A picture on a line of its own: how wide it is drawn, and where it stands
+  // in the column. `wrap-left` and `wrap-right` let the writing flow beside it.
+  picture: {
+    width: ['auto', ...pictureWidths],
+    align: ['center', 'left', 'right', 'wrap-left', 'wrap-right'],
   },
 }
 
@@ -118,9 +129,17 @@ function isHighlightQuote(node) {
   return text.type === 'text' && String(text.value).trim() === 'Highlight'
 }
 
+/// Whether a parsed block is a picture on a line of its own: Crepe's image
+/// block, or the paragraph holding only an image that it is made from.
+function isPictureBlock(node) {
+  if (node.type === 'image-block') return true
+  return node.type === 'paragraph' && node.children?.length === 1 && node.children[0].type === 'image'
+}
+
 function propertyKind(node) {
   if (node.type === 'table') return 'table'
   if (isHighlightQuote(node)) return 'highlight'
+  if (isPictureBlock(node)) return 'picture'
   return null
 }
 
@@ -135,7 +154,7 @@ function commentLine(node) {
   return null
 }
 
-/// The pass over a parsed page: each table and highlight whose next sibling is
+/// The pass over a parsed page: each table, highlight and picture whose next sibling is
 /// a property comment it takes gets `properties` (every key filled in) and the
 /// comment leaves the tree, so the page the editor builds has no trace of it.
 /// Only the page's own top-level blocks take properties; a block inside a list

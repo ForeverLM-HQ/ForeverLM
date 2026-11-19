@@ -35,10 +35,10 @@ import { closeHistory } from '@milkdown/kit/prose/history'
 import { inputRules, wrappingInputRule } from '@milkdown/kit/prose/inputrules'
 import { liftListItem } from '@milkdown/kit/prose/schema-list'
 import { DOMSerializer, Fragment, Slice } from '@milkdown/kit/prose/model'
-import { Plugin, PluginKey, Selection, TextSelection } from '@milkdown/kit/prose/state'
+import { NodeSelection, Plugin, PluginKey, Selection, TextSelection } from '@milkdown/kit/prose/state'
 import { Mapping, Transform } from '@milkdown/kit/prose/transform'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
-import { $inputRule, $prose, $remark, replaceAll } from '@milkdown/kit/utils'
+import { $inputRule, $prose, $remark, $view, replaceAll } from '@milkdown/kit/utils'
 import '@milkdown/crepe/theme/common/style.css'
 import '@milkdown/crepe/theme/frame.css'
 import './artifact-editor.css'
@@ -58,7 +58,7 @@ import {
   relativeDayKey,
   takeBlockIDMarker,
 } from './notes-graph-syntax.js'
-import { attachBlockProperties, defaultProperties, highlightHex, properties as blockPropertyValues, propertyComment } from './block-properties.js'
+import { attachBlockProperties, defaultProperties, highlightHex, pictureWidths, properties as blockPropertyValues, propertyComment } from './block-properties.js'
 import { remarkMoneyIsNotMath } from './dollar-math.js'
 import { remarkJoinedGrounding } from './joined-grounding.js'
 import { blankLinesAsEmptyLines, emptyLinesAsBlankLines } from './empty-lines.js'
@@ -430,6 +430,31 @@ function publicationHTML(title = 'Untitled Article') {
   for (const widget of article.querySelectorAll('.artifact-callout-chat, .artifact-visualization')) {
     widget.remove()
   }
+  // A picture is the picture and its caption: the bar and the handles are this
+  // editor's. Its width and placement stay, as classes the published
+  // stylesheet below draws (Block properties).
+  for (const block of article.querySelectorAll('.artifact-picture')) {
+    const source = block.querySelector('img')
+    if (!source?.getAttribute('src')) {
+      block.remove()
+      continue
+    }
+    const figure = document.createElement('figure')
+    figure.className = `picture picture-${block.dataset.align || 'center'}`
+    const width = /^\d+$/.test(block.dataset.width ?? '') ? block.dataset.width : null
+    if (width) figure.classList.add(`picture-w-${width}`)
+    const picture = document.createElement('img')
+    picture.src = source.getAttribute('src')
+    picture.alt = source.getAttribute('alt') ?? ''
+    figure.append(picture)
+    const words = block.querySelector('.artifact-picture-caption')?.value?.trim()
+    if (words) {
+      const figcaption = document.createElement('figcaption')
+      figcaption.textContent = words
+      figure.append(figcaption)
+    }
+    block.replaceWith(figure)
+  }
   // A table is its rows alone: the handles, the add buttons and the drag
   // preview are this editor's. Its width and column fit stay, as classes the
   // published stylesheet below draws (Block properties).
@@ -445,10 +470,11 @@ function publicationHTML(title = 'Untitled Article') {
     block.replaceWith(plain)
   }
   // The editor's copy-and-paste form of the properties is not the page's.
-  for (const element of article.querySelectorAll('[data-fl-width], [data-fl-fit], [data-fl-color]')) {
+  for (const element of article.querySelectorAll('[data-fl-width], [data-fl-fit], [data-fl-color], [data-fl-align]')) {
     element.removeAttribute('data-fl-width')
     element.removeAttribute('data-fl-fit')
     element.removeAttribute('data-fl-color')
+    element.removeAttribute('data-fl-align')
   }
   for (const source of article.querySelectorAll('.artifact-viz-source')) {
     const note = document.createElement('p')
@@ -527,12 +553,14 @@ function publishedFootnotes(article) {
 const publishedFootnoteStyles = 'sup.fn-ref{font:600 .7em/0 ui-sans-serif,-apple-system,BlinkMacSystemFont,sans-serif}sup.fn-ref a{padding:0 .12em;text-decoration:none}section.footnotes{margin:3.4em 0 0;padding-top:1.2em;border-top:1px solid #ddd;color:#555;font-size:.86em}section.footnotes ol{margin:0;padding-left:1.6em}section.footnotes li{margin:.4em 0}section.footnotes li p{margin:.3em 0}a.fn-back{margin-left:.2em;text-decoration:none}'
 
 /// The rules a published copy draws block properties by: a table's width and
-/// column fit, a highlight's colour. A table at its defaults and a yellow
+/// column fit, a highlight's colour, a picture's width and placement. A table at its defaults and a yellow
 /// highlight carry no class or attribute, so these only say what was chosen.
 function publishedBlockPropertyStyles() {
   const colors = Object.entries(highlightHex).filter(([name]) => name !== 'yellow')
     .map(([name, hex]) => `blockquote[data-callout="highlight"][data-callout-color="${name}"]{--hl:${hex}}`).join('')
-  return `.table-block{margin:1.4em 0;overflow-x:auto}.table-block.table-flexible{overflow-x:auto}.table-flexible table{width:max-content}.table-block.table-full{box-sizing:border-box;width:100vw;margin-left:calc(50% - 50vw);padding:0 28px}.table-even table{table-layout:fixed;width:100%}blockquote[data-callout="highlight"]{--hl:${highlightHex.yellow};padding:.55em 1em;border-left-color:var(--hl);border-radius:8px;background:color-mix(in srgb,var(--hl) 13%,transparent);color:inherit}${colors}`
+  const pictureWidthRules = pictureWidths.map((width) => `.picture-w-${width}{width:${width}%}`).join('')
+  const pictures = `figure.picture{margin:2em auto;max-width:100%}figure.picture img{margin:0 auto}figure.picture[class*="picture-w-"] img{width:100%}figure.picture figcaption{margin-top:.5em;color:#777;font:.8em/1.4 ui-sans-serif,-apple-system,BlinkMacSystemFont,sans-serif;text-align:center}${pictureWidthRules}figure.picture-left{margin-left:0}figure.picture-left img{margin-left:0}figure.picture-right{margin-right:0}figure.picture-right img{margin-right:0}figure.picture-wrap-left{float:left;margin:.35em 1.6em 1em 0}figure.picture-wrap-right{float:right;margin:.35em 0 1em 1.6em}h1,h2,h3,h4,hr,figure.picture-left,figure.picture-center,figure.picture-right{clear:both}@media(max-width:560px){figure.picture-wrap-left,figure.picture-wrap-right{float:none;width:auto;margin:2em auto}}`
+  return `${pictures}.table-block{margin:1.4em 0;overflow-x:auto}.table-block.table-flexible{overflow-x:auto}.table-flexible table{width:max-content}.table-block.table-full{box-sizing:border-box;width:100vw;margin-left:calc(50% - 50vw);padding:0 28px}.table-even table{table-layout:fixed;width:100%}blockquote[data-callout="highlight"]{--hl:${highlightHex.yellow};padding:.55em 1em;border-left-color:var(--hl);border-radius:8px;background:color-mix(in srgb,var(--hl) 13%,transparent);color:inherit}${colors}`
 }
 
 /// The published copy carries the notes graph's words, not its grammar: a
@@ -1357,6 +1385,402 @@ function withPictureDescriptions(ctx) {
     }
   })
 }
+
+// ─── Pictures ───────────────────────────────────────────────────────────────
+// A picture on a line of its own is drawn by this view, not Crepe's, whose one
+// control was a handle under the picture that changed its height (product
+// owner, 2026-11-19: "I need way more controls to like resize it and move it").
+// Selected (a click), it shows a bar over it: where it stands in the column
+// (left, centre, right, or beside the writing on either side), its width
+// (25, 50, 75 % of the column or the whole of it), Caption, Move up, Move down
+// and Delete. A handle on each side drags the width in steps of 5 %, and the
+// picture itself is dragged to another place in the page as any block is.
+// Width and placement are block properties (`<!--fl {"width":"50","align":
+// "wrap-left"}-->` after the picture), so they live in the page's text and
+// travel with it; a picture at its own size in the middle writes none.
+
+const pictureAlignments = [
+  { value: 'left', title: 'Left', icon: '<path d="M2 2.6h12M2 13.4h12"/><rect x="2" y="5" width="6.4" height="6" rx="1"/>' },
+  { value: 'center', title: 'Centre', icon: '<path d="M2 2.6h12M2 13.4h12"/><rect x="4.8" y="5" width="6.4" height="6" rx="1"/>' },
+  { value: 'right', title: 'Right', icon: '<path d="M2 2.6h12M2 13.4h12"/><rect x="7.6" y="5" width="6.4" height="6" rx="1"/>' },
+  { value: 'wrap-left', title: 'Left, writing beside it', icon: '<rect x="2" y="2.6" width="6" height="6.4" rx="1"/><path d="M10.2 3.4h3.8M10.2 6h3.8M10.2 8.6h3.8M2 11.4h12M2 14h8"/>' },
+  { value: 'wrap-right', title: 'Right, writing beside it', icon: '<rect x="8" y="2.6" width="6" height="6.4" rx="1"/><path d="M2 3.4h3.8M2 6h3.8M2 8.6h3.8M2 11.4h12M2 14h8"/>' },
+]
+
+const pictureSizes = [
+  { value: '25', title: 'Small' },
+  { value: '50', title: 'Medium' },
+  { value: '75', title: 'Large' },
+  { value: '100', title: 'Full width' },
+]
+
+const pictureIcons = {
+  caption: '<rect x="2" y="2.4" width="12" height="7.8" rx="1.4"/><path d="M3.4 12.6h9.2M5.4 14.4h5.2"/>',
+  up: '<path d="M8 13.2V3M4 7l4-4 4 4"/>',
+  down: '<path d="M8 2.8V13M4 9l4 4 4-4"/>',
+  actual: '<rect x="2.4" y="2.4" width="11.2" height="11.2" rx="1.6"/><path d="M5.6 6.2l1.4-1v5.6M9.6 6.2l1.4-1v5.6"/>',
+}
+
+function pictureIcon(inner) {
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  icon.setAttribute('viewBox', '0 0 16 16')
+  icon.setAttribute('width', '16')
+  icon.setAttribute('height', '16')
+  icon.setAttribute('fill', 'none')
+  icon.setAttribute('stroke', 'currentColor')
+  icon.setAttribute('stroke-width', '1.3')
+  icon.setAttribute('stroke-linecap', 'round')
+  icon.setAttribute('stroke-linejoin', 'round')
+  icon.setAttribute('aria-hidden', 'true')
+  icon.innerHTML = inner
+  return icon
+}
+
+/// The width of the page's column, the thing a picture's width is a share of.
+function pictureColumnWidth(view) {
+  const style = getComputedStyle(view.dom)
+  const width = view.dom.clientWidth - Number.parseFloat(style.paddingLeft || '0') - Number.parseFloat(style.paddingRight || '0')
+  return width > 0 ? width : view.dom.clientWidth
+}
+
+/// A width a writer dragged to, as one the page keeps: a share of the column
+/// in steps of five, never under a tenth of it.
+function pictureWidthFor(pixels, column) {
+  if (!(column > 0)) return '100'
+  const share = Math.round((pixels / column) * 100 / 5) * 5
+  return String(Math.min(100, Math.max(10, share)))
+}
+
+function createPictureView(initialNode, view, getPos) {
+  let node = initialNode
+  let captionOpen = Boolean(node.attrs.caption)
+  let captionTimer = 0
+
+  const dom = document.createElement('div')
+  dom.className = 'artifact-picture'
+  const frame = document.createElement('div')
+  frame.className = 'artifact-picture-frame'
+  const image = document.createElement('img')
+  image.dataset.type = 'image-block'
+  image.decoding = 'async'
+  const missing = document.createElement('div')
+  missing.className = 'artifact-picture-missing'
+  missing.textContent = 'Picture not available'
+  frame.append(image, missing)
+
+  const handles = ['left', 'right'].map((side) => {
+    const handle = document.createElement('span')
+    handle.className = 'artifact-picture-handle'
+    handle.dataset.side = side
+    handle.setAttribute('aria-hidden', 'true')
+    frame.append(handle)
+    return handle
+  })
+  const sizeLabel = document.createElement('span')
+  sizeLabel.className = 'artifact-picture-size'
+  sizeLabel.hidden = true
+  frame.append(sizeLabel)
+
+  const bar = document.createElement('div')
+  bar.className = 'artifact-picture-bar'
+  bar.setAttribute('role', 'toolbar')
+  bar.setAttribute('aria-label', 'Picture')
+  bar.contentEditable = 'false'
+  bar.addEventListener('pointerdown', (event) => event.preventDefault())
+  frame.append(bar)
+
+  const caption = document.createElement('input')
+  caption.type = 'text'
+  caption.className = 'artifact-picture-caption'
+  caption.placeholder = 'Write a caption'
+  caption.setAttribute('aria-label', 'Caption')
+  dom.append(frame, caption)
+
+  const position = () => {
+    const pos = typeof getPos === 'function' ? getPos() : null
+    return typeof pos === 'number' ? pos : null
+  }
+
+  const setAttrs = (attrs) => {
+    const pos = position()
+    if (pos == null || !view.editable) return
+    const current = view.state.doc.nodeAt(pos)
+    if (!current) return
+    const tr = view.state.tr.setNodeMarkup(pos, null, { ...current.attrs, ...attrs })
+    tr.setSelection(NodeSelection.create(tr.doc, pos))
+    dispatchBlockEdit(view, tr)
+  }
+
+  const button = (title, icon, action, value = null) => {
+    const control = document.createElement('button')
+    control.type = 'button'
+    control.title = title
+    control.setAttribute('aria-label', title)
+    if (value != null) control.dataset.value = value
+    if (typeof icon === 'string' && icon.startsWith('<')) control.append(pictureIcon(icon))
+    else control.textContent = icon
+    control.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      action()
+    })
+    return control
+  }
+  const group = (...controls) => {
+    const element = document.createElement('div')
+    element.className = 'artifact-picture-group'
+    element.append(...controls)
+    bar.append(element)
+    return element
+  }
+
+  const alignButtons = pictureAlignments.map((entry) => button(entry.title, entry.icon, () => {
+    const attrs = { align: entry.value }
+    // Writing flows beside a picture only when there is room for it.
+    const wraps = entry.value.startsWith('wrap-')
+    const width = node.attrs.width
+    if (wraps && (width === 'auto' || Number(width) > 60)) attrs.width = '50'
+    setAttrs(attrs)
+  }, entry.value))
+  group(...alignButtons)
+  const sizeButtons = pictureSizes.map((entry) => button(entry.title, `${entry.value}%`, () => setAttrs({ width: entry.value, ratio: 1 }), entry.value))
+  const actualButton = button('Its own size', pictureIcons.actual, () => setAttrs({ width: 'auto', ratio: 1 }), 'auto')
+  group(...sizeButtons, actualButton)
+  // Caption opens the line under the picture; on an empty one it closes it.
+  const captionButton = button('Caption', pictureIcons.caption, () => {
+    if (!caption.hidden && !node.attrs.caption) {
+      captionOpen = false
+      draw()
+      return
+    }
+    captionOpen = true
+    draw()
+    caption.focus()
+  })
+  const upButton = button('Move up', pictureIcons.up, () => move(-1))
+  const downButton = button('Move down', pictureIcons.down, () => move(1))
+  group(captionButton, upButton, downButton)
+  group(button('Delete', slashIcons.trash, () => {
+    const pos = position()
+    if (pos == null || !view.editable) return
+    const current = view.state.doc.nodeAt(pos)
+    if (!current) return
+    const tr = view.state.tr.delete(pos, pos + current.nodeSize)
+    tr.setSelection(Selection.near(tr.doc.resolve(Math.min(pos, tr.doc.content.size)), 1))
+    dispatchBlockEdit(view, tr)
+  }))
+
+  /// Past the block before it (-1) or after it (1), selected where it lands.
+  function move(direction) {
+    const pos = position()
+    if (pos == null || !view.editable) return
+    const $pos = view.state.doc.resolve(pos)
+    const index = $pos.index()
+    const parent = $pos.parent
+    const current = parent.child(index)
+    const neighbourIndex = index + direction
+    if (neighbourIndex < 0 || neighbourIndex >= parent.childCount) return
+    const neighbour = parent.child(neighbourIndex)
+    const tr = view.state.tr.delete(pos, pos + current.nodeSize)
+    const to = direction < 0 ? pos - neighbour.nodeSize : pos + neighbour.nodeSize
+    tr.insert(to, current)
+    tr.setSelection(NodeSelection.create(tr.doc, to))
+    dispatchBlockEdit(view, tr)
+  }
+
+  // The width a side handle drags to, shown on the picture as it goes.
+  let drag = null
+  const onDragMove = (event) => {
+    if (!drag) return
+    event.preventDefault()
+    const delta = (event.clientX - drag.startX) * (drag.side === 'right' ? 1 : -1) * drag.factor
+    drag.width = pictureWidthFor(drag.startWidth + delta, drag.column)
+    applyWidth(drag.width, node.attrs.align)
+    sizeLabel.textContent = `${drag.width}%`
+  }
+  const onDragEnd = () => {
+    window.removeEventListener('pointermove', onDragMove)
+    window.removeEventListener('pointerup', onDragEnd)
+    window.removeEventListener('pointercancel', onDragEnd)
+    dom.classList.remove('is-resizing')
+    sizeLabel.hidden = true
+    const done = drag
+    drag = null
+    if (done?.width && done.width !== node.attrs.width) setAttrs({ width: done.width, ratio: 1 })
+    else draw()
+  }
+  for (const handle of handles) {
+    handle.addEventListener('pointerdown', (event) => {
+      if (!view.editable || event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      const align = node.attrs.align
+      drag = {
+        side: handle.dataset.side,
+        startX: event.clientX,
+        startWidth: frame.getBoundingClientRect().width,
+        column: pictureColumnWidth(view),
+        // A centred picture grows on both sides at once.
+        factor: align === 'center' ? 2 : 1,
+        width: null,
+      }
+      dom.classList.add('is-resizing')
+      sizeLabel.hidden = false
+      sizeLabel.textContent = `${pictureWidthFor(drag.startWidth, drag.column)}%`
+      window.addEventListener('pointermove', onDragMove)
+      window.addEventListener('pointerup', onDragEnd)
+      window.addEventListener('pointercancel', onDragEnd)
+    })
+  }
+
+  caption.addEventListener('input', () => {
+    window.clearTimeout(captionTimer)
+    captionTimer = window.setTimeout(() => commitCaption(false), 800)
+  })
+  caption.addEventListener('blur', () => commitCaption(false))
+  caption.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === 'Escape') {
+      event.preventDefault()
+      commitCaption(true)
+    }
+  })
+  function commitCaption(leave) {
+    window.clearTimeout(captionTimer)
+    captionTimer = 0
+    const value = caption.value.trim()
+    if (value !== node.attrs.caption) {
+      const pos = position()
+      if (pos != null && view.editable) {
+        userHasInteracted = true
+        hasUserChanges = true
+        view.dispatch(view.state.tr.setNodeAttribute(pos, 'caption', value))
+      }
+    }
+    if (!value && leave) captionOpen = false
+    if (leave) {
+      const pos = position()
+      if (pos != null) {
+        const after = pos + (view.state.doc.nodeAt(pos)?.nodeSize ?? 0)
+        view.dispatch(view.state.tr.setSelection(Selection.near(view.state.doc.resolve(Math.min(after, view.state.doc.content.size)), 1)))
+      }
+      view.focus()
+    }
+  }
+
+  /// Width on the picture: a share of the column, or its own size (a page
+  /// written before widths were kept may still carry Crepe's height ratio).
+  function applyWidth(width, align) {
+    const wraps = align.startsWith('wrap-')
+    dom.dataset.sized = width === 'auto' ? 'false' : 'true'
+    if (width === 'auto') {
+      dom.style.width = ''
+      frame.style.width = ''
+      const ratio = Number(node.attrs.ratio) || 1
+      if (ratio !== 1 && image.naturalWidth) {
+        frame.style.width = `${Math.round(Math.min(image.naturalWidth, pictureColumnWidth(view)) * ratio)}px`
+      }
+      return
+    }
+    if (wraps) {
+      dom.style.width = `${width}%`
+      frame.style.width = ''
+    } else {
+      dom.style.width = ''
+      frame.style.width = `${width}%`
+    }
+  }
+
+  /// Move up and Move down, against the blocks around the picture now. A
+  /// neighbour's edit does not redraw the picture, so the editor asks the
+  /// selected one again after every change (`pictureMovesPlugin`).
+  function refreshMoves() {
+    const pos = position()
+    const $pos = pos == null ? null : view.state.doc.resolve(pos)
+    const index = $pos ? $pos.index() : -1
+    const count = $pos ? $pos.parent.childCount : 0
+    upButton.disabled = index <= 0
+    downButton.disabled = index < 0 || index >= count - 1
+  }
+  const live = { refresh: refreshMoves, selected: () => dom.classList.contains('is-selected') }
+  livePictures.add(live)
+
+  function draw() {
+    const { src, alt, caption: words, width, align } = node.attrs
+    if (image.getAttribute('src') !== src) {
+      if (src) image.setAttribute('src', src)
+      else image.removeAttribute('src')
+    }
+    image.alt = alt || words || ''
+    dom.dataset.align = align
+    dom.dataset.width = width
+    dom.classList.toggle('is-missing', !src)
+    applyWidth(width, align)
+    for (const control of alignButtons) control.setAttribute('aria-pressed', String(control.dataset.value === align))
+    for (const control of [...sizeButtons, actualButton]) control.setAttribute('aria-pressed', String(control.dataset.value === width))
+    refreshMoves()
+    if (document.activeElement !== caption) caption.value = words ?? ''
+    caption.hidden = !(captionOpen || words)
+    caption.readOnly = !view.editable
+    captionButton.setAttribute('aria-pressed', String(!caption.hidden))
+    dom.classList.toggle('is-readonly', !view.editable)
+  }
+
+  image.addEventListener('load', () => {
+    dom.classList.remove('is-broken')
+    if (node.attrs.width === 'auto') applyWidth('auto', node.attrs.align)
+  })
+  image.addEventListener('error', () => dom.classList.add('is-broken'))
+
+  draw()
+
+  return {
+    dom,
+    update(updated) {
+      if (updated.type !== node.type) return false
+      node = updated
+      draw()
+      return true
+    },
+    selectNode() {
+      dom.classList.add('is-selected')
+      draw()
+    },
+    deselectNode() {
+      dom.classList.remove('is-selected')
+    },
+    // The bar, the handles and the caption are the view's own: the editor
+    // neither selects nor drags from them.
+    stopEvent(event) {
+      const target = event.target
+      return target instanceof Element && Boolean(target.closest('.artifact-picture-bar, .artifact-picture-handle, .artifact-picture-caption'))
+    },
+    // The view draws itself; only a selection is the editor's to read.
+    ignoreMutation(mutation) {
+      return mutation.type !== 'selection'
+    },
+    destroy() {
+      livePictures.delete(live)
+      window.clearTimeout(captionTimer)
+      window.removeEventListener('pointermove', onDragMove)
+      window.removeEventListener('pointerup', onDragEnd)
+      window.removeEventListener('pointercancel', onDragEnd)
+    },
+  }
+}
+
+/// The pictures drawn now, for `pictureMovesPlugin`.
+const livePictures = new Set()
+
+const pictureMovesPlugin = $prose(() => new Plugin({
+  key: new PluginKey('foreverlm-picture-moves'),
+  view: () => ({
+    update() {
+      for (const picture of livePictures) if (picture.selected()) picture.refresh()
+    },
+  }),
+}))
+
+const pictureView = $view(imageBlockSchema.node, () => (node, view, getPos) => createPictureView(node, view, getPos))
 
 function ensureInAppLinkTooltip() {
   if (inAppLinkTooltip) return inAppLinkTooltip
@@ -6319,6 +6743,7 @@ const blockPropertiesRemark = $remark('foreverlm-block-properties', () => () => 
 const propertyBlocks = [
   { schema: tableSchema, kind: 'table', names: ['width', 'fit'], takes: () => true },
   { schema: blockquoteSchema, kind: 'highlight', names: ['color'], takes: (node) => calloutKind(node) === 'highlight' },
+  { schema: imageBlockSchema, kind: 'picture', names: ['width', 'align'], takes: () => true },
 ]
 
 /// A node's DOM spec with `attrs` added to its outer element.
@@ -7627,6 +8052,9 @@ async function create(markdown, fontSize) {
     editor.editor.use(calloutPlugin)
     editor.editor.use(blockPropertiesPlugin)
     editor.editor.use(filePlugin)
+    // After Crepe's own picture view, which it replaces.
+    editor.editor.use(pictureView)
+    editor.editor.use(pictureMovesPlugin)
     editor.editor.use(visualizationPlugin)
     // After the block ids' plugin: the notes it moves carry their ids, and
     // it is told so (`foreverlm-block-move`) only once it has seen the edit.
@@ -10204,18 +10632,37 @@ function insertAttachment(attachment) {
   // The picture is registered without drawing the page's other pictures again.
   registerAttachment(token, dataURL)
   const image = view.state.schema.nodes.image
-  if (!image) {
+  const block = view.state.schema.nodes['image-block']
+  if (!image && !block) {
     post('error', { message: 'This editor cannot insert images.' })
     return
   }
   userHasInteracted = true
   hasUserChanges = true
-  const node = image.create({
-    src: dataURL,
-    alt: String(attachment?.altText ?? 'Image'),
-    title: null,
-  })
-  view.dispatch(view.state.tr.replaceSelectionWith(node).scrollIntoView())
+  const alt = String(attachment?.altText ?? 'Image')
+  // A picture written on a line of the page's own is a picture block from the
+  // start, with its size and placement controls, as it is when the page
+  // reopens; inside a list, a quote or a table it stays in the line.
+  const { $from } = view.state.selection
+  const onOwnLine = block && $from.depth === 1 && $from.parent.type.name === 'paragraph'
+  if (!onOwnLine) {
+    if (!image) return
+    view.dispatch(view.state.tr.replaceSelectionWith(image.create({ src: dataURL, alt, title: null })).scrollIntoView())
+    view.focus()
+    return
+  }
+  const node = block.create({ src: dataURL, alt })
+  const tr = view.state.tr
+  let after
+  if ($from.parent.content.size === 0) {
+    tr.replaceWith($from.before(), $from.after(), node)
+    after = $from.before() + node.nodeSize
+  } else {
+    tr.replaceSelectionWith(node)
+    after = tr.mapping.map($from.pos)
+  }
+  tr.setSelection(Selection.near(tr.doc.resolve(Math.min(after, tr.doc.content.size)), 1))
+  view.dispatch(tr.scrollIntoView())
   view.focus()
 }
 
