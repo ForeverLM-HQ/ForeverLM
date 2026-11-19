@@ -26,7 +26,29 @@ struct ReviewChatTranscriptPageHost: View {
     let onAction: (ChatTranscriptPage.Action) -> Void
 
     @Environment(\.chatReplySideChat) private var sideChat
+    @Environment(StudioViewModel.self) private var vm
     @State private var scrollRequest: ChatTranscriptPage.ScrollRequest?
+    /// How each saved-cards row's cards stand now ("1 card kept"), read again
+    /// whenever a card is kept or skipped anywhere (`memoryCardRevision`). A
+    /// row not read yet keeps the words its reply was stored with.
+    @State private var savedCardTitles: [String: String] = [:]
+
+    /// The saved-cards rows in the chat, in order.
+    private var savedCardsInChat: [ChatSavedCards] {
+        ReviewChatTranscriptBlock.grouping(messages).flatMap { block in
+            ReviewChatAnswerLayout.items(block.answerMessages).compactMap { item -> ChatSavedCards? in
+                if case .entry(let entry) = item { return entry.savedCards }
+                return nil
+            }
+        }
+    }
+
+    private func refreshSavedCardTitles() async {
+        for saved in savedCardsInChat {
+            guard let read = await vm.chatSavedCards(saved), !read.isEmpty else { continue }
+            savedCardTitles["\(saved.destination)"] = ReviewChatSavedCardsView.title(read, saved: saved)
+        }
+    }
 
     private var workingPhase: ReviewChatWorkingIndicator.Phase {
         .current(manager: manager, walkthroughPreparation: walkthroughPreparation)
@@ -222,7 +244,7 @@ struct ReviewChatTranscriptPageHost: View {
             return ChatTranscriptPage.Part(
                 kind: .savedCards,
                 id: entry.id.uuidString,
-                title: saved.label,
+                title: savedCardTitles["\(saved.destination)"] ?? saved.label,
                 subtitle: lookups.savedCardsSubtitle(saved)
             )
         }
@@ -288,6 +310,7 @@ struct ReviewChatTranscriptPageHost: View {
                 .frame(maxWidth: .infinity)
             }
         }
+        .task(id: "\(vm.memoryCardRevision)#\(savedCardsInChat.count)") { await refreshSavedCardTitles() }
         .onChange(of: manager.chatMessages.map(\.id), initial: true) { _, _ in
             citationContexts = ReviewChatCitationContexts.contexts(for: manager)
         }
