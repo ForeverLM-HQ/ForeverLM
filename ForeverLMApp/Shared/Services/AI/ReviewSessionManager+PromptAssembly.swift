@@ -955,6 +955,8 @@ extension ReviewSessionManager {
     The catalog lists what is attached; it does not contain the sources themselves. A catalog line tells you that a source exists, not what it says.
 
     Do not describe, summarize, compare, quote, or make any factual claim about an attached source whose text is not loaded into this chat. Recognizing a title is not the same as having read it. If you need what a source actually says, load it first — and if you cannot load it, say so rather than answering around it.
+
+    A podcast or video transcript is machine-written and sometimes garbles a line, most often a word in a technical claim. Do not hand the learner "the transcript is garbled" as the answer. First look for the same claim somewhere clearer: when the speaker points to a paper, a preprint or their own earlier work, search the library for it (search_sources_keyword on the claim's distinctive terms, filter_sources on the speaker's name) and read what it says. Give the learner the claim as the clearer source states it, and name both sources. Say a line is garbled only when nothing else in the library settles it, and then say what the line probably means and why.
     """
 
     /// Label for the session topic line. The topic itself rides in the volatile
