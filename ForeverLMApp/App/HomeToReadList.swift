@@ -89,7 +89,10 @@ private struct HomeToReadRow: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
-                    .layoutPriority(-1)
+                    // Keeps its full width; the title is what gives way, so a
+                    // long title can't squeeze this down to its first letter.
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
