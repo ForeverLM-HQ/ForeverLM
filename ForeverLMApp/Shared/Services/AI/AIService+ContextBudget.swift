@@ -241,7 +241,13 @@ extension AIService {
     /// $2.65 per rewrite, 4 rewrites, $10.61 of one chat's $15.17). Past the
     /// ceiling a source is read on demand with `retrieve_sources`, which
     /// appends only the passage asked for.
-    static let sourceContextMaxTokens = 100_000
+    ///
+    /// 50k, not the 100k it was first cut to (product owner, 2026-11-18: a
+    /// "Thinking 1m 11s" turn in a chat resending ~145k tokens per round, of
+    /// which ~100k was resident source text, ~99% of it cache hits). A cached
+    /// prompt costs little but still takes seconds to read, and a turn is 3–6
+    /// sequential rounds, so the prompt's size is the wait.
+    static let sourceContextMaxTokens = 50_000
 
     static let budgetSourceTruncationNote =
         "\n\n[Attached source text truncated to fit this model's context window. Use retrieve_sources for focused passages from omitted text.]"
