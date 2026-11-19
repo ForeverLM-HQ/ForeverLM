@@ -776,6 +776,9 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceCardReview.dueCardsOutput([], dueToday: 0).contains("No cards are due today"))
         #expect(RealtimeVoiceCardReview.dueCardsOutput([], dueToday: 3).contains("already dealt"))
         #expect(RealtimeVoiceCardReview.gradeCardTool["name"] as? String == "grade_card")
+        #expect(RealtimeVoiceCardReview.deleteCardTool["name"] as? String == "delete_card")
+        let deleteParameters = try #require(RealtimeVoiceCardReview.deleteCardTool["parameters"] as? [String: Any])
+        #expect(deleteParameters["required"] as? [String] == ["card_id"])
         let due = RealtimeVoiceCardReview.dueCardsTool(description: "More cards.")
         #expect(due["name"] as? String == "get_due_cards")
     }

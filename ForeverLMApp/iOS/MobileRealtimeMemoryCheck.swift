@@ -129,6 +129,7 @@ enum MobileRealtimeMemoryCheck {
                     description: "More of today's due cards, once the ones in your instructions are done: only cards not dealt yet in this check."
                 ))
                 tools.append(RealtimeVoiceCardReview.gradeCardTool)
+                tools.append(RealtimeVoiceCardReview.deleteCardTool)
             }
             tools.append(RealtimeVoiceMemoryCheck.startReviewTool)
             tools.append(RealtimeVoiceMemoryCheck.turnTool(byTopic: byTopic))

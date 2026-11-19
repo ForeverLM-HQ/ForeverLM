@@ -136,6 +136,7 @@ enum MobileRealtimeAssistant {
                     description: "Today's review cards (spaced repetition), each with its question and answer, for a card review out loud when the learner asks for their review or their cards. Ask one card's question at a time, let them answer, say plainly whether they had it and the answer in a sentence, then call grade_card before the next."
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
+                RealtimeVoiceCardReview.deleteCardTool,
                 RealtimeVoiceCardReview.searchCardsTool(),
                 RealtimeVoiceCardReview.listTopicsTool(),
                 RealtimeVoiceCardsToCheck.listTool(

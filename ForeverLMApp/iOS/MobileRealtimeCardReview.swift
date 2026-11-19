@@ -44,6 +44,7 @@ enum MobileRealtimeCardReview {
                     description: "More of today's due cards, once the ones in your instructions are done: only cards not dealt yet in this review."
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
+                RealtimeVoiceCardReview.deleteCardTool,
                 RealtimeVoiceCardReview.searchCardsTool(),
                 RealtimeVoiceCardReview.listTopicsTool(),
                 RealtimeVoiceCardsToCheck.listTool(
@@ -104,6 +105,8 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
                 remembered: (arguments["remembered"] as? Bool) ?? false,
                 learnerSaid: arguments["learner_said"] as? String
             )
+        case RealtimeVoiceCardReview.deleteCardToolName:
+            return await delete(itemID: (arguments["card_id"] as? String) ?? "")
         case RealtimeVoiceCardReview.searchCardsToolName:
             let limit = min(max((arguments["limit"] as? NSNumber)?.intValue ?? 10, 1), RealtimeVoiceCardReview.searchResultCap)
             let query = (arguments["query"] as? String) ?? ""
@@ -163,6 +166,25 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
             },
             deal.cards.count
         )
+    }
+
+    /// "Delete this card" by voice: the card is retired as the card's menu
+    /// retires it (never asked again, its answers kept). Only a card this
+    /// conversation dealt or found can be deleted, and a deleted card can no
+    /// longer be graded.
+    @MainActor
+    func delete(itemID: String) async -> String {
+        guard dealt.withLock({ $0[itemID] }) != nil else {
+            return #"{"error":"That card_id is not one dealt in this conversation."}"#
+        }
+        do {
+            try await MobileAudioReviewViewModel.shared.retireCard(itemID: itemID)
+            dealt.withLock { _ = $0.removeValue(forKey: itemID) }
+            return #"{"ok":true,"note":"The card is deleted and will not be asked again. Say so in a few words and go on to the next card."}"#
+        } catch {
+            Self.logger.error("Voice card delete not saved: \(error.localizedDescription, privacy: .public)")
+            return #"{"error":"The card was not deleted. Say so briefly and carry on."}"#
+        }
     }
 
     /// A grade, written as the card review writes a Forgot or Remembered

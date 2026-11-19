@@ -424,8 +424,12 @@ extension MobileAudioReviewViewModel {
 
     /// Retire: the card is never asked again.
     func retireCard(_ card: MemoryCardListing) async throws {
-        try await MobileRecordWriter.required().transaction { try $0.retireCard(card.itemID) }
-        if let item = await cardAnswerContext(memoryItemID: card.itemID)?.item {
+        try await retireCard(itemID: card.itemID)
+    }
+
+    func retireCard(itemID: String) async throws {
+        try await MobileRecordWriter.required().transaction { try $0.retireCard(itemID) }
+        if let item = await cardAnswerContext(memoryItemID: itemID)?.item {
             await sourceCatalog.noteWrittenMemoryItems([MobileCardRecords.retired(item, at: Date())])
         }
         await refreshMemorySnapshot()

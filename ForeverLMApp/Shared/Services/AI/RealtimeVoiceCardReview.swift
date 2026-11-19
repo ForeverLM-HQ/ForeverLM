@@ -24,6 +24,7 @@ enum RealtimeVoiceCardReview {
     static let title = "Card Review"
     static let dueCardsToolName = "get_due_cards"
     static let gradeCardToolName = "grade_card"
+    static let deleteCardToolName = "delete_card"
     /// How many cards the instructions carry; the rest come by `get_due_cards`.
     static let cardsInInstructions = 20
     /// A question or an answer is kept to this many characters out loud.
@@ -49,6 +50,10 @@ enum RealtimeVoiceCardReview {
         - Today's cards are only a slice of their deck. For a subject, a paper or a card they remember, call \
         search_cards: it searches every kept card, and what it returns can be asked and graded like the others. \
         For "what do I have cards on", call list_card_topics and name a few topics, never the whole list.
+        - If they say to delete or remove a card ("delete this card", "I don't like this card, get rid of it"), \
+        call delete_card with its card_id, say in a few words that it is gone and will not come back, and ask the \
+        next card's question; do not grade a deleted card. A card that is merely hard or that they forgot is not a \
+        deletion: only their clear word is.
         - If they want to go through their cards to check, use get_cards_to_check and decide_card: ask each \
         question, and decide only when they clearly say keep, change or skip.
         - Speak briefly: one to three short sentences a turn. No lists, markdown, URLs or ids out loud.
@@ -122,6 +127,13 @@ enum RealtimeVoiceCardReview {
             "remembered": ["type": "boolean", "description": "true when they had it, false when they did not."],
         ],
         required: ["card_id", "learner_said", "remembered"]
+    )
+
+    static let deleteCardTool: [String: Any] = RealtimeVoiceAssistant.function(
+        deleteCardToolName,
+        "Deletes a card for good: it is never asked again (its past answers are kept). Call it only when the learner clearly says to delete or remove the card, never because they forgot it or found it hard. Do not grade a card you delete.",
+        properties: ["card_id": ["type": "string", "description": "The card's card_id."]],
+        required: ["card_id"]
     )
 
     /// A graded card as the saved chat keeps it: the card's question and what
