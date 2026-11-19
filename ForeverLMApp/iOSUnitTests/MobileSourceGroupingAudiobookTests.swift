@@ -179,7 +179,7 @@ final class MobileSourceGroupingAudiobookTests: XCTestCase {
     /// and the player rests from 766 to 836.
     func testThePlayerRisesAboveAScreensBottomToolbar() {
         let reader = MobileShellBarLift.Screen(safeBottom: 792, fullBottom: 870)
-        XCTAssertEqual(MobileShellBarLift.lift(barTop: 766, barBottom: 836, screens: [reader]), 44)
+        XCTAssertEqual(MobileShellBarLift.lift(barTop: 766, barBottom: 836, screens: [reader]), 44 + MobileShellBarLift.toolbarClearance)
     }
 
     func testAScreenWithoutAToolbarLeavesThePlayerWhereItRests() {

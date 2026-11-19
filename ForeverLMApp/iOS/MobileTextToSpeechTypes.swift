@@ -406,13 +406,21 @@ enum MobileShellBarLift {
         let fullBottom: CGFloat
     }
 
+    /// Room kept between the raised bar and the toolbar. A toolbar's safe area
+    /// ends at its layout frame, but its glass capsule and shadow are drawn past
+    /// that, so a bar raised to exactly that edge still covered the top of the
+    /// toolbar's buttons while a narration downloaded (the Reader's Ask, Listen
+    /// and text size could not be tapped).
+    static let toolbarClearance: CGFloat = 12
+
     /// `barTop` and `barBottom` are the bar's edges where it rests, unlifted.
     static func lift(barTop: CGFloat, barBottom: CGFloat, screens: [Screen]) -> CGFloat {
         guard barBottom - barTop >= 1 else { return 0 }
-        return screens.reduce(0) { lift, screen in
+        let lift = screens.reduce(CGFloat(0)) { lift, screen in
             guard screen.fullBottom > barTop + 1, screen.safeBottom > 0 else { return lift }
             return max(lift, barBottom - screen.safeBottom)
         }
+        return lift > 0 ? lift + toolbarClearance : 0
     }
 }
 
