@@ -890,6 +890,8 @@ struct ArticleSpeechContentTests {
         #expect(Prompts.paperTextToSpeechPreparation.contains("(Brandt et al)"))
         #expect(Prompts.paperTextToSpeechPreparation.contains("article or academic paper"))
         #expect(Prompts.paperTextToSpeechPreparation.contains("narrator says it only once"))
+        #expect(Prompts.paperTextToSpeechPreparation.contains("Footnotes and endnotes are not narrated"))
+        #expect(Prompts.paperTextToSpeechPreparation.contains("a listener must never hear its syntax"))
         #expect(Prompts.paperTextToSpeechPreparation.contains("photo credits"))
     }
 
