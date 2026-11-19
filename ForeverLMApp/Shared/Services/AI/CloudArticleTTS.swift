@@ -107,7 +107,7 @@ enum CloudArticleTTS {
     /// The latest note wins and a request that lands clears it.
     final class RetryNote: @unchecked Sendable {
         static let shared = RetryNote()
-        private let lock = NSLock()
+        private let lock = AppLock()
         private var text: String?
         func set(_ note: String?) { lock.lock(); text = note; lock.unlock() }
         var current: String? { lock.lock(); defer { lock.unlock() }; return text }
