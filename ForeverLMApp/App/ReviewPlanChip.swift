@@ -7,6 +7,11 @@ import SwiftUI
 /// owner, 2026-11-17: "maybe the plan can be next to the chat box somehow? as
 /// some kind of popup?").
 ///
+/// The chip never says "Off plan" (product owner, 2026-11-18: "we aren't even
+/// off plan in the first place"): the tutor model alone decides there is a
+/// detour, and it called an on-plan request one. The popover still lists the
+/// detours it recorded, with the way back.
+///
 /// One accent, for the topic being worked on; everything else is ink and
 /// grey (product owner, 2026-11-17: "i don't love this design; can you make
 /// it look nicer?"). Only the active topic shows its points; any other opens
@@ -29,16 +34,11 @@ struct ReviewPlanChip: View {
             isPresented.toggle()
         } label: {
             HStack(spacing: 6) {
-                ReviewPlanRing(progress: overallProgress, tint: plan.isOnDetour ? .orange : .accentColor)
+                ReviewPlanRing(progress: overallProgress)
                     .frame(width: 13, height: 13)
                 Text(plan.progressLabel)
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
-                if plan.isOnDetour {
-                    Text("Off plan")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.orange)
-                }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.tertiary)
@@ -57,7 +57,7 @@ struct ReviewPlanChip: View {
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .animation(.easeOut(duration: 0.18), value: plan)
         .help("Show the review plan")
-        .accessibilityLabel("Review plan, \(plan.progressLabel)\(plan.isOnDetour ? ", off plan" : "")")
+        .accessibilityLabel("Review plan, \(plan.progressLabel)")
         .popover(isPresented: $isPresented, arrowEdge: .top) {
             ReviewPlanPopover(
                 plan: plan,
