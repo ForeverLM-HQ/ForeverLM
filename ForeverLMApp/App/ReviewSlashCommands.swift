@@ -1,4 +1,7 @@
 import SwiftUI
+import OSLog
+
+private let slashPopupLogger = Logger(subsystem: "com.foreverlm", category: "SlashPopupClick")
 
 // MARK: - Chat slash commands
 
@@ -1109,6 +1112,7 @@ struct ReviewSlashCommandPopup: View {
                         .accessibilityAddTraits(.isHeader)
                 }
                 Button {
+                    slashPopupLogger.debug("Popup row \(index) picked: \(suggestion.title, privacy: .private)")
                     onSelect(suggestion)
                 } label: {
                     HStack(spacing: 8) {
@@ -1163,6 +1167,13 @@ struct ReviewSlashCommandPopup: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
+                // Logs only: tells whether a press reaches the row at all, to
+                // tell a click that never arrives from one that arrives and does nothing.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0).onChanged { _ in
+                        slashPopupLogger.debug("Popup row \(index) pressed")
+                    }
+                )
             }
             if let line = mentionHeader?.statusLine {
                 Text(line)
