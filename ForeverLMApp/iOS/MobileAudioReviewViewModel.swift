@@ -455,9 +455,14 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// True while a streamed opening is being set up from the downloaded
     /// prefix, so two CloudDocs updates cannot both start one.
     var isStartingDownloadedOpening = false
+    /// The iCloud pull itself, held apart from the call that asked for it so
+    /// the learner can stop it from the banner without the screen that started
+    /// it having to stay (`cancelNarrationDownload`).
+    var narrationDownloadTask: Task<Void, Error>?
     /// The next chapter's chunks being pulled down ahead of need, so the book
     /// carries on without a download gap. Replaced whenever playback moves.
     var nextChapterPrefetchTask: Task<Void, Never>?
+    var narrationPrefetchTask: Task<Void, Never>?
 
     var shareNotebookListPublishTask: Task<Void, Never>?
 

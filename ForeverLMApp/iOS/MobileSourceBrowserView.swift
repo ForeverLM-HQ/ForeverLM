@@ -386,6 +386,7 @@ struct MobileCompactPlaybackBar: View {
                 .lineLimit(1)
             Spacer(minLength: 0)
             MobileTextToSpeechProgressText(detail: nil, progress: nil, download: download)
+            MobileNarrationDownloadStopButton(audio: vm)
         }
         .padding(.horizontal, MobileDesign.Spacing.large)
         .padding(.vertical, MobileDesign.Spacing.medium)
@@ -914,6 +915,28 @@ struct MobileTextToSpeechStopButton: View {
         .foregroundStyle(.secondary)
         .accessibilityLabel("Stop generating audio")
         .accessibilityIdentifier("listen.stopGenerating")
+    }
+}
+
+/// Stops a narration download that is taking too long or was started by
+/// mistake. The learner is free to leave meanwhile; this is for ending it.
+struct MobileNarrationDownloadStopButton: View {
+    @ObservedObject var audio: MobileAudioReviewViewModel
+
+    var body: some View {
+        Button {
+            audio.cancelNarrationDownload()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.title3)
+                .symbolRenderingMode(.hierarchical)
+                .frame(minWidth: 44, minHeight: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Stop downloading narration")
+        .accessibilityIdentifier("listen.stopDownloading")
     }
 }
 

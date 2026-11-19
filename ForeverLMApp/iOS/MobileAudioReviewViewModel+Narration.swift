@@ -84,17 +84,31 @@ extension MobileAudioReviewViewModel {
         // holds this progress handler for the whole iCloud download, so a strong
         // reference here would have outlived the screen no matter what the inner
         // task captured.
-        try await SyncedArticleAudioStore.materializeChunks(for: manifest) { [weak self] progress in
-            Task { @MainActor in
-                guard let self, self.narrationDownloadSourceID == item.id else { return }
-                await self.downloadedPrefixDidGrow(
-                    progress,
-                    for: item,
-                    resumeTarget: resumeTarget,
-                    startedAt: startedAt
-                )
+        // The pull runs in its own task so Stop can end it, and so leaving the
+        // screen that asked for it (which cancels that screen's tasks) never
+        // does: only the listener's Stop ends a download.
+        let download = Task { [weak self] in
+            try await SyncedArticleAudioStore.materializeChunks(for: manifest) { progress in
+                Task { @MainActor in
+                    guard let self, self.narrationDownloadSourceID == item.id else { return }
+                    await self.downloadedPrefixDidGrow(
+                        progress,
+                        for: item,
+                        resumeTarget: resumeTarget,
+                        startedAt: startedAt
+                    )
+                }
             }
         }
+        narrationDownloadTask = download
+        defer { narrationDownloadTask = nil }
+        try await download.value
+    }
+
+    /// Stops the narration download in progress. What has already landed stays
+    /// on the phone, and asking for the narration again carries on from it.
+    func cancelNarrationDownload() {
+        narrationDownloadTask?.cancel()
     }
 
     /// One CloudDocs update during a narration download: republish the count,
