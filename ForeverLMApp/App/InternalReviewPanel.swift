@@ -644,6 +644,7 @@ struct InternalReviewPanelContent: View {
             StudioDropCatcher(
                 types: reviewChatCaughtDropTypes,
                 declinesDragsFromWithin: true,
+                logName: "chat",
                 onTargeted: setDropTargeted,
                 onDrop: handleDrop
             )

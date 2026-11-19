@@ -4,6 +4,12 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 import AppKit
+import os
+
+/// What a `StudioDropCatcherView` did with each drag it saw: claimed or
+/// declined at entry, and what its drop handed on. A drop that "does nothing"
+/// is read here first (`log show --predicate 'category == "DropCatcher"'`).
+private let dropCatcherLogger = Logger(subsystem: "com.foreverlm", category: "DropCatcher")
 
 /// An always-registered AppKit drop destination for a center area's far edge.
 /// Center-tab drags already originate in AppKit, and keeping this endpoint in
@@ -168,6 +174,8 @@ struct StudioDropCatcher: NSViewRepresentable {
     /// to take from itself, and claiming it lit "Drop into this chat" the
     /// moment the drag began, wherever the pointer went after.
     var declinesDragsFromWithin = false
+    /// Names this catcher in the log.
+    var logName = "catcher"
     let onTargeted: (Bool) -> Void
     let onDrop: ([NSItemProvider]) -> Bool
 
@@ -183,6 +191,7 @@ struct StudioDropCatcher: NSViewRepresentable {
 
     private func update(_ view: StudioDropCatcherView) {
         view.declinesDragsFromWithin = declinesDragsFromWithin
+        view.logName = logName
         view.onTargeted = onTargeted
         view.onDrop = onDrop
     }
@@ -190,6 +199,7 @@ struct StudioDropCatcher: NSViewRepresentable {
 
 final class StudioDropCatcherView: NSView {
     var declinesDragsFromWithin = false
+    var logName = "catcher"
     var onTargeted: (Bool) -> Void = { _ in }
     var onDrop: ([NSItemProvider]) -> Bool = { _ in false }
 
@@ -233,10 +243,14 @@ final class StudioDropCatcherView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard carriesPayload(sender), !startedWithin(sender) else {
+        let carries = carriesPayload(sender)
+        let within = carries && startedWithin(sender)
+        guard carries, !within else {
+            dropCatcherLogger.notice("\(self.logName, privacy: .public) declined a drag: \(carries ? "it started inside" : "no payload type", privacy: .public); window \(self.window?.windowNumber ?? -1)")
             ownsCurrentDrag = false
             return []
         }
+        dropCatcherLogger.notice("\(self.logName, privacy: .public) claimed a drag; window \(self.window?.windowNumber ?? -1), mask \(sender.draggingSourceOperationMask.rawValue)")
         ownsCurrentDrag = true
         onTargeted(true)
         return .copy
@@ -252,15 +266,25 @@ final class StudioDropCatcherView: NSView {
     }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        ownsCurrentDrag
+        dropCatcherLogger.notice("\(self.logName, privacy: .public) prepare: \(self.ownsCurrentDrag ? "owns" : "does not own", privacy: .public) the drag")
+        return ownsCurrentDrag
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard ownsCurrentDrag else { return false }
+        guard ownsCurrentDrag else {
+            dropCatcherLogger.notice("\(self.logName, privacy: .public) perform: not its drag")
+            return false
+        }
         let providers = studioDropItemProviders(from: sender.draggingPasteboard, types: types)
         onTargeted(false)
-        guard !providers.isEmpty else { return false }
-        return onDrop(providers)
+        guard !providers.isEmpty else {
+            let offered = sender.draggingPasteboard.pasteboardItems?.first?.types.map(\.rawValue).joined(separator: ",") ?? "none"
+            dropCatcherLogger.notice("\(self.logName, privacy: .public) perform: no readable payload; item types \(offered, privacy: .public)")
+            return false
+        }
+        let accepted = onDrop(providers)
+        dropCatcherLogger.notice("\(self.logName, privacy: .public) perform: \(providers.count) item(s), handler \(accepted ? "took" : "refused", privacy: .public) them")
+        return accepted
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {

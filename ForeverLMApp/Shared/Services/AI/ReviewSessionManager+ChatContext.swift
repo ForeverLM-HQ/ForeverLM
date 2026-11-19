@@ -12,7 +12,10 @@ extension ReviewSessionManager {
             !loadedSourceIDs.contains($0.id) && !onDemandSourceIDs.contains($0.id)
         }
         let newArticles = requestedArticles.filter { !activeSourceIDs.contains($0.id) }
-        guard !articlesToLoad.isEmpty else { return }
+        guard !articlesToLoad.isEmpty else {
+            logger.notice("addContextSources: all \(requestedArticles.count) source(s) already loaded; nothing to add")
+            return
+        }
 
         isSearching = true
         await refreshSourceContextBudgetFromSelectedModel()
@@ -21,6 +24,7 @@ extension ReviewSessionManager {
         guard !requestedContext.readableSourceIDs.isEmpty || !Self.onDemandDrop(articlesToLoad).isEmpty else {
             isSearching = false
             errorMessage = "No readable source content is available for the dropped source."
+            logger.notice("addContextSources: none of \(articlesToLoad.count) source(s) has readable text")
             return
         }
         if !newArticles.isEmpty {

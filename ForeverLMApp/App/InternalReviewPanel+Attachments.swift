@@ -3,6 +3,10 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 import AppKit
+import os
+
+/// Each step of a source dropped into a chat, to find where one is lost.
+let chatDropLogger = Logger(subsystem: "com.foreverlm", category: "ChatDrop")
 
 extension InternalReviewPanelContent {
     // MARK: - Attached pictures
@@ -126,6 +130,7 @@ extension InternalReviewPanelContent {
         let articles = ids.compactMap { id in
             vm.articles.first { $0.id == id }
         }
+        chatDropLogger.notice("adding \(ids.count) dropped source(s) to the chat; \(articles.count) found in the library")
         await addArticlesToActiveOrIdleChat(articles)
     }
 

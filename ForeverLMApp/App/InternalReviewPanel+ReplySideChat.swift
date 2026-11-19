@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 import AppKit
+import os
 
 extension InternalReviewPanelContent {
     // MARK: - Words selected in a reply
@@ -611,6 +612,7 @@ extension InternalReviewPanelContent {
 
     func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         StudioDragVisibility.shared.endSoon()
+        chatDropLogger.notice("drop: \(providers.count) item(s): \(providers.map { $0.registeredTypeIdentifiers.joined(separator: ",") }.joined(separator: " | "), privacy: .public)")
         var handled = false
         for provider in providers {
             if provider.hasItemConformingToTypeIdentifier(UTType.studioArtifact.identifier) {
@@ -655,9 +657,12 @@ extension InternalReviewPanelContent {
 
             if provider.hasItemConformingToTypeIdentifier(UTType.studioArticle.identifier) {
                 handled = true
-                provider.loadDataRepresentation(forTypeIdentifier: UTType.studioArticle.identifier) { data, _ in
+                provider.loadDataRepresentation(forTypeIdentifier: UTType.studioArticle.identifier) { data, error in
                     guard let data,
-                          let transfer = try? JSONDecoder().decode(StudioArticleTransfer.self, from: data) else { return }
+                          let transfer = try? JSONDecoder().decode(StudioArticleTransfer.self, from: data) else {
+                        chatDropLogger.notice("drop: the source payload did not read (\(data?.count ?? -1) bytes, \(error?.localizedDescription ?? "no error", privacy: .public))")
+                        return
+                    }
                     Task { @MainActor in
                         // The payload is the snapshot of what the learner picked
                         // up; the live selection may have moved on by the drop.
