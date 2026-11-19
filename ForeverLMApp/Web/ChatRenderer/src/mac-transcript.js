@@ -437,6 +437,11 @@ function drawUser(block, entry) {
     });
     column.append(quote);
   }
+  if (block.quote) {
+    // Words quoted into the message: a quote above what was typed, in full,
+    // with nothing to open.
+    column.append(element("div", "user-quote", block.quote));
+  }
   if (block.text) {
     const bubble = element("div", "user-bubble");
     bubble.dataset.messageId = block.messageID;

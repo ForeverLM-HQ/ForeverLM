@@ -45,6 +45,10 @@ struct ChatTranscriptPage: NSViewRepresentable {
         var text: String?
         /// The Reader passage the message was asked about.
         var passage: String?
+        /// Words quoted into the message itself, a Page's highlight or a
+        /// passage of the transcript: they ride as a `> ` block at its head
+        /// (`ChatQuoteDraft`) and are drawn as a quote, with no way back.
+        var quote: String?
         /// Think first: the guess written before asking.
         var guess: String?
         var canEdit: Bool?
@@ -415,13 +419,22 @@ struct ChatTranscriptPage: NSViewRepresentable {
         ) ?? ""
         let stored = ChatContextAdditions.parse(contextContent: message.contextualContent)
         let moments = ReviewChatVideoMomentRow.moments(in: stored.onScreen)
+        let passage = ChatPassageOrigin.parse(contextContent: message.contextualContent)?.quote
+        // A message that opened with a `> ` block shows it as a quote above
+        // the words typed, not as the characters (the bubble the pane drew
+        // before this page did the same, `ChatQuoteDraft.split`). A long paste
+        // stays whole: it folds as one.
+        let quoted = passage == nil && !ChatLongUserMessage.isLong(text)
+            ? ChatQuoteDraft.split(userMessage: text) : nil
+        let words = quoted?.body ?? text
         return Block(
             id: block.id.uuidString,
             kind: .user,
             lane: lane,
             messageID: message.id.uuidString,
-            text: text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text,
-            passage: ChatPassageOrigin.parse(contextContent: message.contextualContent)?.quote,
+            text: words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : words,
+            passage: passage,
+            quote: quoted?.quote,
             guess: ChatGuess.guess(contextContent: message.contextualContent),
             canEdit: canEdit ? true : nil,
             collapses: ChatLongUserMessage.isLong(text) ? true : nil,
