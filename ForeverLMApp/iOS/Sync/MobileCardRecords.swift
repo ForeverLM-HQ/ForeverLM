@@ -403,6 +403,16 @@ extension MobileWrite {
         try write(patch, in: Self.libraryKey)
     }
 
+    /// Undo of a retire: the card is kept again; its answers never left. Reviving a card that is not
+    /// retired does nothing.
+    mutating func reviveCard(_ id: String) throws {
+        let held = try card(id)
+        guard held.fields["status"]?.stringValue == "retired" else { return }
+        var patch = RecordPatch(.card, id: id)
+        patch.changes["status"] = .value(.string("kept"))
+        try write(patch, in: Self.libraryKey)
+    }
+
     /// "Always ask it this way", or off again.
     mutating func setCardAlwaysAsk(_ id: String, _ on: Bool) throws {
         _ = try card(id)

@@ -137,7 +137,9 @@ enum MobileRealtimeAssistant {
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
                 RealtimeVoiceCardReview.deleteCardTool,
+                RealtimeVoiceCardReview.undoDeleteCardTool,
                 RealtimeVoiceCardReview.searchCardsTool(),
+                RealtimeVoiceCardReview.cardsByDateTool(),
                 RealtimeVoiceCardReview.listTopicsTool(),
                 RealtimeVoiceCardsToCheck.listTool(
                     description: "The cards waiting in To Check (drafted from what the learner read, not yet kept or skipped), for going through them out loud when the learner asks to check their new cards. Ask one card's question at a time, let them answer, say the answer in a sentence, then ask whether to keep, change or skip it, and call decide_card only on their word."

@@ -435,6 +435,13 @@ extension MobileAudioReviewViewModel {
         await refreshMemorySnapshot()
     }
 
+    /// Undo of a retire: the card is kept again, as `item` was before.
+    func reviveCard(_ item: MemoryItem) async throws {
+        try await MobileRecordWriter.required().transaction { try $0.reviveCard(item.id) }
+        await sourceCatalog.noteWrittenMemoryItems([item])
+        await refreshMemorySnapshot()
+    }
+
     /// "Always Ask in Its Own Words", or "Let Its Wording Vary".
     func setCardAlwaysAsk(_ on: Bool, itemID: String) async throws {
         try await MobileRecordWriter.required().transaction { try $0.setCardAlwaysAsk(itemID, on) }

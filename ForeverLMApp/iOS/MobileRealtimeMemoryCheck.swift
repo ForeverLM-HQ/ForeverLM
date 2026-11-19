@@ -130,6 +130,7 @@ enum MobileRealtimeMemoryCheck {
                 ))
                 tools.append(RealtimeVoiceCardReview.gradeCardTool)
                 tools.append(RealtimeVoiceCardReview.deleteCardTool)
+                tools.append(RealtimeVoiceCardReview.undoDeleteCardTool)
             }
             tools.append(RealtimeVoiceMemoryCheck.startReviewTool)
             tools.append(RealtimeVoiceMemoryCheck.turnTool(byTopic: byTopic))

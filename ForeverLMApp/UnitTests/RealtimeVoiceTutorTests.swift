@@ -781,6 +781,35 @@ struct RealtimeVoiceTutorTests {
         #expect(deleteParameters["required"] as? [String] == ["card_id"])
         let due = RealtimeVoiceCardReview.dueCardsTool(description: "More cards.")
         #expect(due["name"] as? String == "get_due_cards")
+        #expect(RealtimeVoiceCardReview.undoDeleteCardTool["name"] as? String == "undo_delete_card")
+        #expect(RealtimeVoiceCardReview.cardsByDateTool()["name"] as? String == "get_cards_by_date")
+    }
+
+    @Test func cardsMadeOnADayAreFoundByDaysAgoOrDate() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 19, hour: 9)))
+        let yesterday = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 18)))
+        #expect(RealtimeVoiceCardReview.startOfDay(daysAgo: 1, date: nil, now: now, calendar: calendar) == yesterday)
+        #expect(RealtimeVoiceCardReview.startOfDay(daysAgo: nil, date: "2026-11-18", now: now, calendar: calendar) == yesterday)
+        #expect(RealtimeVoiceCardReview.startOfDay(daysAgo: nil, date: "soon", now: now, calendar: calendar) == nil)
+        #expect(RealtimeVoiceCardReview.startOfDay(daysAgo: nil, date: nil, now: now, calendar: calendar) == nil)
+
+        func card(_ id: String, made: Date?) -> RealtimeVoiceCardReview.LibraryCard {
+            .init(card: .init(id: id, question: "Q", answer: "A", source: nil, createdAt: made), dueToday: false)
+        }
+        let cards = [
+            card("evening", made: yesterday.addingTimeInterval(23 * 3600)),
+            card("before", made: yesterday.addingTimeInterval(-60)),
+            card("today", made: now),
+            card("unknown", made: nil),
+        ]
+        let found = RealtimeVoiceCardReview.made(cards, from: yesterday, calendar: calendar)
+        #expect(found.map(\.card.id) == ["evening"])
+        #expect(RealtimeVoiceCardReview.made(cards, from: yesterday, days: 2, calendar: calendar).map(\.card.id) == ["evening", "today"])
+        let output = RealtimeVoiceCardReview.searchOutput(found, limit: 10)
+        #expect(output.contains("2026-11-18") || output.contains("made_on"))
+        #expect(RealtimeVoiceCardReview.searchOutput(found, limit: 10, offset: 5).contains("Nothing is left"))
     }
 }
 

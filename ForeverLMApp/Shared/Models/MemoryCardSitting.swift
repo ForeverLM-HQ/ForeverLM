@@ -947,17 +947,20 @@ struct MemoryCardListing: Equatable, Identifiable, Sendable {
     /// notebook for an item from before them.
     let goalID: String?
     let schedule: MemorySchedule
+    /// When the card was made (kept); nil for a listing built without its item.
+    let createdAt: Date?
 
     var id: String { itemID }
     var isNew: Bool { schedule.isNew }
 
-    init(itemID: String, face: MemoryCard, sourceIDs: [String], links: [CardSourceLink] = [], goalID: String? = nil, schedule: MemorySchedule) {
+    init(itemID: String, face: MemoryCard, sourceIDs: [String], links: [CardSourceLink] = [], goalID: String? = nil, schedule: MemorySchedule, createdAt: Date? = nil) {
         self.itemID = itemID
         self.face = face
         self.sourceIDs = sourceIDs
         self.links = links
         self.goalID = goalID
         self.schedule = schedule
+        self.createdAt = createdAt
     }
 
     /// A kept item as a listing, with the face it shows (`MemoryCard.face`);
@@ -974,7 +977,8 @@ struct MemoryCardListing: Equatable, Identifiable, Sendable {
             sourceIDs: anchors.map(\.sourceID),
             links: anchors.map { CardSourceLink(sourceID: $0.sourceID, quote: $0.excerpt) },
             goalID: item.goalID,
-            schedule: MemoryTutorScheduler.schedule(item: item, attempts: attempts, calendar: calendar)
+            schedule: MemoryTutorScheduler.schedule(item: item, attempts: attempts, calendar: calendar),
+            createdAt: item.createdAt
         )
     }
 

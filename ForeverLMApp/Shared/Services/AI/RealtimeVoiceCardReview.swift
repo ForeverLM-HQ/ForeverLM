@@ -19,12 +19,16 @@ enum RealtimeVoiceCardReview {
         let answer: String
         /// The source's title, when the card has one.
         let source: String?
+        /// When the card was made, when known.
+        var createdAt: Date? = nil
     }
 
     static let title = "Card Review"
     static let dueCardsToolName = "get_due_cards"
     static let gradeCardToolName = "grade_card"
     static let deleteCardToolName = "delete_card"
+    static let undoDeleteCardToolName = "undo_delete_card"
+    static let cardsByDateToolName = "get_cards_by_date"
     /// How many cards the instructions carry; the rest come by `get_due_cards`.
     static let cardsInInstructions = 20
     /// A question or an answer is kept to this many characters out loud.
@@ -51,9 +55,12 @@ enum RealtimeVoiceCardReview {
         search_cards: it searches every kept card, and what it returns can be asked and graded like the others. \
         For "what do I have cards on", call list_card_topics and name a few topics, never the whole list.
         - If they say to delete or remove a card ("delete this card", "I don't like this card, get rid of it"), \
-        call delete_card with its card_id, say in a few words that it is gone and will not come back, and ask the \
-        next card's question; do not grade a deleted card. A card that is merely hard or that they forgot is not a \
-        deletion: only their clear word is.
+        call delete_card with its card_id, say in a few words that it is gone and that they can say "undo" to get it \
+        back, and ask the next card's question; do not grade a deleted card. A card that is merely hard or that \
+        they forgot is not a deletion: only their clear word is. If they say undo, bring it back, or that they \
+        did not mean it, call undo_delete_card, then ask that card's question again.
+        - For cards made on a day ("the cards I made yesterday"), call get_cards_by_date, then go through what it \
+        returns one card at a time like today's cards, grading each with grade_card.
         - If they want to go through their cards to check, use get_cards_to_check and decide_card: ask each \
         question, and decide only when they clearly say keep, change or skip.
         - Speak briefly: one to three short sentences a turn. No lists, markdown, URLs or ids out loud.
@@ -131,9 +138,15 @@ enum RealtimeVoiceCardReview {
 
     static let deleteCardTool: [String: Any] = RealtimeVoiceAssistant.function(
         deleteCardToolName,
-        "Deletes a card for good: it is never asked again (its past answers are kept). Call it only when the learner clearly says to delete or remove the card, never because they forgot it or found it hard. Do not grade a card you delete.",
+        "Deletes a card: it is never asked again (its past answers are kept), unless the learner says undo, which undo_delete_card answers. Call it only when the learner clearly says to delete or remove the card, never because they forgot it or found it hard. Do not grade a card you delete.",
         properties: ["card_id": ["type": "string", "description": "The card's card_id."]],
         required: ["card_id"]
+    )
+
+    static let undoDeleteCardTool: [String: Any] = RealtimeVoiceAssistant.function(
+        undoDeleteCardToolName,
+        "Brings back a card deleted in this conversation, when the learner says undo, bring it back or that they did not mean it. With no card_id it brings back the card deleted last.",
+        properties: ["card_id": ["type": "string", "description": "The deleted card's card_id; leave out for the last one deleted."]]
     )
 
     /// A graded card as the saved chat keeps it: the card's question and what
@@ -207,11 +220,56 @@ extension RealtimeVoiceCardReview {
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.title < $1.title }
     }
 
-    static func searchOutput(_ matches: [LibraryCard], limit: Int) -> String {
+    /// The first moment of the day a spoken date means: `daysAgo` (0 today, 1
+    /// yesterday) or `date` as yyyy-MM-dd, in the learner's time zone. Nil
+    /// when neither is given or the date does not read.
+    static func startOfDay(daysAgo: Int?, date: String?, now: Date, calendar: Calendar = .current) -> Date? {
+        if let daysAgo, daysAgo >= 0 {
+            return calendar.date(byAdding: .day, value: -daysAgo, to: calendar.startOfDay(for: now))
+        }
+        let parts = (date ?? "").trimmingCharacters(in: .whitespaces).split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        let day = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        return day.map { calendar.startOfDay(for: $0) }
+    }
+
+    /// The cards made on the day starting at `start`, oldest first, with
+    /// `days` days in the span (1 for one day).
+    static func made(_ cards: [LibraryCard], from start: Date, days: Int = 1, calendar: Calendar = .current) -> [LibraryCard] {
+        guard let end = calendar.date(byAdding: .day, value: max(days, 1), to: start) else { return [] }
+        return cards.filter { entry in
+            guard let made = entry.card.createdAt else { return false }
+            return made >= start && made < end
+        }
+    }
+
+    static func dayString(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    static func cardsByDateTool() -> [String: Any] {
+        RealtimeVoiceAssistant.function(
+            cardsByDateToolName,
+            "The learner's kept cards made on a day, oldest first, due or not: for \"the cards I made yesterday\". Give days_ago (0 today, 1 yesterday, 2 the day before) or date as yyyy-MM-dd; days spans more than one day from there. Cards it returns can be asked and graded with grade_card, or deleted.",
+            properties: [
+                "days_ago": ["type": "integer", "description": "0 for today, 1 for yesterday, and so on. Use this or date."],
+                "date": ["type": "string", "description": "The day as yyyy-MM-dd, when they name a date."],
+                "days": ["type": "integer", "description": "How many days the span covers from that day, 1 if left out."],
+                "offset": ["type": "integer", "description": "Cards to skip, to reach the rest when more were made than shown."],
+                "limit": ["type": "integer", "description": "How many cards, 1 to 20; 10 if left out."],
+            ]
+        )
+    }
+
+    static func searchOutput(_ matches: [LibraryCard], limit: Int, offset: Int = 0) -> String {
         guard !matches.isEmpty else {
             return #"{"cards":[],"matches":0,"note":"No kept card matches. Say so and offer to try other words or list the topics."}"#
         }
-        let shown = matches.prefix(limit)
+        let shown = matches.dropFirst(min(max(offset, 0), matches.count)).prefix(limit)
+        guard !shown.isEmpty else {
+            return #"{"cards":[],"matches":\#(matches.count),"note":"Nothing is left after that offset. Say that was all of them."}"#
+        }
         let rows = shown.map { entry -> [String: Any] in
             var row: [String: Any] = [
                 "card_id": entry.card.id,
@@ -220,6 +278,7 @@ extension RealtimeVoiceCardReview {
                 "due_today": entry.dueToday,
             ]
             if let source = entry.card.source, !source.isEmpty { row["source"] = source }
+            if let made = entry.card.createdAt { row["made_on"] = dayString(made) }
             return row
         }
         let object: [String: Any] = ["cards": rows, "matches": matches.count, "shown": shown.count]

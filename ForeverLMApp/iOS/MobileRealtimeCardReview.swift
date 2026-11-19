@@ -45,7 +45,9 @@ enum MobileRealtimeCardReview {
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
                 RealtimeVoiceCardReview.deleteCardTool,
+                RealtimeVoiceCardReview.undoDeleteCardTool,
                 RealtimeVoiceCardReview.searchCardsTool(),
+                RealtimeVoiceCardReview.cardsByDateTool(),
                 RealtimeVoiceCardReview.listTopicsTool(),
                 RealtimeVoiceCardsToCheck.listTool(
                     description: "The cards waiting in To Check, when the learner asks to go through them: ask each one's question, then decide_card only on their say."
@@ -78,6 +80,9 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
     private let sittingKey = "voice-\(UUID().uuidString.lowercased())"
     /// Each dealt card's prompt by item id, as it is graded.
     private let dealt = OSAllocatedUnfairLock(initialState: [String: String]())
+    /// Cards deleted in this conversation, as they were, in the order deleted:
+    /// what "undo" brings back.
+    private let deleted = OSAllocatedUnfairLock(initialState: [(item: MemoryItem, prompt: String)]())
     /// What the learner said to each graded card, by item id, for the saved
     /// chat; the first grade of a card is the one kept, as it is the one written.
     private let answers = OSAllocatedUnfairLock(initialState: [String: RealtimeVoiceAnswerRecord]())
@@ -107,6 +112,27 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
             )
         case RealtimeVoiceCardReview.deleteCardToolName:
             return await delete(itemID: (arguments["card_id"] as? String) ?? "")
+        case RealtimeVoiceCardReview.undoDeleteCardToolName:
+            return await undoDelete(itemID: arguments["card_id"] as? String)
+        case RealtimeVoiceCardReview.cardsByDateToolName:
+            let limit = min(max((arguments["limit"] as? NSNumber)?.intValue ?? 10, 1), RealtimeVoiceCardReview.searchResultCap)
+            let offset = max((arguments["offset"] as? NSNumber)?.intValue ?? 0, 0)
+            let span = min(max((arguments["days"] as? NSNumber)?.intValue ?? 1, 1), 366)
+            guard let start = RealtimeVoiceCardReview.startOfDay(
+                daysAgo: (arguments["days_ago"] as? NSNumber)?.intValue,
+                date: arguments["date"] as? String,
+                now: Date()
+            ) else {
+                return #"{"error":"Give days_ago (1 for yesterday) or date as yyyy-MM-dd."}"#
+            }
+            let matches = RealtimeVoiceCardReview.made(await library(), from: start, days: span)
+            if matches.isEmpty {
+                return #"{"cards":[],"matches":0,"note":"No kept card was made on that day. Say so and offer another day."}"#
+            }
+            dealt.withLock { prompts in
+                for entry in matches.dropFirst(offset).prefix(limit) { prompts[entry.card.id] = entry.card.question }
+            }
+            return RealtimeVoiceCardReview.searchOutput(matches, limit: limit, offset: offset)
         case RealtimeVoiceCardReview.searchCardsToolName:
             let limit = min(max((arguments["limit"] as? NSNumber)?.intValue ?? 10, 1), RealtimeVoiceCardReview.searchResultCap)
             let query = (arguments["query"] as? String) ?? ""
@@ -137,7 +163,8 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
                     id: listing.itemID,
                     question: listing.face.front,
                     answer: listing.face.back,
-                    source: (title?.isEmpty ?? true) ? nil : title
+                    source: (title?.isEmpty ?? true) ? nil : title,
+                    createdAt: listing.createdAt
                 ),
                 dueToday: listing.schedule.dueAt <= now
             )
@@ -174,16 +201,44 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
     /// longer be graded.
     @MainActor
     func delete(itemID: String) async -> String {
-        guard dealt.withLock({ $0[itemID] }) != nil else {
+        guard let prompt = dealt.withLock({ $0[itemID] }) else {
             return #"{"error":"That card_id is not one dealt in this conversation."}"#
         }
         do {
-            try await MobileAudioReviewViewModel.shared.retireCard(itemID: itemID)
+            let vm = MobileAudioReviewViewModel.shared
+            guard let item = await vm.cardAnswerContext(memoryItemID: itemID)?.item else {
+                throw MobileCardReviewError.cardGone
+            }
+            try await vm.retireCard(itemID: itemID)
             dealt.withLock { _ = $0.removeValue(forKey: itemID) }
-            return #"{"ok":true,"note":"The card is deleted and will not be asked again. Say so in a few words and go on to the next card."}"#
+            deleted.withLock { $0.append((item, prompt)) }
+            return #"{"ok":true,"note":"The card is deleted and will not be asked again. Say so in a few words, say they can say undo to bring it back, and go on to the next card."}"#
         } catch {
             Self.logger.error("Voice card delete not saved: \(error.localizedDescription, privacy: .public)")
             return #"{"error":"The card was not deleted. Say so briefly and carry on."}"#
+        }
+    }
+
+    /// "Undo" after a voice delete: the card is kept again as it was (status
+    /// kept, its answers never left), and can be asked and graded again.
+    @MainActor
+    func undoDelete(itemID: String?) async -> String {
+        let wanted = (itemID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let entry = deleted.withLock { held -> (item: MemoryItem, prompt: String)? in
+            let index = wanted.isEmpty ? held.indices.last : held.firstIndex { $0.item.id == wanted }
+            return index.map { held.remove(at: $0) }
+        }
+        guard let entry else {
+            return #"{"error":"No card was deleted in this conversation to bring back."}"#
+        }
+        do {
+            try await MobileAudioReviewViewModel.shared.reviveCard(entry.item)
+            dealt.withLock { $0[entry.item.id] = entry.prompt }
+            return #"{"ok":true,"card_id":"\#(entry.item.id)","note":"The card is back. Say so in a few words and ask its question again."}"#
+        } catch {
+            deleted.withLock { $0.append(entry) }
+            Self.logger.error("Voice card undo not saved: \(error.localizedDescription, privacy: .public)")
+            return #"{"error":"The card was not brought back. Say so briefly and carry on."}"#
         }
     }
 
