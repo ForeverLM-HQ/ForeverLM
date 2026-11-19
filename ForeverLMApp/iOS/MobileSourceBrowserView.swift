@@ -1851,6 +1851,8 @@ struct MobileAudiobookProgressLine: View {
     let showsBookTitle: Bool
 
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
+    @ObservedObject private var speech = ArticleSpeechPreferences.shared
+    @State private var showsModelSettings = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1871,10 +1873,22 @@ struct MobileAudiobookProgressLine: View {
                 Text(run.statusLabel)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                // Which model is narrating, and the way to change it: the pick
+                // applies from the next chapter, since a chapter is never
+                // switched mid-way.
+                Button {
+                    showsModelSettings = true
+                } label: {
+                    Text("\(ArticleSpeechCatalog.model(id: speech.modelID)?.name ?? speech.modelID) · Change")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("listen.audiobookModel")
             }
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
 
             Button {
                 vm.stopAudiobookGeneration()
@@ -1889,6 +1903,17 @@ struct MobileAudiobookProgressLine: View {
             .foregroundStyle(.secondary)
             .accessibilityLabel("Stop generating the audiobook")
             .accessibilityIdentifier("listen.stopAudiobook")
+        }
+        .sheet(isPresented: $showsModelSettings) {
+            NavigationStack {
+                MobileTextToSpeechSettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showsModelSettings = false }
+                        }
+                    }
+            }
+            .environmentObject(vm)
         }
     }
 }
