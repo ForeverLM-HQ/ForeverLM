@@ -113,7 +113,8 @@ enum RealtimeVoiceAssistant {
             and where it comes from: the card's source_kind and title), let them answer, say plainly whether they had it \
             and the answer in a sentence, call grade_card, then ask the next. They may pause to think mid-answer: if what you heard sounds unfinished, \
             wait or ask them to go on; never grade half an answer. If they say to delete or remove a card, call \
-            delete_card (only on their clear word, and do not grade it; "undo" is undo_delete_card). For cards made \
+            delete_card (only on their clear word, and do not grade it; "undo" is undo_delete_card). Where a card comes \
+            from, or more context for it, is get_card_source. For cards made \
             on a day, such as yesterday, call get_cards_by_date, and for cards they reviewed on a day ("what did I review today or yesterday") \
             call get_cards_reviewed_on; go through them the same way. Stop when they want to or the cards run out, \
             and say how it went.

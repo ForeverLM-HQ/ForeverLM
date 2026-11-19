@@ -46,6 +46,7 @@ enum MobileRealtimeCardReview {
                 RealtimeVoiceCardReview.gradeCardTool,
                 RealtimeVoiceCardReview.deleteCardTool,
                 RealtimeVoiceCardReview.undoDeleteCardTool,
+                RealtimeVoiceCardReview.cardSourceTool(),
                 RealtimeVoiceCardReview.searchCardsTool(),
                 RealtimeVoiceCardReview.cardsByDateTool(),
                 RealtimeVoiceCardReview.cardsReviewedTool(),
@@ -113,6 +114,8 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
             )
         case RealtimeVoiceCardReview.deleteCardToolName:
             return await delete(itemID: (arguments["card_id"] as? String) ?? "")
+        case RealtimeVoiceCardReview.cardSourceToolName:
+            return await cardSource(itemID: (arguments["card_id"] as? String) ?? "")
         case RealtimeVoiceCardReview.undoDeleteCardToolName:
             return await undoDelete(itemID: arguments["card_id"] as? String)
         case RealtimeVoiceCardReview.cardsByDateToolName, RealtimeVoiceCardReview.reviewedCardsToolName:
@@ -236,6 +239,44 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
             Self.logger.error("Voice card delete not saved: \(error.localizedDescription, privacy: .public)")
             return #"{"error":"The card was not deleted. Say so briefly and carry on."}"#
         }
+    }
+
+    /// Where a card comes from: each source it stands on with the passage the
+    /// card is anchored on and the text around it, read from the source's text
+    /// on the phone. A source whose text has not arrived says so.
+    @MainActor
+    func cardSource(itemID: String) async -> String {
+        guard dealt.withLock({ $0[itemID] }) != nil else {
+            return #"{"error":"That card_id is not one dealt or found in this conversation."}"#
+        }
+        let vm = MobileAudioReviewViewModel.shared
+        guard let listing = await vm.keptCardListings().first(where: { $0.itemID == itemID }) else {
+            return #"{"error":"That card is no longer on this iPhone."}"#
+        }
+        var rows: [[String: Any]] = []
+        for link in listing.links.prefix(3) {
+            guard let source = vm.sourcesByID[link.sourceID] else { continue }
+            var row: [String: Any] = ["title": source.title]
+            if let kind = RealtimeVoiceCardReview.spokenKind(sourceType: source.sourceType) { row["kind"] = kind }
+            if let author = source.author, !author.isEmpty { row["author"] = author }
+            if !link.quote.isEmpty { row["passage"] = link.quote }
+            do {
+                let text = try await MobileCloudSourceTextStore.shared.loadSourceText(sourceID: link.sourceID)
+                if let around = RealtimeVoiceCardReview.excerpt(in: text, around: link.quote) {
+                    row["text_around_passage"] = around
+                } else if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    row["note"] = "The card names no passage; the source has text but only the title is loaded."
+                }
+            } catch {
+                row["note"] = "This source's text is not on the iPhone yet, so only its title and the passage are known."
+            }
+            rows.append(row)
+        }
+        guard !rows.isEmpty else {
+            return #"{"sources":[],"note":"This card names no source on this iPhone. Say so."}"#
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: ["sources": rows], options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? #"{"sources":[]}"#
     }
 
     /// "Undo" after a voice delete: the card is kept again as it was (status

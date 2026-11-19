@@ -785,6 +785,16 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceCardReview.cardsByDateTool()["name"] as? String == "get_cards_by_date")
     }
 
+    @Test func aCardsPassageIsFoundInItsSourceText() {
+        let text = String(repeating: "word ", count: 2000) + "The membrane potential sets the pattern. " + String(repeating: "more ", count: 2000)
+        let piece = RealtimeVoiceCardReview.excerpt(in: text, around: "membrane potential sets the pattern", radius: 100)
+        #expect(piece?.contains("membrane potential sets the pattern") == true)
+        #expect((piece?.count ?? 0) < 300)
+        #expect(RealtimeVoiceCardReview.excerpt(in: "Nothing here.", around: "absent words") == "absent words")
+        #expect(RealtimeVoiceCardReview.excerpt(in: text, around: "  ") == nil)
+        #expect(RealtimeVoiceCardReview.cardSourceTool()["name"] as? String == "get_card_source")
+    }
+
     @Test func cardsAreFoundByAuthorAndReviewedOnADay() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "UTC"))

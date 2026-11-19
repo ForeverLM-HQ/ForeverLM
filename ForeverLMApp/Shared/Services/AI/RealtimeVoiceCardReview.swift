@@ -51,6 +51,9 @@ enum RealtimeVoiceCardReview {
     static let undoDeleteCardToolName = "undo_delete_card"
     static let cardsByDateToolName = "get_cards_by_date"
     static let reviewedCardsToolName = "get_cards_reviewed_on"
+    static let cardSourceToolName = "get_card_source"
+    /// How much of a source's text is read on each side of a card's passage.
+    static let sourceExcerptRadius = 2500
     /// How many cards the instructions carry; the rest come by `get_due_cards`.
     static let cardsInInstructions = 20
     /// A question or an answer is kept to this many characters out loud.
@@ -82,6 +85,9 @@ enum RealtimeVoiceCardReview {
         back, and ask the next card's question; do not grade a deleted card. A card that is merely hard or that \
         they forgot is not a deletion: only their clear word is. If they say undo, bring it back, or that they \
         did not mean it, call undo_delete_card, then ask that card's question again.
+        - When they ask where a card comes from, want more context, or doubt it, call get_card_source with its \
+        card_id and answer from what it returns. You may call it before asking a card, to put the question in \
+        your own words with the right context, but never to give the answer away.
         - For cards made on a day ("the cards I made yesterday"), call get_cards_by_date; for cards they reviewed \
         on a day ("what did I review today", "yesterday"), call get_cards_reviewed_on. Then go through what it \
         returns one card at a time like today's cards, grading each with grade_card.
@@ -298,6 +304,30 @@ extension RealtimeVoiceCardReview {
                 "limit": ["type": "integer", "description": "How many cards, 1 to 20; 10 if left out."],
             ]
         )
+    }
+
+    static func cardSourceTool() -> [String: Any] {
+        RealtimeVoiceAssistant.function(
+            cardSourceToolName,
+            "Loads where a card comes from: for each source the card stands on, its title, kind and author, the passage the card is anchored on, and the text around that passage. Use it when the learner asks where a card comes from, wants more context, or disputes a card, and to ground your rewording of its question. Do not read it out; say what matters in a sentence or two.",
+            properties: ["card_id": ["type": "string", "description": "The card's card_id."]],
+            required: ["card_id"]
+        )
+    }
+
+    /// The passage `quote` with `radius` characters of the source's text on
+    /// each side, cut at whole words; the quote alone when the text does not
+    /// print it as written. Nil for an empty quote.
+    static func excerpt(in text: String, around quote: String, radius: Int = sourceExcerptRadius) -> String? {
+        let wanted = quote.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !wanted.isEmpty else { return nil }
+        guard let range = text.range(of: wanted, options: [.caseInsensitive, .diacriticInsensitive]) else { return wanted }
+        let lower = text.index(range.lowerBound, offsetBy: -radius, limitedBy: text.startIndex) ?? text.startIndex
+        let upper = text.index(range.upperBound, offsetBy: radius, limitedBy: text.endIndex) ?? text.endIndex
+        var piece = String(text[lower..<upper])
+        if lower != text.startIndex, let space = piece.firstIndex(where: \.isWhitespace) { piece = String(piece[space...]) }
+        if upper != text.endIndex, let space = piece.lastIndex(where: \.isWhitespace) { piece = String(piece[..<space]) }
+        return piece.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func dayString(_ date: Date, calendar: Calendar = .current) -> String {

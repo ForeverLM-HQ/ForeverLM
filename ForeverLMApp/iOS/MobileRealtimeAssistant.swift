@@ -138,6 +138,7 @@ enum MobileRealtimeAssistant {
                 RealtimeVoiceCardReview.gradeCardTool,
                 RealtimeVoiceCardReview.deleteCardTool,
                 RealtimeVoiceCardReview.undoDeleteCardTool,
+                RealtimeVoiceCardReview.cardSourceTool(),
                 RealtimeVoiceCardReview.searchCardsTool(),
                 RealtimeVoiceCardReview.cardsByDateTool(),
                 RealtimeVoiceCardReview.cardsReviewedTool(),
