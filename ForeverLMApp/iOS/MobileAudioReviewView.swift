@@ -41,8 +41,15 @@ struct MobileAudioReviewView: View {
             homeRoot
                 .modifier(MobileShellBarClearance())
                 .navigationDestination(for: MobileShellRoute.self) { route in
-                    destination(route)
-                        .modifier(MobileShellBarClearance())
+                    if case .source = route {
+                        // The Reader measures itself (`MobileSourceReaderView`),
+                        // wherever it was opened from; measured here too, the
+                        // second measurement would read the padding of the first.
+                        destination(route)
+                    } else {
+                        destination(route)
+                            .modifier(MobileShellBarClearance())
+                    }
                 }
         }
         .environment(\.mobileShellBarTop, bottomBarTop)
@@ -413,6 +420,7 @@ struct MobileShellSourceDestination: View {
             )
             .navigationTitle("Source")
             .navigationBarTitleDisplayMode(.inline)
+            .modifier(MobileShellBarClearance())
         }
     }
 }

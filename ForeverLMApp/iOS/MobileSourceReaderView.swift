@@ -44,7 +44,15 @@ struct MobileSourceReaderView: View {
         viewModel.currentChapter ?? source
     }
 
+    /// A Reader opens from many places, not only the shell's own routes (a
+    /// course, a chat, a book's chapter list), and each must tell the shell
+    /// where its bottom toolbar is, or the shell's bar sits on the toolbar's
+    /// buttons (`MobileShellBarClearance`).
     var body: some View {
+        readerBody.modifier(MobileShellBarClearance())
+    }
+
+    private var readerBody: some View {
         content
             .navigationTitle(readingSource.title)
             .navigationBarTitleDisplayMode(.inline)
