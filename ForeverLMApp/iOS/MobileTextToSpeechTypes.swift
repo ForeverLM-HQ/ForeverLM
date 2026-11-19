@@ -371,8 +371,36 @@ struct MobileAudiobookGeneration: Equatable {
     var setAsideChapterIDs: [String] = []
 
     var fractionCompleted: Double {
+        fractionCompleted(chapter: nil)
+    }
+
+    /// The share of the book done, counting the part of the chapter in hand
+    /// that is made, so the ring moves while one long chapter is being
+    /// narrated instead of sitting at "0 of 8" until it ends.
+    func fractionCompleted(chapter: MobileTextToSpeechGenerationProgress?) -> Double {
         guard totalChapters > 0 else { return 0 }
-        return min(max(Double(readyChapters) / Double(totalChapters), 0), 1)
+        let inHand = chapter.map { $0.fractionCompleted } ?? 0
+        let done = Double(readyChapters) + (readyChapters < totalChapters ? inHand : 0)
+        return min(max(done / Double(totalChapters), 0), 1)
+    }
+
+    /// What the chapter in hand is doing right now: "Part 3 of 14 made · about
+    /// 2 min left" once its parts are being made, else the stage it is in
+    /// (preparing the text, starting the narration).
+    static func detailLine(
+        chapter: MobileTextToSpeechGenerationProgress?,
+        stage: String?,
+        now: Date
+    ) -> String? {
+        guard let chapter, chapter.totalChunks > 0 else { return stage }
+        var line = chapter.completedChunks == 0
+            ? "Making \(chapter.totalChunks) parts · none ready yet"
+            : "\(chapter.completedChunks) of \(chapter.totalChunks) parts made"
+        if let remaining = chapter.estimatedRemaining(at: now), chapter.completedChunks >= 2 {
+            let seconds = Int(remaining.rounded())
+            line += seconds >= 90 ? " · about \((seconds + 30) / 60) min left" : " · under 2 min left"
+        }
+        return line
     }
 
     /// "3 of 12 chapters · 4. The human side"

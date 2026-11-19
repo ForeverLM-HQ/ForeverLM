@@ -368,10 +368,12 @@ extension MobileAudioReviewViewModel {
     ) async throws -> MobileAudioItem {
         backgroundTextToSpeechPreparingTitles[source.id] = source.title
         backgroundTextToSpeechGenerationProgress[source.id] = nil
+        backgroundTextToSpeechDetails[source.id] = "Getting started…"
         acquireTextToSpeechGenerationLease()
         defer {
             backgroundTextToSpeechPreparingTitles[source.id] = nil
             backgroundTextToSpeechGenerationProgress[source.id] = nil
+            backgroundTextToSpeechDetails[source.id] = nil
             textToSpeechModelNames[source.id] = nil
             releaseTextToSpeechGenerationLease()
         }
@@ -388,7 +390,11 @@ extension MobileAudioReviewViewModel {
                 }
             } else {
                 noteTextToSpeechModel((try? CloudArticleTTS.currentSelection())?.model, sourceID: source.id)
-                let narration = try await prepareTextToSpeechNarration(for: source) { _ in }
+                let sourceID = source.id
+                let narration = try await prepareTextToSpeechNarration(for: source) { [weak self] detail in
+                    self?.backgroundTextToSpeechDetails[sourceID] = detail
+                }
+                backgroundTextToSpeechDetails[source.id] = "Starting the narration…"
                 let isSignedIn = await Task.detached(priority: .userInitiated) {
                     ManagedAI.isSignedIn
                 }.value

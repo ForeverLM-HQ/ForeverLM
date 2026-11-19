@@ -109,6 +109,10 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// Keying them by source keeps every row honest when several articles are
     /// being prepared at once without turning playback into a global lock.
     @Published var backgroundTextToSpeechPreparingTitles: [String: String] = [:]
+    /// What each background narration is doing before its first part lands
+    /// ("Preparing text 2 of 5…"), so a whole-book run can say more than
+    /// "0 of 8 chapters" while its first chapter gets going.
+    @Published var backgroundTextToSpeechDetails: [String: String] = [:]
     @Published var backgroundTextToSpeechGenerationProgress: [String: MobileTextToSpeechGenerationProgress] = [:]
     /// The speech model each running generation narrates with, by source, from
     /// the moment the generation knows it will make audio: a paper's narration

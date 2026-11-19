@@ -1875,13 +1875,27 @@ struct MobileAudiobookProgressLine: View {
     @ObservedObject private var speech = ArticleSpeechPreferences.shared
     @State private var showsModelSettings = false
 
+    /// The chapter in hand's own progress: its parts, from whichever route is
+    /// making it.
+    private var chapterProgress: MobileTextToSpeechGenerationProgress? {
+        guard let id = run.currentChapterID else { return nil }
+        return vm.backgroundTextToSpeechGenerationProgress[id]
+            ?? (vm.textToSpeechPreparingSourceID == id ? vm.textToSpeechGenerationProgress : nil)
+    }
+
+    private var detailLine: String? {
+        guard !run.isWaitingToResume else { return nil }
+        let stage = run.currentChapterID.flatMap { vm.backgroundTextToSpeechDetails[$0] }
+        return MobileAudiobookGeneration.detailLine(chapter: chapterProgress, stage: stage, now: Date())
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
                     .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
                 Circle()
-                    .trim(from: 0, to: run.fractionCompleted)
+                    .trim(from: 0, to: run.fractionCompleted(chapter: chapterProgress))
                     .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
@@ -1894,6 +1908,14 @@ struct MobileAudiobookProgressLine: View {
                 Text(run.statusLabel)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                // The part the chapter in hand has reached, so a book whose
+                // first chapter takes minutes still shows it is working.
+                if let detailLine {
+                    Text(detailLine)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("listen.audiobookDetail")
+                }
                 // Which model is narrating, and the way to change it: the pick
                 // applies from the next chapter, since a chapter is never
                 // switched mid-way.
