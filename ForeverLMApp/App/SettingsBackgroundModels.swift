@@ -193,6 +193,14 @@ struct BackgroundModelsPane: View {
             isOffered: { AIModelCatalog.wouldOffer(provider: .openRouter, modelID: $0) },
             allowsNewerRelease: { ChatModelLists.isTierBelow($0, chatSuggestions: chatSuggestions) }
         )
+        // The learner's own list moves on to newer releases as the Suggested
+        // one does: write it as it now shows, then draw again.
+        if let stored = yourModels, !lists.rolledForward.isEmpty {
+            let rolled = ChatModelLists.rolled(stored, by: lists.rolledForward)
+            ChatModelShortlist.save(rolled, key: shortlistKey)
+            yourModels = rolled
+            rebuild()
+        }
     }
 
     /// The free models that can do this work, best first, less any that

@@ -152,6 +152,26 @@ struct ChatModelsPane: View {
             filters: browserFilters,
             isOffered: { AIModelCatalog.wouldOffer(provider: .openRouter, modelID: $0) }
         )
+        adoptNewerReleases()
+    }
+
+    /// Writes the learner's list as it now shows (each model on it moved on
+    /// to its family's newest release) and hands the picker's check from the
+    /// old model to the new one, so the old one neither lingers in the picker
+    /// nor comes back here as an offered row. The Default Model stays offered.
+    private func adoptNewerReleases() {
+        guard let stored = snapshot.yourModels, !lists.rolledForward.isEmpty else { return }
+        let moves = lists.rolledForward
+        let rolled = ChatModelLists.rolled(stored, by: moves)
+        ChatModelShortlist.save(rolled)
+        snapshot.yourModels = rolled
+        for (old, new) in moves {
+            guard let oldEntry = lists.entryBySlug[old], snapshot.enabledIDs.contains(oldEntry.id),
+                  let newEntry = lists.entryBySlug[new] else { continue }
+            if !snapshot.enabledIDs.contains(newEntry.id) { setOffered(true, newEntry) }
+            if snapshot.defaultID != oldEntry.id { setOffered(false, oldEntry) }
+        }
+        rebuild()
     }
 
     // MARK: Lists
@@ -773,6 +793,11 @@ enum ChatModelLists {
         let directoryBySlug: [String: OpenRouterDirectoryModel]
         /// Vendor → the maker name OpenRouter gives it most often.
         let makerNames: [String: String]
+        /// Lowercased slug → the newer release of its family that now stands
+        /// in its place, for each model on the learner's own list
+        /// (`pinned`) that has one. Empty for the untouched Suggested list,
+        /// which is only ever shown as the newest releases.
+        var rolledForward: [String: String] = [:]
 
         static let empty = Built(
             suggestions: [], free: [], offered: [], makers: [], filterCounts: [:],
@@ -832,7 +857,8 @@ enum ChatModelLists {
     ///     lists is not listed twice.
     ///   - pinned: the list the learner keeps (Settings › Chat's Your
     ///     Models), in their order; when set, it replaces `suggested` and
-    ///     `free` as they stand, newer releases not swapped in.
+    ///     `free`, each model on it shown as the newest release of its
+    ///     family (`Built.rolledForward` names the ones that moved).
     ///   - entries: the offered catalog entries, in catalog order.
     ///   - enabledIDs: what the chat's picker offers; one of those neither
     ///     list shows is listed after them (`Built.offered`).
@@ -879,9 +905,19 @@ enum ChatModelLists {
         let usable = (directory ?? []).filter { model in
             model.supportsTools && (entryBySlug[model.id.lowercased()] != nil || isOffered(model.id))
         }
+        // The learner's own list moves on to newer releases as the Suggested
+        // list does (product owner, 2026-11-19: "It should always
+        // automatically be updated. I shouldn't have to do that as a user"):
+        // GPT-6.1 Sol on it becomes GPT-6.2 Sol the day OpenRouter lists it.
+        let pinnedSlugs = pinned.map(ChatModelShortlist.normalized)
+        var rolledForward: [String: String] = [:]
+        for slug in pinnedSlugs ?? [] {
+            guard let newest = Self.newestReleases(of: [slug], in: usable, allows: allowsNewerRelease).first,
+                  newest.lowercased() != slug else { continue }
+            rolledForward[slug] = newest.lowercased()
+        }
         let suggestions = Self.suggestions(
-            pinned.map(ChatModelShortlist.normalized)
-                ?? Self.newestReleases(of: suggested, in: usable, allows: allowsNewerRelease),
+            Self.newestReleases(of: pinnedSlugs ?? suggested, in: usable, allows: allowsNewerRelease),
             entryBySlug: entryBySlug, directoryBySlug: directoryBySlug,
             directoryLoaded: directory != nil, isOffered: isOffered
         )
@@ -916,8 +952,15 @@ enum ChatModelLists {
             filterCounts: filterCounts,
             entryBySlug: entryBySlug,
             directoryBySlug: directoryBySlug,
-            makerNames: makerNames
+            makerNames: makerNames,
+            rolledForward: rolledForward
         )
+    }
+
+    /// `list` with each model that has rolled forward replaced by its newer
+    /// release, once, in the place of the first of them.
+    static func rolled(_ list: [String], by rolledForward: [String: String]) -> [String] {
+        ChatModelShortlist.normalized(list.map { rolledForward[$0.lowercased()] ?? $0 })
     }
 
     /// Each suggested slug as the catalog entry that carries it, else the

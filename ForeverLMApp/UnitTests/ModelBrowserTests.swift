@@ -387,7 +387,7 @@ struct ModelBrowserTests {
         ])
     }
 
-    @Test("A kept list replaces Suggested and Free as it stands: its order, no newer release swapped in")
+    @Test("A kept list replaces Suggested and Free: its order, and its models stay put unless a newer release of the same family exists")
     func pinnedListReplacesSuggestions() {
         let directory = [
             Self.directoryModel("x/old", listed: Date(timeIntervalSince1970: 1)),
@@ -410,6 +410,29 @@ struct ModelBrowserTests {
             suggested: ["x/old"], free: ["y/free:free"], pinned: [],
             entries: [], enabledIDs: [], directory: directory, isOffered: { _ in true })
         #expect(emptied.suggestions.isEmpty && emptied.free.isEmpty)
+    }
+
+    @Test("A kept list moves on to the newest release of each family by itself, and says which models moved")
+    func pinnedListRollsForward() {
+        let directory = [
+            Self.directoryModel("openai/gpt-6.1-sol", listed: Date(timeIntervalSince1970: 1)),
+            Self.directoryModel("openai/gpt-6.2-sol", listed: Date(timeIntervalSince1970: 2)),
+            Self.directoryModel("openai/gpt-6.1-terra", listed: Date(timeIntervalSince1970: 1)),
+        ]
+        let built = ChatModelLists.build(
+            suggested: [], pinned: ["openai/gpt-6.1-terra", "openai/gpt-6.1-sol", "openai/gpt-6.2-sol"],
+            entries: [], enabledIDs: [], directory: directory, isOffered: { _ in true })
+        // 6.1 Sol is shown as 6.2 Sol, once; Terra has no newer release.
+        #expect(built.suggestions.map(\.slug) == ["openai/gpt-6.1-terra", "openai/gpt-6.2-sol"])
+        #expect(built.rolledForward == ["openai/gpt-6.1-sol": "openai/gpt-6.2-sol"])
+        #expect(ChatModelLists.rolled(
+            ["openai/gpt-6.1-terra", "openai/gpt-6.1-sol", "openai/gpt-6.2-sol"], by: built.rolledForward
+        ) == ["openai/gpt-6.1-terra", "openai/gpt-6.2-sol"])
+
+        // The untouched Suggested list names nothing: it was never stored.
+        let fresh = ChatModelLists.build(
+            suggested: ["openai/gpt-6.1-sol"], entries: [], enabledIDs: [], directory: directory, isOffered: { _ in true })
+        #expect(fresh.suggestions.map(\.slug) == ["openai/gpt-6.2-sol"] && fresh.rolledForward.isEmpty)
     }
 
     @Test("Every model the chat's picker offers has a Your Models row: one the lists leave out shows after them")
