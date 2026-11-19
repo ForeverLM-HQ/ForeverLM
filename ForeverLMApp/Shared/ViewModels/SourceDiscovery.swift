@@ -1060,11 +1060,6 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
         /// comment), so there is no PDF to find and the source should leave
         /// the paper pipeline rather than wait for a recheck.
         case notAPaper(String)
-        /// The page is a conference abstract: the abstract on it is the whole
-        /// publication, so no PDF exists to find and nothing is paywalled. It
-        /// leaves the paper pipeline like `notAPaper`, because a paper is a
-        /// file and this has none.
-        case conferenceAbstract(String)
         case blockedAction(String)
         case invalidAgentResponse(String)
         case downloadFailed(String)
@@ -1084,8 +1079,6 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
                 return "Looks paywalled: \(detail)"
             case .notAPaper(let detail):
                 return "Not a paper: \(detail)"
-            case .conferenceAbstract(let detail):
-                return "Conference abstract with no full paper: \(detail)"
             case .blockedAction(let detail):
                 return "Stopped before unsafe action: \(detail)"
             case .invalidAgentResponse(let detail):
@@ -1305,7 +1298,13 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
                 throw BrowserAgentError.notAPaper(Self.reasonOrDefault(reason, fallback: "The page is a news story or commentary, not a scholarly paper."))
 
             case "conference_abstract":
-                throw BrowserAgentError.conferenceAbstract(Self.reasonOrDefault(reason, fallback: "The page is a conference abstract; no full paper or PDF exists."))
+                // The abstract is the whole publication, so there is no file to
+                // find: print the page the agent is on as the paper's PDF, and
+                // the download path takes it from here (identity check,
+                // metadata, text). The paper stays a paper, not paywalled.
+                progress("Saving the conference abstract as a PDF...")
+                let file = try await printPageToTemporaryPDF(webView, reason: reason)
+                return DownloadedPDF(file: file, sourceURL: nil)
 
             case "give_up":
                 throw BrowserAgentError.noOpenAccessPDF(reason.isEmpty ? "No open-access PDF found." : reason)
@@ -1316,6 +1315,42 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
         }
 
         throw BrowserAgentError.noOpenAccessPDF("No open-access PDF found after the AI browser search.")
+    }
+
+    /// Print the page the agent is on to a temporary PDF. The print operation
+    /// lays a page out through its view's window, and this browser's view has
+    /// none, so it sits in a borderless window parked off screen for the print.
+    private func printPageToTemporaryPDF(_ webView: WKWebView, reason: String) async throws -> URL {
+        let size = NSSize(width: 1024, height: 768)
+        let window = NSWindow(
+            contentRect: NSRect(origin: NSPoint(x: -20_000, y: -20_000), size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        webView.frame = NSRect(origin: .zero, size: size)
+        window.contentView = webView
+        window.orderBack(nil)
+        defer {
+            window.contentView = NSView()
+            window.close()
+        }
+        let data: Data
+        do {
+            data = try await PublisherPagePDFRenderer.printPDF(from: webView)
+        } catch {
+            throw BrowserAgentError.downloadFailed(
+                "The conference abstract (\(reason)) could not be printed to a PDF: \(error.localizedDescription)"
+            )
+        }
+        guard SourceService.looksLikePDFData(data) else {
+            throw BrowserAgentError.downloadFailed("Printing the conference abstract did not produce a PDF.")
+        }
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foreverlm-conference-abstract-\(UUID().uuidString).pdf")
+        try data.write(to: file, options: .atomic)
+        return file
     }
 
     private func takeCompletedDownload() -> DownloadedPDF? {
