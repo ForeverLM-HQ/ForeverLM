@@ -913,8 +913,19 @@ struct ReviewChatToolRow: View {
             && !activity.listedSources.isEmpty
     }
 
+    /// A step that loaded a source into the chat. Its row says so in words and
+    /// that is all: no thumbnail banner, no passage cards, no raw text under it
+    /// (product owner, 2026-11-18: "never show it at all"). The banner showed
+    /// while the reply streamed and vanished once the fold closed, which read
+    /// as a glitch.
+    private var loadsSourceIntoContext: Bool {
+        ["get_source_content", "retrieve_sources", "get_today_sources"].contains(activity.toolName)
+            && activity.state == .succeeded
+    }
+
     private var canExpand: Bool {
-        presentsSourceCard || presentsRetrievedPassages || presentsListedSources || activity.resultPreview != nil
+        guard !loadsSourceIntoContext else { return false }
+        return presentsSourceCard || presentsRetrievedPassages || presentsListedSources || activity.resultPreview != nil
     }
 
     private var icon: String {
@@ -1074,7 +1085,7 @@ struct ReviewChatToolRow: View {
                 ReviewChatBrowserPreview(image: preview, isRunning: activity.state == .running)
             }
 
-            if isExpanded {
+            if isExpanded, canExpand {
                 VStack(alignment: .leading, spacing: 6) {
                     if presentsSourceCard, let presentation = activity.sourcePresentation {
                         HStack(spacing: 9) {
