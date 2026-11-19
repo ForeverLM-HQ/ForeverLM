@@ -33,6 +33,21 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.226.0 (build 306) — 2026-11-18
+
+**Highlights:**
+- **A Board card opens a chat, and chats find a book by its title.**
+
+- **A card on the Board opens a chat.** Chat About This (the hover bubble or the context menu) starts a chat with the card's words ready, and dropping a card on an open chat adds them. The card keeps a chip that reopens the chat. The Ideas place and New > Ideas List are gone from the menus; your ideas stay.
+- **The mic stays in the composer while a reply is being written.** A dictated message queues behind the reply like a typed one.
+- **A saved-cards row says how its cards stand now,** reading "1 card kept" once you keep one, instead of "1 card to check".
+- **A conference abstract stays a paper.** It is saved as a PDF of its page, not marked paywalled or moved to Articles.
+- **Loading a source no longer opens a thumbnail banner or passage cards in the chat;** the step just says Source in context.
+- **Chats with long sources answer faster:** the source text kept in view is capped at 50k tokens, and anything beyond is read when a question needs it.
+- **The chat finds a book by its title.** Asking for Transformer, say, lists the book's chapters rather than only a video about it, and a source missing from the chat's own list is no longer taken to be missing from your library.
+- **A PDF highlight no longer skips a ligature,** the fl in inflammation.
+- **The Beta tag marks Canvases, Pages and Sites in the sidebar.**
+
 ## 0.225.0 (build 305) — 2026-11-18
 
 **Highlights:**

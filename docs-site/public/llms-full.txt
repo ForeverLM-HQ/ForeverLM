@@ -1948,6 +1948,10 @@ Type in **Add a card** at the foot of any column but Done and press Return; the 
 
 Drag a card to another column, or to a different place in its column. The circle on a card moves it one column on (from one of your lists, that is Done), and Done wraps back to To do, so a card ticked by mistake reopens with one more click. Right-click a card to move it to any column or list, or to delete it.
 
+## Taking a card into a chat
+
+For an idea that needs an answer, hover a card and click the speech bubble, or right-click it and choose **Chat About This**. A fresh chat opens with the card's words ready under the composer; send it when you like. You can also drag a card onto an open chat, which adds its words after what you have typed. Once you send, the card shows a chip with the chat's name, and that chip (or **Open Chat** in the card's menu) brings the chat back. The link follows the card to your other devices.
+
 A card has a title, notes, an optional due date, and can point at a source or a Page. Moving a card into Done stamps when you finished it; moving it out clears the stamp.
 
 ## Planning the day
@@ -2886,6 +2890,8 @@ ForeverLM classifies a source as a paper in two steps:
 - and other major journal publishers
 
 **Step 2 — LLM classification.** Journals like Science and Nature publish both research papers and shorter editorial content (news articles, commentary, perspectives). These live on the same domain, so URL detection alone can't tell them apart. Before downloading a PDF, ForeverLM sends the URL and title to a lightweight LLM call on your Background text model (the **Source Classification** task in **Settings → Background → Tasks**) that classifies the source as a paper or article. Editorial content is automatically moved to the Articles tab.
+
+**Conference abstracts.** A meeting abstract, such as one in a society's annual-meeting supplement, is the whole publication: no full paper or PDF stands behind it. When the AI browser sees that, the paper is not marked paywalled and does not wait for a PDF. ForeverLM prints the abstract's page as the paper's PDF, and the paper stays in Papers with its venue and year. **Recheck all** on paywalled papers does the same for abstracts that were marked paywalled earlier.
 
 This also works in the other direction: if a web article turns out to be an academic paper (e.g., a preprint hosted on a personal blog), the LLM reclassifies it after fetching the content.
 
@@ -4034,7 +4040,7 @@ refused.
 | `create_team` | `name` | Create a team the learner owns, stored in the learner's own iCloud. Returns the team. |
 | `share_with_team` | `team_id`, `kind`, `ids`, `include_sources?`, `include_docs?`, `include_chats?`, `include_cited_sources?`, `rights_affirmed_by_learner?` | Copy sources, Notebooks, Pages, chats or courses (`kind`) into the team. Originals stay; a Notebook travels with its Goals and by default its sources, Pages and chats, and whatever is filed under it afterwards follows it into the team; a chat becomes a read-only transcript; a course travels with its lectures, readings, quizzes and every source on its path (`course_sources_shared`), and each member takes it with their own progress. A Page, site or animation travels with its sources: the sources its record links are copied into the team and the copy names the team's copies (`linked_sources_shared`), and the web sources its body cites that My Library holds and the team does not (papers and books, or anything with a file on the Mac) come along too (`cited_sources_shared`) unless `include_cited_sources` is `false`; a source that could not be copied is listed under `sources_not_shared` and does not stop the share. Returns the team copy id for every original. |
 | `share_notebook` | `notebook_id`, `rights_affirmed_by_learner?`, `team_id?` | Share a notebook with people in one call, as its **Share…** does in ForeverLM. A notebook already in one team uses that team; a notebook in no team gets a new team named after it (its title, emoji included), holding a copy of the notebook with all its approved sources and their files, its Goals, Pages and chats, and what is filed in the notebook later follows it there. `team_id` names the team: needed for a notebook two teams hold, or to share it into another of the learner's teams; a team that already has the notebook gets nothing copied again. Returns `team_id`, `team_name`, `created_team`, `shared_sources`, `team_notebook_id` (the team's notebook), the `members` with their role and whether they accepted, `invitation_link`: the link **Copy Invitation Link** copies (`null` until iCloud has shared a new team, the reason in `message`), `link_opens_to_anyone`: `true` when the link opens a team the learner owns to anyone who has it, with editing, and `message`. Refused, naming the owner, when the learner can only read the team. |
-| `list_notebook_tasks` | `notebook_id`, `status?`, `assignee?` | List a Notebook's tasks with every field. Filter by `status` (`todo`, `doing`, `done`) or, in a team Notebook, by `assignee` (`user_record_name` or `me`). A team Notebook's response includes the team and its roster. The response also carries the board's own `lists` (`id`, `title`, in board order, between In progress and Done); an open task in one has its `list_id`. |
+| `list_notebook_tasks` | `notebook_id`, `status?`, `assignee?` | List a Notebook's tasks with every field. Filter by `status` (`todo`, `doing`, `done`) or, in a team Notebook, by `assignee` (`user_record_name` or `me`). A team Notebook's response includes the team and its roster. The response also carries the board's own `lists` (`id`, `title`, in board order, between In progress and Done); an open task in one has its `list_id`; a task taken into a chat from the Board has that chat's `chat_id`. |
 | `create_notebook_task` | `notebook_id`, `title`, `notes?`, `status?`, `assignee_record_name?`, `due_date?`, `source_id?`, `doc_id?` | Add a task. `assignee_record_name` (a member's `user_record_name` or `me`) applies to team Notebooks only; `due_date` is `YYYY-MM-DD`. |
 | `update_notebook_task` | `task_id`, `title?`, `notes?`, `status?`, `assignee_record_name?`, `due_date?`, `source_id?`, `doc_id?` | Change a task; omitted fields keep their value. `assignee_record_name` `""` unassigns and `due_date` `""` clears the date. Setting `done` stamps the completion. |
 | `delete_notebook_task` | `task_id` | Delete a task; in a team Notebook every member loses it. Not undoable. |
@@ -6818,6 +6824,21 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.226.0 (build 306) — 2026-11-18
+
+**Highlights:**
+- **A Board card opens a chat, and chats find a book by its title.**
+
+- **A card on the Board opens a chat.** Chat About This (the hover bubble or the context menu) starts a chat with the card's words ready, and dropping a card on an open chat adds them. The card keeps a chip that reopens the chat. The Ideas place and New > Ideas List are gone from the menus; your ideas stay.
+- **The mic stays in the composer while a reply is being written.** A dictated message queues behind the reply like a typed one.
+- **A saved-cards row says how its cards stand now,** reading "1 card kept" once you keep one, instead of "1 card to check".
+- **A conference abstract stays a paper.** It is saved as a PDF of its page, not marked paywalled or moved to Articles.
+- **Loading a source no longer opens a thumbnail banner or passage cards in the chat;** the step just says Source in context.
+- **Chats with long sources answer faster:** the source text kept in view is capped at 50k tokens, and anything beyond is read when a question needs it.
+- **The chat finds a book by its title.** Asking for Transformer, say, lists the book's chapters rather than only a video about it, and a source missing from the chat's own list is no longer taken to be missing from your library.
+- **A PDF highlight no longer skips a ligature,** the fl in inflammation.
+- **The Beta tag marks Canvases, Pages and Sites in the sidebar.**
 
 ## 0.225.0 (build 305) — 2026-11-18
 
