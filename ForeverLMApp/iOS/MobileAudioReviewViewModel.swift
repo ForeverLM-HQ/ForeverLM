@@ -462,6 +462,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// The next chapter's chunks being pulled down ahead of need, so the book
     /// carries on without a download gap. Replaced whenever playback moves.
     var nextChapterPrefetchTask: Task<Void, Never>?
+    /// The quiet pass that fetches narrations the listener will likely play next.
     var narrationPrefetchTask: Task<Void, Never>?
 
     var shareNotebookListPublishTask: Task<Void, Never>?

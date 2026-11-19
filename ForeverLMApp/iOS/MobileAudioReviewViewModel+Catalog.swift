@@ -676,6 +676,7 @@ extension MobileAudioReviewViewModel {
                 self.publishCatalogSources(self.allSources)
             }
             self.startObservingSyncedAudioManifests()
+            self.startNarrationPrefetch()
         }
 
         var catalogLoadSucceeded = false

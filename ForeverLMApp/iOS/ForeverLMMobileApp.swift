@@ -160,7 +160,11 @@ struct ForeverLMMobileApp: App {
                 guard hasCompletedInitialLoad else { return }
                 // Cheap: the catalog load is a coalesced zone-delta behind a
                 // snapshot.
-                Task { await viewModel.load() }
+                Task {
+                    await viewModel.load()
+                    // Quietly fetch the narrations likely to be played next, on Wi-Fi only.
+                    viewModel.startNarrationPrefetch()
+                }
                 Task { await viewModel.importPendingSharedSources() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .mobileSiriCommandQueued)) { _ in
