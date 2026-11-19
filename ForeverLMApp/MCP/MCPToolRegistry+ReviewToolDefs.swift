@@ -351,7 +351,7 @@ extension MCPToolRegistry {
                     "properties": [
                         "show": ["type": "string", "description": "Podcast show or YouTube channel name, from list_shows, or a recurring meeting series' title or group_id, from list_meeting_groups; part of the name also works (\"Huberman\")."],
                         "author": ["type": "string", "description": "Text the author or byline contains: a paper's authors, an article's author, a meeting's presenter."],
-                        "title_contains": ["type": "string", "description": "Text the title contains."],
+                        "title_contains": ["type": "string", "description": "Text the title contains. A book or course is stored as one source per chapter or lecture, so this also matches the title of the book or course the source belongs to (\"Transformer\" lists that book's chapters)."],
                         "text": ["type": "string", "description": "Text any of title, author, show or channel, journal, or book/course/playlist contains — use it for a person who may be a guest in an episode title or an author of a paper (\"Martin Picard\")."],
                         "source_type": ["type": "string", "enum": StudioSourceType.searchFamilyNames, "description": "Optional. One family of sources."],
                         "include_archived": ["type": "boolean", "description": "Also list archived sources (default false)."],

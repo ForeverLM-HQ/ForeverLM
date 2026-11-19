@@ -319,7 +319,10 @@ extension MCPDataStore {
             guard let id = row["id"] as? String, !excludedSourceIDs.contains(id) else { return false }
             if let scope, !scope.sourceIDs.contains(id) { return false }
             if let author, !contains(row["author"], author) { return false }
-            if let titleContains, !contains(row["title"], titleContains) { return false }
+            // A book or course is stored as one source per chapter or lecture,
+            // so its own title lives in the group, not in the row's title.
+            if let titleContains,
+               !contains(row["title"], titleContains), !contains(row["group_name"], titleContains) { return false }
             if let text {
                 let fields: [Any?] = [row["title"], row["author"], row["domain"], row["journal"], row["group_name"], row["group_subtitle"]]
                 if !fields.contains(where: { contains($0, text) }) { return false }
@@ -330,7 +333,7 @@ extension MCPDataStore {
         var filters: [String] = []
         if let scope { filters.append("show \(scope.names.map { "'\($0)'" }.joined(separator: " or "))") }
         if let author { filters.append("author contains '\(author)'") }
-        if let titleContains { filters.append("title contains '\(titleContains)'") }
+        if let titleContains { filters.append("title (or its book or course's title) contains '\(titleContains)'") }
         if let text { filters.append("title, author, show or journal contains '\(text)'") }
         if let normalizedSourceType { filters.append("type \(normalizedSourceType)") }
         if !includeArchived { filters.append("archived sources left out") }

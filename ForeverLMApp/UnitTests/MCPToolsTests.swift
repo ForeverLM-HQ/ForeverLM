@@ -1942,6 +1942,13 @@ struct MCPDataStoreTests {
         let byBookTitle = try store.filterSources(show: nil, author: nil, titleContains: nil, text: "Power, Sex, Suicide",
                                                   sourceType: nil, includeArchived: false, limit: 200)
         #expect(byBookTitle.contains("chapter-5") && byBookTitle.contains("chapter-6") && !byBookTitle.contains("other-chapter"))
+
+        // `title_contains` reads the book's title too: the chat asked for
+        // "Transformer" by title and found only a video about it, because the
+        // chapters are each titled for themselves.
+        let byTitleContains = try store.filterSources(show: nil, author: nil, titleContains: "sex, suicide", text: nil,
+                                                      sourceType: nil, includeArchived: false, limit: 200)
+        #expect(byTitleContains.contains("chapter-5") && byTitleContains.contains("chapter-6") && !byTitleContains.contains("other-chapter"))
     }
 
     func insertSource(
