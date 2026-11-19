@@ -102,6 +102,17 @@ enum CloudArticleTTS {
 
     static let provider = ArticleSpeechCatalog.provider
 
+    /// Why a speech request is being sent again, for the progress line: a
+    /// retry used to be silent, so a slow chunk gave no hint of its cause.
+    /// The latest note wins and a request that lands clears it.
+    final class RetryNote: @unchecked Sendable {
+        static let shared = RetryNote()
+        private let lock = NSLock()
+        private var text: String?
+        func set(_ note: String?) { lock.lock(); text = note; lock.unlock() }
+        var current: String? { lock.lock(); defer { lock.unlock() }; return text }
+    }
+
     private static let maxConcurrentRequests = 6
     /// Body requests started the moment a source's generation begins, beside
     /// the opening. The rest join one per completion until the ceiling above
@@ -1021,6 +1032,7 @@ enum CloudArticleTTS {
                     if http.url?.host?.lowercased() == OpenRouterAPI.audioSpeech.host {
                         recordOwnKeySpeech(response: http, model: selection.model, characters: text.count)
                     }
+                    RetryNote.shared.set(nil)
                     return try validatedSpeechResponse(
                         data: data,
                         response: http,
@@ -1053,6 +1065,7 @@ enum CloudArticleTTS {
                 let reason = providerErrorMessage(data: data)
                 providerAttempt += 1
                 if providerAttempt < maxProviderAttempts, isRetryable(http.statusCode) {
+                    RetryNote.shared.set("retrying \(http.statusCode) (try \(providerAttempt + 1) of \(maxProviderAttempts))")
                     try await Task.sleep(nanoseconds: backoffNanoseconds(attempt: providerAttempt))
                     continue
                 }
@@ -1076,6 +1089,7 @@ enum CloudArticleTTS {
                 ) else {
                     throw transportFailure(error)
                 }
+                RetryNote.shared.set("retrying, connection (try \(transportAttempt + 1) of \(maxTransportAttempts))")
                 try await Task.sleep(nanoseconds: backoffNanoseconds(attempt: transportAttempt))
                 // Retrying into an outage only spends the budget faster. Wait
                 // for the radio instead: a lift or a tunnel ends, and the

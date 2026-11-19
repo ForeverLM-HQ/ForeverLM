@@ -1015,6 +1015,10 @@ struct MobileTextToSpeechProgressText: View {
         if let remaining = progress.estimatedRemaining(at: date) {
             parts.append(formatDuration(remaining))
         }
+        if progress.completedChunks < progress.totalChunks,
+           let note = CloudArticleTTS.RetryNote.shared.current {
+            parts.append(note)
+        }
         return parts.joined(separator: " · ")
     }
 
