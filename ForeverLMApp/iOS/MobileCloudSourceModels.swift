@@ -669,6 +669,19 @@ enum MobileSourceArtwork {
     static func youtubeThumbnailURL(for url: String) -> URL? {
         ForeverLMCore.youtubeThumbnailURL(for: url).flatMap(URL.init(string:))
     }
+
+    /// The link that opens a YouTube video in the YouTube app: the plain watch
+    /// address, which iOS hands to the app when it is installed (and to Safari
+    /// when it is not). nil for a source that is not a YouTube video.
+    static func youtubeWatchURL(for url: String) -> URL? {
+        guard let id = youtubeVideoId(from: url) else { return nil }
+        var parts = URLComponents()
+        parts.scheme = "https"
+        parts.host = "www.youtube.com"
+        parts.path = "/watch"
+        parts.queryItems = [URLQueryItem(name: "v", value: id)]
+        return parts.url
+    }
 }
 
 /// A book synced from the Mac's `Book` record — display metadata for the

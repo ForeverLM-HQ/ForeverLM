@@ -327,6 +327,16 @@ struct MobileSourceArtworkTests {
         )
     }
 
+    @Test("A YouTube source links to its watch page, anything else to none", arguments: [
+        ("https://youtu.be/dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+        ("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL1", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+        ("https://www.youtube.com/shorts/abc123XYZ_-", "https://www.youtube.com/watch?v=abc123XYZ_-"),
+        ("https://arxiv.org/abs/2301.07041", nil),
+    ] as [(String, String?)])
+    func youtubeWatchLink(url: String, expected: String?) {
+        #expect(MobileSourceArtwork.youtubeWatchURL(for: url)?.absoluteString == expected)
+    }
+
     @Test("Explicit artwork wins over the derived YouTube thumbnail")
     func artworkBeatsDerived() {
         var source = MobileCloudSource(

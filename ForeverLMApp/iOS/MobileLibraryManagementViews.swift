@@ -107,6 +107,13 @@ struct MobileSourceShareButtons: View {
         .disabled(isPreparing)
         .accessibilityIdentifier("source.share")
 
+        if let watch = source.url.flatMap(MobileSourceArtwork.youtubeWatchURL(for:)) {
+            Link(destination: watch) {
+                Label("Open in YouTube", systemImage: "play.rectangle")
+            }
+            .accessibilityIdentifier("source.openInYouTube")
+        }
+
         if MobileSourcePDFExport.canExport(source) {
             Button("Show in Files", systemImage: "folder") {
                 Task { await export.showInFiles(source) }
