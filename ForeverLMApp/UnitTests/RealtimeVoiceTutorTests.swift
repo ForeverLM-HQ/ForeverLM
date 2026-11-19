@@ -785,6 +785,28 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceCardReview.cardsByDateTool()["name"] as? String == "get_cards_by_date")
     }
 
+    @Test func cardsAreFoundByAuthorAndReviewedOnADay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        let yesterday = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 18)))
+        func card(_ id: String, author: String?) -> RealtimeVoiceCardReview.LibraryCard {
+            .init(card: .init(id: id, question: "Q", answer: "A", source: "Paper", sourceKind: "paper", sourceAuthor: author), dueToday: false)
+        }
+        let cards = [card("levin", author: "Michael Levin; Someone Else"), card("other", author: "Jane Roe"), card("none", author: nil)]
+        #expect(RealtimeVoiceCardReview.search(cards, query: "levin").map(\.card.id) == ["levin"])
+        #expect(RealtimeVoiceCardReview.searchOutput(cards, limit: 5).contains("source_kind"))
+        let attempts: [String: [Date]] = [
+            "other": [yesterday.addingTimeInterval(3600)],
+            "levin": [yesterday.addingTimeInterval(60), yesterday.addingTimeInterval(-600)],
+            "none": [yesterday.addingTimeInterval(-86_400)],
+        ]
+        let reviewed = RealtimeVoiceCardReview.reviewed(cards, attempts: attempts, from: yesterday, calendar: calendar)
+        #expect(reviewed.map(\.card.id) == ["levin", "other"])
+        #expect(RealtimeVoiceCardReview.spokenKind(sourceType: "podcast") == "podcast episode")
+        #expect(RealtimeVoiceCardReview.spokenKind(sourceType: "unclassified") == nil)
+        #expect(RealtimeVoiceCardReview.cardsReviewedTool()["name"] as? String == "get_cards_reviewed_on")
+    }
+
     @Test func cardsMadeOnADayAreFoundByDaysAgoOrDate() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "UTC"))

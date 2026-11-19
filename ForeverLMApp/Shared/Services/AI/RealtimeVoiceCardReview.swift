@@ -21,6 +21,27 @@ enum RealtimeVoiceCardReview {
         let source: String?
         /// When the card was made, when known.
         var createdAt: Date? = nil
+        /// What kind of source it comes from, in words to say aloud ("paper",
+        /// "podcast episode"), when known (`spokenKind(sourceType:)`).
+        var sourceKind: String? = nil
+        /// The authors of the card's sources, when known: searched, so "cards
+        /// from Levin papers" finds them.
+        var sourceAuthor: String? = nil
+    }
+
+    /// A source's stored type as it is said aloud; nil for a type with no
+    /// good word (unclassified, chats).
+    static func spokenKind(sourceType: String?) -> String? {
+        switch (sourceType ?? "").lowercased() {
+        case "paper": return "paper"
+        case "article": return "article"
+        case "podcast": return "podcast episode"
+        case "video": return "video"
+        case "book": return "book"
+        case "course": return "course"
+        case "meeting": return "meeting"
+        default: return nil
+        }
     }
 
     static let title = "Card Review"
@@ -29,6 +50,7 @@ enum RealtimeVoiceCardReview {
     static let deleteCardToolName = "delete_card"
     static let undoDeleteCardToolName = "undo_delete_card"
     static let cardsByDateToolName = "get_cards_by_date"
+    static let reviewedCardsToolName = "get_cards_reviewed_on"
     /// How many cards the instructions carry; the rest come by `get_due_cards`.
     static let cardsInInstructions = 20
     /// A question or an answer is kept to this many characters out loud.
@@ -41,8 +63,9 @@ enum RealtimeVoiceCardReview {
         \(scopeTitle). This is a live spoken conversation, like a friend quizzing them from a deck of index cards.
 
         How it goes:
-        - Ask one card at a time, in the order below. Say its question naturally, keeping its meaning, then stop and \
-        wait for their answer. Never give the answer before they have tried.
+        - Ask one card at a time, in the order below. Put its question in your own words each time: keep its spirit \
+        and meaning, not its exact wording, and add a little context from its source when that helps them place it. \
+        Never read it out word for word, and never give the answer away. Then stop and wait for their answer.
         - Judge the answer by meaning, not wording: they remembered it when their answer has the card's point.
         - Then say plainly whether they had it and give the card's answer in one sentence, call grade_card with \
         what they said and remembered true or false, and ask the next card's question.
@@ -51,21 +74,24 @@ enum RealtimeVoiceCardReview {
         - "I don't know", "pass" or "tell me" is not remembered: give the answer, grade it false, move on.
         - If they ask about a card, answer in a sentence or two, then carry on. A grade is recorded once; say so if \
         they want it changed, and carry on.
-        - Today's cards are only a slice of their deck. For a subject, a paper or a card they remember, call \
-        search_cards: it searches every kept card, and what it returns can be asked and graded like the others. \
+        - Today's cards are only a slice of their deck. For a subject, an author, a paper or a card they remember, \
+        call search_cards: it searches every kept card (by question, answer, source title and source author), and what it returns can be asked and graded like the others. \
         For "what do I have cards on", call list_card_topics and name a few topics, never the whole list.
         - If they say to delete or remove a card ("delete this card", "I don't like this card, get rid of it"), \
         call delete_card with its card_id, say in a few words that it is gone and that they can say "undo" to get it \
         back, and ask the next card's question; do not grade a deleted card. A card that is merely hard or that \
         they forgot is not a deletion: only their clear word is. If they say undo, bring it back, or that they \
         did not mean it, call undo_delete_card, then ask that card's question again.
-        - For cards made on a day ("the cards I made yesterday"), call get_cards_by_date, then go through what it \
+        - For cards made on a day ("the cards I made yesterday"), call get_cards_by_date; for cards they reviewed \
+        on a day ("what did I review today", "yesterday"), call get_cards_reviewed_on. Then go through what it \
         returns one card at a time like today's cards, grading each with grade_card.
         - If they want to go through their cards to check, use get_cards_to_check and decide_card: ask each \
         question, and decide only when they clearly say keep, change or skip.
         - Speak briefly: one to three short sentences a turn. No lists, markdown, URLs or ids out loud.
         - Reply in the language the learner speaks; keep each card's meaning when you translate it.
-        - Say a card's source by its title only when it helps ("from the paper on …"); never "this lecture".
+        - Say where a card comes from in a few words, the kind of source first and its title when it helps ("from \
+        a podcast episode on …", "from the paper on …", "from a book you read"); use each card's source_kind. \
+        Never "this lecture".
         - When the cards below are done\(dueToday > cards.count ? " and more are due, call get_due_cards for the next ones" : ""); \
         when none are left, say how it went in one sentence (how many they had out of how many) and ask whether \
         they are done.
@@ -92,6 +118,7 @@ enum RealtimeVoiceCardReview {
                 "   answer: \(clipped(card.answer))",
             ]
             if let source = card.source, !source.isEmpty { lines.append("   source: \(source)") }
+            if let kind = card.sourceKind { lines.append("   source_kind: \(kind)") }
             return lines.joined(separator: "\n")
         }.joined(separator: "\n")
     }
@@ -107,6 +134,7 @@ enum RealtimeVoiceCardReview {
         let rows = cards.map { card -> [String: Any] in
             var row: [String: Any] = ["card_id": card.id, "question": clipped(card.question), "answer": clipped(card.answer)]
             if let source = card.source, !source.isEmpty { row["source"] = source }
+            if let kind = card.sourceKind { row["source_kind"] = kind }
             return row
         }
         let object: [String: Any] = ["cards": rows, "due_today": dueToday]
@@ -203,7 +231,7 @@ extension RealtimeVoiceCardReview {
         let words = foldedWords(query)
         guard !words.isEmpty else { return cards }
         return cards.filter { entry in
-            let haystack = foldedText("\(entry.card.question) \(entry.card.answer) \(entry.card.source ?? "")")
+            let haystack = foldedText("\(entry.card.question) \(entry.card.answer) \(entry.card.source ?? "") \(entry.card.sourceAuthor ?? "")")
             return words.allSatisfy { haystack.contains($0) }
         }
     }
@@ -243,6 +271,35 @@ extension RealtimeVoiceCardReview {
         }
     }
 
+    /// The cards the learner answered on the day starting at `start` (`days`
+    /// days in the span), by when each was first answered then. `attempts` is
+    /// every answer's time by card id.
+    static func reviewed(_ cards: [LibraryCard], attempts: [String: [Date]], from start: Date, days: Int = 1, calendar: Calendar = .current) -> [LibraryCard] {
+        guard let end = calendar.date(byAdding: .day, value: max(days, 1), to: start) else { return [] }
+        var firstAnswer: [String: Date] = [:]
+        for entry in cards {
+            let inSpan = (attempts[entry.card.id] ?? []).filter { $0 >= start && $0 < end }
+            if let first = inSpan.min() { firstAnswer[entry.card.id] = first }
+        }
+        return cards
+            .filter { firstAnswer[$0.card.id] != nil }
+            .sorted { (firstAnswer[$0.card.id] ?? .distantPast) < (firstAnswer[$1.card.id] ?? .distantPast) }
+    }
+
+    static func cardsReviewedTool() -> [String: Any] {
+        RealtimeVoiceAssistant.function(
+            reviewedCardsToolName,
+            "The learner's cards they answered on a day, in the order they answered them: for \"what did I review today\" or \"yesterday\". Give days_ago (0 today, 1 yesterday) or date as yyyy-MM-dd; days spans more than one day from there. Cards it returns can be asked again and graded with grade_card, or deleted.",
+            properties: [
+                "days_ago": ["type": "integer", "description": "0 for today, 1 for yesterday, and so on. Use this or date."],
+                "date": ["type": "string", "description": "The day as yyyy-MM-dd, when they name a date."],
+                "days": ["type": "integer", "description": "How many days the span covers from that day, 1 if left out."],
+                "offset": ["type": "integer", "description": "Cards to skip, to reach the rest when more were reviewed than shown."],
+                "limit": ["type": "integer", "description": "How many cards, 1 to 20; 10 if left out."],
+            ]
+        )
+    }
+
     static func dayString(_ date: Date, calendar: Calendar = .current) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
@@ -278,6 +335,8 @@ extension RealtimeVoiceCardReview {
                 "due_today": entry.dueToday,
             ]
             if let source = entry.card.source, !source.isEmpty { row["source"] = source }
+            if let kind = entry.card.sourceKind { row["source_kind"] = kind }
+            if let author = entry.card.sourceAuthor, !author.isEmpty { row["source_author"] = author }
             if let made = entry.card.createdAt { row["made_on"] = dayString(made) }
             return row
         }
@@ -297,10 +356,11 @@ extension RealtimeVoiceCardReview {
     static func searchCardsTool() -> [String: Any] {
         RealtimeVoiceAssistant.function(
             searchCardsToolName,
-            "Searches ALL the learner's kept cards, not only today's, by words in the question, the answer or the source's title. Use it when they ask about a subject, a paper or a card they remember. Cards it returns can be asked and graded with grade_card.",
+            "Searches ALL the learner's kept cards, not only today's, by words in the question, the answer, the source's title or the source's author (\"cards from Michael Levin's papers\"). Use it when they ask about a subject, an author, a paper or a card they remember. Cards it returns can be asked and graded with grade_card.",
             properties: [
                 "query": ["type": "string", "description": "Words to look for; every word must appear. Empty lists cards in no particular order."],
                 "limit": ["type": "integer", "description": "How many cards, 1 to 20; 10 if left out."],
+                "offset": ["type": "integer", "description": "Cards to skip, to reach the rest when more matched than shown."],
             ],
             required: ["query"]
         )

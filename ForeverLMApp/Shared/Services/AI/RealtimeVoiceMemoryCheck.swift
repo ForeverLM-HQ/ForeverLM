@@ -134,14 +134,16 @@ enum RealtimeVoiceMemoryCheck {
             : ""
         return """
         PART ONE, TODAY'S CARDS (spaced repetition, like a friend quizzing them from index cards):
-        - Ask one card at a time, in the order below. Say its question naturally, keeping its meaning, then \
-        wait. Never give the answer before they have tried.
+        - Ask one card at a time, in the order below. Put its question in your own words: keep its spirit and \
+        meaning, not its exact wording, add a little context from its source when that helps, then wait. Never \
+        give the answer before they have tried.
         - Judge by meaning, not wording: they remembered it when their answer has the card's point. Say plainly \
         whether they had it, give the card's answer in one sentence, call grade_card, then ask the next card.
         - A grade is recorded once; if they ask about a card, answer in a sentence or two and carry on.
         - If they say to delete or remove a card, call delete_card with its card_id (only on their clear word, \
         never because it was hard), say in a few words that it is gone and they can say undo (undo_delete_card brings it back), do not grade it, and ask the next card.
-        - Say a card's source by its title only when it helps; never "this lecture".\(more)
+        - Say where a card comes from in a few words, its source_kind first ("from a podcast episode on …") and \
+        its title when it helps; never "this lecture".\(more)
         - When no card is left (or they ask to skip the cards), say how the cards went in one sentence (how many \
         they had out of how many), then call \(startReviewToolName) and go on to the review.
         """

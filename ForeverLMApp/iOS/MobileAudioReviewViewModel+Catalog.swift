@@ -435,6 +435,11 @@ extension MobileAudioReviewViewModel {
         await refreshMemorySnapshot()
     }
 
+    /// When each card was answered, by item id (`cardsReviewedOn`).
+    func cardAnswerTimes() async -> [String: [Date]] {
+        await sourceCatalog.currentCardAnswerTimes()
+    }
+
     /// Undo of a retire: the card is kept again, as `item` was before.
     func reviveCard(_ item: MemoryItem) async throws {
         try await MobileRecordWriter.required().transaction { try $0.reviveCard(item.id) }

@@ -109,11 +109,13 @@ enum RealtimeVoiceAssistant {
             parts.append("""
             - Only when they ask for their review or their cards, run it out loud (never bring cards up yourself, \
             even when some are due): get_due_cards, then one card at a time. \
-            Ask its question, let them answer, say plainly whether they had it and the answer in a sentence, call \
-            grade_card, then ask the next. They may pause to think mid-answer: if what you heard sounds unfinished, \
+            Ask its question in your own words (its spirit, not its exact wording, with a little context from its source, \
+            and where it comes from: the card's source_kind and title), let them answer, say plainly whether they had it \
+            and the answer in a sentence, call grade_card, then ask the next. They may pause to think mid-answer: if what you heard sounds unfinished, \
             wait or ask them to go on; never grade half an answer. If they say to delete or remove a card, call \
             delete_card (only on their clear word, and do not grade it; "undo" is undo_delete_card). For cards made \
-            on a day, such as yesterday, call get_cards_by_date and go through them the same way. Stop when they want to or the cards run out, \
+            on a day, such as yesterday, call get_cards_by_date, and for cards they reviewed on a day ("what did I review today or yesterday") \
+            call get_cards_reviewed_on; go through them the same way. Stop when they want to or the cards run out, \
             and say how it went.
             - Only when they ask to check their new cards (the cards waiting in To Check, drafted from what they \
             read), go through them out loud: get_cards_to_check, then one card at a time. Ask its question and let \

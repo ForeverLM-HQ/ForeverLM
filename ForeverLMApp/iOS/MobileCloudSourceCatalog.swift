@@ -679,6 +679,12 @@ actor MobileCloudSourceCatalog {
         return (item, inputs.attempts.filter { $0.memoryItemID == memoryItemID })
     }
 
+    /// When each card was answered on this phone, by item id: what "the cards I
+    /// reviewed yesterday" is read from. Local only.
+    func currentCardAnswerTimes() async -> [String: [Date]] {
+        Dictionary(grouping: await memoryInputs().attempts, by: \.memoryItemID).mapValues { $0.map(\.attemptedAt) }
+    }
+
     /// The items a mnemonic reading's questions kept (`itemIDs`, each
     /// question's `memoryItemID`) and their attempts, as the phone holds them:
     /// where the reading reads each question's standing and decides an

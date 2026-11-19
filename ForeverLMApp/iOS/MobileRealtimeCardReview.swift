@@ -48,6 +48,7 @@ enum MobileRealtimeCardReview {
                 RealtimeVoiceCardReview.undoDeleteCardTool,
                 RealtimeVoiceCardReview.searchCardsTool(),
                 RealtimeVoiceCardReview.cardsByDateTool(),
+                RealtimeVoiceCardReview.cardsReviewedTool(),
                 RealtimeVoiceCardReview.listTopicsTool(),
                 RealtimeVoiceCardsToCheck.listTool(
                     description: "The cards waiting in To Check, when the learner asks to go through them: ask each one's question, then decide_card only on their say."
@@ -114,7 +115,8 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
             return await delete(itemID: (arguments["card_id"] as? String) ?? "")
         case RealtimeVoiceCardReview.undoDeleteCardToolName:
             return await undoDelete(itemID: arguments["card_id"] as? String)
-        case RealtimeVoiceCardReview.cardsByDateToolName:
+        case RealtimeVoiceCardReview.cardsByDateToolName, RealtimeVoiceCardReview.reviewedCardsToolName:
+            let reviewed = name == RealtimeVoiceCardReview.reviewedCardsToolName
             let limit = min(max((arguments["limit"] as? NSNumber)?.intValue ?? 10, 1), RealtimeVoiceCardReview.searchResultCap)
             let offset = max((arguments["offset"] as? NSNumber)?.intValue ?? 0, 0)
             let span = min(max((arguments["days"] as? NSNumber)?.intValue ?? 1, 1), 366)
@@ -125,9 +127,14 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
             ) else {
                 return #"{"error":"Give days_ago (1 for yesterday) or date as yyyy-MM-dd."}"#
             }
-            let matches = RealtimeVoiceCardReview.made(await library(), from: start, days: span)
+            let cards = await library()
+            let matches = reviewed
+                ? RealtimeVoiceCardReview.reviewed(cards, attempts: await MobileAudioReviewViewModel.shared.cardAnswerTimes(), from: start, days: span)
+                : RealtimeVoiceCardReview.made(cards, from: start, days: span)
             if matches.isEmpty {
-                return #"{"cards":[],"matches":0,"note":"No kept card was made on that day. Say so and offer another day."}"#
+                return reviewed
+                    ? #"{"cards":[],"matches":0,"note":"No card was answered on that day. Say so and offer another day."}"#
+                    : #"{"cards":[],"matches":0,"note":"No kept card was made on that day. Say so and offer another day."}"#
             }
             dealt.withLock { prompts in
                 for entry in matches.dropFirst(offset).prefix(limit) { prompts[entry.card.id] = entry.card.question }
@@ -136,12 +143,13 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
         case RealtimeVoiceCardReview.searchCardsToolName:
             let limit = min(max((arguments["limit"] as? NSNumber)?.intValue ?? 10, 1), RealtimeVoiceCardReview.searchResultCap)
             let query = (arguments["query"] as? String) ?? ""
+            let offset = max((arguments["offset"] as? NSNumber)?.intValue ?? 0, 0)
             let matches = RealtimeVoiceCardReview.search(await library(), query: query)
             // A found card can be asked and graded like a dealt one.
             dealt.withLock { prompts in
-                for entry in matches.prefix(limit) { prompts[entry.card.id] = entry.card.question }
+                for entry in matches.dropFirst(offset).prefix(limit) { prompts[entry.card.id] = entry.card.question }
             }
-            return RealtimeVoiceCardReview.searchOutput(matches, limit: limit)
+            return RealtimeVoiceCardReview.searchOutput(matches, limit: limit, offset: offset)
         case RealtimeVoiceCardReview.listTopicsToolName:
             let query = (arguments["query"] as? String) ?? ""
             return RealtimeVoiceCardReview.topicsOutput(RealtimeVoiceCardReview.search(await library(), query: query))
@@ -164,7 +172,15 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
                     question: listing.face.front,
                     answer: listing.face.back,
                     source: (title?.isEmpty ?? true) ? nil : title,
-                    createdAt: listing.createdAt
+                    createdAt: listing.createdAt,
+                    sourceKind: RealtimeVoiceCardReview.spokenKind(
+                        sourceType: listing.sourceIDs.lazy.compactMap { vm.sourcesByID[$0]?.sourceType }.first
+                    ),
+                    sourceAuthor: {
+                        let names = listing.sourceIDs.compactMap { vm.sourcesByID[$0]?.author?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                        return names.isEmpty ? nil : names.joined(separator: "; ")
+                    }()
                 ),
                 dueToday: listing.schedule.dueAt <= now
             )
@@ -188,7 +204,10 @@ final class MobileRealtimeCardTools: @unchecked Sendable {
                     id: card.itemID,
                     question: card.prompt,
                     answer: card.back,
-                    source: card.sourceID.flatMap { deal.sourceTitles[$0] }
+                    source: card.sourceID.flatMap { deal.sourceTitles[$0] },
+                    sourceKind: RealtimeVoiceCardReview.spokenKind(
+                        sourceType: card.sourceID.flatMap { MobileAudioReviewViewModel.shared.sourcesByID[$0]?.sourceType }
+                    )
                 )
             },
             deal.cards.count
