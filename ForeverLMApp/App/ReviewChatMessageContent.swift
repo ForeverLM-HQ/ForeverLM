@@ -90,8 +90,7 @@ struct ReviewChatBrowserPreview: View {
 
 /// A notebook's chat's citations (docs/chat-design.md, "Citations outside
 /// the notebook"): which library sources the chat's notebook holds, so a
-/// citation of one it does not is marked, and the notebook write that adds
-/// one. Set by the chat panel for a chat filed in a notebook; nil elsewhere.
+/// citation of one it does not is marked. Set by the chat panel for a chat filed in a notebook; nil elsewhere.
 struct ChatNotebookCitations {
     let notebookID: String
     /// The notebook and its membership revision: a change asks every row's
@@ -99,9 +98,6 @@ struct ChatNotebookCitations {
     let revision: String
     /// Whether the notebook holds the source a card names.
     let holds: @MainActor (String) -> Bool
-    /// Adds the source a link token names to the notebook; nil when the
-    /// notebook takes no sources (a read-only team's, an archived one).
-    let add: (@MainActor (String) async -> Void)?
 }
 
 private struct ChatNotebookCitationsKey: EnvironmentKey {
@@ -242,7 +238,6 @@ struct ReviewChatMessageContent: View {
                         await vm.importCitedPaper(id: paperID)
                     },
                     citationScopeKey: notebookCitations?.revision ?? "",
-                    addSourceToNotebook: notebookCitations?.add,
                     // Open beside on a figure: a picture window.
                     openPictureBeside: { picture in
                         ChatPictureWindow.present(picture)

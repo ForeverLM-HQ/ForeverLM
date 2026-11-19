@@ -124,7 +124,6 @@ struct ChatTranscriptPage: NSViewRepresentable {
         // Prose.
         var markdown: String?
         var citations: ChatCitationLedger.MessageContext?
-        var webSources: [WebSource]?
         // Steps; a resume row's, a turn's and saved cards' words too.
         var title: String?
         var subtitle: String?
@@ -145,12 +144,6 @@ struct ChatTranscriptPage: NSViewRepresentable {
         var pages: [PageCard]?
         /// The source a resume row or a turn heading opens.
         var sourceID: String?
-    }
-
-    struct WebSource: Encodable, Equatable {
-        let title: String
-        let url: String
-        let host: String?
     }
 
     struct Step: Encodable, Equatable {
@@ -391,10 +384,7 @@ struct ChatTranscriptPage: NSViewRepresentable {
             kind: .prose,
             id: message.id.uuidString,
             markdown: split.body,
-            citations: citations.isEmpty ? nil : citations,
-            webSources: split.citations.isEmpty ? nil : split.citations.map { citation in
-                WebSource(title: citation.title, url: citation.url, host: URL(string: citation.url)?.host())
-            }
+            citations: citations.isEmpty ? nil : citations
         )
     }
 

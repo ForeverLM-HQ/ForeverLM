@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A chat reply no longer lists its sources underneath.** The **Sources** and **Pages** lists at the foot of a reply are gone: the citation bubbles in the text are the links, and each opens its source (at the page or moment it cites) or its web page. Hover a bubble to see which source it is.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.

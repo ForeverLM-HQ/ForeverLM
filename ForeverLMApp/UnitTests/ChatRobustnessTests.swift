@@ -305,7 +305,7 @@ struct ChatRobustnessTests {
         #expect(SourceLinkTimeAnchor.seconds(from: nil) == nil)
     }
 
-    @Test("A timed citation renders its moment on the marker and under the source")
+    @Test("A timed citation renders its moment on the marker, and the reply lists no sources under it")
     @MainActor
     func timedCitationRendersItsMoment() async throws {
         let webView = try await Self.loadedRenderer()
@@ -330,20 +330,19 @@ struct ChatRobustnessTests {
         // the marker with no moment keeps the number, which is all it has.
         #expect(markers == ["12:34", "25:10", "1"])
 
-        let chips = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-moment')).map((chip) => chip.textContent);"
+        // Each chip is the link, to its moment; no list repeats them under the
+        // reply (product owner, 2026-11-19).
+        let hrefs = try #require(try await webView.evaluateJavaScript(
+            "Array.from(document.querySelectorAll('.source-citation-marker')).map((link) => link.getAttribute('href'));"
         ) as? [String])
-        #expect(chips == ["12:34", "25:10"])
-
-        // One footer entry per source, however many moments of it were cited,
-        // and its own link opens the source from the top.
-        let footerHrefs = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-link')).map((link) => link.getAttribute('href'));"
-        ) as? [String])
-        #expect(footerHrefs == ["foreverlm://source/video-789"])
+        #expect(hrefs == ["foreverlm://source/video-789?t=754", "foreverlm://source/video-789?t=1510", "foreverlm://source/video-789"])
+        let footers = try #require(try await webView.evaluateJavaScript(
+            "document.querySelectorAll('.source-citations-footer, .source-footer-link').length;"
+        ) as? Int)
+        #expect(footers == 0)
     }
 
-    @Test("In a notebook's chat a source the notebook does not hold is marked, with Add to Notebook beside its row, until its card says it is in")
+    @Test("In a notebook's chat a source the notebook does not hold is marked until its card says it is in")
     @MainActor
     func citationOutsideTheNotebookIsMarked() async throws {
         let webView = try await Self.loadedRenderer()
@@ -364,18 +363,14 @@ struct ChatRobustnessTests {
             "document.querySelectorAll('.source-citation-marker')[1].getAttribute('aria-label');"
         ) as? String
         #expect(label?.hasSuffix("Not in this notebook") == true)
-        let buttons = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-add')).map((button) => [button.textContent, button.dataset.sourceToken]);"
-        ) as? [[String]])
-        #expect(buttons == [["Add to Notebook", "out-2"]])
 
-        // Added: the host sends the card again, unmarked, and the mark and the button go.
+        // Added: the host sends the card again, unmarked, and the mark goes.
         let added = try #require(ChatMarkdownView.sourceCardJSON(["out-2": outCard.inNotebook(true)]))
         _ = try await webView.evaluateJavaScript("window.setSourceCards(\(added));")
         let after = try #require(try await webView.evaluateJavaScript(
-            "[document.querySelectorAll('.source-outside-notebook').length, document.querySelectorAll('.source-footer-add').length];"
-        ) as? [Int])
-        #expect(after == [0, 0])
+            "document.querySelectorAll('.source-outside-notebook').length;"
+        ) as? Int)
+        #expect(after == 0)
     }
 
     @Test("A reply that cites two sources keeps the number on each moment and page")
@@ -619,23 +614,11 @@ struct ChatRobustnessTests {
         #expect(hover.contains("Page 26"))
         #expect(hover.contains("Chapter 14: Energy Conversion"))
 
-        // One chip per cited page, carrying the page and the excerpt the click flashes.
-        let chips = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-page')).map((chip) => [chip.textContent, chip.dataset.sourcePage, chip.dataset.sourcePassage]);"
-        ) as? [[String]])
-        #expect(chips == [["p. 26", "26", "the free-energy change is roughly"]])
-
         // The standalone card says its page in the subtitle, where a video card says its moment.
         let cardSubtitle = try #require(try await webView.evaluateJavaScript(
             "document.querySelector('.source-block-card .source-card-subtitle').textContent;"
         ) as? String)
         #expect(cardSubtitle == "Book · Molecular Biology of the Cell · Page 19")
-
-        // The footer row itself still opens the source from the top.
-        let footerHrefs = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-link')).map((link) => link.getAttribute('href'));"
-        ) as? [String])
-        #expect(footerHrefs == ["foreverlm://source/chapter-14"])
     }
 
     @Test("A lecture's picture takes the link to that lecture beside it as its caption")
@@ -687,7 +670,7 @@ struct ChatRobustnessTests {
         #expect(apart[4] == "1")
     }
 
-    @Test("A source keeps one number for the whole session and is listed once")
+    @Test("A source keeps one number for the whole session")
     func citationLedgerNumbersASourceOnceForTheSession() {
         let opening = UUID()
         let middle = UUID()
@@ -701,21 +684,14 @@ struct ChatRobustnessTests {
             ),
         ])
 
-        // The reply that introduces the paper has nothing above it to suppress.
         #expect(contexts[opening]?.numbers == ["paper-1": 1])
-        #expect(contexts[opening]?.presented.isEmpty == true)
-
-        // The next one cites the same work, already listed, and keeps its number.
+        // The next one cites the same work and keeps its number.
         #expect(contexts[middle]?.numbers == ["paper-1": 1])
-        #expect(contexts[middle]?.presented["paper-1"] == [])
-
-        // A second work takes the next number and is new, so it is listed.
+        // A second work takes the next number.
         #expect(contexts[closing]?.numbers == ["paper-1": 1, "paper-2": 2])
-        #expect(contexts[closing]?.presented["paper-1"] == [])
-        #expect(contexts[closing]?.presented["paper-2"] == nil)
     }
 
-    @Test("A reply still being written receives the whole cast, so citing the session's source lists nothing")
+    @Test("A reply still being written receives the whole cast, so the session's source keeps its number")
     func citationLedgerHandsTheOpenReplyTheWholeCast() {
         let opening = UUID()
         let streaming = UUID()
@@ -725,18 +701,15 @@ struct ChatRobustnessTests {
         ]
 
         // Judged only by what it has written so far, an empty reply cites
-        // nothing and would have no context at all -- and a footer for whatever
-        // it goes on to cite.
+        // nothing and would have no context at all.
         #expect(ChatCitationLedger.contexts(for: transcript)[streaming] == nil)
 
-        // Named as the open reply, it knows the podcast is already on screen,
-        // under its number, at the moment the first reply pointed at.
+        // Named as the open reply, it knows the podcast's number.
         let open = ChatCitationLedger.contexts(for: transcript, open: streaming)[streaming]
         #expect(open?.numbers == ["podcast-1": 1])
-        #expect(open?.presented == ["podcast-1": [754]])
 
         // Once its text has arrived the cast is still there, and a source it
-        // introduces itself takes the next number without a presented entry.
+        // introduces itself takes the next number.
         let written = ChatCitationLedger.contexts(
             for: [
                 transcript[0],
@@ -745,88 +718,6 @@ struct ChatRobustnessTests {
             open: streaming
         )[streaming]
         #expect(written?.numbers == ["podcast-1": 1, "paper-2": 2])
-        #expect(written?.presented == ["podcast-1": [754]])
-    }
-
-    @Test("The ledger records the moments a transcript has already pointed at")
-    func citationLedgerRecordsPresentedMoments() {
-        let opening = UUID()
-        let repeated = UUID()
-        let elsewhere = UUID()
-        let whole = UUID()
-        let contexts = ChatCitationLedger.contexts(for: [
-            .init(id: opening, markdown: "[W](foreverlm://source/video-789?t=754)"),
-            .init(id: repeated, markdown: "[W](foreverlm://source/video-789?t=754)"),
-            .init(id: elsewhere, markdown: "[W](foreverlm://source/video-789?t=25:10)"),
-            .init(id: whole, markdown: "[W](foreverlm://source/video-789)"),
-        ])
-
-        #expect(contexts[opening]?.presented["video-789"] == nil)
-        // Written as `12:34` or as `754`, it is the same moment.
-        #expect(contexts[repeated]?.presented["video-789"] == [754])
-        #expect(contexts[elsewhere]?.presented["video-789"] == [754])
-        #expect(contexts[whole]?.presented["video-789"] == [754, 1510])
-    }
-
-    @Test("A reply lists only the sources the conversation has not introduced")
-    @MainActor
-    func replyListsOnlySourcesNewToTheConversation() async throws {
-        let webView = try await Self.loadedRenderer()
-        // The transcript above this reply already listed the paper, and gave the
-        // video the second number.
-        _ = try await webView.evaluateJavaScript("""
-        window.setCitationContext({"numbers": {"paper-1": 1, "video-789": 2}, "presented": {"paper-1": []}});
-        """)
-        let markdown = """
-        Delivery is not the whole story. [Wolfe](foreverlm://source/paper-1) \
-        Transfer moves organelles instead. [Wallace](foreverlm://source/video-789)
-        """
-        let encodedMarkdown = try #require(String(data: JSONEncoder().encode(markdown), encoding: .utf8))
-        _ = try await webView.evaluateJavaScript("window.setMarkdown(\(encodedMarkdown));")
-        _ = try await webView.evaluateJavaScript("""
-        window.setSourceCards({
-          "paper-1": {"sourceID": "paper-1", "title": "Precision Mitochondria", "subtitle": "Paper · Nathan Wolfe", "kind": "paper", "glyph": "P", "thumbnailURL": null},
-          "video-789": {"sourceID": "video-789", "title": "Mitochondria and Their Roles", "subtitle": "Video · PSW Science", "kind": "youtube", "glyph": "V", "thumbnailURL": null}
-        });
-        """)
-
-        // Both markers keep the number their source holds for the session.
-        let markers = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-citation-marker')).map((link) => link.textContent);"
-        ) as? [String])
-        #expect(markers == ["1", "2"])
-
-        // Only the source this reply introduces gets a card under it.
-        let footerHrefs = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-link')).map((link) => link.getAttribute('href'));"
-        ) as? [String])
-        #expect(footerHrefs == ["foreverlm://source/video-789"])
-    }
-
-    @Test("A reply that cites only what was already listed carries no footer")
-    @MainActor
-    func replyCitingOnlyPresentedSourcesHasNoFooter() async throws {
-        let webView = try await Self.loadedRenderer()
-        _ = try await webView.evaluateJavaScript("""
-        window.setCitationContext({"numbers": {"paper-1": 1}, "presented": {"paper-1": []}});
-        """)
-        let markdown = "It has to stay in the cells. [Wolfe](foreverlm://source/paper-1)"
-        let encodedMarkdown = try #require(String(data: JSONEncoder().encode(markdown), encoding: .utf8))
-        _ = try await webView.evaluateJavaScript("window.setMarkdown(\(encodedMarkdown));")
-        _ = try await webView.evaluateJavaScript("""
-        window.setSourceCards({"paper-1": {"sourceID": "paper-1", "title": "Precision Mitochondria", "subtitle": "Paper · Nathan Wolfe", "kind": "paper", "glyph": "P", "thumbnailURL": null}});
-        """)
-
-        let markers = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-citation-marker')).map((link) => link.textContent);"
-        ) as? [String])
-        #expect(markers == ["1"])
-
-        // The marker is still a link to the source; the card is what goes.
-        let footers = try #require(try await webView.evaluateJavaScript(
-            "document.querySelectorAll('.source-citations-footer').length;"
-        ) as? Int)
-        #expect(footers == 0)
     }
 
     @Test("A list item a source link opens names that source instead of numbering it")
@@ -880,46 +771,11 @@ struct ChatRobustnessTests {
         ) as? String)
         #expect(listClass == "source-entry-list")
 
-        // The citations in the prose are markers, and only the source no entry
-        // names is listed underneath: one row per source in the whole reply
-        // (product owner, 2026-09-30: "there should just be 13 bulletpoints").
+        // The citations in the prose are markers.
         let markers = try #require(try await webView.evaluateJavaScript(
             "Array.from(document.querySelectorAll('.source-citation-marker')).map((link) => link.textContent);"
         ) as? [String])
         #expect(markers == ["1", "2"])
-        let footerHrefs = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-link')).map((link) => link.getAttribute('href'));"
-        ) as? [String])
-        #expect(footerHrefs == ["foreverlm://source/paper-1"])
-    }
-
-    @Test("A moment no earlier reply pointed at brings the card back")
-    @MainActor
-    func aNewMomentRelistsAnAlreadyPresentedSource() async throws {
-        let webView = try await Self.loadedRenderer()
-        _ = try await webView.evaluateJavaScript("""
-        window.setCitationContext({"numbers": {"video-789": 1}, "presented": {"video-789": [754]}});
-        """)
-        let markdown = """
-        He says it here. [Wallace](foreverlm://source/video-789?t=754) \
-        And again later. [Wallace](foreverlm://source/video-789?t=1510)
-        """
-        let encodedMarkdown = try #require(String(data: JSONEncoder().encode(markdown), encoding: .utf8))
-        _ = try await webView.evaluateJavaScript("window.setMarkdown(\(encodedMarkdown));")
-        _ = try await webView.evaluateJavaScript("""
-        window.setSourceCards({"video-789": {"sourceID": "video-789", "title": "Mitochondria and Their Roles", "subtitle": "Video · PSW Science", "kind": "youtube", "glyph": "V", "thumbnailURL": null}});
-        """)
-
-        let footerHrefs = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-link')).map((link) => link.getAttribute('href'));"
-        ) as? [String])
-        #expect(footerHrefs == ["foreverlm://source/video-789"])
-
-        // The card names both moments this reply cites, not only the new one.
-        let chips = try #require(try await webView.evaluateJavaScript(
-            "Array.from(document.querySelectorAll('.source-footer-moment')).map((chip) => chip.textContent);"
-        ) as? [String])
-        #expect(chips == ["12:34", "25:10"])
     }
 
     @Test("Missing source-card lookups encode an explicit null response")

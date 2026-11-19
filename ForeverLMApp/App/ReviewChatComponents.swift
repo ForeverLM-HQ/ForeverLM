@@ -203,9 +203,6 @@ struct ReviewChatBubble: View, Equatable {
     /// Opens the source a learner message's quoted passage came from in the
     /// Reader, at those words. nil leaves the quote as plain text.
     var openPassage: ((ChatPassageOrigin.Passage) -> Void)? = nil
-    /// The notebook this chat works in: a cited page's Add files it there as
-    /// well as in Sources. nil outside a notebook.
-    var webSourcesNotebookID: String? = nil
     /// Edit on the newest learner message: its words go back to the composer,
     /// and the send replaces it and the reply after it (Codex's edit and
     /// resend). Nil on every other message.
@@ -259,7 +256,6 @@ struct ReviewChatBubble: View, Equatable {
         lhs.canDelete == rhs.canDelete &&
         (lhs.discussInNewChat == nil) == (rhs.discussInNewChat == nil) &&
         (lhs.openPassage == nil) == (rhs.openPassage == nil) &&
-        lhs.webSourcesNotebookID == rhs.webSourcesNotebookID &&
         (lhs.editMessage == nil) == (rhs.editMessage == nil) &&
         lhs.linkedNotebookTitle == rhs.linkedNotebookTitle
     }
@@ -360,10 +356,6 @@ struct ReviewChatBubble: View, Equatable {
                     .disabled(!canDelete)
                 }
             }
-            if !split.citations.isEmpty {
-                ReviewChatWebSourcesList(citations: split.citations, notebookID: webSourcesNotebookID)
-                    .padding(.top, 4)
-            }
             // Think first: the guess the learner wrote before asking,
             // under their question, in their words (`ChatGuess`).
             if let guess = learnerGuess {
@@ -436,174 +428,3 @@ struct ReviewChatBubble: View, Equatable {
     }
 }
 
-/// The pages a web-searched reply cited, as rows the learner can open beside
-/// Chat or keep with one click. Opening never imports; Add runs the canonical
-/// URL import with deduplication and archived-source revival — the same path
-/// as the Reader's "Add to Library" button — so a page kept from here is the
-/// same library record it would be from anywhere else. In a notebook's chat
-/// Add files the page in that notebook too, and a row reads saved only once
-/// the notebook holds it.
-struct ReviewChatWebSourcesList: View {
-    @Environment(StudioViewModel.self) private var vm
-    let citations: [AIWebCitation]
-    var notebookID: String? = nil
-    /// Pages whose import is in flight, by normalized URL. Completion clears
-    /// the entry; the saved state then comes from the library itself.
-    @State private var addingKeys: Set<String> = []
-    /// Pages this list saved or found already present, so a row reads "Added"
-    /// even before the library publishes the new article.
-    @State private var savedKeys: Set<String> = []
-    /// The list is folded until the learner opens it: most replies are read
-    /// without keeping a page, so five rows under every answer is noise.
-    @State private var isExpanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Text("Web sources")
-                        .zoomedSystemFont(size: 12, weight: .medium)
-                    Text("\(citations.count)")
-                        .zoomedSystemFont(size: 12)
-                        .monospacedDigit()
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .zoomedSystemFont(size: 10, weight: .semibold)
-                        .foregroundStyle(.tertiary)
-                }
-                .foregroundStyle(.secondary)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -3))
-            .padding(.leading, 2)
-            .padding(.bottom, 2)
-            .help(isExpanded ? "Hide the web sources" : "Show the web sources")
-            .accessibilityLabel("Web sources, \(citations.count)")
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-            .accessibilityIdentifier("chat.webSources.toggle")
-            if isExpanded {
-                ForEach(Array(citations.enumerated()), id: \.element.url) { index, citation in
-                    row(index: index + 1, citation: citation)
-                }
-            }
-        }
-        // A group of its own: on a plain container the identifier replaced
-        // each row's Add (chat.webSources.add) and landed on its Open button.
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("chat.webSources")
-    }
-
-    private func row(index: Int, citation: AIWebCitation) -> some View {
-        let url = URL(string: citation.url)
-        let key = SourceDiscovery.normalizedURL(citation.url)
-        let notebook = vm.importableNotebook(notebookID)
-        let state = ReaderAddPageToolbarState(
-            isAdding: addingKeys.contains(key),
-            isSaved: savedKeys.contains(key) || isInLibrary(citation.url, notebook: notebook)
-        )
-        let host = url?.host ?? citation.url
-        let title = citation.title.isEmpty ? host : citation.title
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("\(index).")
-                .zoomedSystemFont(size: 12)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
-                .frame(minWidth: 18, alignment: .trailing)
-            Button {
-                guard let url else { return }
-                vm.openWebCitationInReader(url, title: citation.title)
-            } label: {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .zoomedSystemFont(size: 12)
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    if title != host {
-                        Text(host)
-                            .zoomedSystemFont(size: 11)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Open in Reader")
-            Button {
-                guard let url else { return }
-                add(url, key: key, state: state, title: citation.title)
-            } label: {
-                Label(addTitle(state, notebook: notebook), systemImage: state.systemImage)
-                    .zoomedSystemFont(size: 11, weight: .medium)
-                    .labelStyle(.titleAndIcon)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        (state == .saved ? Color.secondary : Color.accentColor).opacity(0.12),
-                        in: Capsule()
-                    )
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(state == .saved ? Color.secondary : Color.accentColor)
-            .disabled(!state.isEnabled || url == nil)
-            .help(addHelp(state, notebook: notebook))
-            .accessibilityIdentifier("chat.webSources.add")
-        }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 4)
-        .hoverHighlight(in: RoundedRectangle(cornerRadius: 6), opacity: 0.06)
-    }
-
-    private func isInLibrary(_ url: String, notebook: LearningGoalRecord?) -> Bool {
-        // A memoized set, not a scan: this runs per citation inside `body`, and
-        // the lazy transcript rebuilds the row on every scroll back into view.
-        // Matched by address and by DOI, so a paper saved from its DOI link or
-        // a recommendation link reads "Added" for the bare address a search cites.
-        guard vm.libraryContainsSource(url: url) else { return false }
-        guard let notebook else { return true }
-        return vm.notebookHoldsSource(url: url, notebookID: notebook.id)
-    }
-
-    /// In a notebook's chat the Add names the notebook it files into.
-    private func addTitle(_ state: ReaderAddPageToolbarState, notebook: LearningGoalRecord?) -> String {
-        guard state == .available, let notebook else { return state.title }
-        return "Add to \(notebook.title)"
-    }
-
-    private func addHelp(_ state: ReaderAddPageToolbarState, notebook: LearningGoalRecord?) -> String {
-        guard state == .available, let notebook else { return state.help }
-        return "Add to Library and to \u{201C}\(notebook.title)\u{201D}"
-    }
-
-    /// Mirrors the Reader's Add to Sources flow: acknowledge at once, check
-    /// for a duplicate, import, then report exactly what the library ended up
-    /// with. A failed import leaves the row available so the click can be
-    /// retried, rather than pretending the page was kept.
-    private func add(_ url: URL, key: String, state: ReaderAddPageToolbarState, title: String) {
-        if state.opensSavedSource {
-            // View in Sources: the saved copy, the way a source citation opens.
-            guard let sourceID = vm.librarySourceID(forURL: url.absoluteString) else {
-                vm.showToast("Already in Library")
-                return
-            }
-            Task { await vm.openLinkedSourceInReader(sourceID) }
-            return
-        }
-        vm.showToast(state.activationMessage)
-        guard state == .available else { return }
-        addingKeys.insert(key)
-        Task {
-            await Task.yield()
-            defer { addingKeys.remove(key) }
-            // The shared import, which a highlight's cited papers use too.
-            if await vm.addCitedPageToSources(url, notebookID: notebookID, title: title) {
-                savedKeys.insert(key)
-            }
-        }
-    }
-}

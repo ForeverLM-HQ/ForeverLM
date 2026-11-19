@@ -1,20 +1,14 @@
 import Foundation
 
-/// Which source each `[n]` in a review transcript means, and which sources the
-/// conversation has already put a card under.
+/// Which source each `[n]` in a review transcript means.
 ///
 /// The chat renderer sees one reply at a time — on the Mac every assistant
 /// message draws in its own web view — so left to itself it can only number the
-/// sources that reply cites, from one, and list every one of them underneath.
-/// In a review that circles a single paper for forty turns that is the same
-/// title, byline and thumbnail forty times, and `[1]` quietly means a different
-/// work in two adjacent replies as soon as a second source appears.
-///
-/// Both are facts about the transcript rather than about a message, so they are
-/// settled here and handed to the page with the markdown. A source keeps one
-/// number for the whole conversation, and its card is listed the first time the
-/// conversation reaches for it — again later only when a reply points at a
-/// moment of it that no earlier reply pointed at.
+/// sources that reply cites, from one, and `[1]` quietly means a different work
+/// in two adjacent replies as soon as a second source appears. The numbering is
+/// a fact about the transcript rather than about a message, so it is settled
+/// here and handed to the page with the markdown: a source keeps one number for
+/// the whole conversation.
 enum ChatCitationLedger {
     /// One `foreverlm://source/<token>[?t=…]` link, as written.
     struct Citation: Equatable {
@@ -47,27 +41,20 @@ enum ChatCitationLedger {
     struct MessageContext: Equatable, Encodable {
         /// Source token → the number it keeps for the whole conversation.
         var numbers: [String: Int] = [:]
-        /// Source token → the moments an earlier reply already listed under its
-        /// card. Present at all means the card has been shown; empty means it
-        /// was shown for the source as a whole, pointing at no moment.
-        var presented: [String: [Int]] = [:]
 
-        var isEmpty: Bool { numbers.isEmpty && presented.isEmpty }
+        var isEmpty: Bool { numbers.isEmpty }
     }
 
     /// The context for each message in a transcript, in order. Messages that
-    /// cite nothing are absent: they have nothing to number and nothing to
-    /// suppress.
+    /// cite nothing are absent: they have nothing to number.
     ///
     /// `open` is the reply still being written, if there is one. What it will
     /// cite is not known yet, so instead of the sources it cites so far -- none,
     /// when it is empty -- it receives the whole cast the transcript has
-    /// introduced above it. Without that, a fresh reply that returns to the one
-    /// source a review is about would list that source again under every turn
-    /// until the next message arrived and the ledger looked at it a second time.
+    /// introduced above it, so a fresh reply that returns to a source already
+    /// cited keeps that source's number from its first paint.
     static func contexts(for messages: [Entry], open: UUID? = nil) -> [UUID: MessageContext] {
         var numbers: [String: Int] = [:]
-        var presented: [String: Set<Int>] = [:]
         var contexts: [UUID: MessageContext] = [:]
 
         for message in messages {
@@ -76,28 +63,13 @@ enum ChatCitationLedger {
             guard !cited.isEmpty || isOpen else { continue }
 
             var context = MessageContext()
-            if isOpen {
-                context.numbers = numbers
-                context.presented = presented.mapValues { $0.sorted() }
-            }
+            if isOpen { context.numbers = numbers }
             for citation in cited {
                 let number = numbers[citation.token] ?? (numbers.count + 1)
                 numbers[citation.token] = number
                 context.numbers[citation.token] = number
-                if let shown = presented[citation.token] {
-                    context.presented[citation.token] = shown.sorted()
-                }
             }
             contexts[message.id] = context
-
-            // Whatever this reply cites is on screen from here on. Recording a
-            // suppressed reply's moments changes nothing — they are already
-            // here, which is why it was suppressed.
-            for citation in cited {
-                var shown = presented[citation.token] ?? []
-                if let seconds = citation.seconds { shown.insert(seconds) }
-                presented[citation.token] = shown
-            }
         }
 
         return contexts

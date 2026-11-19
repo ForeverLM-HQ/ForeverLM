@@ -451,9 +451,7 @@ struct InternalReviewPanelContent: View {
     }
 
     /// The chat's notebook as its citations read it (`ChatNotebookCitations`):
-    /// whether it holds a cited source, named as the Sources list names it,
-    /// and Add to Notebook through the notebook write every Add to Notebook
-    /// uses, which hands a team notebook the team's copy.
+    /// whether it holds a cited source, named as the source's card names it.
     var notebookCitations: ChatNotebookCitations? {
         guard let notebook = linkedResearchNotebook else { return nil }
         let notebookID = notebook.id
@@ -461,21 +459,10 @@ struct InternalReviewPanelContent: View {
         let holds: @MainActor (String) -> Bool = { articleID in
             vm.notebookMembership(of: [vm.canonicalSourceID(articleID)], in: notebookID) == .all
         }
-        var add: (@MainActor (String) async -> Void)?
-        if vm.importableNotebook(notebookID) != nil {
-            add = { token in
-                guard let article = await vm.persistedArticle(forLinkToken: token) else {
-                    vm.showToast("Source not found in library")
-                    return
-                }
-                _ = await vm.addSourcesToNotebookContext([article.id], notebookID: notebookID)
-            }
-        }
         return ChatNotebookCitations(
             notebookID: notebookID,
             revision: "\(notebookID)#\(vm.notebookMembershipRevision)",
-            holds: holds,
-            add: add
+            holds: holds
         )
     }
 

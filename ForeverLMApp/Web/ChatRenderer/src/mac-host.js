@@ -77,10 +77,6 @@ const renderer = createChatRenderer({
   // Add under a slide's papers: the app imports the paper and hands the
   // picture back, its list now linking to the new source.
   addSlideCitedPaper: (token, paperID) => post("addSlideCitedPaper", { token, paperID }),
-  // Add to Notebook beside a Sources row the chat's notebook does not hold:
-  // the app adds the source through its notebook write and sends the card
-  // again, now unmarked.
-  addSourceToNotebook: (token) => post("addSourceToNotebook", token),
   // A citation carries the source token and, for a video or recording, the
   // moment it points at, or for a text source the passage it quotes; the app
   // resolves the token, seeks the reader or flashes the passage.

@@ -176,8 +176,7 @@ enum ChatMarkdownHeightEstimate {
     static let defaultEstimateWidth: CGFloat = 640
 
     /// A rough height for rendered markdown: lines of body text at the chat's
-    /// line height, headings and list items as their own lines, plus the
-    /// Sources footer a reply with citations ends with. It only has to be near
+    /// line height, headings and list items as their own lines. It only has to be near
     /// enough that the measured height, when it lands, moves the column by a
     /// few lines rather than a screen.
     static func estimatedHeight(markdown: String, width: CGFloat, fontSize: CGFloat) -> CGFloat {
@@ -194,7 +193,6 @@ enum ChatMarkdownHeightEstimate {
         var height: CGFloat = 0
         var blocks = 0
         var inCodeFence = false
-        var citations = Set<Substring>()
         for rawLine in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("```") {
@@ -217,26 +215,11 @@ enum ChatMarkdownHeightEstimate {
                 height += size
                 continue
             }
-            // `[n]` citations become cards in the footer; the marker itself
-            // takes no room in the line worth counting.
-            var index = line.startIndex
-            while let open = line[index...].firstIndex(of: "["),
-                  let close = line[open...].firstIndex(of: "]") {
-                let inner = line[line.index(after: open)..<close]
-                if !inner.isEmpty, inner.count <= 3, inner.allSatisfy(\.isNumber) {
-                    citations.insert(inner)
-                }
-                index = line.index(after: close)
-            }
             height += ceil(CGFloat(line.count) / charactersPerLine) * lineHeight
         }
         // Space between blocks: paragraphs, list items and headings all carry
         // some. A heading's larger share is counted with its line above.
         height += CGFloat(max(0, blocks - 1)) * size * 0.45
-        if !citations.isEmpty {
-            // "Sources" heading, then one two-line card per distinct citation.
-            height += size * 2.4 + CGFloat(citations.count) * size * 3.4
-        }
         // The bubble's own vertical padding.
         return max(36, ceil(height + size * 1.2))
     }
@@ -299,10 +282,8 @@ struct ChatMarkdownView: NSViewRepresentable {
     let identity: UUID
     let markdown: String
     /// What the transcript above this message settled about its citations: the
-    /// number each source keeps for the whole conversation, and whose card has
-    /// already been listed under an earlier reply. A message rendered without
-    /// one numbers from one and lists everything it cites, which is what every
-    /// message did before the ledger existed.
+    /// number each source keeps for the whole conversation. A message rendered
+    /// without one numbers its sources from one.
     var citationContext = ChatCitationLedger.MessageContext()
     @Binding var height: CGFloat
     let onOpenSource: (ChatSourceLink) -> Void
@@ -338,9 +319,6 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// outside a notebook's chat. When it changes the page asks for its cards
     /// again, so a source added to the notebook loses its mark in every row.
     var citationScopeKey = ""
-    /// Add to Notebook beside a Sources row the notebook does not hold: adds
-    /// the source the token names to the chat's notebook. Nil offers none.
-    var addSourceToNotebook: (@MainActor (String) async -> Void)? = nil
     /// Open beside on a picture: where the picture goes next to its chat. Nil
     /// opens it in a picture window of its own.
     var openPictureBeside: (@MainActor (DockedChatPicture) -> Void)? = nil
@@ -385,7 +363,6 @@ struct ChatMarkdownView: NSViewRepresentable {
     private static let scriptMessageNames = [
         "height", "sourceCards", "sourceImages", "copySourceImage", "zoomSourceImage", "openSourceImageBeside",
         "redrawSourceImage", "addSlideCitedPaper",
-        "addSourceToNotebook",
         "openSource", "webLinks", "selectionAction", contextLinkMessageName, contextPictureMessageName,
     ]
 
@@ -549,7 +526,6 @@ struct ChatMarkdownView: NSViewRepresentable {
         context.coordinator.sourceCardForToken = sourceCardForToken
         context.coordinator.sourceImageForToken = sourceImageForToken
         context.coordinator.addSlideCitedPaper = addSlideCitedPaper
-        context.coordinator.addSourceToNotebook = addSourceToNotebook
         context.coordinator.openPictureBeside = openPictureBeside
         context.coordinator.redrawPicture = redrawPicture
         (webView as? ChatMarkdownWebView)?.redrawPicture = redrawPicture
@@ -611,7 +587,6 @@ struct ChatMarkdownView: NSViewRepresentable {
         var sourceCardForToken: @MainActor (String) async -> ChatSourceCard?
         var sourceImageForToken: @MainActor (String) async -> ChatSourceImage?
         var addSlideCitedPaper: (@MainActor (String) async -> Void)?
-        var addSourceToNotebook: (@MainActor (String) async -> Void)?
         var openPictureBeside: (@MainActor (DockedChatPicture) -> Void)?
         /// `ChatMarkdownView.citationScopeKey` as this row last drew it; nil
         /// before its first update.
@@ -769,10 +744,6 @@ struct ChatMarkdownView: NSViewRepresentable {
                 addSlideCitedPaper(for: message)
                 return
             }
-            if message.name == "addSourceToNotebook" {
-                addSourceToNotebook(for: message)
-                return
-            }
             if message.name == "selectionAction" {
                 // The page names the action and hands over the words; an
                 // action this build does not know is dropped, not guessed at.
@@ -923,21 +894,6 @@ struct ChatMarkdownView: NSViewRepresentable {
                 } else {
                     ChatPictureWindow.present(picture)
                 }
-            }
-        }
-
-        /// Add to Notebook beside a Sources row: the source joins the chat's
-        /// notebook, then this row's cards are asked for again, now unmarked.
-        /// Every other row follows when the notebook's membership revision
-        /// moves its `citationScopeKey`.
-        private func addSourceToNotebook(for message: WKScriptMessage) {
-            guard let token = (message.body as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !token.isEmpty, let add = addSourceToNotebook else { return }
-            let webView = message.webView
-            Task { @MainActor [weak self, weak webView] in
-                await add(token)
-                guard let self, let webView else { return }
-                self.refreshSourceCards(in: webView)
             }
         }
 

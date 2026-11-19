@@ -70,7 +70,6 @@
 .chat-rendered > h4,
 .chat-rendered > blockquote,
 .chat-rendered > hr,
-.chat-rendered > .source-citations-footer { max-width: 42em; }
 .chat-rendered > h1 { max-width: calc(42em / 1.5); }
 .chat-rendered > h2 { max-width: calc(42em / 1.25); }
 .chat-rendered > h3 { max-width: calc(42em / 1.125); }
@@ -124,8 +123,8 @@
 }
 /* Lists that draw their own rows (checklists, source entries, the Sources
    footer) take no marker, and keep the small inset the items always had. */
-.chat-rendered :where(.flm-task-list, .source-entry-list, .source-citations-list) > li { padding-left: 0.375em; }
-.chat-rendered :is(.flm-task-list, .source-entry-list, .source-citations-list) > li::before { content: none; }
+.chat-rendered :where(.flm-task-list, .source-entry-list) > li { padding-left: 0.375em; }
+.chat-rendered :is(.flm-task-list, .source-entry-list) > li::before { content: none; }
 .chat-rendered li > p { margin: 0; }
 .chat-rendered li > p + p { margin-top: 1em; }
 .chat-rendered li > ul,
@@ -354,38 +353,6 @@
   background: transparent;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chat-fg, CanvasText) 26%, transparent);
 }
-.chat-rendered .source-footer-link.source-outside-notebook .source-footer-index {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chat-fg, CanvasText) 26%, transparent);
-}
-.chat-rendered .source-footer-outside {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-}
-.chat-rendered .source-footer-outside > .source-footer-link {
-  flex: 1 1 auto;
-}
-.chat-rendered .source-footer-add {
-  flex: none;
-  padding: 0.2em 0.75em;
-  border: 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--chat-accent, AccentColor) 12%, transparent);
-  color: var(--chat-accent, AccentColor);
-  font: inherit;
-  font-size: 0.78em;
-  font-weight: 620;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.chat-rendered .source-footer-add:hover {
-  background: color-mix(in srgb, var(--chat-accent, AccentColor) 20%, transparent);
-}
-.chat-rendered .source-footer-add:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
 .chat-rendered .source-citation-marker:hover {
   background: color-mix(in srgb, var(--chat-accent, AccentColor) 16%, transparent);
   color: var(--chat-accent, AccentColor);
@@ -473,96 +440,6 @@
   font-weight: 400;
 }
 
-.chat-rendered .source-citations-footer {
-  margin-top: 0.86em;
-  padding-top: 0.58em;
-  border-top: 1px solid color-mix(in srgb, var(--chat-fg, CanvasText) 12%, transparent);
-}
-.chat-rendered .source-citations-heading {
-  margin-bottom: 0.28em;
-  color: color-mix(in srgb, var(--chat-fg, CanvasText) 62%, transparent);
-  font-size: 0.82em;
-  font-weight: 650;
-}
-.chat-rendered .source-citations-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.chat-rendered .source-citations-list li + li { margin-top: 0.12em; }
-.chat-rendered .source-footer-link {
-  display: grid;
-  grid-template-columns: max-content 1.8em minmax(0, 1fr);
-  align-items: center;
-  gap: 0.46em;
-  min-width: 0;
-  padding: 0.2em 0.28em 0.2em 0;
-  border-radius: 0.42em;
-  color: var(--chat-fg, CanvasText);
-  text-decoration: none;
-}
-.chat-rendered .source-footer-link:hover {
-  background: color-mix(in srgb, var(--chat-accent, AccentColor) 8%, transparent);
-  text-decoration: none;
-}
-/* The footer's number is the same chip as the marker in the sentence. */
-.chat-rendered .source-footer-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  justify-self: end;
-  min-width: 1.6em;
-  height: 1.6em;
-  padding: 0 0.5em;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--chat-fg, CanvasText) 8%, transparent);
-  color: color-mix(in srgb, var(--chat-fg, CanvasText) 64%, transparent);
-  white-space: nowrap;
-  font-size: 0.66em;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.chat-rendered .source-footer-link:hover .source-footer-index {
-  background: color-mix(in srgb, var(--chat-accent, AccentColor) 16%, transparent);
-  color: var(--chat-accent, AccentColor);
-}
-.chat-rendered .source-footer-copy { min-width: 0; }
-.chat-rendered .source-footer-title,
-.chat-rendered .source-footer-subtitle {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chat-rendered .source-footer-title { font-size: 0.88em; font-weight: 600; }
-.chat-rendered .source-footer-moments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3em;
-  margin-top: 0.22em;
-}
-.chat-rendered .source-footer-moment {
-  display: inline-block;
-  padding: 0.05em 0.5em;
-  border-radius: 0.6em;
-  background: color-mix(in srgb, var(--chat-accent, AccentColor) 10%, transparent);
-  color: var(--chat-accent, AccentColor);
-  font-size: 0.72em;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.5;
-  cursor: pointer;
-}
-.chat-rendered .source-footer-moment:hover,
-.chat-rendered .source-footer-moment:focus-visible {
-  background: color-mix(in srgb, var(--chat-accent, AccentColor) 20%, transparent);
-  outline: none;
-}
-/* A footer row still waiting for its card: the finished row's geometry with
-   a soft bar where each line of text will be. */
-.chat-rendered .source-footer-pending { pointer-events: none; }
-.chat-rendered .source-footer-pending .source-footer-link:hover { background: transparent; }
 .chat-rendered .source-footer-placeholder {
   background: linear-gradient(
     color-mix(in srgb, var(--chat-fg, CanvasText) 9%, transparent),
@@ -570,16 +447,9 @@
   ) left center / 58% 0.62em no-repeat;
   border-radius: 0.31em;
 }
-.chat-rendered .source-footer-subtitle.source-footer-placeholder { background-size: 36% 0.62em; }
 .chat-rendered .source-thumbnail-pending {
   background: color-mix(in srgb, var(--chat-fg, CanvasText) 7%, transparent);
 }
-.chat-rendered .source-footer-subtitle {
-  margin-top: 0.05em;
-  color: color-mix(in srgb, var(--chat-fg, CanvasText) 55%, transparent);
-  font-size: 0.75em;
-}
-
 .chat-rendered .source-thumbnail {
   display: inline-flex;
   flex: 0 0 auto;
@@ -591,12 +461,6 @@
   color: var(--chat-accent, AccentColor);
   font-weight: 700;
   letter-spacing: -0.03em;
-}
-.chat-rendered .source-footer-thumbnail {
-  width: 1.8em;
-  height: 1.8em;
-  font-size: 0.72em;
-  border-radius: 0.34em;
 }
 .chat-rendered .source-block-thumbnail {
   width: 3.15em;

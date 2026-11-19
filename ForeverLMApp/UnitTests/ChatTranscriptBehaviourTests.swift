@@ -632,7 +632,6 @@ struct ChatTranscriptPageTests {
         let prose = try #require(ChatTranscriptPage.prosePart(reply, citations: .init()))
         #expect(prose.markdown == "## The question\n\nIt stayed open.")
         #expect(prose.citations == nil)
-        #expect(prose.webSources == nil)
     }
 
     @Test("A long paste folds on the page as it does in the native bubble")

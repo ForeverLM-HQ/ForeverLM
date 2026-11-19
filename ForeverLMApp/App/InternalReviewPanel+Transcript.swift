@@ -1027,8 +1027,6 @@ extension InternalReviewPanelContent {
             openPassage: { passage in
                 openPassageInReader(passage)
             },
-            // A page this chat cites is added to its notebook as well.
-            webSourcesNotebookID: linkedResearchNotebook?.id,
             editMessage: editAction(for: message)
         )
         .equatable()

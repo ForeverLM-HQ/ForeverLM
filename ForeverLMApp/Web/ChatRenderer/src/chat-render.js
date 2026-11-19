@@ -32,7 +32,6 @@ import {
   renderPendingBlockSourceLink,
   renderPendingSourceCitation,
   renderSourceEntryLink,
-  renderSourcesFooter,
   renderTaskListCheckboxes,
   removeRepeatedAdjacentCitations,
   renderWebCitation,
@@ -132,7 +131,6 @@ export function createChatRenderer({
   // null, and the figure carries no button for it.
   redrawSourceImage = null,
   addSlideCitedPaper = null,
-  addSourceToNotebook = null,
   openSource = null,
   openWebLink = null,
   onLayoutChange = null,
@@ -456,34 +454,9 @@ export function createChatRenderer({
     figure.append(list);
   }
 
-  /// Which of a reply's citations earn a card under it. One the conversation
-  /// has already introduced does not: the marker in the sentence is itself a
-  /// link to the source, and repeating the same title, byline and thumbnail
-  /// under every turn of a review that circles one paper is the noise this
-  /// removes. A reply that points at a moment no earlier reply pointed at is
-  /// naming somewhere new, so that source is listed again. A page is not
-  /// tracked this way: the host records the moments a transcript has shown and
-  /// nothing about pages, so a later page citation keeps to its marker, which
-  /// already names and opens the page.
-  function listedCitations(citations, context) {
-    const presented = context?.presented;
-    if (!presented) return citations;
-    return citations.filter((citation) => {
-      const shown = presented[citation.token];
-      if (!Array.isArray(shown)) return true;
-      const seen = new Set(shown);
-      return citation.moments.some((moment) => !seen.has(Math.round(moment)));
-    });
-  }
-
   function decorateSourceLinks(content) {
     const missingTokens = [];
     const blockSourceIDs = new Set();
-    /// Sources a list item in this reply already names. A marker elsewhere in
-    /// the reply still links to one, but the footer does not list it again:
-    /// the entry is its row (product owner, 2026-09-30: "there should just be 13
-    /// bulletpoints").
-    const entrySources = new Set();
     const citationNumbers = new Map();
     const citationsByNumber = new Map();
     const markers = [];
@@ -501,39 +474,22 @@ export function createChatRenderer({
       return candidate;
     };
 
-    content.querySelector(".source-citations-footer")?.remove();
     unwrapBracketedSiteCitations(content);
 
-    /// One number per source, however many moments or pages of it are cited:
-    /// the footer names the work once and lists the places under it. The host's number
-    /// wins where there is one, so chip 1 means the same work in the first reply
-    /// of a session and in the fortieth. A citation whose card has not arrived
-    /// is registered under its token, so its footer row is reserved from the
-    /// first paint and the card, when it lands, fills a row that already exists.
-    const registerCitation = (sourceID, token, card, seconds, pending, page = null, passage = null) => {
+    /// One number per source, however many moments or pages of it are cited.
+    /// The host's number wins where there is one, so chip 1 means the same
+    /// work in the first reply of a session and in the fortieth. A reply lists
+    /// no sources under it: the chip in the sentence is the link (product
+    /// owner, 2026-11-19: "it's fine to just have these like bubbles with
+    /// basically links that can open").
+    const registerCitation = (sourceID, token) => {
       let number = citationNumbers.get(sourceID);
       if (number === undefined) {
         number = Number.isInteger(hostNumbers[token]) ? hostNumbers[token] : fallbackNumber();
         // Two sources cannot share a marker, whatever the host sent.
         if (citationsByNumber.has(number)) number = fallbackNumber();
         citationNumbers.set(sourceID, number);
-        citationsByNumber.set(number, {
-          number, card, token, href: sourceHref(token), moments: [], pages: [], pending,
-        });
-      }
-      const citation = citationsByNumber.get(number);
-      if (seconds !== null) {
-        if (!citation.moments.includes(seconds)) {
-          citation.moments.push(seconds);
-          citation.moments.sort((left, right) => left - right);
-        }
-      } else if (page !== null) {
-        // One chip per page; the first excerpt cited on it is the one the chip
-        // flashes.
-        if (!citation.pages.some((cited) => cited.page === page)) {
-          citation.pages.push({ page, passage });
-          citation.pages.sort((left, right) => left.page - right.page);
-        }
+        citationsByNumber.set(number, token);
       }
       return number;
     };
@@ -560,18 +516,16 @@ export function createChatRenderer({
           renderCaptionSourceLink(link, null, seconds, page);
           continue;
         }
-        // A list item's name, not a citation: no number, no footer row.
+        // A list item's name, not a citation: no number.
         if (link.dataset.sourceMode === "entry" || isSourceEntryLink(link)) {
           renderSourceEntryLink(link, null, seconds, page);
-          entrySources.add(token);
           continue;
         }
-        // Reserve the room the resolved link will take. The host measures the
-        // message as soon as it is painted and sizes the row from that number;
-        // a footer that only appeared once the cards arrived made every reply
-        // with citations measure short first and spring open by a row per
-        // source afterwards -- under a scroll, the transcript jumping. The
-        // token stands in for the source id until the card says otherwise.
+        // Reserve the room the resolved card will take. The host measures the
+        // message as soon as it is painted and sizes the row from that number,
+        // so a card that only appeared once its data arrived would spring the
+        // transcript open under a scroll. The token stands in for the source
+        // id until the card says otherwise.
         if (isStandaloneSourceLink(link) && !blockSourceIDs.has(token)) {
           renderPendingBlockSourceLink(link);
           blockSourceIDs.add(token);
@@ -580,15 +534,7 @@ export function createChatRenderer({
         // The marker's own chip, drawn below once every citation is counted,
         // so the line it sits in is already its final height.
         keepTitleWrittenIntoSentence(link);
-        const number = registerCitation(
-          token,
-          token,
-          { sourceID: token, title: "", subtitle: "", kind: "unclassified", glyph: "" },
-          seconds,
-          true,
-          page,
-          passage,
-        );
+        const number = registerCitation(token, token);
         markers.push({ link, card: null, number, seconds, page });
         continue;
       }
@@ -614,8 +560,6 @@ export function createChatRenderer({
       }
       if (isEntry) {
         renderSourceEntryLink(link, card, seconds, page);
-        entrySources.add(token);
-        entrySources.add(card.sourceID);
         continue;
       }
       if (canRenderBlock) {
@@ -624,7 +568,7 @@ export function createChatRenderer({
         continue;
       }
 
-      const number = registerCitation(card.sourceID, token, card, seconds, false, page, passage);
+      const number = registerCitation(card.sourceID, token);
       markers.push({ link, card, number, seconds, page });
     }
     markSourceEntryLists(content);
@@ -655,15 +599,6 @@ export function createChatRenderer({
     for (const { link, number } of webMarkers) renderWebCitation(link, number);
     removeRepeatedAdjacentCitations(content);
 
-    const citations = [...citationsByNumber.values()]
-      .filter((citation) => !entrySources.has(citation.token) && !entrySources.has(citation.card.sourceID))
-      .sort((left, right) => left.number - right.number);
-    renderSourcesFooter(
-      content,
-      listedCitations(citations, context),
-      openSource ? (token, place) => openSource(token, place) : null,
-      addSourceToNotebook,
-    );
     if (missingTokens.length > 0) requestSourceCards?.(missingTokens);
   }
 
@@ -791,7 +726,6 @@ export function createChatRenderer({
   /// below it, and the frame above, already running, is never moved or
   /// reloaded (moving a frame reloads it).
   function paintParts(container, parts) {
-    container.querySelector(":scope > .source-citations-footer")?.remove();
     const document_ = container.ownerDocument;
     const existing = [...container.children].filter(
       (child) => child.classList.contains("chat-part") || child.classList.contains("chat-visualization"),
@@ -827,9 +761,9 @@ export function createChatRenderer({
     }
   }
 
-  // Cards arrive after the first paint, and the footer they produce is new
-  // markup: its links need the same click behaviour the message's own links
-  // got at render time. Installing is idempotent, so the rest is untouched.
+  // Cards arrive after the first paint, and what they draw is new markup: its
+  // links need the same click behaviour the message's own links got at
+  // render time. Installing is idempotent, so the rest is untouched.
   function redecorate() {
     for (const container of liveContainers()) {
       decorate(container);
