@@ -6825,6 +6825,20 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.228.0 (build 308) — 2026-11-19
+
+**Highlights:**
+- **Chat replies drop the Sources list: the citation bubbles are the links.**
+
+- **A chat reply no longer lists its sources underneath.** The **Sources** and **Pages** lists at the foot of a reply are gone: the citation bubbles in the text are the links, and each opens its source (at the page or moment it cites) or its web page. Hover a bubble to see which source it is.
+- **A web citation is a numbered chip after its sentence,** like a library citation, and a citation written as a sentence of its own no longer doubles the period.
+- **A picture in a Page has real controls:** width, placement, text wrap, move, caption and delete.
+- **A message that opens with a quoted passage shows it as a quote,** not as raw > lines.
+- **Your Models moves on to each family's newest release by itself.**
+- **Listen skips footnotes and reads headings without their # marks,** and its progress line says why a chunk is being retried.
+- **Voice card review can delete a card and undo it, go through the cards made or reviewed on a day, search by author,** and load a card's source passage when you ask about it.
+- **A To read row on Home keeps its label in full;** the title gives way instead.
+
 ## 0.227.0 (build 307) — 2026-11-18
 
 **Highlights:**
