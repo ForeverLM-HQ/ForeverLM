@@ -396,7 +396,23 @@ function moveCitationAfterPunctuation(link) {
   if (next?.nodeType === Node.TEXT_NODE) {
     const punctuation = String(next.nodeValue ?? "").match(/^([.,;:!?]+)/);
     if (punctuation) {
-      link.parentNode?.insertBefore(link.ownerDocument.createTextNode(punctuation[1]), link);
+      // A citation written as a sentence of its own after the claim's full stop
+      // ("advantage. [Title](…). [Title](…).") already has its punctuation in
+      // front of it: moving its own period there too read "advantage..2.4"
+      // (product owner, 2026-11-19: "just have a normal sentence, and then
+      // after that the clickable bubbles"). It is dropped instead.
+      // After a run of chips ("more ([a.org](…), [b.com](…)).") the
+      // punctuation goes in front of the whole run, not between its chips.
+      const runStart = firstCitationOfRun(link);
+      if (!citationAlreadyClosed(runStart, punctuation[1])) {
+        const lead = runStart.previousSibling;
+        const leadText = lead?.nodeType === Node.TEXT_NODE ? String(lead.nodeValue ?? "") : null;
+        if (runStart !== link && leadText?.endsWith(WORD_JOINER)) {
+          lead.nodeValue = leadText.slice(0, -WORD_JOINER.length) + punctuation[1] + WORD_JOINER;
+        } else {
+          runStart.parentNode?.insertBefore(link.ownerDocument.createTextNode(punctuation[1]), runStart);
+        }
+      }
       next.nodeValue = String(next.nodeValue ?? "").slice(punctuation[1].length);
     }
   }
@@ -404,6 +420,153 @@ function moveCitationAfterPunctuation(link) {
   if (!before) return;
   const glued = before.nodeType === Node.TEXT_NODE && String(before.nodeValue ?? "").endsWith(WORD_JOINER);
   if (!glued) link.parentNode?.insertBefore(link.ownerDocument.createTextNode(WORD_JOINER), link);
+}
+
+/// Whether what stands before a citation already closes its clause, so the
+/// punctuation the reply wrote after the citation would only repeat it: another
+/// citation (the second of a run), or a sentence's end. A comma or colon closes
+/// it only for a comma or colon, so "A, B and C, [Title]." keeps its period.
+function citationAlreadyClosed(link, punctuation) {
+  const node = meaningfulSiblingBefore(link);
+  if (!node) return false;
+  if (node.nodeType === Node.ELEMENT_NODE && node.tagName === "A" && isCitationLink(node)) return true;
+  const before = String(node.textContent ?? "").replaceAll(WORD_JOINER, "").replace(/\s+$/, "");
+  if (/[.!?…]["'”’)\]]*$/.test(before)) return true;
+  return /[,;:]$/.test(before) && /^[,;:]+$/.test(punctuation);
+}
+
+/// The node before `link`, past any text that is only spaces and joiners.
+function meaningfulSiblingBefore(link) {
+  let node = link.previousSibling;
+  while (node?.nodeType === Node.TEXT_NODE && String(node.nodeValue ?? "").replaceAll(WORD_JOINER, "").trim() === "") {
+    node = node.previousSibling;
+  }
+  return node;
+}
+
+/// The first citation of the run of citations `link` ends, with nothing but
+/// spaces between them; `link` itself when it stands alone.
+function firstCitationOfRun(link) {
+  let first = link;
+  for (let node = meaningfulSiblingBefore(first); node; node = meaningfulSiblingBefore(first)) {
+    if (node.nodeType !== Node.ELEMENT_NODE || node.tagName !== "A" || !isCitationLink(node)) break;
+    first = node;
+  }
+  return first;
+}
+
+/// A link that is, or is about to be drawn as, a citation chip.
+function isCitationLink(link) {
+  return link.classList.contains("source-citation-marker")
+    || link.dataset.webCitation === "true"
+    || /^foreverlm:\/\/source\//i.test(link.getAttribute("href") ?? "");
+}
+
+/// A link whose words are only a site's name, "nature.com" or
+/// "pmc.ncbi.nlm.nih.gov", the label OpenAI's web search gives the citations it
+/// writes into a reply.
+const SITE_NAME_LABEL = /^(?:www\.)?[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+$/u;
+
+/// OpenAI's web search writes a citation as the site's name in brackets after
+/// the claim, "the metabolism. ([nature.com](https://…))", and a run of them
+/// as "([a.org](…), [b.com](…))". The chat draws its citations as numbered
+/// chips after the sentence instead, as it does a library source's (product
+/// owner, 2026-11-19: "just have a normal sentence, and then after that you
+/// can have sort of the clickable bubbles with like 1, 2, 3, and 4"). This
+/// takes the brackets and separators away, so each link stands where its chip
+/// will be, and marks the web ones for `renderWebCitation`; a link the app
+/// pointed at the learner's library copy is a library citation already. Only
+/// a bracket holding site-name links and nothing else is unwrapped: a site
+/// named in a sentence keeps its words.
+export function unwrapBracketedSiteCitations(content) {
+  const document_ = content.ownerDocument;
+  const walker = document_.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  const openers = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (/\(\s*$/.test(String(node.nodeValue ?? ""))) openers.push(node);
+  }
+  for (const opener of openers) {
+    const links = [];
+    const separators = [];
+    let closer = null;
+    for (let node = opener.nextSibling; node; node = node.nextSibling) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.tagName === "A") {
+        const href = node.getAttribute("href") ?? "";
+        const isWebOrLibrary = /^https?:\/\//i.test(href) || /^foreverlm:\/\/source\//i.test(href);
+        if (!isWebOrLibrary || !SITE_NAME_LABEL.test(String(node.textContent ?? "").trim())) break;
+        links.push(node);
+        continue;
+      }
+      if (node.nodeType !== Node.TEXT_NODE || links.length === 0) break;
+      const text = String(node.nodeValue ?? "");
+      if (/^\s*\)/.test(text)) {
+        closer = node;
+        break;
+      }
+      if (!/^\s*[,;]?\s*$/.test(text)) break;
+      separators.push(node);
+    }
+    if (!closer || links.length === 0) continue;
+    opener.nodeValue = String(opener.nodeValue ?? "").replace(/\s*\(\s*$/, " ");
+    for (const separator of separators) separator.nodeValue = "";
+    closer.nodeValue = String(closer.nodeValue ?? "").replace(/^\s*\)/, "");
+    for (const link of links) {
+      if (!/^https?:\/\//i.test(link.getAttribute("href") ?? "")) continue;
+      link.dataset.webCitation = "true";
+      link.dataset.webTitle = String(link.textContent ?? "").trim();
+    }
+  }
+}
+
+/// One key per web page, whatever tracking query or fragment a citation of it
+/// carries, so a chip and the reply's Pages row for the same page agree.
+export function webCitationKey(href) {
+  try {
+    const url = new URL(String(href ?? ""));
+    const host = url.host.toLowerCase().replace(/^www\./, "");
+    return `${host}${url.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return String(href ?? "");
+  }
+}
+
+/// A web citation (`unwrapBracketedSiteCitations`) drawn as the same round
+/// chip as a library source's, with its number, after its sentence's
+/// punctuation. Hovering names the site; following it opens the page.
+export function renderWebCitation(link, number) {
+  const href = link.getAttribute("href") ?? "";
+  let site = link.dataset.webTitle ?? "";
+  try {
+    site = new URL(href).host.replace(/^www\./, "");
+  } catch {}
+  link.classList.add("source-citation-marker", "web-citation-marker");
+  link.dataset.webKey = webCitationKey(href);
+  link.textContent = String(number);
+  link.title = site;
+  link.setAttribute("aria-label", `Web page ${number}: ${site}`);
+  moveCitationAfterPunctuation(link);
+}
+
+/// The same chip twice in a row says nothing the first did not: a reply that
+/// cites a paper by its title and again by its site's name, which the app has
+/// pointed at the same library copy, read "mutation.33". The second goes,
+/// with the joiner that tied it on.
+export function removeRepeatedAdjacentCitations(content) {
+  for (const chip of [...content.querySelectorAll("a.source-citation-marker")]) {
+    let node = chip.previousSibling;
+    while (node?.nodeType === Node.TEXT_NODE && String(node.nodeValue ?? "").replaceAll(WORD_JOINER, "").trim() === "") {
+      node = node.previousSibling;
+    }
+    const same = node?.nodeType === Node.ELEMENT_NODE
+      && node.classList.contains("source-citation-marker")
+      && node.textContent === chip.textContent
+      && node.getAttribute("href") === chip.getAttribute("href");
+    if (!same) continue;
+    for (let between = chip.previousSibling; between && between !== node; between = chip.previousSibling) {
+      between.remove();
+    }
+    chip.remove();
+  }
 }
 
 /// The words in a block before a link, back to the citation before it, without

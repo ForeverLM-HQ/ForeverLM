@@ -15,6 +15,7 @@
 // visualizations draw exactly as they did.
 
 import { createChatRenderer } from "./chat-render.js";
+import { webCitationKey } from "./chat-dom.js";
 import { installSelectionActions } from "./mac-selection-actions.js";
 
 const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
@@ -720,9 +721,16 @@ function drawProse(part, previous) {
   if (part.webSources?.length) {
     const list = element("div", "web-sources");
     list.append(element("div", "web-sources-heading", "Pages"));
+    // A page the reply cites in its text shows the number of its chip there.
+    const chipNumbers = new Map();
+    for (const chip of body.querySelectorAll("a.web-citation-marker[data-web-key]")) {
+      if (!chipNumbers.has(chip.dataset.webKey)) chipNumbers.set(chip.dataset.webKey, chip.textContent);
+    }
     for (const source of part.webSources) {
       const row = element("button", "web-source");
       row.type = "button";
+      const number = chipNumbers.get(webCitationKey(source.url));
+      if (number) row.append(element("span", "web-source-number", number));
       row.append(element("span", "web-source-title", source.title || source.host || source.url));
       if (source.host) row.append(element("span", "web-source-host", source.host));
       row.title = source.url;

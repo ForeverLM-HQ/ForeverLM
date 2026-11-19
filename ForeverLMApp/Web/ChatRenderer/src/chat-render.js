@@ -34,11 +34,15 @@ import {
   renderSourceEntryLink,
   renderSourcesFooter,
   renderTaskListCheckboxes,
+  removeRepeatedAdjacentCitations,
+  renderWebCitation,
   restoreEscapedLineBreakTags,
   sourceHref,
   sourceLinkFromHref,
   typesetMath,
   fitDisplayMath,
+  unwrapBracketedSiteCitations,
+  webCitationKey,
 } from "./chat-dom.js";
 
 export * from "./chat-markdown.js";
@@ -490,13 +494,15 @@ export function createChatRenderer({
     /// A number for a source the host did not name -- a reply rendered without
     /// a context, or a link the transcript scan did not see. The lowest one
     /// nobody else holds, so it can never read as another work's citation.
+    const webNumbers = new Set();
     const fallbackNumber = () => {
       let candidate = 1;
-      while (spokenFor.has(candidate) || citationsByNumber.has(candidate)) candidate += 1;
+      while (spokenFor.has(candidate) || citationsByNumber.has(candidate) || webNumbers.has(candidate)) candidate += 1;
       return candidate;
     };
 
     content.querySelector(".source-citations-footer")?.remove();
+    unwrapBracketedSiteCitations(content);
 
     /// One number per source, however many moments or pages of it are cited:
     /// the footer names the work once and lists the places under it. The host's number
@@ -623,13 +629,31 @@ export function createChatRenderer({
     }
     markSourceEntryLists(content);
 
+    // Web pages the reply cites in brackets (`unwrapBracketedSiteCitations`)
+    // take the numbers after the library's, one per page however often it is
+    // cited. They are listed under the reply's Pages, not in its Sources.
+    const webNumberByKey = new Map();
+    const webMarkers = [];
+    for (const link of content.querySelectorAll("a[data-web-citation]")) {
+      const key = webCitationKey(link.getAttribute("href"));
+      let number = webNumberByKey.get(key);
+      if (number === undefined) {
+        number = fallbackNumber();
+        webNumberByKey.set(key, number);
+        webNumbers.add(number);
+      }
+      webMarkers.push({ link, number });
+    }
+
     // Drawn once every citation is counted: whether a marker needs its number
     // depends on how many sources the whole reply cites, pending ones included.
-    const numbered = citationsByNumber.size > 1;
+    const numbered = citationsByNumber.size + webNumberByKey.size > 1;
     for (const { link, card, number, seconds, page } of markers) {
       if (card) renderInlineSourceCitation(link, card, number, seconds, page, numbered);
       else renderPendingSourceCitation(link, number, seconds, page, numbered);
     }
+    for (const { link, number } of webMarkers) renderWebCitation(link, number);
+    removeRepeatedAdjacentCitations(content);
 
     const citations = [...citationsByNumber.values()]
       .filter((citation) => !entrySources.has(citation.token) && !entrySources.has(citation.card.sourceID))
@@ -673,7 +697,7 @@ export function createChatRenderer({
             link.dataset.webLinkInstalled = "true";
             link.addEventListener("click", (event) => {
               event.preventDefault();
-              openWebLink(link.href, String(link.textContent ?? "").trim());
+              openWebLink(link.href, link.dataset.webTitle ?? String(link.textContent ?? "").trim());
             });
           }
         } else {
