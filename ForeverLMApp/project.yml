@@ -365,6 +365,7 @@ targets:
       - iOS/MobileAudioReviewViewModel+Catalog.swift
       - iOS/MobileAudioReviewViewModel+Library.swift
       - iOS/MobileAudioReviewViewModel+Narration.swift
+      - iOS/MobileNarrationPrefetch.swift
       - iOS/MobileAudioReviewViewModel+Playback.swift
       - iOS/MobileAudioReviewViewModel+SourceActivity.swift
       - iOS/MobileAudioReviewViewModel+TextToSpeech.swift
