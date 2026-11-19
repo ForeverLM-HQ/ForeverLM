@@ -506,6 +506,8 @@ struct MemoryCardsToCheckView: View {
                 NSPasteboard.general.setString(card.cardID, forType: .string)
             }
             sourceMenu(card.sourceID)
+            Divider()
+            Button("Remove Source", role: .destructive) { removeSource(of: card) }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 13, weight: .semibold))
@@ -578,8 +580,8 @@ struct MemoryCardsToCheckView: View {
     }
 
     /// Before the answer: I Don't Know and Check, as Review's, with Skip,
-    /// Edit and Remove Source quiet under them. After it: Skip and Edit,
-    /// pale; Keep, the dark pill that moves on; Remove Source quiet below.
+    /// Edit and Ask in Chat quiet under them. After it: Skip and Edit,
+    /// pale; Keep, the dark pill that moves on; Ask in Chat quiet below.
     @ViewBuilder
     private func actions(_ card: MemoryCardToCheck) -> some View {
         let keys = focused && editing == nil
@@ -605,7 +607,6 @@ struct MemoryCardsToCheckView: View {
                 }
                 HStack(spacing: 6) {
                     askInChatButton
-                    removeSourceButton(card)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -635,7 +636,6 @@ struct MemoryCardsToCheckView: View {
                     .help("Keep this card in your own words")
                     .accessibilityIdentifier("memory.pane.toCheck.edit")
                     askInChatButton
-                    removeSourceButton(card)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -662,13 +662,10 @@ struct MemoryCardsToCheckView: View {
     /// Not worth keeping, decided from the card: the source leaves the
     /// library as the Sources list's Remove does, with Undo, and every card
     /// of its waiting here is skipped (product owner, 2026-10-16: "there
-    /// should be a button to remove certain sources").
-    private func removeSourceButton(_ card: MemoryCardToCheck) -> some View {
-        MemoryReviewButton(title: "Remove Source", kind: .quiet) { removeSource(of: card) }
-            .help("Not worth keeping: remove this source from the library, with Undo, and skip its cards")
-            .accessibilityIdentifier("memory.pane.toCheck.removeSource")
-    }
-
+    /// should be a button to remove certain sources"). It lives in the ⋯
+    /// menu, not beside Skip and Edit, so a destructive source-level act is
+    /// not one tap from a card-level one (product owner, 2026-11-18: "this
+    /// remove source button is a bit weird").
     private func removeSource(of card: MemoryCardToCheck) {
         let sourceID = card.sourceID
         let theirs = visible.filter { $0.sourceID == sourceID }
