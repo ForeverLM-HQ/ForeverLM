@@ -179,6 +179,14 @@ struct MobileSourceBrowserView: View {
 struct MobileCompactPlaybackBar: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @State private var presentedItem: MobileAudioItem?
+    /// Where the learner left the audiobook line, up from where it rests.
+    @State private var audiobookOffset: CGFloat = 0
+    @GestureState private var audiobookDrag: CGFloat = 0
+
+    /// Up to the middle of a phone, never below where it rests.
+    static func clampedAudiobookOffset(_ offset: CGFloat) -> CGFloat {
+        min(0, max(-420, offset))
+    }
 
     var body: some View {
         // The bar rides above every screen, so it is the one surface that owns
@@ -209,6 +217,19 @@ struct MobileCompactPlaybackBar: View {
                     .padding(.horizontal, MobileDesign.Spacing.medium)
                     .padding(.bottom, MobileDesign.Spacing.small)
                     .accessibilityIdentifier("listen.audiobook")
+                    // Movable: dragged up or down out of the way of a screen's
+                    // own buttons, and kept where it was left until the app
+                    // restarts. Dragging back to the bottom puts it at rest.
+                    .offset(y: audiobookOffset + audiobookDrag)
+                    .gesture(
+                        DragGesture(minimumDistance: 8)
+                            .updating($audiobookDrag) { value, state, _ in
+                                state = Self.clampedAudiobookOffset(audiobookOffset + value.translation.height) - audiobookOffset
+                            }
+                            .onEnded { value in
+                                audiobookOffset = Self.clampedAudiobookOffset(audiobookOffset + value.translation.height)
+                            }
+                    )
             }
 
             if let item = vm.currentItem {
