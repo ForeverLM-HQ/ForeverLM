@@ -190,7 +190,7 @@ extension ReviewSessionManager {
                 let updated = try await withSingleSourceUsageAttribution {
                     try await aiService.callChat(
                         config: config,
-                        system: Self.historyFoldSystemPrompt,
+                        system: Self.historyFoldSystemPrompt(limitCharacters: historyDigestCharacterLimit),
                         messages: [(role: "user", content: """
                         Existing summary:
                         \(existingDigest.isEmpty ? "(none yet — this is the first fold)" : existingDigest)
@@ -236,7 +236,15 @@ extension ReviewSessionManager {
         }
     }
 
-    private static let historyFoldSystemPrompt = """
-    You maintain the running summary of an ongoing tutoring chat. Fold the new turns into the existing summary and output only the updated summary, dense and chronological. Preserve the learner's goals, decisions made, facts and definitions established, identifiers (source IDs, goal IDs, dates), unresolved questions, and anything either side committed to doing. Drop pleasantries and repetition. Keep the whole summary under 1,500 words: when it grows past that, fold older detail into fewer sentences rather than dropping it.
-    """
+    /// The fold's instructions. The limit is stated in characters, the unit the
+    /// app cuts at (`historyDigestCharacterLimit`): "1,500 words" drew 5.3k-token
+    /// summaries (2026-11-18 ledger, 2.5x the 2k target) of which the app kept
+    /// only the newest 12,000 characters, so most of the output was paid for
+    /// and thrown away, at ~33 s a fold.
+    nonisolated static func historyFoldSystemPrompt(limitCharacters: Int) -> String {
+        let aim = limitCharacters / 2
+        return """
+        You maintain the running summary of an ongoing tutoring chat. Fold the new turns into the existing summary and output only the updated summary, dense and chronological. Preserve the learner's goals, decisions made, facts and definitions established, identifiers (source IDs, goal IDs, dates), unresolved questions, and anything either side committed to doing. Drop pleasantries and repetition. Do not restate what the sources say; the chat can read them again. The summary is cut off at \(limitCharacters) characters, so aim for about \(aim) and never pass \(limitCharacters): when it grows, fold older detail into fewer sentences rather than adding length.
+        """
+    }
 }
