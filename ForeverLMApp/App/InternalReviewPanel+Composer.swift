@@ -183,10 +183,11 @@ extension InternalReviewPanelContent {
                         // takes its width before the row's Spacer.
                         .layoutPriority(1)
 
-                    // The mic has nothing to do mid-turn; Stop takes the
-                    // trailing edge below.
+                    // The mic stays mid-turn: a dictated message queues behind
+                    // the reply like a typed one. Stop takes the trailing edge
+                    // below; voice mode waits for the turn to end.
+                    composerMicControl
                     if !manager.canStopGeneration {
-                        composerMicControl
                         composerVoiceModeButton
                     }
 
@@ -1104,11 +1105,9 @@ extension InternalReviewPanelContent {
         dictation.isRecording || dictation.isTranscribing || manualDictationTranscriptionTask != nil
     }
 
-    /// These are the conditions where the control genuinely cannot act: a turn
-    /// in flight or a recording still being transcribed.
+    /// The one condition where the control cannot act: a recording still being
+    /// transcribed. A turn in flight does not stop dictation.
     private var canUseDictationButton: Bool {
-        !manager.isSearching &&
-        !manager.isGenerating &&
         !dictation.isTranscribing &&
         manualDictationTranscriptionTask == nil
     }
