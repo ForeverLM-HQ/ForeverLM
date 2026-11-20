@@ -182,7 +182,6 @@ struct PodcastShowChooser: View {
 
     private func detail(for show: SourceDiscovery.PodcastShowInventoryItem) -> String {
         switch show.importableEpisodeCount {
-        case 0: return show.isFollowed ? "Followed · nothing played yet" : "Nothing played yet"
         case 1: return "1 episode played"
         default: return "\(show.importableEpisodeCount) episodes played"
         }
@@ -204,7 +203,7 @@ struct PodcastShowChooser: View {
         case .permissionDenied:
             return "Full Disk Access is needed to read Apple Podcasts."
         case .ok, .noEpisodesFound:
-            return "No shows yet. Follow or play one in Apple Podcasts, then come back."
+            return "No shows played yet. Play an episode in Apple Podcasts, then come back."
         case .unsupportedPlatform:
             return "Apple Podcasts can only be read on a Mac."
         case .openFailed(let details), .schemaChanged(let details):
@@ -237,9 +236,12 @@ struct PodcastShowChooser: View {
         let result = await Task.detached(priority: .userInitiated) {
             SourceDiscovery.podcastShowInventory(dbPath: dbPath)
         }.value
-        shows = result.shows
+        // A show with nothing played has nothing to bring in; its episodes
+        // come in on their own once played.
+        let played = result.shows.filter { $0.importableEpisodeCount > 0 }
+        shows = played
         status = result.status
-        showCount = result.shows.count
+        showCount = played.count
         isLoading = false
     }
 }
