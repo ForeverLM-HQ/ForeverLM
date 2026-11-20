@@ -161,6 +161,17 @@ final class StudioWindowChromeView: NSView {
                 }
             })
         }
+        // AppKit re-places the zoom light on its own schedule too (the screenshot
+        // that showed green 3pt above red and yellow was a window that had
+        // already been through every notification above). After each window
+        // update the check is three frame reads; the already-at-target guard
+        // keeps it from moving anything once the row is level.
+        lightObservers.append(NotificationCenter.default.addObserver(
+            forName: NSWindow.didUpdateNotification, object: window, queue: .main
+        ) { [weak self, weak window] _ in
+            guard let self, let window else { return }
+            MainActor.assumeIsolated { self.recenterLights(in: window) }
+        })
         // In fullscreen AppKit keeps the (empty) unified toolbar on screen and
         // paints an opaque titlebar backdrop over the band, hiding every header
         // the panels hang up into it — while the top safe-area inset stays at
@@ -335,7 +346,7 @@ struct StudioColumnHairline: View {
                     Rectangle()
                         .fill(color)
                         .frame(width: 1, height: Self.bandStrokeHeight)
-                        .offset(y: -(band + Self.bandStrokeHeight) / 2)
+                        .offset(y: (StudioTopBar.hangOffset(band: band) - Self.bandStrokeHeight) / 2)
                 }
             }
             .accessibilityHidden(true)
@@ -405,7 +416,8 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
                             )
                             .offset(
                                 x: -trailingOverflow,
-                                y: placement == .chromeLine ? -(titlebarBandHeight ?? 0) : 0
+                                y: placement == .chromeLine
+                                ? titlebarBandHeight.map { StudioTopBar.hangOffset(band: $0) } ?? 0 : 0
                             )
                             .frame(
                                 width: proxy.size.width,

@@ -826,7 +826,8 @@ struct StudioDockedAssistantPanel: View {
                         )
                         .offset(
                             x: -trailingOverflow,
-                            y: placement == .chromeLine ? -(titlebarBandHeight ?? 0) : 0
+                            y: placement == .chromeLine
+                                ? titlebarBandHeight.map { StudioTopBar.hangOffset(band: $0) } ?? 0 : 0
                         )
                         .frame(
                             width: proxy.size.width,

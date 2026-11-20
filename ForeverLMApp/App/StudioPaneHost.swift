@@ -133,7 +133,8 @@ struct StudioPaneSwapControl: View {
             + corner.trailingOverflow
             + corner.closeReservation)
         .frame(height: corner.titlebarBandHeight ?? StudioPanelChrome.headerHeight)
-        .offset(y: corner.placement == .chromeLine ? -(corner.titlebarBandHeight ?? 0) : 0)
+        .offset(y: corner.placement == .chromeLine
+            ? corner.titlebarBandHeight.map { StudioTopBar.hangOffset(band: $0) } ?? 0 : 0)
     }
 
     private var row: some View {
@@ -303,7 +304,7 @@ struct StudioPaneSwapAffordance: ViewModifier {
                 // line used by the pane's close and swap controls. Fullscreen has
                 // no titlebar band, so the same frame becomes its in-flow bar.
                 .frame(height: titlebarBandHeight ?? StudioPanelChrome.headerHeight)
-                .offset(y: -(titlebarBandHeight ?? 0))
+                .offset(y: titlebarBandHeight.map { StudioTopBar.hangOffset(band: $0) } ?? 0)
             }
     }
 }

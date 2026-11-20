@@ -271,6 +271,13 @@ enum StudioTopBar {
     /// short, so the windowed band is 58pt. +8 was the earlier failure; stay
     /// under it. Not seen in the app yet.
     static let extraBandHeight: CGFloat = 6
+    /// The offset that hangs a row of height `band` (`studioTitlebarBandHeight`)
+    /// in the visual top bar from the top of the content, which starts at the
+    /// AppKit band's bottom edge. The row spans the band plus the extra below
+    /// it, so it reaches up only `band - extraBandHeight`; lifting it the full
+    /// `band` put its center `extraBandHeight` above the traffic lights' line
+    /// (the tab row stood about 5pt above the toggles and the lights).
+    static func hangOffset(band: CGFloat) -> CGFloat { -(band - extraBandHeight) }
     /// Left edge of the window's own controls beside the lights, Codex's:
     /// ‹ › and the sidebar toggle, 30pt each (~92→186pt).
     static let leadingControlsLeading: CGFloat = 92
@@ -576,7 +583,7 @@ fileprivate struct StudioBandRow<Row: View>: View {
                 .frame(height: band)
             row()
         }
-        .offset(y: -band)
+        .offset(y: StudioTopBar.hangOffset(band: band))
     }
 }
 

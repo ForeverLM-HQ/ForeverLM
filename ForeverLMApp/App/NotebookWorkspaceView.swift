@@ -778,7 +778,7 @@ struct NotebookWorkspaceView: View {
             }
             .frame(height: band)
             .padding(.trailing, 10)
-            .offset(y: -band)
+            .offset(y: StudioTopBar.hangOffset(band: band))
         }
     }
 }
