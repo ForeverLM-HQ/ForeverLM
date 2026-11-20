@@ -395,7 +395,7 @@ struct SourceReaderPanel: View {
                         // reserves the Sources restore control instead of
                         // drawing the Reader close target underneath it.
                         idleReaderToolbar
-                            .offset(y: titlebarBandHeight.map { -$0 } ?? 0)
+                            .offset(y: titlebarBandHeight.map { StudioTopBar.hangOffset(band: $0) } ?? 0)
                     }
             }
         }

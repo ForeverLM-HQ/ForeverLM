@@ -346,7 +346,7 @@ struct StudioColumnHairline: View {
                     Rectangle()
                         .fill(color)
                         .frame(width: 1, height: Self.bandStrokeHeight)
-                        .offset(y: -(band + Self.bandStrokeHeight) / 2)
+                        .offset(y: (StudioTopBar.hangOffset(band: band) - Self.bandStrokeHeight) / 2)
                 }
             }
             .accessibilityHidden(true)
@@ -416,7 +416,8 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
                             )
                             .offset(
                                 x: -trailingOverflow,
-                                y: placement == .chromeLine ? -(titlebarBandHeight ?? 0) : 0
+                                y: placement == .chromeLine
+                                ? titlebarBandHeight.map { StudioTopBar.hangOffset(band: $0) } ?? 0 : 0
                             )
                             .frame(
                                 width: proxy.size.width,
