@@ -236,8 +236,8 @@ targets:
         CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: "YES"
         GENERATE_INFOPLIST_FILE: "NO"
         INFOPLIST_FILE: App/Info.plist
-        MARKETING_VERSION: "0.231.0"
-        CURRENT_PROJECT_VERSION: "311"
+        MARKETING_VERSION: "0.232.0"
+        CURRENT_PROJECT_VERSION: "312"
         PRODUCT_NAME: "$(FOREVERLM_PRODUCT_NAME)"
         PRODUCT_MODULE_NAME: "ForeverLM"
         # Production identity. The Debug config below replaces these values so the

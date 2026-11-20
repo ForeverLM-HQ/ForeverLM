@@ -6825,6 +6825,14 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.232.0 (build 312) — 2026-11-20
+
+**Highlights:**
+- **Clear rows from Continue reading with a hover ×.**
+
+- **Clear a row from Continue reading.** Hover a row in the Reader's Continue reading list and click the ×, or right-click it and choose Remove from Continue reading. A book's row clears all its chapters; opening the source again brings it back.
+- **Thinking opens at 0s in chat.** The clock starts when the model is asked, not at the send, so a slow source prep no longer shows up as thinking time.
+
 ## 0.231.0 (build 311) — 2026-11-20
 
 **Highlights:**
