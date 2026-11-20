@@ -341,27 +341,22 @@ struct WelcomeStory: View {
                 // 2026-11-08: "It shouldn't just be AI making those cards"),
                 // so the promise names the writing as theirs.
                 title: "Remember what you read.",
-                text: "ForeverLM keeps track of what you read. Write what you want to keep in your own words, and it quizzes you until it sticks."
+                text: "Write it in your own words. ForeverLM quizzes you until it sticks."
             )
             promise(
                 icon: Self.yourAIIcon,
                 title: "You’re in charge of your AI.",
-                text: "Pick the models on your OpenRouter API key, at cost, or free ones. Your OpenAI and Anthropic API credits can pay for theirs, and it works with the AI app you already pay for."
+                text: "Use your own API key, or the AI app you already pay for."
             )
             VStack(alignment: .leading, spacing: 12) {
                 promise(
                     icon: Self.yourDataIcon,
                     title: "You’re in charge of your data.",
-                    text: "Your library lives on this Mac and syncs through your own iCloud. ForeverLM keeps no copy of your chats."
+                    text: "Your library lives on this Mac and syncs through your own iCloud."
                 )
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("The free 5 GB of iCloud fills fast once papers and audio sync, so iCloud+ \(ICloudStorage.recommendedPlan) works best.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    ICloudStorageNotices()
-                }
-                .padding(.leading, 50)
+                // Shows nothing unless iCloud is signed out or full.
+                ICloudStorageNotices()
+                    .padding(.leading, 50)
             }
             // What ForeverLM costs, said once at the start (product owner,
             // 2026-10-10): free, MCP included; a price only
