@@ -1398,7 +1398,15 @@ struct GettingStartedGuide: View {
                     .buttonStyle(.bordered)
                     .controlSize(.large)
             }
-            pageNote(Self.subscriptionIsNotCredit)
+            VStack(spacing: 6) {
+                pageNote(Self.subscriptionIsNotCredit)
+                HStack(spacing: 16) {
+                    Button("Claim Claude credits") { open(Self.claudeCreditsURL) }
+                    Button("Claim ChatGPT credits") { open(Self.openAICreditsURL) }
+                }
+                .buttonStyle(.link)
+                .font(.subheadline)
+            }
             pageNote("Voice mode doesn't go through OpenRouter and needs no key. To run it on your own OpenAI key, add the key later under the OpenRouter button at the bottom left, in Voice mode.")
         }
     }
@@ -1412,10 +1420,13 @@ struct GettingStartedGuide: View {
         "Then in ForeverLM, pick GPT or Claude models under Choose my own on the models page, or later in Settings",
     ]
 
-    /// A ChatGPT or Claude subscription is the mistake this page heads off:
-    /// it pays for that company's own app, not for API calls, so it has no
-    /// key to add here.
-    static let subscriptionIsNotCredit = "A ChatGPT or Claude subscription isn't API credit and can't be used here. API credits are bought, or granted, at platform.openai.com or console.anthropic.com."
+    /// A ChatGPT or Claude subscription is not API credit by itself, but some
+    /// paid plans now include monthly API credits, claimed in the lab's own
+    /// billing settings (docs-site/ai-providers.md has the same list).
+    static let subscriptionIsNotCredit = "A ChatGPT or Claude subscription isn't API credit by itself, but some plans include monthly API credits: Claude Max, Ultra and Team, and ChatGPT Pro and Business. Claim them on your account's billing page, then use that account's API key above. They expire each month if unused, and plans change, so check yours."
+
+    static let claudeCreditsURL = URL(string: "https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers")!
+    static let openAICreditsURL = URL(string: "https://platform.openai.com/settings/organization/billing/overview")!
 
     static let openRouterIntegrationsURL = URL(string: "https://openrouter.ai/settings/integrations")!
     static let openRouterBYOKGuideURL = URL(string: "https://openrouter.ai/docs/guides/overview/auth/byok")!

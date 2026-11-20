@@ -121,7 +121,8 @@ struct GettingStartedTests {
         #expect(GettingStartedGuide.openRouterIntegrationsURL.host == "openrouter.ai")
         #expect(GettingStartedGuide.openRouterBYOKGuideURL.path == "/docs/guides/overview/auth/byok")
         // A ChatGPT or Claude subscription is not API credit; the page says so.
-        #expect(GettingStartedGuide.subscriptionIsNotCredit.contains("subscription isn't API credit"))
+        #expect(GettingStartedGuide.subscriptionIsNotCredit.contains("subscription isn't API credit by itself"))
+        #expect(GettingStartedGuide.subscriptionIsNotCredit.contains("Claude Max"))
     }
 
     @Test("The connector plan knows each AI app by the name it registered")
