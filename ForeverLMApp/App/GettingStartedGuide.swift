@@ -1206,9 +1206,10 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.fullDiskAccess.icon,
                 title: "Allow Full Disk Access",
-                // macOS never asks on its own: the learner adds the app in
-                // System Settings, which the next page walks through.
-                detail: "So ForeverLM can read Apple Podcasts and your browsers' Reading Lists. You turn it on once, in System Settings."
+                // No explanation (product owner, 2026-11-20: "maybe no need
+                // for the explanation here either"); the next page walks
+                // through adding the app in System Settings.
+                detail: ""
             )
             if hasFullDiskAccess {
                 doneLabel("Full Disk Access is on")
@@ -2049,11 +2050,14 @@ struct SetupStepHeading: View {
                 Text(title)
                     .font(.system(size: 26, weight: .semibold))
                     .multilineTextAlignment(.center)
-                Text(detail)
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                // A page that needs no explanation passes an empty detail.
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
         }
         .frame(maxWidth: .infinity)
     }
