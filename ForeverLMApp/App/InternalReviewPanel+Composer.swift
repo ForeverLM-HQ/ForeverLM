@@ -61,6 +61,11 @@ extension InternalReviewPanelContent {
             composerCard
         }
         .animation(.easeOut(duration: 0.18), value: showsComposerContextRow)
+        // The composer's own hit area, set before the popup is overlaid: a
+        // contentShape applied after the overlay clipped every click to the
+        // composer's rectangle, so the popup rows, which float above it, took
+        // no mouse clicks and only the arrow keys could pick one.
+        .contentShape(Rectangle())
         .overlay(alignment: .topLeading) {
             ReviewSlashSuggestionsOverlay(
                 composer: composer,
@@ -75,7 +80,6 @@ extension InternalReviewPanelContent {
                 onSelect: { acceptSlashSuggestion($0) }
             )
         }
-        .contentShape(Rectangle())
         .onDrop(
             of: reviewChatDropTypes,
             isTargeted: dropTargetBinding,
