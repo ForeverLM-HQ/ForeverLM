@@ -53,9 +53,23 @@ extension ReviewSessionManager {
         )
         isSearching = false
         appendLoadedSourceText(dropped)
-        onDemandSourceIDs.formUnion(onDemand)
+        // A readable source the budget had no room for (the sources already
+        // read in can fill it) still joins: on demand, through
+        // `retrieve_sources`, like a book's chapters. Before, it was dropped
+        // without a word and the chat showed no change.
+        let overflow = Self.onDemandOverflow(
+            dropped: articlesToLoad.map(\.id),
+            readable: requestedContext.readableSourceIDs,
+            readIn: dropped.loadedIDs,
+            alreadyOnDemand: onDemand
+        )
+        if !overflow.isEmpty {
+            logger.notice("addContextSources: \(overflow.count) source(s) past the text budget join on demand")
+        }
+        let joinedOnDemand = onDemand.union(overflow)
+        onDemandSourceIDs.formUnion(joinedOnDemand)
         recordContextAdditions(articlesToLoad.filter {
-            dropped.loadedIDs.contains($0.id) || onDemand.contains($0.id)
+            dropped.loadedIDs.contains($0.id) || joinedOnDemand.contains($0.id)
         })
 
         if let sessionID {
@@ -78,6 +92,18 @@ extension ReviewSessionManager {
                 }
             }
         }
+    }
+
+    /// The dropped sources with readable text that were neither read in nor
+    /// already on demand: the text budget had no room for them, so they join
+    /// on demand instead of being lost.
+    nonisolated static func onDemandOverflow(
+        dropped: [String],
+        readable: Set<String>,
+        readIn: Set<String>,
+        alreadyOnDemand: Set<String>
+    ) -> Set<String> {
+        Set(dropped).intersection(readable).subtracting(readIn).subtracting(alreadyOnDemand)
     }
 
     /// The chapters of a drop that join on demand: book chapters, when the

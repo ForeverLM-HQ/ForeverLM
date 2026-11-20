@@ -62,4 +62,16 @@ struct ChatOnDemandBookTests {
         // ch-2 is held in full; ch-3 was removed since.
         #expect(onDemand == ["ch-1"])
     }
+
+    @Test("a readable source the text budget has no room for joins on demand")
+    func overflowJoinsOnDemand() {
+        let overflow = ReviewSessionManager.onDemandOverflow(
+            dropped: ["paper-1", "paper-2", "empty-1", "ch-1"],
+            readable: ["paper-1", "paper-2", "ch-1"],
+            readIn: ["paper-1"],
+            alreadyOnDemand: ["ch-1"]
+        )
+        // paper-1 was read in, ch-1 is already on demand, empty-1 has no text.
+        #expect(overflow == ["paper-2"])
+    }
 }
