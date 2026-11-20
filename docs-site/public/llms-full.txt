@@ -6825,6 +6825,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.229.0 (build 309) — 2026-11-19
+
+**Highlights:**
+- **A paper dropped on a full chat joins it instead of vanishing.**
+
+- **A paper dropped on a chat always joins it.** When the sources already in the chat had used all the room for full text, a dropped paper was left out without a word; it now joins and is read as the chat needs it, and the "in context" count shows it.
+- **/source, /page, /doc and /site work when typed after a message,** not only at its start.
+- **View in Library works as soon as a paper is added from the browser pane,** not only once its text is ready.
+
 ## 0.228.0 (build 308) — 2026-11-19
 
 **Highlights:**
