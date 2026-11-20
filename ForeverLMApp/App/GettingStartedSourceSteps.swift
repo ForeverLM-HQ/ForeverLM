@@ -56,14 +56,14 @@ extension StudioViewModel {
         switch choice {
         case .keep:
             unblockPodcastShow(show, silently: true)
-            await setPodcastShowHidden(show, hidden: false)
+            await setPodcastShowHidden(show, hidden: false, silently: true)
         case .hide:
             unblockPodcastShow(show, silently: true)
-            await setPodcastShowHidden(show, hidden: true)
+            await setPodcastShowHidden(show, hidden: true, silently: true)
         case .skip:
             blockPodcastShow(show, silently: true)
             // Anything the show already has in the library leaves sight too.
-            await setPodcastShowHidden(show, hidden: true)
+            await setPodcastShowHidden(show, hidden: true, silently: true)
         }
     }
 }

@@ -2303,7 +2303,9 @@ extension StudioViewModel {
         return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
     }
 
-    func setPodcastShowHidden(_ podcastName: String, hidden: Bool) async {
+    /// `silently` skips the toast: Setup's Tick All / Untick All changes every
+    /// show in one go and must not stack one "Hid …" toast per show.
+    func setPodcastShowHidden(_ podcastName: String, hidden: Bool, silently: Bool = false) async {
         let trimmed = podcastName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if !hidden,
@@ -2329,12 +2331,14 @@ extension StudioViewModel {
                     articles[index].isHidden = false
                 }
             }
-            showToast(
-                hidden ? "Hid \(trimmed)"
-                    : revealed.isEmpty ? "Unhid \(trimmed)"
-                    : "Unhid \(trimmed) and \(revealed.count) of its episodes",
-                undo: hidden ? { [weak self] in await self?.setPodcastShowHidden(trimmed, hidden: false) } : nil
-            )
+            if !silently {
+                showToast(
+                    hidden ? "Hid \(trimmed)"
+                        : revealed.isEmpty ? "Unhid \(trimmed)"
+                        : "Unhid \(trimmed) and \(revealed.count) of its episodes",
+                    undo: hidden ? { [weak self] in await self?.setPodcastShowHidden(trimmed, hidden: false) } : nil
+                )
+            }
             if !hidden {
                 let needsCover = articles.contains { $0.sourceType == .podcast && $0.domain == trimmed && $0.artworkURL == nil }
                 Task(priority: .utility) { [weak self] in
