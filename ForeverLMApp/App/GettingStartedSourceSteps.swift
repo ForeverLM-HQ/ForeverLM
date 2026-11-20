@@ -470,11 +470,11 @@ struct SourceCleanupProgress: View {
     }
 
     private func summary(total: Int, ready: Int, underway: Int, failed: Int) -> String {
-        if underway == 0 && failed == 0 { return "All \(total) ready" }
-        var parts = ["\(ready) of \(total) ready"]
-        if underway > 0 { parts.append("\(underway) still coming in, in the background") }
+        if underway == 0 && failed == 0 { return "All \(total) papers imported" }
+        var parts = ["\(ready) of \(total) papers imported"]
+        if underway > 0 { parts.append("the rest continue in the background, so you can carry on") }
         if failed > 0 { parts.append("\(failed) could not be fetched; retry them from the Library later") }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: ". ")
     }
 
     /// Named from the route cleanup will actually take, so a learner on the
@@ -487,9 +487,9 @@ struct SourceCleanupProgress: View {
         let selection = KeychainService.resolvedSelection(for: task)
         let name = AIModelCatalog.displayName(provider: selection.provider, modelID: selection.model)
         if AIFreeModels.isFreeSelection(provider: selection.provider, model: selection.model) {
-            return "Cleaned up by \(name), a free model. Busy moments are retried on their own."
+            return "Tidying the papers up costs you nothing. If it is busy, it tries again by itself."
         }
         let payer = account.ownKey != nil && account.ownKeyAllowed ? "your OpenRouter key" : "your leftover AI balance"
-        return "Cleaned up by \(name), paid from \(payer)."
+        return "Tidying the papers up uses \(name), paid from \(payer)."
     }
 }
