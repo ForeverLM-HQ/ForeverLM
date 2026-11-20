@@ -956,13 +956,14 @@ struct GettingStartedGuide: View {
             }
             // Google Meet's notes and transcripts reach ForeverLM through the
             // Google Drive plugin; Slack and Notion bring no meetings, so they
-            // are not named here.
-            secondaryAction("Using Google Meet? Connect Google Drive in Plugins") {
-                // Plugins is a place in the window, under the guide, so the
-                // guide steps aside for it; setup picks up here next time.
-                isPresented = false
-                PluginsPlace.requestOpen(.googleDrive)
-            }
+            // are not named here. This is a docs link, not a jump to Plugins:
+            // the jump closed the whole guide and dropped the learner in the
+            // app mid-setup (reported 2026-11-20).
+            Link(
+                "Using Google Meet? Connect Google Drive",
+                destination: URL(string: "https://docs.foreverlm.com/external-plugins#google-drive")!
+            )
+            .font(.subheadline)
         }
     }
 
