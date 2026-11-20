@@ -72,6 +72,17 @@ enum ReadingListBrowser: String, CaseIterable, Identifiable, Hashable {
         Preferences.set(enabled, for: enabledPreference)
     }
 
+    /// Whether this browser is installed on this Mac.
+    var isInstalled: Bool {
+        guard let id = preference.bundleIdentifier else { return false }
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil
+    }
+
+    /// The browsers on this Mac, in tile order. Setup offers only these.
+    static var installed: [ReadingListBrowser] {
+        allCases.filter(\.isInstalled)
+    }
+
     static var enabled: Set<ReadingListBrowser> {
         Set(allCases.filter(\.isEnabled))
     }

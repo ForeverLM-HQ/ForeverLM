@@ -248,7 +248,7 @@ struct PodcastShowChooser: View {
 
 // MARK: - Reading List
 
-/// Which browsers' Reading Lists come in: one tile per browser, any number
+/// Which browsers' Reading Lists come in: one tile per installed browser, any number
 /// ticked. Nothing else is asked here.
 /// How much of the backlog to bring is a Settings › Sources choice that starts
 /// on the last 30 days, recorded before any browser can import.
@@ -265,7 +265,7 @@ struct ReadingListBrowserChoices: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ForEach(ReadingListBrowser.allCases) { browser in
+            ForEach(ReadingListBrowser.installed) { browser in
                 tile(browser)
             }
         }
