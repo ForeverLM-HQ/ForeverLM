@@ -23,6 +23,7 @@
 - [Papers](https://docs.foreverlm.com/papers): Academic paper URLs are detected automatically and routed to Papers. Save paywalled PDFs to iCloud for automatic local fallback.
 - [Journals](https://docs.foreverlm.com/journals): Follow journal feeds; new articles are read against your notebooks and offered as suggestions you accept or dismiss, never imported unasked.
 - [Books](https://docs.foreverlm.com/books): Store book PDFs in the iCloud Books folder and use them as reviewable sources.
+- [Kindle books](https://docs.foreverlm.com/kindle): Why Kindle books cannot be imported, and what Amazon's terms say about extracting their pages.
 - [Courses](https://docs.foreverlm.com/courses): Combine lecture PDFs, book chapters, and video transcripts into course sources.
 - [Podcasts](https://docs.foreverlm.com/podcasts): Extract transcripts from Apple Podcasts episodes and review them as sources.
 - [X Posts](https://docs.foreverlm.com/x-posts): Sync X bookmarks as sources.

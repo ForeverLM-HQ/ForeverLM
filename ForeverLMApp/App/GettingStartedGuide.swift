@@ -773,6 +773,8 @@ struct GettingStartedGuide: View {
                 detectedSourceCard(book, label: "Last book added")
             }
             appleBooksImport
+            Link("How about Kindle?", destination: URL(string: "https://docs.foreverlm.com/kindle")!)
+                .font(.subheadline)
         }
     }
 

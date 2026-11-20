@@ -79,6 +79,7 @@ export default defineConfig({
         items: [
           { text: 'Articles', link: '/articles' },
           { text: 'Books', link: '/books' },
+          { text: 'Kindle books', link: '/kindle' },
           { text: 'Courses', link: '/courses' },
           { text: 'Papers', link: '/papers' },
           { text: 'Feeds', link: '/journals' },
