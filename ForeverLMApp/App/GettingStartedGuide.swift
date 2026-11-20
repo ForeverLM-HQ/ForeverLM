@@ -1199,8 +1199,7 @@ struct GettingStartedGuide: View {
     /// lists ForeverLM there on its own, and applies the grant only at launch,
     /// so the step is two pages with one thing to do on each: open System
     /// Settings, then add the app and relaunch. Setup comes back to it after
-    /// the relaunch. It can be skipped: only Apple Podcasts and the Reading
-    /// Lists need it.
+    /// the relaunch. It cannot be skipped (product owner, 2026-11-20).
     private var fullDiskAccessStep: some View {
         VStack(spacing: 24) {
             stepHeading(
@@ -1452,12 +1451,13 @@ struct GettingStartedGuide: View {
         GettingStartedFlow.forward(canContinue: canContinue, canSkip: canSkip, isLast: isLastPage)
     }
 
-    /// Whether the page may be left unanswered. The AI step may not; the
-    /// Papers, More sources and Your AI questions carry their own "none"
-    /// answer, so they need no Skip beside it.
+    /// Whether the page may be left unanswered. The AI step and Full Disk
+    /// Access may not (product owner, 2026-11-20: "the step shouldn't be
+    /// allowed to be skipped"); the Papers, More sources and Your AI
+    /// questions carry their own "none" answer, so they need no Skip beside it.
     private var canSkip: Bool {
         switch step {
-        case .enhancements: return false
+        case .enhancements, .fullDiskAccess: return false
         case .paper, .moreSources, .subscriptions: return page != nil
         default: return true
         }
