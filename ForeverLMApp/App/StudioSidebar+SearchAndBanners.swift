@@ -13,7 +13,7 @@ extension StudioSidebar {
     }
 
     private var sourceSearchHelp: String {
-        "Search \(windowVM.totalFilteredCount) \(sidebar.sidebarTab.itemNoun). "
+        "Search \(sidebar.showsRecent ? "" : "\(windowVM.totalFilteredCount) ")\(sidebar.searchNoun). "
             + "Start with title:, author:, journal:, year:, doi: or site: to search one field only."
     }
 

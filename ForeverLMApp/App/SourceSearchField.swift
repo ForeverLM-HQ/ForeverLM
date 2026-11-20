@@ -25,7 +25,7 @@ struct SourceSearchField: View {
                 .zoomedSystemFont(size: 11.5, weight: .medium)
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            TextField("Search \(sidebar.sidebarTab.itemNoun)", text: $sidebar.searchFieldText)
+            TextField("Search \(sidebar.searchNoun)", text: $sidebar.searchFieldText)
                 .textFieldStyle(.plain)
                 .zoomedSystemFont(size: 12.5)
                 // AppKit's text field reports an intrinsic minimum width from the
@@ -42,7 +42,7 @@ struct SourceSearchField: View {
                     onClear()
                     return .handled
                 }
-                .accessibilityLabel("Search \(sidebar.sidebarTab.itemNoun)")
+                .accessibilityLabel("Search \(sidebar.searchNoun)")
                 .help(help)
             // The scope the query is confined to, so "title:" is visibly doing
             // something before the list changes.

@@ -301,6 +301,17 @@ struct ArticleStateBadge: View {
                     .font(.caption2)
                     .foregroundStyle(.orange)
                     .lineLimit(1)
+            } else if errorMessage == SourceError.accessDenied.errorDescription {
+                // A site that turned the fetch away is the same next step as a
+                // paywall (attach the PDF or text), so it wears the same quiet
+                // mark; the full reason stays in the tooltip.
+                Label("Paywalled", systemImage: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+                    .help(errorMessage ?? "")
+                    .textSelection(.disabled)
+                    .accessibilityLabel(errorMessage ?? "Paywalled")
             } else if statusFlag == .confirmPodcast {
                 Label("Confirm Match", systemImage: "questionmark.circle")
                     .font(.caption2)

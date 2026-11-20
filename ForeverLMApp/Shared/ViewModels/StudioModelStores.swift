@@ -201,6 +201,9 @@ final class StudioSidebarStore {
             Preferences.set(showsRecent, for: Prefs.Studio.libraryShowsRecent)
         }
     }
+    /// What the search field names: Recent mixes every kind, so it is the library,
+    /// not whichever tab was last open underneath it.
+    var searchNoun: String { showsRecent ? "library" : sidebarTab.itemNoun }
     /// How many rows Recent draws before its Show More.
     var recentDisplayLimit: Int = 60
     /// The query every source list filters on. While the learner types it trails
