@@ -33,6 +33,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.230.0 (build 310) — 2026-11-19
+
+**Highlights:**
+- **One click shows a paper's PDF in its original light colors in Dark Mode.**
+
+- **A sun button brings a paper's PDF back to its original light page in Dark Mode.** Darkening a PDF also flips the colored panels of its figures; the small button in the top corner of the reader shows the page as published, and the moon turns the dark page back on. It is the same switch as Original Page Colors in the ⋯ menu.
+
 ## 0.229.0 (build 309) — 2026-11-19
 
 **Highlights:**
