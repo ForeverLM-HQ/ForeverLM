@@ -2427,6 +2427,16 @@ final class ReaderRecentsStore {
         sourceIDs = ids
         Preferences.set(ids, for: Prefs.Readers.recentSourceIDs)
     }
+
+    /// Clears rows from "Continue reading". A book row stands for all its
+    /// chapters, so the caller passes every id the row collapses. Opening the
+    /// source again records it afresh.
+    func remove(_ removedIDs: Set<String>) {
+        let ids = sourceIDs.filter { !removedIDs.contains($0) }
+        guard ids != sourceIDs else { return }
+        sourceIDs = ids
+        Preferences.set(ids, for: Prefs.Readers.recentSourceIDs)
+    }
 }
 
 /// Centered icon + title + subtitle used by both readers' idle states so the
@@ -2769,7 +2779,41 @@ private struct ReaderIdleStateView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Every recent id the row for `article` stands for (a book's chapters).
+    private func removeFromContinueReading(_ article: StudioArticle) {
+        let key = Self.rowKey(for: article)
+        let ids = recents.sourceIDs.filter { id in
+            guard let other = vm.articlesById[id] else { return id == article.id }
+            return Self.rowKey(for: other) == key
+        }
+        recents.remove(Set(ids).union([article.id]))
+    }
+
     private func continueReadingRow(_ article: StudioArticle, isPlannedToday: Bool) -> some View {
+        ZStack(alignment: .trailing) {
+            continueReadingButton(article, isPlannedToday: isPlannedToday)
+            if hoveredRowID == article.id {
+                Button {
+                    removeFromContinueReading(article)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(Color.primary.opacity(0.08), in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 8)
+                .help("Remove from Continue reading")
+            }
+        }
+        .onHover { hovering in
+            hoveredRowID = hovering ? article.id : (hoveredRowID == article.id ? nil : hoveredRowID)
+        }
+    }
+
+    private func continueReadingButton(_ article: StudioArticle, isPlannedToday: Bool) -> some View {
         Button {
             open(sourceID: article.id)
         } label: {
@@ -2797,9 +2841,11 @@ private struct ReaderIdleStateView: View {
                         .background(Color.accentColor.opacity(0.12), in: Capsule())
                         .help("On today's schedule")
                 }
+                // The × takes the chevron's place while the row is hovered.
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
+                    .opacity(hoveredRowID == article.id ? 0 : 1)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
@@ -2814,9 +2860,10 @@ private struct ReaderIdleStateView: View {
         .contextMenu {
             OtherWindowSourceMenuItem(article)
             VideoWatchedMenuItems(article: article)
-        }
-        .onHover { hovering in
-            hoveredRowID = hovering ? article.id : (hoveredRowID == article.id ? nil : hoveredRowID)
+            Divider()
+            Button("Remove from Continue reading") {
+                removeFromContinueReading(article)
+            }
         }
         .task(id: article.artworkURL) {
             // Match ArticleRow: sources without persisted artwork should run the
