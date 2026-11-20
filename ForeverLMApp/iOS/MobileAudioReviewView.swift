@@ -263,7 +263,7 @@ struct MobileAudioReviewView: View {
     // MARK: - Voice
 
     private var isVoiceCoverPresented: Bool {
-        isEndingVoiceSession || realtime.isActive || realtime.needsSignIn
+        isEndingVoiceSession || realtime.isActive || realtime.needsOwnKey
     }
 
     private var voiceCoverBinding: Binding<Bool> {
@@ -272,7 +272,7 @@ struct MobileAudioReviewView: View {
             set: { presented in
                 showsVoiceCover = presented
                 guard !presented else { return }
-                if realtime.needsSignIn { realtime.cancelSignIn() }
+                if realtime.needsOwnKey { realtime.cancelKeyPrompt() }
             }
         )
     }
@@ -501,8 +501,8 @@ struct MobileVoiceSessionCover: View {
         Group {
             if realtime.isActive || isEnding {
                 session
-            } else if realtime.needsSignIn {
-                signIn
+            } else if realtime.needsOwnKey {
+                keyPrompt
             } else {
                 Color(uiColor: .systemBackground).ignoresSafeArea()
             }
@@ -532,20 +532,16 @@ struct MobileVoiceSessionCover: View {
         return { realtime.toggleMicrophoneMuted() }
     }
 
-    /// Signed out is the one voice-start failure the learner can act on, so it
-    /// gets the real Sign in with Apple button.
-    private var signIn: some View {
+    /// No OpenAI key is the one voice-start failure the learner can act on, so
+    /// the cover asks for the key instead of showing an error.
+    private var keyPrompt: some View {
         NavigationStack {
-            MobileSignInPrompt {
-                Task { await realtime.resumeAfterSignIn() }
-            }
+            VoiceOwnKeyPrompt(
+                onSaved: { Task { await realtime.resumeAfterKey() } },
+                onCancel: { realtime.cancelKeyPrompt() }
+            )
             .navigationTitle("Voice")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { realtime.cancelSignIn() }
-                }
-            }
         }
     }
 

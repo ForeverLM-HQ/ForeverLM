@@ -57,8 +57,9 @@ final class RealtimeVoiceController: ObservableObject {
     var source: RealtimeVoiceSource? { brief?.source }
     @Published private(set) var opening: RealtimeVoiceOpening = .talk
     @Published var errorMessage: String?
-    /// Signed out is the one start failure the learner fixes in place.
-    @Published var needsSignIn = false
+    /// No OpenAI key yet: the one start failure the learner fixes in place, so
+    /// the screen asks for the key instead of showing an error.
+    @Published var needsOwnKey = false
     let microphoneLevel = VoiceMicrophoneLevel()
 
     /// What was said, for the saved chat: ForeverLM's words as the realtime
@@ -186,7 +187,7 @@ final class RealtimeVoiceController: ObservableObject {
         brief = nil
         transcript = []
         errorMessage = nil
-        needsSignIn = false
+        needsOwnKey = false
         startedAt = Date()
         activityID = "voice-\(UUID().uuidString.lowercased())"
         phase = .connecting
@@ -216,14 +217,14 @@ final class RealtimeVoiceController: ObservableObject {
         await begin()
     }
 
-    func resumeAfterSignIn() async {
-        needsSignIn = false
+    func resumeAfterKey() async {
+        needsOwnKey = false
         guard brief != nil else { return }
         await begin()
     }
 
-    func cancelSignIn() {
-        needsSignIn = false
+    func cancelKeyPrompt() {
+        needsOwnKey = false
         brief = nil
         title = nil
     }
@@ -297,19 +298,19 @@ final class RealtimeVoiceController: ObservableObject {
         let id = UUID()
         lifecycle = id
         errorMessage = nil
-        needsSignIn = false
+        needsOwnKey = false
         phase = .connecting
         statusText = "Connecting…"
         resetCallState()
 
-        // The learner's own OpenAI key opens the session without ForeverLM's
-        // server, so it needs no Sign in with Apple.
-        let signedIn = await Task.detached(priority: .userInitiated) {
-            ManagedAI.isSignedIn || ManagedAI.ownOpenAIVoiceKey != nil
+        // Voice mode runs on the learner's own OpenAI key alone (product owner,
+        // 2026-11-15), so with none the screen asks for it before anything else.
+        let hasKey = await Task.detached(priority: .userInitiated) {
+            ManagedAI.ownOpenAIVoiceKey != nil
         }.value
         guard lifecycle == id else { return }
-        guard signedIn else {
-            needsSignIn = true
+        guard hasKey else {
+            needsOwnKey = true
             phase = .idle
             statusText = ""
             return

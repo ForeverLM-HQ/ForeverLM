@@ -570,32 +570,21 @@ final class MacRealtimeVoicePanel: NSObject, NSWindowDelegate {
 }
 
 /// The panel's content: the shared voice screen while a conversation runs,
-/// sign-in when it is needed.
+/// the OpenAI key prompt when there is none.
 struct MacRealtimeVoiceView: View {
     @ObservedObject private var voice = MacRealtimeVoice.controller
     let onClose: () -> Void
 
     var body: some View {
         Group {
-            if voice.needsSignIn {
-                VStack(spacing: 12) {
-                    Image(systemName: "person.crop.circle.badge.exclamationmark")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.secondary)
-                    Text("Sign in with Apple to talk")
-                        .font(.headline)
-                    Text("Voice runs on ForeverLM's account, and this Mac's sign-in has lapsed. Sign in with Apple again, then start voice once more.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Close") {
-                        voice.cancelSignIn()
+            if voice.needsOwnKey {
+                VoiceOwnKeyPrompt(
+                    onSaved: { Task { await voice.resumeAfterKey() } },
+                    onCancel: {
+                        voice.cancelKeyPrompt()
                         onClose()
                     }
-                    .keyboardShortcut(.cancelAction)
-                }
-                .padding(24)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                )
             } else {
                 VoiceSessionSurface(
                     state: voice.presentationState(context: MacRealtimeVoice.contextItem),
@@ -611,7 +600,7 @@ struct MacRealtimeVoiceView: View {
         .frame(minWidth: 320, minHeight: 440)
         // A conversation that ends itself (the tutor's goodbye) closes the panel.
         .onChange(of: voice.phase) { _, phase in
-            if phase == .idle, !voice.needsSignIn, !MacRealtimeVoice.isReplacing { onClose() }
+            if phase == .idle, !voice.needsOwnKey, !MacRealtimeVoice.isReplacing { onClose() }
         }
     }
 }

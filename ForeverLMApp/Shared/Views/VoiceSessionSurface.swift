@@ -1427,3 +1427,90 @@ private struct VoiceOrbMotion {
     }
     .padding(28)
 }
+
+
+/// Asked in place of an error when voice mode starts with no OpenAI key: the
+/// key is checked with OpenAI, stored in the iCloud Keychain, and `onSaved`
+/// starts the conversation that was asked for.
+struct VoiceOwnKeyPrompt: View {
+    let onSaved: () -> Void
+    let onCancel: () -> Void
+
+    @State private var draft = ""
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    private var trimmed: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "key.fill")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 72, height: 72)
+                .background(Color.primary.opacity(0.06), in: Circle())
+            Text("Add your OpenAI key")
+                .font(.title3.weight(.semibold))
+            Text("Voice mode runs on your own OpenAI API key, and OpenAI bills you for it.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            SecureField("Paste your OpenAI API key", text: $draft)
+                .textFieldStyle(.roundedBorder)
+#if os(iOS)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+#endif
+                .onSubmit { Task { await save() } }
+                .accessibilityIdentifier("voice.ownKey.field")
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("voice.ownKey.error")
+            }
+            HStack(spacing: 12) {
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button {
+                    Task { await save() }
+                } label: {
+                    if saving { ProgressView().controlSize(.small) } else { Text("Save and start") }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(trimmed.isEmpty || saving)
+                .accessibilityIdentifier("voice.ownKey.save")
+            }
+            Link("Get an OpenAI key", destination: ManagedAI.ownOpenAIVoiceKeysURL)
+                .font(.caption)
+            Label("Kept in your iCloud Keychain and sent only to OpenAI, never to ForeverLM.", systemImage: "lock.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: 440)
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func save() async {
+        let key = trimmed
+        guard !key.isEmpty, !saving else { return }
+        saving = true
+        errorMessage = nil
+        defer { saving = false }
+        do {
+            if case .rejected(let reason) = try await ManagedAI.checkOwnOpenAIVoiceKey(key) {
+                errorMessage = reason
+                return
+            }
+        } catch {
+            errorMessage = "Couldn't check the key with OpenAI: \(error.localizedDescription)"
+            return
+        }
+        await Task.detached(priority: .userInitiated) { ManagedAI.setOwnOpenAIVoiceKey(key) }.value
+        draft = ""
+        onSaved()
+    }
+}

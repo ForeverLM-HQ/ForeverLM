@@ -48,10 +48,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         voiceTemplate = template
         interfaceController.setRootTemplate(template, animated: false, completion: nil)
 
-        voiceStateObserver = Publishers.CombineLatest3(realtime.$phase, realtime.$statusText, realtime.$needsSignIn)
-            .sink { [weak self] phase, statusText, needsSignIn in
+        voiceStateObserver = Publishers.CombineLatest3(realtime.$phase, realtime.$statusText, realtime.$needsOwnKey)
+            .sink { [weak self] phase, statusText, needsOwnKey in
                 guard let self, self.shownNarrationTitle == nil else { return }
-                let identifier = self.voiceStateIdentifier(for: phase, statusText: statusText, needsSignIn: needsSignIn)
+                let identifier = self.voiceStateIdentifier(for: phase, statusText: statusText, needsOwnKey: needsOwnKey)
                 self.voiceTemplate?.activateVoiceControlState(withIdentifier: identifier)
             }
 
@@ -133,7 +133,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             template.activateVoiceControlState(withIdentifier: voiceStateIdentifier(
                 for: realtime.phase,
                 statusText: realtime.statusText,
-                needsSignIn: realtime.needsSignIn
+                needsOwnKey: realtime.needsOwnKey
             ))
         case .narration(let title, let isPlaying):
             if shownNarrationTitle != title || narrationTemplate == nil {
@@ -309,9 +309,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private func voiceStateIdentifier(
         for phase: RealtimeVoiceController.Phase,
         statusText: String,
-        needsSignIn: Bool
+        needsOwnKey: Bool
     ) -> String {
-        if needsSignIn { return "sign-in" }
+        if needsOwnKey { return "sign-in" }
         switch statusText {
         case "Thinking": return "thinking"
         case "Speaking": return "speaking"
