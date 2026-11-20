@@ -100,14 +100,6 @@ enum ReadingListBrowser: String, CaseIterable, Identifiable, Hashable {
         self = match
     }
 
-    /// The Mac's default browser, when it is one whose Reading List ForeverLM
-    /// reads. Setup recommends it: it is where the learner already saves pages.
-    static var systemDefault: ReadingListBrowser? {
-        guard let web = URL(string: "https://example.com"),
-              let app = NSWorkspace.shared.urlForApplication(toOpen: web) else { return nil }
-        return ReadingListBrowser(bundleIdentifier: Bundle(url: app)?.bundleIdentifier)
-    }
-
     /// First launch: turn off every browser this Mac has no answer for, so the
     /// setup guide's choice is the only thing that starts an import.
     static func holdUntilChosen(defaults: UserDefaults = .standard) {

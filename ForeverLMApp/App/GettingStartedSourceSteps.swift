@@ -249,7 +249,7 @@ struct PodcastShowChooser: View {
 // MARK: - Reading List
 
 /// Which browsers' Reading Lists come in: one tile per browser, any number
-/// ticked, the Mac's default marked Recommended. Nothing else is asked here.
+/// ticked. Nothing else is asked here.
 /// How much of the backlog to bring is a Settings › Sources choice that starts
 /// on the last 30 days, recorded before any browser can import.
 struct ReadingListBrowserChoices: View {
@@ -293,12 +293,6 @@ struct ReadingListBrowserChoices: View {
                 }
                 Text(browser.title)
                     .font(.headline)
-                if browser == ReadingListBrowser.systemDefault {
-                    RecommendedBadge()
-                } else {
-                    // Keeps the three tiles one height.
-                    RecommendedBadge().hidden()
-                }
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
