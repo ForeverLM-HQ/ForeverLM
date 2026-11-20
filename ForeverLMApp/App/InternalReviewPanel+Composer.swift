@@ -77,7 +77,8 @@ extension InternalReviewPanelContent {
                 resolveMentions: { query in
                     await resolveMentionItems(matching: query)
                 },
-                onSelect: { acceptSlashSuggestion($0) }
+                onSelect: { acceptSlashSuggestion($0) },
+                onClickOutside: { dismissSlashSuggestions() }
             )
         }
         .onDrop(

@@ -1357,6 +1357,37 @@ struct ReviewChatSendButton: View {
     }
 }
 
+/// The popup's and the composer's frames in window space, and the mouse-down
+/// monitor that closes the popup on a click outside both.
+@MainActor
+final class SlashPopupFrames {
+    var popup: CGRect = .zero
+    var composer: CGRect = .zero
+    private var monitor: Any?
+
+    func startMonitoring(onClickOutside: @escaping () -> Void) {
+        stopMonitoring()
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self, let content = event.window?.contentView else { return event }
+            // SwiftUI's global space is top-left; the event's is bottom-left.
+            let point = CGPoint(x: event.locationInWindow.x, y: content.bounds.height - event.locationInWindow.y)
+            if !popup.contains(point), !composer.contains(point) {
+                DispatchQueue.main.async { onClickOutside() }
+            }
+            return event
+        }
+    }
+
+    func stopMonitoring() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+
+    deinit {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+    }
+}
+
 /// The `/` and `@` autocomplete popup, floated above whatever it is overlaid on.
 /// It owns its measured height and reads the draft itself, so an open popup
 /// tracks typing without the composer's parent taking part in the render.
@@ -1373,6 +1404,13 @@ struct ReviewSlashSuggestionsOverlay: View {
     /// chats and notebooks matching it, each kind ranked (`ChatMention`).
     var resolveMentions: (String) async -> [ChatMention.Item] = { _ in [] }
     let onSelect: (ReviewSlashSuggestion) -> Void
+    /// A click anywhere outside the popup and the composer: closes the popup,
+    /// as Escape does.
+    var onClickOutside: () -> Void = {}
+
+    /// Where the popup and the composer are, read by the click monitor. A
+    /// reference type, so measuring them never re-renders this view.
+    @State private var frames = SlashPopupFrames()
 
     /// The `@` query being typed, as a value `task(id:)` can key on.
     private var mentionQuery: String? {
@@ -1417,6 +1455,10 @@ struct ReviewSlashSuggestionsOverlay: View {
             )
         }
         ZStack(alignment: .topLeading) {
+            // The composer's own frame, for the outside-click test.
+            Color.clear
+                .allowsHitTesting(false)
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frames.composer = $0 }
             if !suggestions.isEmpty || mentionHeader != nil {
                 ReviewSlashCommandPopup(
                     suggestions: suggestions,
@@ -1424,6 +1466,9 @@ struct ReviewSlashSuggestionsOverlay: View {
                     mentionHeader: mentionHeader,
                     onSelect: onSelect
                 )
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frames.popup = $0 }
+                .onAppear { frames.startMonitoring(onClickOutside: onClickOutside) }
+                .onDisappear { frames.stopMonitoring() }
                 .transition(.opacity)
             }
         }
