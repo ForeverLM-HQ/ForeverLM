@@ -553,20 +553,12 @@ extension ChatRobustnessTests {
         let narrow = ChatMarkdownHeightEstimate.estimatedHeight(markdown: paragraph, width: 320, fontSize: size)
         #expect(narrow > short)
 
-        // Citations add the Sources footer: one card per distinct source, so
-        // the same number cited twice is one card.
+        // Citations add no room of their own: a reply lists no sources under it.
         let cited = ChatMarkdownHeightEstimate.estimatedHeight(
-            markdown: paragraph + " [1] and again [1], then [2].",
+            markdown: paragraph + " [1] and again [2].",
             width: width,
             fontSize: size
         )
-        let citedOnce = ChatMarkdownHeightEstimate.estimatedHeight(
-            markdown: paragraph + " [1].",
-            width: width,
-            fontSize: size
-        )
-        #expect(citedOnce > short)
-        #expect(cited > citedOnce)
-        #expect(cited - citedOnce < (citedOnce - short))
+        #expect(cited - short < size * 2)
     }
 }

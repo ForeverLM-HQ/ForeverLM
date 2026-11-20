@@ -257,8 +257,8 @@ extension ChatRobustnessTests {
         let systemMarker = try #require(systemBlocks[0]["cache_control"] as? [String: Any])
         #expect(systemMarker["ttl"] as? String == "1h")
         let claudeTail = try #require(claudeMessages[1]["content"] as? [[String: Any]])
-        #expect(claudeTail.map { $0["text"] as? String } == ["volatile tail"])
-        #expect(claudeTail[0]["cache_control"] == nil)
+        #expect(claudeTail.map { $0["text"] as? String } == [AIService.volatileContextOpening, "volatile tail", AIService.volatileContextClosing])
+        #expect(claudeTail[1]["cache_control"] == nil)
         let lastBlocks = try #require(claudeMessages[2]["content"] as? [[String: Any]])
         #expect(lastBlocks.last?["cache_control"] != nil)
 
@@ -272,9 +272,9 @@ extension ChatRobustnessTests {
         #expect(geminiMarker["ttl"] == nil)
         #expect(geminiMessages[1]["role"] as? String == "user")
         let geminiVolatile = try #require(geminiMessages[1]["content"] as? [[String: Any]])
-        #expect(geminiVolatile.count == 1)
-        #expect(geminiVolatile[0]["text"] as? String == "volatile tail")
-        #expect(geminiVolatile[0]["cache_control"] == nil)
+        #expect(geminiVolatile.count == 3)
+        #expect(geminiVolatile[1]["text"] as? String == "volatile tail")
+        #expect(geminiVolatile[1]["cache_control"] == nil)
         #expect(geminiMessages[2]["role"] as? String == "user")
 
         var automatic: [String: Any] = ["model": "deepseek/deepseek-v4-pro", "messages": baseMessages]
@@ -329,7 +329,7 @@ extension ChatRobustnessTests {
             #expect(system.map { $0["text"] as? String } == ["stable head"], "\(model)")
             // ... the tail precedes the learner's newest message ...
             let secondTail = try #require(second[second.count - 2]["content"] as? [[String: Any]])
-            #expect(secondTail.first?["text"] as? String == "clock 10:01", "\(model)")
+            #expect(secondTail.dropFirst().first?["text"] as? String == "clock 10:01", "\(model)")
             // ... and the earlier conversation is byte-identical between turns,
             // so a cached prefix covers it.
             //
@@ -505,8 +505,8 @@ extension ChatRobustnessTests {
         // the cached system block is the whole system message.
         #expect(firstSystemBlocks.count == 1)
         let firstTail = try #require(firstMessages[1]["content"] as? [[String: Any]])
-        #expect(firstTail[0]["text"] as? String == "\n\nVOLATILE-TURN-A")
-        #expect(firstTail[0]["cache_control"] == nil)
+        #expect(firstTail[1]["text"] as? String == "\n\nVOLATILE-TURN-A")
+        #expect(firstTail[1]["cache_control"] == nil)
 
         let laterPayload = await service.makeOpenAIStyleToolPayload(
             provider: .openRouter,
@@ -585,8 +585,8 @@ extension ChatRobustnessTests {
         let answerMarker = try #require(answer.last?["cache_control"] as? [String: Any])
         #expect(answerMarker["ttl"] == nil)
         let tail = try #require(afterMessages[3]["content"] as? [[String: Any]])
-        #expect(tail[0]["text"] as? String == "\n\nVOLATILE-B")
-        #expect(tail[0]["cache_control"] == nil)
+        #expect(tail[1]["text"] as? String == "\n\nVOLATILE-B")
+        #expect(tail[1]["cache_control"] == nil)
         let newest = try #require(afterMessages[4]["content"] as? [[String: Any]])
         #expect(newest.last?["cache_control"] != nil)
     }
@@ -752,8 +752,8 @@ extension ChatRobustnessTests {
 
         #expect(messages[1]["role"] as? String == "user")
         let dynamicBlocks = try #require(messages[1]["content"] as? [[String: Any]])
-        #expect(dynamicBlocks[0]["text"] as? String == "CHANGING-HISTORY-DIGEST")
-        #expect(dynamicBlocks[0]["cache_control"] == nil)
+        #expect(dynamicBlocks[1]["text"] as? String == "CHANGING-HISTORY-DIGEST")
+        #expect(dynamicBlocks[1]["cache_control"] == nil)
         let learnerBlocks = try #require(messages[2]["content"] as? [[String: Any]])
         #expect(learnerBlocks[0]["text"] as? String == "Opening learner question")
         #expect(learnerBlocks[0]["cache_control"] != nil)
