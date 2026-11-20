@@ -377,7 +377,9 @@ extension InternalReviewPanelContent {
         } label: {
             Label("Copy Conversation", systemImage: "doc.on.doc")
         }
-        .disabled(manager.chatMessages.isEmpty)
+        // The count, not the messages: a Menu builds its items in the panel's
+        // body, so reading `chatMessages` re-evaluated the panel per token.
+        .disabled(manager.chatMessageCount == 0)
         // Turning an exploring chat into a notebook (product owner, 2026-10-03).
         if !MemoryReviewSession.isMemorySession(sessionID), teamSnapshotRecord == nil,
            !vm.isActiveLibraryReadOnly, manager.chatMessageCount > 0 {

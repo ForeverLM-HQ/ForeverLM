@@ -30,7 +30,12 @@ extension InternalReviewPanelContent {
             findMatchID: chatFind.isVisible ? chatFind.currentMatchID : nil,
             findScrollRevision: chatFind.scrollRevision,
             armedSideQuestionBlockID: isSideQuestionMode ? sideQuestionTarget?.blockID : nil,
-            editableMessageID: manager.chatMessages.last(where: { $0.role == .user }).flatMap { message in
+            // No message can be edited while a turn runs (`canTakeBackNewestTurn`
+            // wants `!queuesSendsNow`), so the messages are not read then: this
+            // is the panel's body, and reading them here re-evaluated the whole
+            // panel on every streamed publish, which slowed typing in a Page
+            // beside a chat that was answering.
+            editableMessageID: manager.queuesSendsNow ? nil : manager.chatMessages.last(where: { $0.role == .user }).flatMap { message in
                 editAction(for: message) == nil ? nil : message.id
             },
             laneExpansionRequest: laneExpansionRequest,

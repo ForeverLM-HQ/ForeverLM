@@ -244,7 +244,8 @@ extension InternalReviewPanelContent {
             } label: {
                 Label("Copy Conversation", systemImage: "doc.on.doc")
             }
-            .disabled(manager.chatMessages.isEmpty)
+            // The count, not the messages (see the chat header's menu).
+            .disabled(manager.chatMessageCount == 0)
         }
     }
 
