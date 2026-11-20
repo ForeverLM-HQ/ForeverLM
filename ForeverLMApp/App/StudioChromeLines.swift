@@ -161,6 +161,17 @@ final class StudioWindowChromeView: NSView {
                 }
             })
         }
+        // AppKit re-places the zoom light on its own schedule too (the screenshot
+        // that showed green 3pt above red and yellow was a window that had
+        // already been through every notification above). After each window
+        // update the check is three frame reads; the already-at-target guard
+        // keeps it from moving anything once the row is level.
+        lightObservers.append(NotificationCenter.default.addObserver(
+            forName: NSWindow.didUpdateNotification, object: window, queue: .main
+        ) { [weak self, weak window] _ in
+            guard let self, let window else { return }
+            MainActor.assumeIsolated { self.recenterLights(in: window) }
+        })
         // In fullscreen AppKit keeps the (empty) unified toolbar on screen and
         // paints an opaque titlebar backdrop over the band, hiding every header
         // the panels hang up into it — while the top safe-area inset stays at
