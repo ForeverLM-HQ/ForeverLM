@@ -286,6 +286,7 @@ extension ReviewSessionManager {
     private func performGenerationTurn(isFirst: Bool) async {
         guard !isGenerating else { return }
         isGenerating = true
+        generationStartedAt = Date()
         finishSendPreparationTrace()
         canStopGeneration = true
         errorMessage = nil
@@ -313,6 +314,7 @@ extension ReviewSessionManager {
                 turnModel = nil
             }
             isGenerating = false
+            generationStartedAt = nil
         }
 
         let followsChatSelection = modelOverride == nil

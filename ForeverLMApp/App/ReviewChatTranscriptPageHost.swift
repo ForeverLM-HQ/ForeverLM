@@ -139,7 +139,9 @@ struct ReviewChatTranscriptPageHost: View {
                     for: workingPhase,
                     detail: walkthroughPreparation ?? manager.sendPreparationDetail
                 ),
-                startedAt: (turnStartedAt ?? Date()).timeIntervalSince1970 * 1000
+                startedAt: ReviewChatWorkingIndicator.Phase.clockStart(
+                    manager: manager, turnStartedAt: turnStartedAt, phase: workingPhase
+                ).timeIntervalSince1970 * 1000
             )
         }
         tail.error = errorMessage

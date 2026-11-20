@@ -31,6 +31,16 @@ enum ReviewChatCitationContexts {
 }
 
 extension ReviewChatWorkingIndicator.Phase {
+    /// Where the status line's clock starts. Preparing, searching and planning
+    /// count from the send; "Thinking" and "Writing" count from the request,
+    /// so the clock opens at 0s rather than at however long the sources took.
+    @MainActor
+    static func clockStart(manager: ReviewSessionManager, turnStartedAt: Date?, phase: Self) -> Date {
+        let sent = turnStartedAt ?? Date()
+        guard phase == .thinking || phase == .writing, let asked = manager.generationStartedAt else { return sent }
+        return max(sent, asked)
+    }
+
     /// What the running turn is doing, named for the learner.
     @MainActor
     static func current(manager: ReviewSessionManager, walkthroughPreparation: String?) -> Self {

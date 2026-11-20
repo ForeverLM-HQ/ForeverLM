@@ -315,7 +315,7 @@ struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
             ReviewChatWorkingIndicator(
                 phase: workingPhase,
                 detail: walkthroughPreparation ?? manager.sendPreparationDetail,
-                startedAt: turnStartedAt ?? Date(),
+                startedAt: ReviewChatWorkingIndicator.Phase.clockStart(manager: manager, turnStartedAt: turnStartedAt, phase: workingPhase),
                 // A topic card shows no thinking; the conversation keeps it.
                 reasoning: showsTopicCards ? "" : manager.streamingReasoning
             )

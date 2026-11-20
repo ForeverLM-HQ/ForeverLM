@@ -67,6 +67,11 @@ final class ReviewSessionManager {
     /// rebuilt on the way back restarted the clock at zero, which read as
     /// the turn having stopped and started over. Written by the chat panel.
     var workingLineStartedAt: Date?
+    /// When the model was asked, as against `workingLineStartedAt`'s send:
+    /// preparing sources can take a while before any request goes out, and
+    /// "Thinking" counting from the send opened at 16s instead of 0s
+    /// (product owner, 2026-11-20: "kind of weird to start at 16s?").
+    var generationStartedAt: Date?
     /// Messages waiting for the running turn to finish, oldest first.
     var queuedFollowUps: [QueuedFollowUp] = []
     var topic = ""
