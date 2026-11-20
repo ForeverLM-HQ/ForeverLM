@@ -574,6 +574,10 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
     /// What a command row is typed with: `/`, or `$` for a skill asked for the
     /// way Codex's `$name` asks for one.
     var sigil: Character = ReviewSlashCommandParser.commandSigil
+    /// The message typed before a command that follows it
+    /// (`ReviewSlashCommandParser.inlineCommand`); it stays in the field when
+    /// the row is taken. Empty for a command that is the whole draft.
+    var lead: String = ""
 
     var id: String {
         switch payload {
@@ -650,9 +654,9 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
     var completionText: String {
         switch payload {
         case .command(let command):
-            return command.takesArgument ? "\(sigil)\(command.name) " : "\(sigil)\(command.name)"
+            return lead + (command.takesArgument ? "\(sigil)\(command.name) " : "\(sigil)\(command.name)")
         case .argument(let argument, let command):
-            return "\(sigil)\(command.name) \(argument.value)"
+            return "\(lead)\(sigil)\(command.name) \(argument.value)"
         case .mention(_, let completion), .library(_, let completion):
             return completion
         }
@@ -728,6 +732,9 @@ enum ReviewSlashCommandParser {
         in text: String,
         commands: [ReviewSlashCommand] = ReviewSlashCommand.all
     ) -> (command: ReviewSlashCommand, query: String)? {
+        if let inline = inlineCommand(in: text, commands: commands) {
+            return liveArgumentQuery(in: inline.draft, commands: commands)
+        }
         guard text.hasPrefix("/"), !text.contains("\n") else { return nil }
         let body = text.dropFirst()
         guard let spaceIndex = body.firstIndex(of: " ") else { return nil }
@@ -825,6 +832,17 @@ enum ReviewSlashCommandParser {
                 return dollar
             }
         }
+        if let inline = inlineCommand(in: text, commands: commands) {
+            return suggestions(
+                for: inline.draft,
+                commands: commands.filter(\.searchesArguments),
+                liveArguments: liveArguments
+            ).map { row in
+                var kept = row
+                kept.lead = inline.lead
+                return kept
+            }
+        }
         guard text.hasPrefix("/") else {
             return mentionSuggestions(for: text, mentions: mentions, tab: mentionTab)
                 + librarySuggestions(for: text, liveMentions: liveMentions, tab: mentionTab)
@@ -919,6 +937,59 @@ enum ReviewSlashCommandParser {
             ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
             : nil
         return (command, argument.flatMap { $0.isEmpty ? nil : $0 })
+    }
+
+    /// A command that brings something into the chat (`/source`, `/page`,
+    /// `/doc`, `/site`) typed after a message rather than at its head: the
+    /// message so far (`lead`, kept as typed) and the command as a draft of
+    /// its own (`/source mito`), or nil when the draft holds none.
+    ///
+    /// Only those commands work mid-message, since they add to the message
+    /// rather than replace it (product owner, 2026-11-19: "/source should still
+    /// work when i type it later in the chat"). The `/` must start a word, so
+    /// `and/or` and `mito/atp` are prose; a command's search may hold spaces,
+    /// so it runs from the `/` to the end, on one line. While the name is
+    /// still being typed, `/so` is a command only if it starts one's name.
+    static func inlineCommand(
+        in text: String,
+        commands: [ReviewSlashCommand] = ReviewSlashCommand.all
+    ) -> (lead: String, draft: String)? {
+        guard let first = text.first, first != commandSigil, first != skillSigil else { return nil }
+        let inline = commands.filter(\.searchesArguments)
+        guard !inline.isEmpty else { return nil }
+        var index = text.endIndex
+        while index > text.startIndex {
+            index = text.index(before: index)
+            let character = text[index]
+            if character.isNewline { return nil }
+            guard character == commandSigil, index > text.startIndex,
+                  text[text.index(before: index)].isWhitespace else { continue }
+            let draft = String(text[index...])
+            let body = draft.dropFirst()
+            let named: Bool
+            if let space = body.firstIndex(of: " ") {
+                let name = body[..<space].lowercased()
+                named = inline.contains { $0.name == name }
+            } else {
+                let prefix = body.lowercased()
+                named = inline.contains { $0.name.hasPrefix(prefix) }
+            }
+            if named { return (String(text[..<index]), draft) }
+        }
+        return nil
+    }
+
+    /// A submitted message that ends in a command `inlineCommand` reads: the
+    /// message before it, the command and its search, or nil when the draft
+    /// ends in no complete command name.
+    static func parseInline(
+        _ text: String,
+        commands: [ReviewSlashCommand] = ReviewSlashCommand.all
+    ) -> (lead: String, command: ReviewSlashCommand, argument: String?)? {
+        guard let inline = inlineCommand(in: text, commands: commands),
+              let parsed = parse(inline.draft, commands: commands.filter(\.searchesArguments))
+        else { return nil }
+        return (inline.lead, parsed.command, parsed.argument)
     }
 
     /// The message `/site-prompt` sends the tutor: a request for a prompt the

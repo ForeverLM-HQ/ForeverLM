@@ -12,7 +12,7 @@ extension InternalReviewPanelContent {
         // A library row is accepted by identity: two sources can share a title,
         // so the id it carries runs the command and the composer is simply cleared.
         if let picked = suggestion.reference {
-            draft = ""
+            draft = suggestion.lead
             lastInsertedDefaultPrompt = nil
             Task { await runSlashReference(picked.command, reference: picked.reference, title: suggestion.title) }
             return
@@ -308,16 +308,20 @@ extension InternalReviewPanelContent {
     }
 
     /// Escape over the popup. A `/` draft is only the command, so it goes;
-    /// an `@` takes back just itself and what was typed after it, leaving the
-    /// rest of the message.
+    /// a command typed after a message, or an `@`, takes back just itself and
+    /// what was typed after it, leaving the rest of the message.
     @MainActor
     func dismissSlashSuggestions() {
-        draft = draft.hasPrefix("/") ? "" : ChatMention.removingPending(from: draft)
+        if let inline = ReviewSlashCommandParser.inlineCommand(in: draft, commands: slashCommands) {
+            draft = inline.lead
+        } else {
+            draft = draft.hasPrefix("/") ? "" : ChatMention.removingPending(from: draft)
+        }
         slashSelectionIndex = 0
     }
 
     @MainActor
-    func runSlashCommand(_ command: ReviewSlashCommand, argument: String?) async {
+    func runSlashCommand(_ command: ReviewSlashCommand, argument: String?, lead: String = "") async {
         switch command.kind {
         case .goal:
             let topic = argument?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -345,7 +349,7 @@ extension InternalReviewPanelContent {
                 vm.showToast("You have no \(section.title) yet.")
             } else if title.isEmpty {
                 // Return on a bare `/doc` or `/site` before the recent list had arrived.
-                draft = "/\(command.name) "
+                draft = "\(lead)/\(command.name) "
             } else {
                 vm.showToast("No \(section.noun.capitalized) matches “\(title)”. Pick one from the /\(command.name) suggestions.")
             }

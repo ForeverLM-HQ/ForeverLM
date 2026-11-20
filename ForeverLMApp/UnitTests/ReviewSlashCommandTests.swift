@@ -244,6 +244,47 @@ struct ReviewSlashLibraryRowTests {
         #expect(ReviewSlashCommandParser.suggestions(for: "/source bla").isEmpty)
     }
 
+    @Test("/source typed after a message works, and the message stays")
+    func sourceAfterMessage() throws {
+        let message = "how does it fit in with all the Polg literature? "
+        let inline = try #require(ReviewSlashCommandParser.inlineCommand(in: message + "/source"))
+        #expect(inline.lead == message)
+        #expect(inline.draft == "/source")
+
+        // Typing the name offers only the commands that add to the message.
+        let named = ReviewSlashCommandParser.suggestions(for: message + "/so")
+        #expect(named.map(\.title).contains { $0.hasPrefix("/source") })
+        #expect(named.allSatisfy { $0.completionText.hasPrefix(message) })
+        #expect(ReviewSlashCommandParser.suggestions(for: message + "/goa").isEmpty)
+
+        // The search runs on the text after the name, and a picked row keeps the message.
+        let live = try #require(ReviewSlashCommandParser.liveArgumentQuery(in: message + "/source polg "))
+        #expect(live.command.kind == .source)
+        #expect(live.query == "polg")
+        let rows = ReviewSlashLiveArguments(commandName: "source", query: "polg", arguments: [
+            .init(value: "POLG mutator mice", display: "Paper", reference: "source:p"),
+        ])
+        let row = try #require(ReviewSlashCommandParser.suggestions(for: message + "/source polg", liveArguments: rows).first)
+        #expect(row.reference?.reference == "source:p")
+        #expect(row.lead == message)
+
+        // Return on the message runs the command and gives the message back.
+        let parsed = try #require(ReviewSlashCommandParser.parseInline(message + "/source polg"))
+        #expect(parsed.lead == message)
+        #expect(parsed.command.kind == .source)
+        #expect(parsed.argument == "polg")
+        #expect(ReviewSlashCommandParser.parseInline(message + "/so") == nil)
+
+        // Prose with a slash in it is not a command.
+        #expect(ReviewSlashCommandParser.inlineCommand(in: "mito/source") == nil)
+        #expect(ReviewSlashCommandParser.inlineCommand(in: "this and /or that") == nil)
+        #expect(ReviewSlashCommandParser.inlineCommand(in: "say /goal later") == nil)
+        #expect(ReviewSlashCommandParser.inlineCommand(in: "/source mito") == nil, "a head command parses as before")
+        #expect(ReviewSlashCommandParser.inlineCommand(in: "a /source x\nmore") == nil)
+        // A search may hold a slash of its own.
+        #expect(ReviewSlashCommandParser.liveArgumentQuery(in: "why /source mito/atp")?.query == "mito/atp")
+    }
+
     @Test("Fixed-list commands ignore library rows")
     func fixedCommandsIgnoreLiveRows() {
         let rows = ReviewSlashLiveArguments(commandName: "settings", query: "a", arguments: [

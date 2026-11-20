@@ -468,6 +468,16 @@ extension InternalReviewPanelContent {
             await runSlashCommand(parsed.command, argument: parsed.argument)
             return
         }
+        // `/source`, `/page` or `/site` typed after a message runs as it would
+        // alone, and the message stays in the field for the learner to send
+        // once what they asked for is in.
+        if !hasImages, let inline = ReviewSlashCommandParser.parseInline(typedTrimmed, commands: slashCommands) {
+            draft = inline.lead
+            lastInsertedDefaultPrompt = nil
+            slashSelectionIndex = 0
+            await runSlashCommand(inline.command, argument: inline.argument, lead: inline.lead)
+            return
+        }
 
         // Edit: the message being edited and its reply go first, and this
         // send takes their place. Gone already (another turn came after it),
