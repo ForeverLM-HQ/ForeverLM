@@ -1099,6 +1099,10 @@ struct StudioView: View {
                 // and more work may fail after the first sheet is dismissed. Prompt once
                 // for the whole empty-balance episode. Settings is itself the resolution
                 // surface, so never cover it with another billing prompt.
+                // Setup asks for the key itself, a page or two on, so the sheet must
+                // not cover it. Leave the episode unhandled: a request that still has
+                // no key after Setup closes prompts then.
+                guard !showGettingStarted else { return }
                 guard !handledCreditsEmptyEpisode else { return }
                 handledCreditsEmptyEpisode = true
                 guard !showSettings else { return }
