@@ -1383,7 +1383,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "creditcard",
                 title: "Use your OpenAI or Anthropic credits",
-                detail: "OpenRouter can run OpenAI and Anthropic models on your own API key, so credits you already have pay for them."
+                detail: "Already have OpenAI or Anthropic API credits? Add that key to OpenRouter and GPT and Claude models run on your credits."
             )
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(Array(Self.providerCreditSteps.enumerated()), id: \.offset) { index, text in
@@ -1392,7 +1392,12 @@ struct GettingStartedGuide: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .setupCard()
-            primaryAction("Open OpenRouter Integrations") { open(Self.openRouterIntegrationsURL) }
+            VStack(spacing: 10) {
+                primaryAction("Add my key on OpenRouter") { open(Self.openRouterIntegrationsURL) }
+                Button("Read OpenRouter's bring-your-own-key guide") { open(Self.openRouterBYOKGuideURL) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+            }
             pageNote(Self.subscriptionIsNotCredit)
             pageNote("Voice mode doesn't go through OpenRouter and needs no key. To run it on your own OpenAI key, add the key later under the OpenRouter button at the bottom left, in Voice mode.")
         }
@@ -1401,10 +1406,10 @@ struct GettingStartedGuide: View {
     /// OpenRouter's own-key (BYOK) setup, in its own words
     /// (openrouter.ai/docs/guides/overview/auth/byok).
     static let providerCreditSteps = [
-        "On OpenRouter, open Settings › Integrations",
-        "Add your OpenAI or Anthropic API key under that company's name",
-        "Choose Never use shared capacity, so those models never bill your OpenRouter credits",
-        "Then pick their models in ForeverLM: under Choose my own on the models page, or later in Settings",
+        "Get an API key from OpenAI (platform.openai.com) or Anthropic (console.anthropic.com), the account that holds your credits",
+        "On OpenRouter, open Settings › Integrations and paste the key under OpenAI or Anthropic",
+        "Turn on Always use this key and Never use shared capacity, so your credits pay and your OpenRouter balance is never charged",
+        "Then in ForeverLM, pick GPT or Claude models under Choose my own on the models page, or later in Settings",
     ]
 
     /// A ChatGPT or Claude subscription is the mistake this page heads off:
@@ -1413,6 +1418,7 @@ struct GettingStartedGuide: View {
     static let subscriptionIsNotCredit = "A ChatGPT or Claude subscription isn't API credit and can't be used here. API credits are bought, or granted, at platform.openai.com or console.anthropic.com."
 
     static let openRouterIntegrationsURL = URL(string: "https://openrouter.ai/settings/integrations")!
+    static let openRouterBYOKGuideURL = URL(string: "https://openrouter.ai/docs/guides/overview/auth/byok")!
 
     private func saveOwnKey() {
         let key = ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
