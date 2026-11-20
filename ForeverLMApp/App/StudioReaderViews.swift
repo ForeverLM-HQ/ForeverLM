@@ -293,7 +293,15 @@ struct ArticleStateBadge: View {
                     .foregroundStyle(.orange)
             }
         case .error:
-            if statusFlag == .confirmPodcast {
+            // A paywall is not a failure: the learner's next step is to attach
+            // the PDF, so it reads like the other "needs you" flags, not as a
+            // red triangle over the raw stored word.
+            if statusFlag == .paywall {
+                Label("Paywalled", systemImage: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            } else if statusFlag == .confirmPodcast {
                 Label("Confirm Match", systemImage: "questionmark.circle")
                     .font(.caption2)
                     .foregroundStyle(.orange)
