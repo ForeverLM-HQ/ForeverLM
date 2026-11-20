@@ -357,4 +357,44 @@ enum ReaderDarkMode {
     })();
     """
 }
+/// The one-click way back to a paper's own light page, over the PDF itself.
+///
+/// The ⋯ menu's Original Page Colors does the same, but inversion turns a
+/// figure's coloured panels around too, and a reader squinting at one wants the
+/// fix where the figure is (product owner, 2026-11-19: "a quick button there to
+/// change a paper pdf to the original light mode again"). Shown only in Dark
+/// Mode, where there is something to undo; it flips the same preference, so a
+/// press here and the menu item never disagree.
+struct ReaderPageColorsButton: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @PreferenceStorage(Prefs.Readers.originalPageColors) private var originalPageColors
+
+    var body: some View {
+        if colorScheme == .dark {
+            Button {
+                originalPageColors.toggle()
+            } label: {
+                Image(systemName: originalPageColors ? "moon" : "sun.max")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26, height: 26)
+                    .background(.regularMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.hoverWash(in: Circle(), inset: 0))
+            .help(originalPageColors ? "Darken this page" : "Show the original light page")
+            .accessibilityLabel(originalPageColors ? "Darken Page" : "Original Light Page")
+            .accessibilityIdentifier("reader.pageColorsButton")
+            .padding(10)
+        }
+    }
+}
+
+extension View {
+    /// Puts `ReaderPageColorsButton` in the top trailing corner of a PDF.
+    func readerPageColorsButton() -> some View {
+        overlay(alignment: .topTrailing) { ReaderPageColorsButton() }
+    }
+}
 #endif

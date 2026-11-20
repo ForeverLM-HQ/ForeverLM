@@ -1146,6 +1146,7 @@ private struct RemotePDFWindowView: View {
                     resetZoomAction: resetZoomAction,
                     documentData: documentData
                 )
+                .readerPageColorsButton()
             } else if isLoading {
                 VStack(spacing: 12) {
                     ProgressView()

@@ -55,6 +55,7 @@ struct RemotePDFReaderView: View {
                     resetZoomAction: resetZoomAction,
                     documentData: documentData
                 )
+                .readerPageColorsButton()
             } else if isLoading {
                 ReaderLoadingView(
                     title: "Loading PDF…",
@@ -663,6 +664,7 @@ struct PDFBookReaderView: View {
                     pageViewed: { page in pageIndicator.current = page },
                     pointerNearFootChanged: { near in pageIndicator.pointerNearFoot = near }
                 )
+                .readerPageColorsButton()
                 .overlay(alignment: .bottom) {
                     ReaderPagePill(
                         indicator: pageIndicator,
