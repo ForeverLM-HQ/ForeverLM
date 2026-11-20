@@ -47,6 +47,15 @@ extension StudioViewModel {
         return resetAt
     }
 
+    /// Lets the learner set a failed sync aside: X blocked by Screen Time, a
+    /// VPN or a network filter fails the same way every time, and the red dot
+    /// would stay up for as long as that lasts. The next sync that fails
+    /// raises it again; a session that needs signing in again is not
+    /// dismissable, since nothing syncs until it is renewed.
+    func dismissXPluginAttention() {
+        xAccountFailures = [:]
+    }
+
     /// What the X tab's red attention dot stands for, or nil when there is
     /// nothing to flag. A sync that failed on its own — at launch, on
     /// activation, on the timer — is not news the learner asked for, so it is

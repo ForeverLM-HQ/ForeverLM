@@ -65,6 +65,20 @@ extension StudioSidebar {
                         // refused request; the message names when the
                         // window reopens and the sync runs itself then.
                         .disabled(vm.isSyncingXBookmarks || vm.isConnectingX || (!vm.xPluginNeedsReauth && vm.isXSyncPaused))
+                        // X can be blocked on purpose (Screen Time, a filter);
+                        // the failure is then expected, and the learner sets
+                        // it aside until the next sync fails again.
+                        if !vm.xPluginNeedsReauth {
+                            Button {
+                                vm.dismissXPluginAttention()
+                            } label: {
+                                Image(systemName: "xmark")
+                            }
+                            .buttonStyle(.borderless)
+                            .controlSize(.small)
+                            .help("Dismiss")
+                            .accessibilityLabel("Dismiss")
+                        }
                     }
                     .padding(.vertical, 2)
                     .accessibilityElement(children: .contain)
