@@ -500,14 +500,16 @@ struct BrowserPane: View {
         let webView = tab?.webView
         Task { @MainActor in
             await Task.yield()
-            defer {
-                if addingPageKey == key { addingPageKey = nil }
-            }
 
             // Into the library, and into this window's notebook when it is
             // in one; the toast says where it went.
             let result = await vm.addLivePageToSources(url, in: windowState)
             if result.landed { savedPageKeys.insert(key) }
+            // The add is done once the source exists: the button reads View in
+            // Library now, not after the paper's PDF and metadata arrive. The
+            // wait for the fetch below can run 90 seconds, and holding Adding…
+            // through it left View in Library dead until ingest finished.
+            if addingPageKey == key { addingPageKey = nil }
             guard let sourceID = result.addedSourceID else { return }
             await offerRenderedPage(of: webView, for: sourceID, expectedURL: url)
         }
