@@ -18,9 +18,11 @@ enum GettingStartedSection: String, CaseIterable, Identifiable {
     }
 }
 
-/// The pages of Setup's AI step: the key, then the models.
+/// The pages of Setup's AI step: the key, how OpenAI and Anthropic credits
+/// can pay for their models, then the models.
 enum AIStepPage {
     case key
+    case credits
     case models
 }
 

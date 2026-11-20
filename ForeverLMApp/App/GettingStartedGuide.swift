@@ -116,7 +116,7 @@ struct GettingStartedGuide: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(900))
                 guard step == .enhancements, aiPage == .key, page == nil, canContinue else { return }
-                withAnimation(.easeInOut(duration: 0.2)) { aiPage = .models }
+                withAnimation(.easeInOut(duration: 0.2)) { aiPage = .credits }
             }
         }
         .onChange(of: step) { _, newStep in
@@ -1275,6 +1275,7 @@ struct GettingStartedGuide: View {
         Group {
             switch aiPage {
             case .key: openRouterKeyPage
+            case .credits: providerCreditsPage
             case .models:
                 GettingStartedModelsPage(isReady: $modelsReady) { show(.providerCredits) }
             }
@@ -1288,6 +1289,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 28) {
             stepHeading(
                 icon: "key.fill",
+                assetIcon: "OpenRouterIcon",
                 title: "Connect OpenRouter",
                 detail: "ForeverLM's AI runs on your own OpenRouter account, which reaches every major AI model at cost. Free models cost nothing, and OpenAI or Anthropic API credits you already have can pay for those companies' models."
             )
@@ -1357,14 +1359,6 @@ struct GettingStartedGuide: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // Shown connected or not: the credits are set up on OpenRouter's
-            // site, before or after this key. A bordered button, not the quiet
-            // link: the product owner asked for this to be "super clear"
-            // (2026-11-11), and a grey line under the blue button was missed.
-            Button("Use my OpenAI or Anthropic API credits") { show(.providerCredits) }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .accessibilityIdentifier("gettingStarted.providerCredits")
         }
     }
 
@@ -1382,6 +1376,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "creditcard",
+                assetIcon: "OpenRouterIcon",
                 title: "Use your OpenAI or Anthropic credits",
                 detail: "Already have OpenAI or Anthropic API credits? Add that key to OpenRouter and GPT and Claude models run on your credits."
             )
@@ -1488,7 +1483,7 @@ struct GettingStartedGuide: View {
     }
 
     private var isLastPage: Bool {
-        nextIncompleteStep == nil && nextPage == nil && !(step == .enhancements && aiPage == .key)
+        nextIncompleteStep == nil && nextPage == nil && !(step == .enhancements && aiPage != .models)
     }
 
     /// The page Continue opens before the step is done: the next source or
@@ -1515,14 +1510,12 @@ struct GettingStartedGuide: View {
             withAnimation(.easeInOut(duration: 0.2)) { pages = [] }
             return
         }
-        // The key page leads to the models page; the models page says
-        // background work draws on what they chose.
-        if step == .enhancements, aiPage == .key {
-            // From the credits page too: the models page is the step's next
-            // question, not a page over that one.
+        // The key page leads to the credits page, which leads to the models
+        // page; the models page says background work draws on what they chose.
+        if step == .enhancements, aiPage == .key || aiPage == .credits {
             withAnimation(.easeInOut(duration: 0.2)) {
                 pages = []
-                aiPage = .models
+                aiPage = aiPage == .key ? .credits : .models
             }
             return
         }
@@ -1539,8 +1532,8 @@ struct GettingStartedGuide: View {
     private func goBack() {
         if !pages.isEmpty {
             withAnimation(.easeInOut(duration: 0.2)) { _ = pages.removeLast() }
-        } else if step == .enhancements, aiPage == .models {
-            withAnimation(.easeInOut(duration: 0.2)) { aiPage = .key }
+        } else if step == .enhancements, aiPage != .key {
+            withAnimation(.easeInOut(duration: 0.2)) { aiPage = aiPage == .models ? .credits : .key }
         } else if let previous = previousStep {
             go(to: previous)
         } else {
@@ -1633,6 +1626,8 @@ struct GettingStartedGuide: View {
                     hasOwnKey: account.ownKey != nil,
                     ownKeyAllowed: account.ownKeyAllowed
                 )
+            case .credits:
+                return true
             case .models:
                 return modelsReady
             }
@@ -1805,8 +1800,8 @@ struct GettingStartedGuide: View {
         }
     }
 
-    private func stepHeading(icon: String, title: String, detail: String) -> some View {
-        SetupStepHeading(icon: icon, title: title, detail: detail)
+    private func stepHeading(icon: String, assetIcon: String? = nil, title: String, detail: String) -> some View {
+        SetupStepHeading(icon: icon, title: title, detail: detail, assetIcon: assetIcon)
     }
 
     private func instruction(_ number: String, _ text: String) -> some View {
@@ -2056,11 +2051,24 @@ struct SetupStepHeading: View {
     let icon: String
     let title: String
     let detail: String
+    /// An image from the asset catalog drawn in place of the SF Symbol, for a
+    /// page about one company (OpenRouter's mark).
+    var assetIcon: String? = nil
 
     var body: some View {
         VStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 26))
+                Group {
+                    if let assetIcon {
+                        Image(assetIcon)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 28, height: 28)
+                    } else {
+                        Image(systemName: icon)
+                            .font(.system(size: 26))
+                    }
+                }
                     .foregroundStyle(.tint)
                     .frame(width: 56, height: 56)
                     .background(Color.accentColor.opacity(0.12), in: Circle())
