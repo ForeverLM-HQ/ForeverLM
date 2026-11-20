@@ -46,9 +46,9 @@ struct GettingStartedTests {
     func setupKeepsToFewScreens() {
         let order = GettingStartedStep.onboardingOrder
         #expect(order.count == 7)
-        #expect(GettingStartedStep.moreSourceRows == [.books, .courses, .meetings, .youtube])
+        #expect(GettingStartedStep.moreSourceRows == [.books, .meetings, .youtube, .xPosts])
         #expect(GettingStartedStep.moreSourceRows.allSatisfy { !order.contains($0) && $0.section == .sources })
-        let retired: Set<GettingStartedStep> = [.storage, .planner, .memory, .ideas, .artifacts, .assistants]
+        let retired: Set<GettingStartedStep> = [.storage, .planner, .memory, .ideas, .artifacts, .assistants, .courses]
         #expect(retired.isDisjoint(with: order))
         #expect(Set(order).union(GettingStartedStep.moreSourceRows).union(retired) == Set(GettingStartedStep.allCases))
         // Each row's symbol draws, like every step's.
@@ -64,7 +64,7 @@ struct GettingStartedTests {
         // No picks ("None of these", or "No" to an AI app): no pages at all.
         #expect(GettingStartedFlow.next(after: nil, in: [GettingStartedStep]()) == nil)
         // A pick unticked after its page opened has no next page.
-        #expect(GettingStartedFlow.next(after: .courses, in: picks) == nil)
+        #expect(GettingStartedFlow.next(after: .meetings, in: picks) == nil)
     }
 
     @Test("The footer shows one way forward: Continue, Finish, Skip or a waiting Continue")

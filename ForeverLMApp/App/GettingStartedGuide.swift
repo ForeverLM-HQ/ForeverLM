@@ -46,9 +46,6 @@ struct GettingStartedGuide: View {
     @State private var oneTimeImportErrors: [String: String] = [:]
     @State private var appleBooks: AppleBooksLibrary.Scan?
     @State private var selectedAppleBooks: Set<String> = []
-    @State private var playlistLink = ""
-    @State private var linkError: String?
-    @State private var linkErrorAction: String?
     @State private var copiedConnectorURL = false
     /// The AI apps this account has connected, from the gateway; nil until read.
     @State private var connectedAssistants: Set<AISubscription>?
@@ -238,11 +235,11 @@ struct GettingStartedGuide: View {
             case .moreSources: moreSourcesStep
             // Pages of More sources.
             case .books: booksStep
-            case .courses: coursesStep
             case .meetings: meetingsStep
             case .youtube: youtubeStep
+            case .xPosts: xPostsStep
             // No longer in `onboardingOrder`; kept for their synced bits.
-            case .storage, .planner, .memory, .ideas, .artifacts, .assistants: EmptyView()
+            case .storage, .planner, .memory, .ideas, .artifacts, .assistants, .courses: EmptyView()
             }
         case .addToFullDiskAccess: addToFullDiskAccessPage
         case .readLaterImport: readLaterPage
@@ -847,7 +844,7 @@ struct GettingStartedGuide: View {
 
     // MARK: More sources
 
-    /// Books, courses, meetings and YouTube (product owner, 2026-09-24: fewer
+    /// Books, meetings, YouTube and X (product owner, 2026-09-24: fewer
     /// screens). The question asks which the learner uses, and only those get
     /// a page, one after another; the rest can be set up later from their
     /// place in the sidebar.
@@ -892,9 +889,9 @@ struct GettingStartedGuide: View {
     private func moreSourcePage(_ source: GettingStartedStep) -> some View {
         switch source {
         case .books: booksStep
-        case .courses: coursesStep
         case .meetings: meetingsStep
         case .youtube: youtubeStep
+        case .xPosts: xPostsStep
         default: EmptyView()
         }
     }
@@ -902,35 +899,34 @@ struct GettingStartedGuide: View {
     private func moreSourceHint(_ source: GettingStartedStep) -> String {
         switch source {
         case .books: return "EPUBs, PDFs and your Apple Books library"
-        case .courses: return "A YouTube lecture series, one lecture per video"
         case .meetings: return "Zoom meeting transcripts"
         case .youtube: return "The videos you like, or a playlist named ForeverLM"
+        case .xPosts: return "Posts you bookmark on X"
         default: return ""
         }
     }
 
-    private var coursesStep: some View {
+    /// Sign in with X; the posts the learner bookmarks come in, and the page
+    /// can be left unconnected and done later from the X tab.
+    private var xPostsStep: some View {
         VStack(spacing: 24) {
             stepHeading(
-                icon: "graduationcap",
-                title: "Turn a YouTube playlist into a course",
-                detail: "Paste the link of a lecture series on YouTube. Each video becomes a lecture, with its transcript, in order."
+                icon: "text.bubble",
+                title: vm.isXOAuthSignedIn ? "X is connected" : "Connect X",
+                detail: vm.isXOAuthSignedIn
+                    ? "Posts you bookmark on X come into ForeverLM."
+                    : "Sign in to X, and the posts you bookmark come into ForeverLM. You can also do this later from the X tab."
             )
-            linkField(
-                "YouTube playlist link",
-                text: $playlistLink,
-                buttonTitle: "Add Course",
-                action: "course"
-            ) { link in
-                await vm.importYouTubePlaylist(url: link)
+            if !vm.isXOAuthSignedIn {
+                primaryAction(
+                    vm.isConnectingX ? "Connecting to X…" : "Connect X",
+                    inFlight: vm.isConnectingX
+                ) {
+                    Task { await vm.signInWithX() }
+                }
             }
-            if let status = vm.playlistImportStatus {
-                Label(status, systemImage: "hourglass")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            if let course = newestCourseLecture {
-                detectedSourceCard(course, label: "Course added")
+            if let error = vm.xConnectError, !vm.isXOAuthSignedIn {
+                errorNote(error)
             }
         }
     }
@@ -1474,7 +1470,7 @@ struct GettingStartedGuide: View {
     /// A page with a text field keeps Return for the field.
     private var returnContinues: Bool {
         if step == .enhancements, aiPage == .key, showsKeyField { return false }
-        return page != .moreSource(.courses)
+        return true
     }
 
     private var isLastPage: Bool {
@@ -1559,21 +1555,6 @@ struct GettingStartedGuide: View {
             .max(by: { $0.dateAdded < $1.dateAdded })
     }
 
-    /// The first lecture of the course added last, for the Courses step. A
-    /// playlist course's lectures are videos, not course-typed sources, so the
-    /// step asks the courses themselves: waiting for a `course` source never
-    /// saw a playlist arrive.
-    private var newestCourseLecture: StudioArticle? {
-        let lectures = vm.allCourseGroupNames.flatMap { vm.courseLectures(for: $0) }
-        guard let courseID = lectures.max(by: { $0.createdAt < $1.createdAt })?.courseName else { return nil }
-        for lecture in vm.courseLectures(for: courseID) {
-            if let first = vm.courseLectureItems(for: lecture.id).lazy.compactMap(vm.article(for:)).first {
-                return first
-            }
-        }
-        return nil
-    }
-
     private var youtubeAccount: YouTubeAccount? {
         vm.youtubeAccount(id: youtubeAccountID ?? "") ?? vm.youtubeAccounts.first
     }
@@ -1598,7 +1579,7 @@ struct GettingStartedGuide: View {
                 || oneTimeImportResults["read-later"] != nil
         case .paper: return newestPaper != nil || oneTimeImportResults["reference-library"] != nil
         case .books: return newestSource(of: .book) != nil
-        case .courses: return newestCourseLecture != nil
+        case .xPosts: return vm.isXOAuthSignedIn
         case .meetings: return newestSource(of: .meeting) != nil || zoomFolder != nil
         case .youtube:
             return (youtubeAccount?.choices.source != nil && newestYouTubeVideo != nil)
@@ -1607,7 +1588,7 @@ struct GettingStartedGuide: View {
         // it can each be left as they are.
         case .moreSources:
             return page != nil || !moreSourcePicks.isEmpty || noMoreSources
-        case .planner, .memory, .ideas, .artifacts, .assistants:
+        case .planner, .memory, .ideas, .artifacts, .assistants, .courses:
             return true
         case .enhancements:
             switch aiPage {
@@ -1724,18 +1705,12 @@ struct GettingStartedGuide: View {
             target = newestPaper.map { ($0, .papers) }
         case .books:
             target = newestSource(of: .book).map { ($0, .books) }
-        case .courses:
-            // A course opens on its own page, in the rail's Courses tab.
-            if let courseID = newestCourseLecture.flatMap({ vm.courseIDs(containing: $0).first }) {
-                vm.openCourse(courseID)
-            }
-            target = nil
         case .meetings:
             target = newestSource(of: .meeting).map { ($0, .meetings) }
         case .youtube:
             target = (newestYouTubeVideo ?? newestSource(of: .video)).map { ($0, .videos) }
         case .enhancements, .storage, .subscriptions, .fullDiskAccess, .planner, .memory, .ideas, .artifacts, .assistants,
-             .moreSources:
+             .moreSources, .courses, .xPosts:
             target = nil
         }
         guard let (article, tab) = target else { return }
@@ -1940,52 +1915,6 @@ struct GettingStartedGuide: View {
     private static func url(_ url: URL, conformsToAnyOf types: [UTType]) -> Bool {
         guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
         return types.contains { type.conforms(to: $0) }
-    }
-
-    /// A one-line link box with its button; the link clears once it is added.
-    private func linkField(
-        _ prompt: String,
-        text: Binding<String>,
-        buttonTitle: String,
-        action: String,
-        add: @escaping @MainActor (String) async throws -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                TextField(prompt, text: text)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { submitLink(text, action: action, add: add) }
-                Button(buttonTitle) { submitLink(text, action: action, add: add) }
-                    .disabled(text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || workingAction != nil)
-                actionProgress(action)
-            }
-            if let linkError, workingAction == nil, linkErrorAction == action {
-                Label(linkError, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private func submitLink(
-        _ text: Binding<String>,
-        action: String,
-        add: @escaping @MainActor (String) async throws -> Void
-    ) {
-        let link = text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !link.isEmpty else { return }
-        run(action) {
-            linkError = nil
-            linkErrorAction = action
-            do {
-                try await add(link)
-                text.wrappedValue = ""
-            } catch {
-                linkError = error.localizedDescription
-            }
-        }
     }
 
     private func appleBookSelectionBinding(_ path: String) -> Binding<Bool> {

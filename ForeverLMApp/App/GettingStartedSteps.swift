@@ -100,6 +100,8 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
     case enhancements
     case storage
     case books
+    /// Not on the More sources question any more; the case stays for its
+    /// synced bit.
     case courses
     case meetings
     /// Not a Setup step; the case stays for its synced bit, like the cases
@@ -111,8 +113,10 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
     case assistants
     case subscriptions
     case fullDiskAccess
-    /// Books, courses, meetings and YouTube on one screen.
+    /// Books, meetings, YouTube and X on one screen.
     case moreSources
+    /// X on the More sources question.
+    case xPosts
 
     var id: Int { rawValue }
     var bit: Int { 1 << rawValue }
@@ -141,13 +145,13 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
     ]
 
     /// The rows `moreSources` opens, in the order it lists them.
-    static let moreSourceRows: [GettingStartedStep] = [.books, .courses, .meetings, .youtube]
+    static let moreSourceRows: [GettingStartedStep] = [.books, .meetings, .youtube, .xPosts]
 
     var section: GettingStartedSection {
         switch self {
         case .fullDiskAccess, .storage, .enhancements: return .setup
         case .subscriptions: return .assistant
-        case .podcasts, .books, .article, .paper, .courses, .meetings, .youtube, .moreSources: return .sources
+        case .podcasts, .books, .article, .paper, .courses, .meetings, .youtube, .xPosts, .moreSources: return .sources
         case .planner, .memory, .ideas, .artifacts, .assistants: return .workspace
         }
     }
@@ -165,6 +169,7 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
         case .courses: return "Courses"
         case .meetings: return "Meetings"
         case .youtube: return "YouTube"
+        case .xPosts: return "X"
         case .enhancements: return "AI"
         case .storage: return "Storage"
         case .planner: return "Planner"
@@ -189,6 +194,7 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
         case .courses: return "graduationcap"
         case .meetings: return "person.2.wave.2"
         case .youtube: return "play.rectangle.fill"
+        case .xPosts: return "text.bubble"
         case .enhancements: return "sparkles"
         case .storage: return "icloud"
         case .planner: return "calendar.day.timeline.left"
