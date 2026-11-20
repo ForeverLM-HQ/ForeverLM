@@ -1554,6 +1554,7 @@ extension StudioViewModel {
             xAccounts = XAccountBook.merging(account, into: xAccounts)
             xAccountsNeedingReauth.remove(account.id)
             xAccountFailures[account.id] = nil
+            xDismissedFailureAccounts.remove(account.id)
             forgetXSyncPause(accountID: account.id)
             // Connecting is the evidence the X tab was waiting for.
             pinIntegrationTabsInUse()
@@ -1581,6 +1582,7 @@ extension StudioViewModel {
         xAccountsNeedingReauth.remove(accountID)
         xLastSyncDates[accountID] = nil
         xAccountFailures[accountID] = nil
+        xDismissedFailureAccounts.remove(accountID)
         forgetXSyncPause(accountID: accountID)
     }
 
@@ -1620,6 +1622,7 @@ extension StudioViewModel {
                 anySucceeded = true
                 xLastSyncDates[account.id] = XBookmarkService.shared.lastSyncDate(accountID: account.id)
                 xAccountFailures[account.id] = nil
+                xDismissedFailureAccounts.remove(account.id)
                 forgetXSyncPause(accountID: account.id)
                 xCreditsDepleted = false
             } catch {
@@ -1632,10 +1635,12 @@ extension StudioViewModel {
                 // X tab (`xPluginAttention`), and the X list and the plugin
                 // page both show it in full, against the account, with a retry
                 // beside it.
-                xAccountFailures[account.id] = XAccountFailure(
-                    message: message,
-                    offersReconnect: XBookmarkError.reconnectMayHelp(after: error)
-                )
+                if !xDismissedFailureAccounts.contains(account.id) {
+                    xAccountFailures[account.id] = XAccountFailure(
+                        message: message,
+                        offersReconnect: XBookmarkError.reconnectMayHelp(after: error)
+                    )
+                }
                 if case .creditsDepleted? = error as? XBookmarkError { xCreditsDepleted = true }
                 scheduleXSyncResume(accountID: account.id, after: error)
             }

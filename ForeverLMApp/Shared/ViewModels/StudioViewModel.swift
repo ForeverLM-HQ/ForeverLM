@@ -2045,6 +2045,12 @@ class StudioViewModel {
     /// pane. Cleared by that account's next successful sync.
     var xAccountFailures: [String: XAccountFailure] = [:]
 
+    /// Accounts whose failed syncs the learner dismissed. X blocked on purpose
+    /// (Screen Time, a filter) fails every sync the same way, so a dismissed
+    /// account raises no banner or red dot again until one of its syncs goes
+    /// through.
+    var xDismissedFailureAccounts: Set<String> = []
+
     /// Why the last sign-in failed, shown on the plugin page. A failed
     /// sign-in belongs to no account yet.
     var xConnectError: String?
