@@ -33,6 +33,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.231.0 (build 311) — 2026-11-20
+
+**Highlights:**
+- **Click a source in the chat's / popup, and click away to close it.**
+
+- **The / and @ popup in a chat takes mouse clicks, and a click outside closes it.** Clicking a source in the /source list now picks it, as Return does, and clicking anywhere else clears the popup, as Escape does.
+- **Typing in a Page keeps up while a chat reply streams beside it.** The streaming reply no longer redraws the whole chat panel.
+- **A paper behind a paywall shows a quiet orange lock and "Paywalled"** in the Library, instead of a red triangle over the raw word.
+- **The X tab's failed-sync banner can be dismissed,** for when X is blocked on purpose; it stays away until that account syncs again.
+
 ## 0.230.0 (build 310) — 2026-11-19
 
 **Highlights:**
