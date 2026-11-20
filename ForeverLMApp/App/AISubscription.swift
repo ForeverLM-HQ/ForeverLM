@@ -212,6 +212,9 @@ enum FullDiskAccess {
     /// TCC databases are protected by nothing else and never raise a prompt,
     /// unlike the Podcasts group container, whose "access data from other
     /// apps" dialog discovery must never provoke.
+    ///
+    /// Blocking file I/O against a protected path: never call it on the main
+    /// thread. UI reads it through `check()`.
     static var isGranted: Bool {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let probes = [
@@ -226,6 +229,11 @@ enum FullDiskAccess {
             }
         }
         return false
+    }
+
+    /// `isGranted`, read off the main thread.
+    static func check() async -> Bool {
+        await Task.detached(priority: .userInitiated) { isGranted }.value
     }
 
     /// System Settings on the Full Disk Access list: the Ventura+ anchor

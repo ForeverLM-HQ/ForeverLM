@@ -413,7 +413,9 @@ final class ManagedAIAccountModel {
     // MARK: - Balance
 
     func refresh(minimumInterval: TimeInterval = 0, silently: Bool = false) async {
-        guard ManagedAI.isSignedIn else {
+        // A Keychain read can wait on securityd: never on the main actor.
+        let signedIn = await Task.detached(priority: .userInitiated) { ManagedAI.isSignedIn }.value
+        guard signedIn else {
             isSignedIn = false
             balance = nil
             balanceErrorMessage = nil

@@ -59,7 +59,7 @@ struct GettingStartedGuide: View {
     @State private var ownKeySaving = false
     /// Read at launch and whenever ForeverLM becomes active again, as it does
     /// on the way back from System Settings.
-    @State private var hasFullDiskAccess = FullDiskAccess.isGranted
+    @State private var hasFullDiskAccess = false
     /// The sources ticked on the More sources question; each gets a page.
     @State private var moreSourcePicks: Set<GettingStartedStep> = []
     /// "None of these" on the More sources question.
@@ -103,6 +103,7 @@ struct GettingStartedGuide: View {
         }
         .transition(.opacity)
         .task {
+            hasFullDiskAccess = await FullDiskAccess.check()
             step = firstIncompleteStep
             startSourceAutoSync(for: step)
             await prepare(step)
@@ -124,7 +125,7 @@ struct GettingStartedGuide: View {
             Task { await prepare(newStep) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            hasFullDiskAccess = FullDiskAccess.isGranted
+            Task { hasFullDiskAccess = await FullDiskAccess.check() }
             guard step == .enhancements else { return }
             Task { await account.refresh(minimumInterval: 2, silently: true) }
         }
