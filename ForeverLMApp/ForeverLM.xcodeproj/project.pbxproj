@@ -1859,7 +1859,6 @@
 		C75D4F8BA35364A553A458B7 /* StudioViewModel+AudioOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = F04EB824B01337CE485ECDB6 /* StudioViewModel+AudioOverview.swift */; };
 		C764531F2F8F51BABDF2EC8F /* StorageService+MeetingMergeAndSourceSaves.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4863502E25156126F0FE72 /* StorageService+MeetingMergeAndSourceSaves.swift */; };
 		C793B294575FFC21C63FDD38 /* OutboxFeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25BCACAA2B70733DF1C376A0 /* OutboxFeeder.swift */; };
-		C7C43F29F52A25C121B27B9A /* GettingStartedModelsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 047A7EC4E83535A24CB7DBB8 /* GettingStartedModelsPage.swift */; };
 		C7D00CD4AF3C47CEB93261D7 /* Prefs+MCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22D69236838B79C89B6A184A /* Prefs+MCP.swift */; };
 		C8040504AFA590DC4D6B4FC9 /* StudioViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4DD7DD05ED42DC9791DC731 /* StudioViewSupport.swift */; };
 		C82A312B905D941AB2950C75 /* MCPTools+Animations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4996AEBFF007AF9F83C09E03 /* MCPTools+Animations.swift */; };
@@ -2502,7 +2501,6 @@
 		04330CFF68A64EB16E646D56 /* HomePlaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlaceTests.swift; sourceTree = "<group>"; };
 		045186443DAD1B3811B27BA9 /* SiriAppIntentsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriAppIntentsUITests.swift; sourceTree = "<group>"; };
 		045DAAD4F1D3E13A9C69BC9E /* ActivityLogProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogProjection.swift; sourceTree = "<group>"; };
-		047A7EC4E83535A24CB7DBB8 /* GettingStartedModelsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GettingStartedModelsPage.swift; sourceTree = "<group>"; };
 		048B78629147B2B1348C2D21 /* MemoryTutorGradeMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTutorGradeMapping.swift; sourceTree = "<group>"; };
 		049D0316C4F20238A6EB2B33 /* MCPTools+Directions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+Directions.swift"; sourceTree = "<group>"; };
 		04AD542500669D5601E4722C /* SettingsModelTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModelTable.swift; sourceTree = "<group>"; };
@@ -6196,7 +6194,6 @@
 				09774BB11C948F1B58612336 /* GeneratedImageRedraw.swift */,
 				2C9DB9A47DBA07057CC35C46 /* GetStartedSuggestions.swift */,
 				914B343D2E4A42D56ABA4AF4 /* GettingStartedGuide.swift */,
-				047A7EC4E83535A24CB7DBB8 /* GettingStartedModelsPage.swift */,
 				CB43A18DD8D631E4097CCAAE /* GettingStartedSourceSteps.swift */,
 				EFF32DC29BC812BC3DD9868B /* GettingStartedSteps.swift */,
 				97E32C453D9395947A79DCEE /* GoalEditorSheet.swift */,
@@ -9021,7 +9018,6 @@
 				D1C624F069BC13A249F5B483 /* GenerationActivationRunner.swift in Sources */,
 				4698A69D6BDE5F7DB565BF01 /* GetStartedSuggestions.swift in Sources */,
 				B18D61F53140EC7135FBCCE5 /* GettingStartedGuide.swift in Sources */,
-				C7C43F29F52A25C121B27B9A /* GettingStartedModelsPage.swift in Sources */,
 				378658456B2EA1FABFF01469 /* GettingStartedSourceSteps.swift in Sources */,
 				D028A9509F099A87928D96EE /* GettingStartedSteps.swift in Sources */,
 				ADC86D0520EE88BD61F448C3 /* GoalEditorSheet.swift in Sources */,

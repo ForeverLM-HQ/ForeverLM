@@ -18,12 +18,11 @@ enum GettingStartedSection: String, CaseIterable, Identifiable {
     }
 }
 
-/// The pages of Setup's AI step: the key, how OpenAI and Anthropic credits
-/// can pay for their models, then the models.
+/// The pages of Setup's AI step: the key, then how OpenAI and Anthropic
+/// credits can pay for their models.
 enum AIStepPage {
     case key
     case credits
-    case models
 }
 
 /// A page a Setup step opens after its question. Setup reads like a Typeform
@@ -34,9 +33,6 @@ enum AIStepPage {
 enum GettingStartedPage: Hashable {
     /// Full Disk Access, once System Settings is open: add the app, relaunch.
     case addToFullDiskAccess
-    /// Your AI: how OpenAI and Anthropic API credits pay for their models
-    /// through OpenRouter's own-key setting.
-    case providerCredits
     /// Articles: a read-later app's export, brought over once.
     case readLaterImport
     /// Papers: the place the learner said their papers live.

@@ -18,10 +18,8 @@ struct GettingStartedGuide: View {
     @PreferenceStorage(Prefs.Rail.welcomeSeen) private var welcomeSeen
     @PreferenceStorage(Prefs.Rail.suggestionsArmed) private var arrivalSuggestionsArmed
     @PreferenceStorage(Prefs.Models.backgroundUsageConsented) private var hasConsentedToBackgroundAIUsage
-    /// The AI step's two pages. `modelsReady` is the models page's word that
-    /// the set is taken and OpenRouter will run it, which Continue waits for.
+    /// The AI step's two pages: the key, then the credits.
     @State private var aiPage: AIStepPage = .key
-    @State private var modelsReady = false
     @State private var showsKeyField = false
     @PreferenceStorage(Prefs.Rail.aiSubscriptions) private var aiSubscriptionAnswer
     @PreferenceStorage(Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled, default: false)
@@ -247,7 +245,6 @@ struct GettingStartedGuide: View {
             case .storage, .planner, .memory, .ideas, .artifacts, .assistants: EmptyView()
             }
         case .addToFullDiskAccess: addToFullDiskAccessPage
-        case .providerCredits: providerCreditsPage
         case .readLaterImport: readLaterPage
         case .papers(let route): paperRoutePage(route)
         case .moreSource(let source): moreSourcePage(source)
@@ -1265,19 +1262,17 @@ struct GettingStartedGuide: View {
     // MARK: AI
 
     /// Setup's AI step is two pages, one question each (product owner,
-    /// 2026-10-11: "more like a Typeform"): connect OpenRouter, then pick the
-    /// models. AI features run on the learner's own OpenRouter key, billed by
-    /// OpenRouter at cost; the free days run the key, so there is no plan row
-    /// (the paid app, 2026-10-10). The data policy and the single Chat model
-    /// left setup for Settings. Pressing Continue on the models page
-    /// is also the consent to background work, which that page says.
+    /// 2026-10-11: "more like a Typeform"): connect OpenRouter, then how
+    /// OpenAI and Anthropic credits can pay. AI features run on the learner's
+    /// own OpenRouter key, billed by OpenRouter at cost. Models are chosen in
+    /// Settings, not here (product owner, 2026-11-20: "this can just be done
+    /// in the settings later"). Continuing past the last page is the consent
+    /// to background work.
     private var enhancementsStep: some View {
         Group {
             switch aiPage {
             case .key: openRouterKeyPage
             case .credits: providerCreditsPage
-            case .models:
-                GettingStartedModelsPage(isReady: $modelsReady) { show(.providerCredits) }
             }
         }
         .frame(maxWidth: .infinity)
@@ -1412,7 +1407,7 @@ struct GettingStartedGuide: View {
         "Get an API key from OpenAI (platform.openai.com) or Anthropic (console.anthropic.com), the account that holds your credits",
         "On OpenRouter, open Settings › Integrations and paste the key under OpenAI or Anthropic",
         "Turn on Always use this key and Never use shared capacity, so your credits pay and your OpenRouter balance is never charged",
-        "Then in ForeverLM, pick GPT or Claude models under Choose my own on the models page, or later in Settings",
+        "Then in ForeverLM, open Settings and pick GPT or Claude models for chat",
     ]
 
     /// A ChatGPT or Claude subscription is not API credit by itself, but some
@@ -1483,7 +1478,7 @@ struct GettingStartedGuide: View {
     }
 
     private var isLastPage: Bool {
-        nextIncompleteStep == nil && nextPage == nil && !(step == .enhancements && aiPage != .models)
+        nextIncompleteStep == nil && nextPage == nil && !(step == .enhancements && aiPage == .key)
     }
 
     /// The page Continue opens before the step is done: the next source or
@@ -1504,18 +1499,13 @@ struct GettingStartedGuide: View {
     }
 
     private func goForward() {
-        // The credits page opened from the models page goes back to it:
-        // the models are still that page's question.
-        if step == .enhancements, aiPage == .models, page == .providerCredits {
-            withAnimation(.easeInOut(duration: 0.2)) { pages = [] }
-            return
-        }
-        // The key page leads to the credits page, which leads to the models
-        // page; the models page says background work draws on what they chose.
-        if step == .enhancements, aiPage == .key || aiPage == .credits {
+        // The key page leads to the credits page, which ends the step. The
+        // models are chosen later, in Settings (product owner, 2026-11-20: "this
+        // can just be done in the settings later").
+        if step == .enhancements, aiPage == .key {
             withAnimation(.easeInOut(duration: 0.2)) {
                 pages = []
-                aiPage = aiPage == .key ? .credits : .models
+                aiPage = .credits
             }
             return
         }
@@ -1532,8 +1522,8 @@ struct GettingStartedGuide: View {
     private func goBack() {
         if !pages.isEmpty {
             withAnimation(.easeInOut(duration: 0.2)) { _ = pages.removeLast() }
-        } else if step == .enhancements, aiPage != .key {
-            withAnimation(.easeInOut(duration: 0.2)) { aiPage = aiPage == .models ? .credits : .key }
+        } else if step == .enhancements, aiPage == .credits {
+            withAnimation(.easeInOut(duration: 0.2)) { aiPage = .key }
         } else if let previous = previousStep {
             go(to: previous)
         } else {
@@ -1628,8 +1618,6 @@ struct GettingStartedGuide: View {
                 )
             case .credits:
                 return true
-            case .models:
-                return modelsReady
             }
         case .storage:
             return true
