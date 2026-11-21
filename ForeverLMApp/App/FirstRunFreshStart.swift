@@ -61,12 +61,11 @@ enum FirstRunFreshStart {
 /// shows, with nothing changed on the server. Off again, the app is back on
 /// day one. It lives in this app's own defaults, so no other app sees it.
 enum FirstRunTrialSkip {
-    private static let key = "firstRun.pretend31DaysPassed"
     static let skippedSeconds: TimeInterval = 31 * 86_400
 
     static var isOn: Bool {
-        get { UserDefaults.standard.bool(forKey: key) }
-        set { UserDefaults.standard.set(newValue, forKey: key) }
+        get { Preferences.value(Prefs.Models.firstRunPretend31DaysPassed) }
+        set { Preferences.set(newValue, for: Prefs.Models.firstRunPretend31DaysPassed) }
     }
 
     /// What `ManagedAI.serverNow` adds to the proxy's clock.
