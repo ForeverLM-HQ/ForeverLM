@@ -539,6 +539,16 @@ final class ManagedAIAccountModel {
         }
     }
 
+    #if FOREVERLM_FIRST_RUN
+    /// The First Run app's day-31 switch changed `ManagedAI.serverNow`: read
+    /// the lock and the account menu's count again, and ask the proxy.
+    func trialSkipChanged() {
+        freeDaysClock += 1
+        scheduleFreeDaysTick()
+        Task { await refresh(silently: true) }
+    }
+    #endif
+
     /// Re-reads the lock and the account menu's count when the free days
     /// next cross a day on the proxy's clock, and once more when they end,
     /// so a Mac left open locks on time and a refresh confirms it.

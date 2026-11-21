@@ -339,7 +339,14 @@ extension ManagedAI {
     }
 
     /// Now, on the proxy's clock as last read.
-    static var serverNow: Date { Date().addingTimeInterval(serverClockOffset) }
+    static var serverNow: Date {
+        #if os(macOS) && FOREVERLM_FIRST_RUN
+        // The First Run app's own switch for seeing day 31 (`FirstRunTrialSkip`).
+        return Date().addingTimeInterval(serverClockOffset + FirstRunTrialSkip.offset)
+        #else
+        return Date().addingTimeInterval(serverClockOffset)
+        #endif
+    }
 
     /// Notes the proxy's clock from a response's `Date` header. The header is
     /// whole seconds, so a difference of a few seconds is noise and is not

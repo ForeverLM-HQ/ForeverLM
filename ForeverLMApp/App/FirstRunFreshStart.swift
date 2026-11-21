@@ -55,4 +55,21 @@ enum FirstRunFreshStart {
         }
     }
 }
+
+/// A switch that exists only in the First Run app: it moves the app's idea of
+/// "now" 31 days ahead, so the 30 free days are over and the real pay screen
+/// shows, with nothing changed on the server. Off again, the app is back on
+/// day one. It lives in this app's own defaults, so no other app sees it.
+enum FirstRunTrialSkip {
+    private static let key = "firstRun.pretend31DaysPassed"
+    static let skippedSeconds: TimeInterval = 31 * 86_400
+
+    static var isOn: Bool {
+        get { UserDefaults.standard.bool(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+
+    /// What `ManagedAI.serverNow` adds to the proxy's clock.
+    static var offset: TimeInterval { isOn ? skippedSeconds : 0 }
+}
 #endif

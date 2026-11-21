@@ -484,6 +484,9 @@ struct ForeverLMApp: App {
     /// future surface all read the same sign-in state, so signing out in Settings re-walls
     /// the app immediately instead of leaving a stale unlocked window behind.
     @State private var managedAIAccount = ManagedAIAccountModel()
+    #if os(macOS) && FOREVERLM_FIRST_RUN
+    @State private var firstRunDay31 = FirstRunTrialSkip.isOn
+    #endif
     @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
     /// Observed so the Canvas and Atlas menu items come and go with the beta
@@ -834,6 +837,14 @@ struct ForeverLMApp: App {
                 }
                 ThirdPartyLicensesMenuItem()
                 ScreenRecordModeMenuItem()
+                #if os(macOS) && FOREVERLM_FIRST_RUN
+                // First Run app only: see the app as it is on day 31.
+                Button(firstRunDay31 ? "Back to Day 1 of the Free Days" : "Pretend 31 Days Have Passed") {
+                    FirstRunTrialSkip.isOn.toggle()
+                    firstRunDay31 = FirstRunTrialSkip.isOn
+                    managedAIAccount.trialSkipChanged()
+                }
+                #endif
             }
 
             CommandGroup(after: .toolbar) {
