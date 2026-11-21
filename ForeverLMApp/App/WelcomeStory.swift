@@ -337,22 +337,14 @@ struct WelcomeStory: View {
                 .frame(maxWidth: .infinity)
             promise(
                 icon: Self.rememberIcon,
-                // The learner writes their own cards (product owner,
-                // 2026-11-08: "It shouldn't just be AI making those cards"),
-                // so the promise names the writing as theirs.
-                title: "Remember what you read.",
-                text: "Write it in your own words. ForeverLM quizzes you until it sticks."
-            )
-            promise(
-                icon: Self.yourAIIcon,
-                title: "You’re in charge of your AI.",
-                text: "Use your own API key, or the AI app you already pay for."
+                title: "Build your library.",
+                text: "Books, papers, articles, podcasts, YouTube videos, meetings."
             )
             VStack(alignment: .leading, spacing: 12) {
                 promise(
                     icon: Self.yourDataIcon,
                     title: "You’re in charge of your data.",
-                    text: "Your library lives on this Mac and syncs through your own iCloud."
+                    text: "Data lives in your iCloud. Bring your own key for AI models."
                 )
                 // Shows nothing unless iCloud is signed out or full.
                 ICloudStorageNotices()
