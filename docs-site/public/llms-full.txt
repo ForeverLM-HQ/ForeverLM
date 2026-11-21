@@ -6840,6 +6840,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.233.0 (build 313) — 2026-11-20
+
+**Highlights:**
+- **Setup picks GPT-6.2 Terra for chat and the free router for background work.**
+
+- **Setup no longer has a models page.** Models are chosen in Settings; chat starts on GPT-6.2 Terra and background work on OpenRouter's Free Models Router alone, with GLM no longer recommended.
+- **Setup's credits page.** After Connect OpenRouter, a page explains which ChatGPT and Claude plans include monthly API credits and how to spend them through OpenRouter, with claim links.
+- **Setup is shorter and plainer.** Full Disk Access can't be skipped and no longer explains itself, the how-it-works screen says each promise in one sentence, the browsers page lists only the browsers installed on this Mac with the real Safari icon, and the podcasts page lists only shows with something played.
+- **Voice asks for the OpenAI key in place** when there is none, instead of failing.
+
 ## 0.232.0 (build 312) — 2026-11-20
 
 **Highlights:**
