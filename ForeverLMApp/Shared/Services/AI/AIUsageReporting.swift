@@ -1463,17 +1463,21 @@ enum AIProviderPricing {
                     inputIncludesCached: false
                 )
             }
+            if model.contains("fable-5-2") || model.contains("fable-5.2") { return anthropic(8, 40) }  // OpenRouter directory, 2026-11-20
             if model.contains("fable") || model.contains("mythos") { return anthropic(10, 50) }
             // Opus dropped to $5/$25 with 4.5; 4.0/4.1 and Opus 3 were $15/$75.
             if model.contains("opus-4-0") || model.contains("opus-4-1") || model.contains("opus-4-2025") {
                 return anthropic(15, 75)
             }
+            if model.contains("opus-5-5") || model.contains("opus-5.5") { return anthropic(4, 20) }  // OpenRouter directory, 2026-11-20
             if model.contains("opus-5") || model.contains("opus-4") {
                 return anthropic(5, 25)  // Opus 4.5 and later
             }
             if model.contains("opus") { return anthropic(15, 75) }
             if model.contains("3-5-haiku") { return anthropic(0.80, 4) }
+            if model.contains("haiku-5") { return anthropic(0.1, 0.5) }  // Haiku 5.5 (OpenRouter directory, 2026-11-20)
             if model.contains("haiku") { return anthropic(1, 5) }
+            if model.contains("sonnet-5-5") || model.contains("sonnet-5.5") { return anthropic(2, 10) }  // OpenRouter directory, 2026-11-20
             if model.contains("sonnet-5") {
                 return date < sonnet5IntroPricingEnd ? anthropic(2, 10) : anthropic(3, 15)
             }
@@ -1494,6 +1498,15 @@ enum AIProviderPricing {
         // GPT-6 Astra (developers.openai.com, checked 2026-09-03): prompts over
         // 272k input tokens bill the whole request at 2x input and cache rates
         // and 1.5x output. Fast mode doubles every rate and is not offered.
+        // GPT-6.2 (OpenRouter directory, 2026-11-20): Astra $8/$40, Sol $2/$10,
+        // cached input at a tenth. The long-context surcharge is not modelled
+        // for 6.2: the live price overlay is the source for the exact figure.
+        if model.hasPrefix("gpt-6.2-astra") {
+            return TokenRates(input: 8, output: 40, cachedInput: 0.8, perWebSearchCall: 0.01)
+        }
+        if model.hasPrefix("gpt-6.2-sol") {
+            return TokenRates(input: 2, output: 10, cachedInput: 0.2, perWebSearchCall: 0.01)
+        }
         if model.hasPrefix("gpt-6-astra") {
             var rates = TokenRates(input: 10, output: 50, cachedInput: 1, cacheWrite: 12.5, perWebSearchCall: 0.01)
             rates.longContextThreshold = 272_000
@@ -1549,6 +1562,7 @@ enum AIProviderPricing {
             if model.contains("flash-image") {
                 return TokenRates(input: 0.5, output: 3, imageOutput: 60, outputExcludesReasoning: true)
             }
+            if model.contains("3.8-flash") { return gemini(1.65, 8.25, cached: 0.165) }  // list price; OpenRouter shows it 50% off
             if model.contains("3.5-flash") { return gemini(1.5, 9, cached: 0.15) }
             if model.contains("3-pro") || model.contains("3.1-pro") {
                 var rates = gemini(2, 12)

@@ -11,7 +11,7 @@ struct AIModelDisplayNameTests {
                 AIModelDefaults.latestClaude,
                 provider: .anthropic,
                 includeProvider: true
-            ) == "Opus 5"
+            ) == "Opus 5.5"
         )
     }
 
@@ -217,7 +217,7 @@ struct AIModelDisplayNameTests {
                 AIModelDefaults.latestGemini,
                 provider: .gemini,
                 includeProvider: true
-            ) == "Gemini 3.5 Flash"
+            ) == "Gemini 3.8 Flash"
         )
         #expect(
             AIModelDisplayName.textModelName(
@@ -278,11 +278,11 @@ struct AIModelCatalogTests {
     func cataloguedOpenRouterSlugs() {
         let slugs = AIModelCatalog.cataloguedOpenRouterSlugs
 
-        #expect(slugs.contains("anthropic/claude-fable-5"))
-        #expect(slugs.contains("anthropic/claude-haiku-4.5"))
-        #expect(slugs.contains("openai/gpt-5.6-sol"))
-        #expect(slugs.contains("openai/gpt-6-astra"))
-        #expect(slugs.contains("google/gemini-3.5-flash"))
+        #expect(slugs.contains("anthropic/claude-fable-5.2"))
+        #expect(slugs.contains("anthropic/claude-haiku-5.5"))
+        #expect(slugs.contains("openai/gpt-6.2-sol"))
+        #expect(slugs.contains("openai/gpt-6.2-astra"))
+        #expect(slugs.contains("google/gemini-3.8-flash"))
         #expect(slugs.contains("x-ai/grok-4.7"))
         #expect(slugs.contains("meta/\(AIModelDefaults.latestMuseSpark)"))
         #expect(slugs.contains(AIModelDefaults.defaultOpenRouter))

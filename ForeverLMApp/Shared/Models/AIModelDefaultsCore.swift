@@ -8,7 +8,7 @@ enum AIModelDefaults {
     /// These are product defaults, not runtime fallbacks: once a route is stored,
     /// malformed or unavailable preferences fail closed instead of reaching here.
     static let mobileDefaultChatProvider = "Anthropic (Claude)"
-    static let mobileDefaultChatModel = "claude-sonnet-5"
+    static let mobileDefaultChatModel = "claude-sonnet-5-5"
     static let mobileDefaultBackgroundProvider = "OpenRouter"
     static let mobileDefaultBackgroundModel = "deepseek/deepseek-v4-flash"
     static let mobileDefaultBackgroundMultimodalProvider = "OpenRouter"
@@ -19,7 +19,7 @@ enum AIModelDefaults {
     /// default: OpenAI is opening it to Trusted Access Program enterprises
     /// first and API access for everyone else is still "coming", so a request
     /// on a key without access is refused by OpenAI and surfaced as-is.
-    static let openAIAstra = "gpt-6-astra"
+    static let openAIAstra = "gpt-6.2-astra"
 
     /// OpenRouter's Free Models Router: each request goes to one of the free
     /// models that is up and can take what the request needs (tools, images),

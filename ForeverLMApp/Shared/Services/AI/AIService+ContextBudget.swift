@@ -119,8 +119,13 @@ extension AIService {
         .anthropic: [
             // 1M at standard pricing for the current line (verified 2026-07-25).
             "claude-sonnet-5": 1_000_000,
+            "claude-sonnet-5-5": 1_000_000,
             "claude-fable-5": 1_000_000,
+            "claude-fable-5-1": 1_000_000,
+            "claude-fable-5-2": 1_000_000,
+            "claude-haiku-5-5": 1_000_000,
             "claude-opus-5": 1_000_000,
+            "claude-opus-5-5": 1_000_000,
             "claude-sonnet-4-6": 1_000_000,
             "claude-opus-4-6": 1_000_000,
             "claude-opus-4-7": 1_000_000,
@@ -152,6 +157,8 @@ extension AIService {
             // has to fit; OpenRouter lists the 1.05M total, which a prompt
             // cannot use. Bare "gpt-5.6" is OpenAI's alias for Sol.
             "gpt-6-astra": 922_000,
+            "gpt-6.2-astra": 922_000,
+            "gpt-6.2-sol": 922_000,
             "gpt-5.6": 922_000,
             "gpt-5.6-sol": 922_000,
             "gpt-5.6-terra": 922_000,
@@ -162,6 +169,7 @@ extension AIService {
         ],
         .gemini: [
             // Google documents 1,048,576 input tokens for these.
+            "gemini-3.8-flash": 1_048_576,
             "gemini-3.5-flash": 1_048_576,
             "gemini-3-pro-preview": 1_048_576,
             "gemini-3-flash-preview": 1_048_576,

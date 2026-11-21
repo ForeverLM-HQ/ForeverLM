@@ -397,8 +397,8 @@ actor MobileModelPreferenceStore {
     private func defaultModel(for provider: String) -> String {
         switch provider {
         case "Anthropic (Claude)": return AIModelDefaults.mobileDefaultChatModel
-        case "OpenAI (GPT)": return "gpt-5.6"
-        case "Google (Gemini)": return "gemini-3.5-flash"
+        case "OpenAI (GPT)": return "gpt-6.2-sol"
+        case "Google (Gemini)": return "gemini-3.8-flash"
         case "xAI (Grok)": return "grok-4.3"
         case "OpenRouter": return AIModelDefaults.mobileDefaultBackgroundModel
         case "Meta (Muse Spark)": return "muse-spark-1.2"

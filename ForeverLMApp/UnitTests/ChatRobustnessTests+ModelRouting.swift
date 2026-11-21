@@ -1056,22 +1056,28 @@ extension ChatRobustnessTests {
         #expect(deepSeek["temperature"] as? Double == 0.0)
     }
 
-    @Test("Claude Opus 5 is the offered flagship with its admitted OpenRouter slug")
+    @Test("Claude Opus 5.5 is the offered flagship with its admitted OpenRouter slug")
     func opusFiveCatalogAndRouting() {
-        #expect(AIModelDefaults.latestClaude == "claude-opus-5")
-        #expect(AIModelDefaults.preferredAnthropic.contains("claude-opus-5"))
+        #expect(AIModelDefaults.latestClaude == "claude-opus-5-5")
+        #expect(AIModelDefaults.preferredAnthropic.contains("claude-opus-5-5"))
         #expect(!AIModelDefaults.preferredAnthropic.contains("claude-opus-4-8"))
         #expect(
-            OpenRouterModelID.slug(provider: .anthropic, model: "claude-opus-5")
-                == "anthropic/claude-opus-5"
+            OpenRouterModelID.slug(provider: .anthropic, model: "claude-opus-5-5")
+                == "anthropic/claude-opus-5.5"
         )
         // Speed never changes the slug: OpenRouter's fast tier is a separate
         // endpoint of the same model, chosen through `provider.order`, so the
         // model id and its prompt cache stay shared across speeds.
         #expect(
-            OpenRouterModelID.slug(provider: .anthropic, model: "claude-opus-5")
-                == "anthropic/claude-opus-5"
+            OpenRouterModelID.slug(provider: .anthropic, model: "claude-opus-5-5")
+                == "anthropic/claude-opus-5.5"
         )
-        #expect(AIService.contextWindowTokens(provider: .anthropic, model: "claude-opus-5") == 1_000_000)
+        #expect(AIService.contextWindowTokens(provider: .anthropic, model: "claude-opus-5-5") == 1_000_000)
+        // The shipped defaults are the newest release of each pick's family.
+        #expect(AIModelDefaults.defaultAnthropic == "claude-sonnet-5-5")
+        #expect(AIModelDefaults.preferredAnthropic.contains("claude-fable-5-2"))
+        #expect(AIModelDefaults.preferredAnthropic.contains("claude-haiku-5-5"))
+        #expect(AIModelDefaults.defaultOpenAI == "gpt-6.2-sol")
+        #expect(AIModelDefaults.latestGemini == "gemini-3.8-flash")
     }
 }

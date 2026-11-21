@@ -9,9 +9,9 @@ import Foundation
 ///
 /// | app | OpenRouter | rule |
 /// |---|---|---|
-/// | `claude-sonnet-5` | `anthropic/claude-sonnet-5` | vendor prefix |
+/// | `claude-sonnet-5-5` | `anthropic/claude-sonnet-5.5` | prefix + version dash→dot |
 /// | `claude-opus-4-8` | `anthropic/claude-opus-4.8` | prefix + version dash→dot |
-/// | `gpt-5.6` | `openai/gpt-5.6-sol` | prefix + alias expansion |
+/// | `gpt-5.6` | `openai/gpt-5.6-sol` | prefix + alias expansion (older alias) |
 ///
 /// Deliberately not a stored table: the catalogue is edited often, and a table
 /// would drift silently until a model 404'd mid-chat. These rules are derived
@@ -78,11 +78,11 @@ extension AIModelDefaults {
     static let promptCacheDiagnosticFixture = "anthropic/claude-haiku-4.5"
     /// Explicitly authorized one-off historical podcast cleanup route.
     static let podcastCleanupMaintenance = "gpt-5-nano"
-    static let latestClaude = "claude-opus-5"
-    static let latestGemini = "gemini-3.5-flash"
-    static let defaultAnthropic = "claude-sonnet-5"
-    /// OpenAI's alias for "gpt-5.6-sol".
-    static let defaultOpenAI = "gpt-5.6"
+    static let latestClaude = "claude-opus-5-5"
+    static let latestGemini = "gemini-3.8-flash"
+    static let defaultAnthropic = "claude-sonnet-5-5"
+    /// OpenAI's Sol tier, the workhorse of the GPT-6.2 line.
+    static let defaultOpenAI = "gpt-6.2-sol"
     static let defaultGemini = latestGemini
 
     /// Gemini Flash on OpenRouter — Background › Multimodal's shipped model
@@ -97,10 +97,10 @@ extension AIModelDefaults {
     // superseded model is dropped here; pricing and display names keep the
     // old IDs so stored selections and usage history still resolve.
     static let preferredAnthropic = [
-        "claude-sonnet-5",
-        "claude-fable-5",
+        defaultAnthropic,
+        "claude-fable-5-2",
         latestClaude,
-        "claude-haiku-4-5",
+        "claude-haiku-5-5",
     ]
 
     // gemini-3-pro-preview was shut down 2026-03-09; its display name survives
@@ -383,8 +383,8 @@ enum AIModelCatalog {
     private static let defaultEnabledIDs: Set<String> = Set(
         [
             (AIProvider.anthropic, AIModelDefaults.defaultAnthropic),
-            (AIProvider.anthropic, "claude-fable-5"),
-            (AIProvider.anthropic, "claude-haiku-4-5"),
+            (AIProvider.anthropic, "claude-fable-5-2"),
+            (AIProvider.anthropic, "claude-haiku-5-5"),
             (AIProvider.openai, AIModelDefaults.defaultOpenAI),
             (AIProvider.gemini, AIModelDefaults.latestGemini),
         ].map { AIModelCatalogEntry(maker: .other, provider: $0.0, modelID: $0.1).id }
