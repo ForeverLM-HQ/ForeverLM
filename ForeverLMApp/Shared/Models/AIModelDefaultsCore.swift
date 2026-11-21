@@ -37,7 +37,7 @@ enum AIModelDefaults {
 
     /// The paid models Setup recommends, in the order it tries them: the
     /// first that qualifies (open weights, hosts in the region, tools) wins.
-    static let recommendedGLMFlash = "z-ai/glm-5.3-flash"
+    static let recommendedChatTerra = "openai/gpt-6.2-terra"
     static let recommendedGemma31B = "google/gemma-4-31b-it"
     static let recommendedGPTOSS120B = "openai/gpt-oss-120b"
     static let recommendedDeepSeekFlash = "deepseek/deepseek-v4-flash"

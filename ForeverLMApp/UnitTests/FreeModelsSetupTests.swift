@@ -640,72 +640,53 @@ struct RecommendedModelsTests {
         )
     }
 
-    /// GLM 5.3 Flash's hosts in OpenRouter's US directory on 2026-09-28.
-    private var glmUSHosts: [OpenRouterRegionalEndpoints.Endpoint] {
-        [
-            host("sail-research/us", input: 0.045, output: 0.6),
-            host("deepinfra/fp4", input: 0.075, output: 0.25),
-            host("baseten/fp8"),
-            host("fireworks/us", input: 0.225, output: 0.75),
-        ]
-    }
-
-    private let glmID = "z-ai/glm-5.3-flash"
+    private let terraID = "openai/gpt-6.2-terra"
     private let gemmaID = "google/gemma-4-31b-it"
+    private let deepseekID = "deepseek/deepseek-v4-flash"
+    private var gemmaHosts: [OpenRouterRegionalEndpoints.Endpoint] { [host("deepinfra/fp8"), host("deepinfra/ultra")] }
 
-    @Test("GLM 5.3 Flash takes chat and both backups while its weights are open and it has hosts in the US")
-    func glmWhileItQualifies() throws {
+    @Test("Chat is GPT-6.2 Terra, with no region to confine it to; GLM is never chosen")
+    func terraTakesChat() throws {
         let choice = try RecommendedModels.choose(
-            directory: [model(glmID, vision: true), model(gemmaID, vision: true)],
-            regionEndpoints: [glmID: glmUSHosts],
+            directory: [model(terraID, openWeights: false), model(gemmaID, vision: true), model(deepseekID)],
+            regionEndpoints: [gemmaID: gemmaHosts, deepseekID: gemmaHosts],
             freeText: nil,
             freeVision: nil,
             qualifies: allPass
         )
-        #expect(choice.chat.model.id == glmID)
-        #expect(choice.chat.hosts.count == 4)
-        #expect(choice.backup.model.id == glmID)
-        #expect(choice.imagesBackup?.model.id == glmID)
+        #expect(choice.chat.model.id == terraID)
+        #expect(choice.chat.hosts.isEmpty)
+        let namesGLM = RecommendedModels.candidateIDs.contains { $0.contains("glm") }
+        #expect(!namesGLM)
     }
 
-    @Test("Closed weights, too few US hosts that take tools, or a failed test run pass GLM over for the next open model")
+    @Test("Without Terra listed, chat falls to the next open model with enough US hosts")
     func passedOver() {
-        let gemmaHosts = [host("deepinfra/fp8"), host("deepinfra/ultra")]
-        func chat(
-            _ directory: [OpenRouterDirectoryModel],
-            glmHosts: [OpenRouterRegionalEndpoints.Endpoint],
-            qualifies: @escaping FreeModelsSetup.Qualifies = { _, _ in true }
-        ) -> String? {
+        func chat(_ directory: [OpenRouterDirectoryModel], hosts: [OpenRouterRegionalEndpoints.Endpoint]) -> String? {
             RecommendedModels.qualifying(
                 RecommendedModels.preferredChat,
                 role: .chat,
                 directory: directory,
-                regionEndpoints: [glmID: glmHosts, gemmaID: gemmaHosts],
-                qualifies: qualifies
+                regionEndpoints: [gemmaID: hosts],
+                qualifies: allPass
             )?.model.id
         }
-        #expect(chat([model(glmID, openWeights: false), model(gemmaID)], glmHosts: glmUSHosts) == gemmaID)
-        #expect(chat([model(glmID), model(gemmaID)], glmHosts: [host("fireworks/us")]) == gemmaID)
-        #expect(chat([model(glmID), model(gemmaID)], glmHosts: [host("a/x", tools: false), host("b/y")]) == gemmaID)
-        #expect(chat([model(glmID, tools: false), model(gemmaID)], glmHosts: glmUSHosts) == gemmaID)
-        // A closure written inside #expect sends the compiler's diagnostic
-        // pass into "failed to produce diagnostic for expression" and fails
-        // the target's build, so the failed test run is named first.
-        let glmFailedItsTestRun: FreeModelsSetup.Qualifies = { [glmID] id, _ in id != glmID }
-        #expect(chat([model(glmID), model(gemmaID)], glmHosts: glmUSHosts, qualifies: glmFailedItsTestRun) == gemmaID)
-        #expect(chat([model(glmID), model(gemmaID)], glmHosts: glmUSHosts) == glmID)
+        #expect(chat([model(gemmaID)], hosts: gemmaHosts) == gemmaID)
+        #expect(chat([model(gemmaID)], hosts: [host("deepinfra/fp8")]) == nil)
+        #expect(chat([model(gemmaID, openWeights: false)], hosts: gemmaHosts) == nil)
+        #expect(chat([model(terraID, openWeights: false), model(gemmaID)], hosts: gemmaHosts) == terraID)
     }
 
     @Test("Work that reads images gets a backup only from a model that reads images")
     func imagesBackupReadsImages() throws {
         let choice = try RecommendedModels.choose(
-            directory: [model(glmID, vision: false)],
-            regionEndpoints: [glmID: glmUSHosts],
+            directory: [model(terraID, openWeights: false), model(deepseekID), model(gemmaID, vision: false)],
+            regionEndpoints: [deepseekID: gemmaHosts, gemmaID: gemmaHosts],
             freeText: nil,
             freeVision: nil,
             qualifies: allPass
         )
-        #expect(choice.backup.model.id == glmID)
+        #expect(choice.backup.model.id == deepseekID)
         #expect(choice.imagesBackup == nil)
     }
 
@@ -713,7 +694,7 @@ struct RecommendedModelsTests {
     func nothingQualifies() {
         #expect(throws: RecommendedModels.Failure.noChatModel) {
             try RecommendedModels.choose(
-                directory: [model(glmID), model(gemmaID)],
+                directory: [model(gemmaID), model(deepseekID)],
                 regionEndpoints: [:],
                 freeText: nil,
                 freeVision: nil,
@@ -730,11 +711,11 @@ struct RecommendedModelsTests {
         #expect(MeetingModels.paidRoute(multimodal: false, defaults: defaults, isFree: isFree) == nil)
         let provider = AIProvider.openRouter.rawValue
         defaults.set(
-            #"[{"provider":"\#(provider)","model":"google/gemma-4-26b-a4b-it:free"},{"provider":"\#(provider)","model":"z-ai/glm-5.3-flash"}]"#,
+            #"[{"provider":"\#(provider)","model":"google/gemma-4-26b-a4b-it:free"},{"provider":"\#(provider)","model":"deepseek/deepseek-v4-flash"}]"#,
             forKey: AIBackupModels.key(slot: "background.text")
         )
         #expect(MeetingModels.paidRoute(multimodal: false, defaults: defaults, isFree: isFree)
-            == AITaskModelRoute(provider: .openRouter, model: glmID))
+            == AITaskModelRoute(provider: .openRouter, model: deepseekID))
         #expect(MeetingModels.paidRoute(multimodal: true, defaults: defaults, isFree: isFree) == nil)
     }
 }

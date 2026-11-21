@@ -267,12 +267,12 @@ enum FreeModelAccess {
 
 /// The set of models Setup recommends, taken in one step (product owner,
 /// 2026-09-28: "the user should have the ability to choose a default set of
-/// models … during onboarding"). Chat runs on GLM 5.3 Flash "only provided if
-/// it's open source and it's actually being run on the American Inference
-/// Cloud. If not, then I want to find another open source model that is
-/// actually run on American Inference Cloud. So I don't want the data to go
-/// to China." Background work runs on "a free model as a default and an ultra
-/// cheap model as a fallback".
+/// models … during onboarding"). Chat runs on GPT-6.2 Terra (product owner,
+/// 2026-11-20: "make glm not the default model during onboarding … gpt 6.2
+/// terra or something for chats"), with an open-weight model on the US
+/// hosts behind it. Background work runs on the Free Models Router alone
+/// (product owner, 2026-11-20: "just do free model router for background
+/// tasks"); a paid model stands in only when no free model can be picked.
 ///
 /// Chosen from live data, like the free picks: OpenRouter's directory says
 /// whether a model's weights are open (`huggingFaceID`), and its in-region
@@ -286,12 +286,12 @@ enum RecommendedModels {
     static let region: OpenRouterHostPreference.Region = .us
 
     /// Chat's model: the first that qualifies (`qualifying`).
-    static let preferredChat = [AIModelDefaults.recommendedGLMFlash, AIModelDefaults.recommendedGemma31B, AIModelDefaults.recommendedGPTOSS120B]
+    static let preferredChat = [AIModelDefaults.recommendedChatTerra, AIModelDefaults.recommendedGemma31B, AIModelDefaults.recommendedGPTOSS120B]
     /// The backup background work moves to when the free models fail, run
     /// on its cheapest host in the region: the first that qualifies.
-    static let preferredBackup = [AIModelDefaults.recommendedGLMFlash, AIModelDefaults.recommendedDeepSeekFlash, AIModelDefaults.recommendedGPTOSS120B]
+    static let preferredBackup = [AIModelDefaults.recommendedDeepSeekFlash, AIModelDefaults.recommendedGPTOSS120B]
     /// The same for background work that reads images.
-    static let preferredImagesBackup = [AIModelDefaults.recommendedGLMFlash, AIModelDefaults.recommendedGemma31B]
+    static let preferredImagesBackup = [AIModelDefaults.recommendedGemma31B]
     /// Hosts in the region a model needs, so one that is down leaves another.
     static let minimumRegionHosts = 2
 
@@ -346,10 +346,12 @@ enum RecommendedModels {
             let key = id.lowercased()
             guard let model = directory.first(where: { $0.id.lowercased() == key }),
                   model.supportsTools,
-                  model.huggingFaceID != nil,
+                  model.huggingFaceID != nil || key == AIModelDefaults.recommendedChatTerra,
                   !needsVision || model.supportsVision == true,
                   qualifies(model.id, role)
             else { continue }
+            // Terra is closed and served by its maker: no region to confine it to.
+            if key == AIModelDefaults.recommendedChatTerra { return Pick(model: model, hosts: []) }
             let hosts = (regionEndpoints[key] ?? []).filter(\.supportsTools)
             guard hosts.count >= minimumRegionHosts else { continue }
             return Pick(model: model, hosts: hosts)
@@ -419,15 +421,15 @@ enum RecommendedModels {
         let chatProvider = KeychainService.aiProvider
         guard chatProvider == .openRouter,
               KeychainService.model(for: chatProvider).lowercased() == choice.chat.model.id.lowercased(),
-              OpenRouterHostPreference.stored(slot: AIBackupModels.chatSlot, slug: choice.chat.model.id)?.region == region
+              choice.chat.hosts.isEmpty
+                || OpenRouterHostPreference.stored(slot: AIBackupModels.chatSlot, slug: choice.chat.model.id)?.region == region
         else { return false }
         let background = KeychainService.displayedBackgroundTaskRoute
         let backupID = choice.backup.model.id.lowercased()
         let hasRegionalBackup = OpenRouterHostPreference.stored(slot: "background.text", slug: choice.backup.model.id)?.region == region
         if let free = choice.freeText {
             return background.model.lowercased() == free.id.lowercased()
-                && AIBackupModels.stored(slot: "background.text").first?.model.lowercased() == backupID
-                && hasRegionalBackup
+                && AIBackupModels.stored(slot: "background.text").isEmpty
         }
         return background.model.lowercased() == backupID && hasRegionalBackup
     }
@@ -443,11 +445,13 @@ enum RecommendedModels {
         // Chat, on the region's hosts. The host row goes first, so no chat
         // starts on the new default before it is confined.
         let chatID = choice.chat.model.id
-        OpenRouterHostPreference.set(
-            OpenRouterHostPreference(mode: .automatic, region: region),
-            slot: AIBackupModels.chatSlot,
-            slug: chatID
-        )
+        if !choice.chat.hosts.isEmpty {
+            OpenRouterHostPreference.set(
+                OpenRouterHostPreference(mode: .automatic, region: region),
+                slot: AIBackupModels.chatSlot,
+                slug: chatID
+            )
+        }
         AIModelCatalog.addCustomOpenRouterModel(FreeModelsSetup.customModel(choice.chat.model))
         AIModelCatalog.setDefault(AIModelCatalogEntry(maker: AIModelCatalog.maker(forOpenRouterSlug: chatID), provider: .openRouter, modelID: chatID))
         guard AIModelCatalog.defaultEntry?.modelID.lowercased() == chatID.lowercased() else {
@@ -462,7 +466,7 @@ enum RecommendedModels {
         if let free = choice.freeText {
             MeetingModels.setMayUseFree(false)
             FreeModelsSetup.setFreeBackground(free, multimodal: false)
-            AIBackupModels.set([choice.backup.route], slot: "background.text")
+            AIBackupModels.set([], slot: "background.text")
         } else {
             KeychainService.setBackgroundTaskRoute(provider: .openRouter, model: choice.backup.model.id)
             AIBackupModels.set([], slot: "background.text")
@@ -474,7 +478,7 @@ enum RecommendedModels {
             OpenRouterHostPreference.set(backupRow, slot: "background.images", slug: imagesBackup.model.id)
             if let free = choice.freeVision {
                 FreeModelsSetup.setFreeBackground(free, multimodal: true)
-                AIBackupModels.set([imagesBackup.route], slot: "background.images")
+                AIBackupModels.set([], slot: "background.images")
             } else {
                 KeychainService.setBackgroundMultimodalTaskRoute(provider: .openRouter, model: imagesBackup.model.id)
                 AIBackupModels.set([], slot: "background.images")
