@@ -36,8 +36,12 @@ struct EarlyUserDealOffer: View {
     }
 
     /// What the welcome screen says once: the whole app's price and free days.
+    /// "30 day free trial, then one-time $19. No monthly subscription!"
+    /// (product owner, 2026-11-21).
     static func welcomeLine(onceCents: Int?, freeDays: Int?) -> String {
-        headline(onceCents: onceCents, freeDays: freeDays)
+        let start = freeDays.map { "\($0) day free trial" } ?? "Free to start"
+        let price = onceCents.map { "one-time \(ManagedAI.dollars($0))" } ?? "pay once"
+        return "\(start), then \(price). No monthly subscription!"
     }
 
     /// The welcome line for an account's access: the price and the count of
