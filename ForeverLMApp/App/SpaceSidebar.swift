@@ -305,27 +305,24 @@ enum SpaceSidebarMetrics {
 /// lights, folds this sidebar with the rail.
 struct SpaceSidebarHeader: View {
     @Environment(StudioViewModel.self) private var vm
-    @Environment(\.studioPaneTab) private var paneTab
     let onSearch: () -> Void
 
-    /// The Space's name, or a team's: none under a tab that already says it
-    /// (product owner, 2026-11-07, of "Space" under the Space tab), so the
-    /// line holds the search alone. A team's library keeps its name, which no
-    /// tab says.
-    private var name: String? {
-        let name = vm.activeTeamID == nil ? "Space" : vm.activeLibraryTitle
-        return paneTab?.title == name ? nil : name
+    /// The Space's name, or a team's, on every place alike. It once hid under
+    /// a tab titled "Space", but a Space tab names its place (Board, Plan), so
+    /// the line came and went between places (product owner, 2026-11-21:
+    /// "for some things i see Space in the top left but others no; make that
+    /// consistent").
+    private var name: String {
+        vm.activeTeamID == nil ? "Space" : vm.activeLibraryTitle
     }
 
     var body: some View {
         HStack(spacing: 2) {
-            if let name {
-                Text(name)
-                    .zoomedSystemFont(size: 15, weight: .semibold)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .textSelection(.disabled)
-            }
+            Text(name)
+                .zoomedSystemFont(size: 15, weight: .semibold)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .textSelection(.disabled)
             Spacer(minLength: 4)
             SpaceHeaderIconButton(systemImage: "magnifyingglass", help: "Search the Space", action: onSearch)
                 .accessibilityIdentifier("space.sidebar.search")
