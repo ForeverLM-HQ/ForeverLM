@@ -174,7 +174,7 @@ struct AppleAccountWall: View {
 struct AppLockWall: View {
     static let title = "Your free days are over"
     static let message = "Keep everything you've built: pay once and ForeverLM is yours to use."
-    static let libraryLine = "Your library stays in your iCloud Drive (ForeverLM folder), as plain files you own."
+    static let libraryLine = "Nothing is deleted: your library stays on this Mac as plain files you own."
 
     @Environment(ManagedAIAccountModel.self) private var account
     @Environment(\.colorScheme) private var colorScheme

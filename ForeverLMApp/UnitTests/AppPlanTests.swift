@@ -272,7 +272,7 @@ struct AppPlanTests {
         #expect(EarlyUserDealOffer.ownKeyLine == "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing.")
         #expect(AppLockWall.title == "Your free days are over")
         #expect(AppLockWall.message == "Keep everything you've built: pay once and ForeverLM is yours to use.")
-        #expect(AppLockWall.libraryLine == "Your library stays in your iCloud Drive (ForeverLM folder), as plain files you own.")
+        #expect(AppLockWall.libraryLine == "Nothing is deleted: your library stays on this Mac as plain files you own.")
         #expect(ManagedAI.appLockedMCPMessage == "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue.")
         #expect(ManagedAI.appLockedMessage == "Your free days of ForeverLM are over.")
         for text in [
