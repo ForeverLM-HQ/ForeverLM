@@ -20,7 +20,6 @@ struct GettingStartedGuide: View {
     @PreferenceStorage(Prefs.Models.backgroundUsageConsented) private var hasConsentedToBackgroundAIUsage
     /// The AI step's two pages: the key, then the credits.
     @State private var aiPage: AIStepPage = .key
-    @State private var showsKeyField = false
     @PreferenceStorage(Prefs.Rail.aiSubscriptions) private var aiSubscriptionAnswer
     @PreferenceStorage(Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled, default: false)
     private var automaticallyFormatLikedVideoTranscripts
@@ -50,8 +49,6 @@ struct GettingStartedGuide: View {
     /// The AI apps this account has connected, from the gateway; nil until read.
     @State private var connectedAssistants: Set<AISubscription>?
     @State private var zoomFolder = StudioViewModel.zoomLocalTranscriptCustomFolder
-    @State private var ownKeyDraft = ""
-    @State private var ownKeySaving = false
     /// Read at launch and whenever ForeverLM becomes active again, as it does
     /// on the way back from System Settings.
     @State private var hasFullDiskAccess = false
@@ -1309,35 +1306,11 @@ struct GettingStartedGuide: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(account.openRouterConnectInFlight || ownKeySaving)
+                    .disabled(account.openRouterConnectInFlight)
                     .accessibilityIdentifier("gettingStarted.connectOpenRouter")
 
                     if account.openRouterConnectInFlight {
                         Text("Finish in your browser, then come back.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else if showsKeyField {
-                        HStack(spacing: 8) {
-                            SecureField("OpenRouter key", text: $ownKeyDraft)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 260)
-                                .onSubmit { saveOwnKey() }
-                            Button {
-                                saveOwnKey()
-                            } label: {
-                                if ownKeySaving {
-                                    ProgressView().controlSize(.small)
-                                } else {
-                                    Text("Save")
-                                }
-                            }
-                            .disabled(ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ownKeySaving)
-                        }
-                    } else {
-                        // OpenRouter's sign-in page also makes the account, so a
-                        // new learner needs no line about it.
-                        Button("Paste a key instead") { showsKeyField = true }
-                            .buttonStyle(.plain)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -1417,17 +1390,6 @@ struct GettingStartedGuide: View {
     static let openRouterIntegrationsURL = URL(string: "https://openrouter.ai/settings/integrations")!
     static let openRouterBYOKGuideURL = URL(string: "https://openrouter.ai/docs/guides/overview/auth/byok")!
 
-    private func saveOwnKey() {
-        let key = ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty, !ownKeySaving else { return }
-        ownKeySaving = true
-        Task { @MainActor in
-            // A key OpenRouter refuses stays in the field, with the reason below.
-            if await account.setOwnKey(key, router: .openRouter) { ownKeyDraft = "" }
-            ownKeySaving = false
-        }
-    }
-
     /// Back on the left, and on the right one way forward: Continue once the
     /// page is answered (Return presses it), Skip while it may be left
     /// unanswered, never both.
@@ -1444,7 +1406,7 @@ struct GettingStartedGuide: View {
                 Button(forward == .finish ? "Finish" : "Continue") { goForward() }
                     .buttonStyle(.borderedProminent)
                     .disabled(forward == .waiting)
-                    .keyboardShortcut(returnContinues ? .defaultAction : nil)
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(.horizontal, 20)
@@ -1465,12 +1427,6 @@ struct GettingStartedGuide: View {
         case .paper, .moreSources, .subscriptions: return page != nil
         default: return true
         }
-    }
-
-    /// A page with a text field keeps Return for the field.
-    private var returnContinues: Bool {
-        if step == .enhancements, aiPage == .key, showsKeyField { return false }
-        return true
     }
 
     private var isLastPage: Bool {

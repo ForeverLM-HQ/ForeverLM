@@ -644,16 +644,19 @@ extension StudioViewModel {
         guard !candidates.isEmpty else { return }
 
         let candidateIDs = Set(candidates.map(\.id))
-        for candidate in candidates {
-            contentFetchInFlight.insert(candidate.id)
-            if let idx = articles.firstIndex(where: { $0.id == candidate.id }) {
-                // Every candidate is visible under Processing immediately. The
-                // concurrency window promotes only active work to `.fetching`;
-                // the remainder accurately stays queued.
-                articles[idx].state = .queued
-                articles[idx].errorMessage = nil
-            }
+        contentFetchInFlight.formUnion(candidateIDs)
+        // Every candidate is visible under Processing immediately. The
+        // concurrency window promotes only active work to `.fetching`; the
+        // remainder accurately stays queued. One write to `articles`, not one
+        // per candidate: each write runs its `didset`, which compares the whole
+        // array, so a few hundred episodes froze the main thread for seconds
+        // (a stall sample in First Run, 2026-11-21).
+        var queued = articles
+        for idx in queued.indices where candidateIDs.contains(queued[idx].id) {
+            queued[idx].state = .queued
+            queued[idx].errorMessage = nil
         }
+        articles = queued
         defer { contentFetchInFlight.subtract(candidateIDs) }
 
         await hydratePodcastTranscripts(candidates)
