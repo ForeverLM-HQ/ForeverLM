@@ -6813,6 +6813,17 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.235.0 (build 315) — 2026-11-21
+
+**Highlights:**
+- **Skills are gone from the app, and a paper's failed details offer Retry.**
+
+- **Skills are gone.** The Plugins place is the plugin directory alone, with no Skills tab; chat no longer offers `/name` or `$name` skills (ForeverLM's own `/plan` stays); and `list_skills`, `get_skill`, `save_skill` and `delete_skill` leave the MCP tools. Skills you had written are deleted with them.
+- **A paper whose details could not be read offers Retry in its toast.** When Paper Metadata AI returns an answer it cannot use, or the provider fails, the toast carries the same Retry as the paper's row and runs the extraction again.
+- **"Space" heads the sidebar on every Space place.** The Board showed no name there while Courses did.
+- **The welcome story ends on "Learn frictionlessly."**
+- **Third-Party Licenses lists WebRTC,** the framework behind voice mode.
+
 ## 0.234.0 (build 314) — 2026-11-21
 
 **Highlights:**
