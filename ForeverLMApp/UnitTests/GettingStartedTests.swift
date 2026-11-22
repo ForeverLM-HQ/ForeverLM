@@ -115,10 +115,11 @@ struct GettingStartedTests {
         let steps = GettingStartedGuide.providerCreditSteps
         #expect(steps.count == 3)
         #expect(steps[1].contains("Settings › Integrations"))
-        #expect(steps.contains { $0.contains("API key from that OpenAI or Anthropic account") })
+        #expect(steps.contains { $0.contains("API key from that Google, OpenAI or Anthropic account") })
         // Without it, a call the key cannot serve bills OpenRouter credits.
         #expect(steps.contains { $0.contains("Never use shared capacity") })
         #expect(GettingStartedGuide.openRouterIntegrationsURL.host == "openrouter.ai")
+        #expect(GettingStartedGuide.googleCreditsURL.host == "aistudio.google.com")
     }
 
     @Test("The connector plan knows each AI app by the name it registered")

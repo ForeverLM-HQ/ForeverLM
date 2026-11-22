@@ -2646,7 +2646,7 @@ Semantic source search runs entirely on-device using Apple's NaturalLanguage con
 ## Costs
 
 - **Your key pays, at OpenRouter's cost.** With an OpenRouter key stored under **API keys** in the OpenRouter button at the bottom of the sidebar, everything ForeverLM sends through OpenRouter goes on your key and OpenRouter bills you directly. ForeverLM adds nothing to it. The key covers text models (chat, reviews, and background tasks) *and* every voice, speech-to-text, image and video model OpenRouter serves: the Gemini and Grok voices, GPT-4o mini transcription, the GPT Image, Gemini, FLUX, Recraft and Seedream image models, and Veo, Kling, Wan, Sora and the other video models. **Settings → AI Models → Images** and **→ Videos** list every one of them, read from OpenRouter each time the pane opens, so a model OpenRouter adds shows up there on its own; each card shows OpenRouter's price. Over MCP the same setting is `get_own_router_key` / `set_own_router_key`.
-- **Free API credits that come with a subscription can pay for it.** Some paid plans now include monthly API credits, separate from the chat subscription itself: Claude's Max, Ultra and Team plans ([how to claim them](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers)) and, as of late 2026, ChatGPT's Pro and Business plans (claim them on your [OpenAI billing page](https://platform.openai.com/settings/organization/billing/overview)). Both ask you to link an API organization to your plan, and the credits expire each billing cycle if unused. Plans change, so check your own account's billing page for what yours includes. To spend the credits through ForeverLM, create an API key in that account, then add it to your OpenRouter account under [Settings → Integrations](https://openrouter.ai/settings/integrations) (OpenRouter calls this *bring your own key*, see its [guide](https://openrouter.ai/docs/guides/overview/auth/byok)). GPT and Claude models then run on your own credits, and your OpenRouter key in ForeverLM stays the same.
+- **Free API credits that come with a subscription can pay for it.** Some paid plans now include monthly API credits, separate from the chat subscription itself: Claude's Max, Ultra and Team plans ([how to claim them](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers)); ChatGPT's Pro and Business plans (claim them on your [OpenAI billing page](https://platform.openai.com/settings/organization/billing/overview)); and Google AI Pro, Google One AI Premium (Gemini Advanced), or Google Cloud paid plans, which include monthly API credits or developer quotas in [Google AI Studio](https://aistudio.google.com/apikey). Each provider asks you to link a billing project or API organization to your plan, and credits typically refresh or expire each billing cycle if unused. Plans change, so check your own account's billing page for what yours includes. To spend the credits through ForeverLM, create an API key in that account (OpenAI, Anthropic, or Google AI Studio), then add it to your OpenRouter account under [Settings → Integrations](https://openrouter.ai/settings/integrations) (OpenRouter calls this *bring your own key*, see its [guide](https://openrouter.ai/docs/guides/overview/auth/byok)). Select **Always use this key** (and **Never use shared capacity**). Claude, GPT, and Gemini models then run on your own subscription credits, and your OpenRouter key in ForeverLM stays the same.
 - **Your key never touches ForeverLM's servers.** It is saved only in your Keychain, which iCloud Keychain syncs end-to-end encrypted to your Macs and iPhone, and the app sends it only to OpenRouter. Connect OpenRouter signs in at openrouter.ai and hands the key back to the app on your Mac directly. The remote ForeverLM connector refuses to carry a key, so an AI assistant cannot set one through it; paste the key into the app instead.
 - **The app's price is separate from AI.** ForeverLM is 30 days free from your first sign-in, then $19 paid once (no subscription), before applicable tax, in **Settings → Billing**. Paying never buys AI: your key runs every model, and OpenRouter's free models cost nothing.
 - The **Activity** list under the sidebar's OpenRouter button itemises every request with the exact cost OpenRouter reports, precise below a cent. Models without a published rate are shown as unpriced rather than guessed.
@@ -3653,7 +3653,7 @@ The AI has full access to your source text, so it can cite specific passages, ca
 
 # Connect an AI Assistant
 
-Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 30 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. Once the 30 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
+Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 30 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code, Antigravity and every other MCP client on your account. Once the 30 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
 
 ::: tip Most people don't need this
 The easiest way to use your sources with AI is to [drag & drop](/drag-and-drop) them directly from Studio. A persistent connection lets an assistant search your full library and run review sessions without dragging files each time.
@@ -3670,6 +3670,7 @@ Always-on MCP keeps a revocable iCloud session and an account-scoped cache of sy
 - **Claude:** ForeverLM works today as a [custom Claude connector](#claude-custom-connector) on web, desktop, and mobile, and as a [Claude Code plugin](#claude-code-plugin) from its public marketplace. It is **not** in the [Claude Directory](https://claude.ai/directory) or the Claude plugin directory yet; both submissions are in progress. Use the setups below until the listings exist.
 - **ChatGPT and Codex:** ForeverLM was resubmitted to OpenAI on November 8, 2026 and is in review. OpenAI has not issued a public ForeverLM listing URL. The plugin will appear in the [ChatGPT Plugins Directory](https://chatgpt.com/plugins) only after approval and ForeverLM's separate publish action.
 - **Grok:** ForeverLM works today as a [custom Grok connector](#grok-custom-connector) on web, iOS, and Android. It is **not** listed in the [Grok connector catalog](https://grok.com/connectors) yet. Use the custom setup below until a catalog tile exists.
+- **Antigravity:** ForeverLM is packaged as an official Antigravity plugin bundling the remote Streamable HTTP MCP server, five study skills, and agent rules. It is submitted to the [Antigravity Marketplace](https://antigravity.google/docs/plugins/marketplace) (`antigravity-plugins-partners/plugin/foreverlm`). Use the setup below to install the plugin or connect directly.
 
 Until the ChatGPT plugin is public, use the custom setup below. ForeverLM will replace that primary action with OpenAI's canonical listing link after publication; no draft or guessed link is used.
 
@@ -3738,6 +3739,53 @@ grok mcp add --transport http foreverlm "https://plugin.foreverlm.com/mcp"
 ```
 
 Complete Sign in with Apple on first use, then ask Grok to call `get_mcp_status`.
+
+## Antigravity
+
+Google Antigravity connects to ForeverLM either through the official plugin or directly as a remote MCP server.
+
+### Antigravity plugin
+
+The official ForeverLM plugin bundles the remote Streamable HTTP server, five skills, and agent rules.
+
+Once published in the Marketplace, install it directly:
+
+```bash
+agy plugin install foreverlm@antigravity-plugins-partners
+```
+
+For local testing or development, link the plugin from a local checkout:
+
+```bash
+mkdir -p ~/.gemini/config/plugins/
+ln -s /path/to/foreverlm-plugins/plugins/foreverlm ~/.gemini/config/plugins/foreverlm
+```
+
+On first use, complete Sign in with Apple when prompted.
+
+### Direct MCP config
+
+If you prefer to configure only the remote MCP endpoint without the bundled skills:
+
+1. In Web Studio, choose **MCP** in Chat and authorize always-on iCloud access. **MCP ✓** confirms it is ready.
+2. Open `~/.gemini/config/mcp_config.json` (create it if it is missing) and add ForeverLM under `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "foreverlm": {
+      "url": "https://plugin.foreverlm.com/mcp"
+    }
+  }
+}
+```
+
+If the file already lists other servers, add the `foreverlm` entry beside them.
+3. Restart Antigravity, or reload its MCP servers from **Additional Options (…) → MCP Servers**.
+4. When Antigravity asks you to sign in to ForeverLM, complete Sign in with Apple. Antigravity receives the sign-in on this Mac, so the ForeverLM page names the destination as **an app on this computer** and says ForeverLM has not reviewed it. Continue when you started the connection from Antigravity yourself.
+5. Ask the agent to call `get_mcp_status`.
+
+Use the `/mcp` address, not `/sse`: Antigravity speaks Streamable HTTP and not the older SSE transport.
 
 ## Meta Muse custom connector
 

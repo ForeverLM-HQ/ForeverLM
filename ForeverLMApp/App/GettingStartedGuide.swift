@@ -1299,11 +1299,13 @@ struct GettingStartedGuide: View {
         }
     }
 
-    // MARK: OpenAI and Anthropic credits
+    // MARK: OpenAI, Anthropic, and Google credits
 
     /// The product owner, 2026-11-11: onboarding should make it "super clear
     /// that someone can use their OpenAI and Anthropic API credits as well,
     /// and tell them how to set that in OpenRouter and how to put BYOK".
+    /// Google AI Pro, Google One AI Premium and Google Cloud plans likewise
+    /// include monthly API credits / quotas in Google AI Studio.
     /// OpenRouter runs those labs' models on the learner's own provider key,
     /// and ForeverLM sends them to the lab's own endpoint
     /// (`AIService.pinLabModelToItsOwnEndpoint`), where that key applies.
@@ -1333,6 +1335,7 @@ struct GettingStartedGuide: View {
                     HStack(spacing: 16) {
                         Button("Claim Claude credits") { open(Self.claudeCreditsURL) }
                         Button("Claim ChatGPT credits") { open(Self.openAICreditsURL) }
+                        Button("Claim Google credits") { open(Self.googleCreditsURL) }
                     }
                     .buttonStyle(.link)
                     .font(.subheadline)
@@ -1341,7 +1344,7 @@ struct GettingStartedGuide: View {
                 stepHeading(
                     icon: "creditcard",
                     assetIcon: "OpenRouterIcon",
-                    title: "Do you have a paid Claude or ChatGPT plan?"
+                    title: "Do you have a paid Claude, ChatGPT, or Google plan?"
                 )
                 VStack(spacing: 10) {
                     choiceRow(title: "Yes") {
@@ -1356,13 +1359,14 @@ struct GettingStartedGuide: View {
     /// OpenRouter's own-key (BYOK) setup, in its own words
     /// (openrouter.ai/docs/guides/overview/auth/byok).
     static let providerCreditSteps = [
-        "Claim your monthly credits, then copy an API key from that OpenAI or Anthropic account",
-        "On OpenRouter, open Settings › Integrations and paste the key under OpenAI or Anthropic",
+        "Claim your monthly credits, then copy an API key from that Google, OpenAI or Anthropic account",
+        "On OpenRouter, open Settings › Integrations and paste the key under Google AI Studio, OpenAI, or Anthropic",
         "Turn on Always use this key and Never use shared capacity, so your credits pay and your OpenRouter balance is never charged",
     ]
 
     static let claudeCreditsURL = URL(string: "https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers")!
     static let openAICreditsURL = URL(string: "https://platform.openai.com/settings/organization/billing/overview")!
+    static let googleCreditsURL = URL(string: "https://aistudio.google.com/apikey")!
 
     static let openRouterIntegrationsURL = URL(string: "https://openrouter.ai/settings/integrations")!
 
