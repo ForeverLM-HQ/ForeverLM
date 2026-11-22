@@ -496,7 +496,18 @@ final class ReviewComposerDraft {
     /// Held apart from `text` so the composer can draw it as a quote and the
     /// learner types only their question; it is folded back into the message as
     /// a Markdown blockquote on send (`ChatQuoteDraft.compose`).
-    var quotedPassage = ""
+    /// Each passage is one annotation: the composer shows "1 annotation", and
+    /// a click lists them to edit or drop (the way Codex does).
+    var quotedAnnotations: [String] = []
+    /// The annotations as one pending passage, in the order they were added.
+    /// Setting it replaces them with that one passage (or none).
+    var quotedPassage: String {
+        get { quotedAnnotations.joined(separator: "\n\n") }
+        set {
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            quotedAnnotations = trimmed.isEmpty ? [] : [newValue]
+        }
+    }
     /// A machine-inserted opener the learner has not edited. It is regenerated
     /// from the chat's sources rather than persisted, and dictation or a
     /// suggested prompt may overwrite it.
@@ -724,7 +735,10 @@ struct ReviewChatComposerBox: View {
             if !composer.quotedPassage.isEmpty, let onRemoveQuote {
                 // Above the field, drawn the way the sent bubble will draw it,
                 // rather than as the `> ` lines it becomes on the wire.
-                ReviewChatComposerQuote(passage: composer.quotedPassage, remove: onRemoveQuote)
+                ReviewChatComposerAnnotations(
+                    annotations: Bindable(composer).quotedAnnotations,
+                    removeAll: onRemoveQuote
+                )
                     .padding(.leading, ReviewChatComposerTextView.overlayTextLeadingInset)
                     .padding(.trailing, 4)
                     .padding(.top, 4)
@@ -902,71 +916,152 @@ struct ReviewChatComposerBox: View {
     }
 }
 
-/// A passage quoted out of the transcript, drawn above the field as the quote
-/// it will be once sent rather than as the `> ` lines it becomes on the wire.
-///
-/// It is not editable text: the field below holds only the question, so a long
-/// passage never has to be typed around or scrolled past. A passage taller than
-/// the block scrolls inside it, and the × drops it.
-struct ReviewChatComposerQuote: View {
-    let passage: String
-    let remove: () -> Void
+/// The passages quoted into the draft, as one chip above the field: "1
+/// annotation". A click opens a popover listing each passage under "Selected
+/// text:", with a pencil to edit it and a trash can to drop it; the chip's × (on
+/// hover) drops them all. They are not editable text in the field: the field
+/// below holds only the question, so a long passage never has to be typed
+/// around, and on send they become the `> ` block (`ChatQuoteDraft.compose`).
+struct ReviewChatComposerAnnotations: View {
+    @Binding var annotations: [String]
+    let removeAll: () -> Void
 
-    @Environment(\.uiZoomScale) private var uiZoomScale
-    /// Height the passage needs, so a short quote hugs its lines and only a
-    /// long one is capped and scrolls.
-    @State private var contentHeight: CGFloat = 0
+    @State private var showsList = false
+    @State private var hovering = false
 
-    private var zoom: CGFloat {
-        uiZoomScale / UIZoom.scale(for: UIZoom.defaultStep)
+    private var title: String {
+        annotations.count == 1 ? "1 annotation" : "\(annotations.count) annotations"
     }
 
-    /// Tall enough for a paragraph, short enough that the field and the
-    /// transcript above it keep their room.
-    private var maximumHeight: CGFloat { 104 * zoom }
-
     var body: some View {
-        HStack(alignment: .top, spacing: 2) {
-            ScrollView(.vertical) {
-                // The same face and weight the bubble will draw it in, and the
-                // same folding of any TeX in the passage into readable text, so
-                // the composer shows what the message is about to look like.
-                // The message itself still carries the TeX.
-                Text(passage.foldingTeXForPreview())
-                    .zoomedSystemFont(size: ChatMarkdownView.baseFontSize)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
-                        contentHeight = height
+        HStack(spacing: 0) {
+            Button { showsList.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "text.bubble")
+                        .zoomedSystemFont(size: 12)
+                        .foregroundStyle(.secondary)
+                    Text(title)
+                        .zoomedSystemFont(size: 13)
+                        .foregroundStyle(.primary)
+                    // Always laid out, so the chip does not jump as the pointer
+                    // reaches it; only drawn on hover.
+                    Color.clear.frame(width: 20, height: 18)
+                }
+                .padding(.leading, 10)
+                .padding(.trailing, 4)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.primary.opacity(hovering || showsList ? 0.06 : 0.03)))
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                .overlay(alignment: .trailing) {
+                    if hovering || showsList {
+                        Button(action: removeAll) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 18, height: 18)
+                                .background(Circle().fill(Color.primary.opacity(0.85)))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 4)
+                        .help("Send the message without the annotations")
+                        .accessibilityLabel("Remove annotations")
+                        .accessibilityIdentifier("mac.chatComposerQuoteRemove")
                     }
+                }
+                .contentShape(Capsule())
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: min(max(contentHeight, 1), maximumHeight))
-            .padding(.leading, 9)
-            .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color.primary.opacity(0.22))
-                    .frame(width: 3)
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .popover(isPresented: $showsList, arrowEdge: .top) {
+                ReviewChatAnnotationList(annotations: $annotations, close: { showsList = false })
             }
-
-            Button(action: remove) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.caption2)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16, height: 16)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.hoverWash(in: Circle(), opacity: 0.14))
-            .help("Send the message without the quoted passage")
-            .accessibilityLabel("Remove quoted passage")
-            .accessibilityIdentifier("mac.chatComposerQuoteRemove")
+            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Quoting: \(passage)")
+        .accessibilityLabel(title)
         .accessibilityIdentifier("mac.chatComposerQuote")
+        .onChange(of: annotations.isEmpty) { _, isEmpty in
+            if isEmpty { showsList = false }
+        }
+    }
+}
+
+/// What the annotations chip opens: each passage, numbered, with edit and delete.
+private struct ReviewChatAnnotationList: View {
+    @Binding var annotations: [String]
+    let close: () -> Void
+
+    @State private var editingIndex: Int?
+    @State private var editText = ""
+
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(Array(annotations.enumerated()), id: \.offset) { index, passage in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("\(index + 1).")
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 16, alignment: .trailing)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Selected text:")
+                                .foregroundStyle(.secondary)
+                            if editingIndex == index {
+                                TextEditor(text: $editText)
+                                    .font(.body)
+                                    .frame(minHeight: 90, maxHeight: 220)
+                                    .scrollContentBackground(.hidden)
+                                    .padding(4)
+                                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+                                HStack {
+                                    Spacer()
+                                    Button("Cancel") { editingIndex = nil }
+                                    Button("Save") { commitEdit(index) }
+                                        .keyboardShortcut(.defaultAction)
+                                }
+                                .controlSize(.small)
+                            } else {
+                                Text(passage.foldingTeXForPreview())
+                                    .textSelection(.enabled)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if editingIndex != index {
+                            Button { editText = passage; editingIndex = index } label: {
+                                Image(systemName: "pencil")
+                            }
+                            .help("Edit this annotation")
+                            .accessibilityLabel("Edit annotation \(index + 1)")
+                            Button { delete(index) } label: {
+                                Image(systemName: "trash")
+                            }
+                            .help("Remove this annotation")
+                            .accessibilityLabel("Remove annotation \(index + 1)")
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
+            .padding(14)
+        }
+        .frame(width: 380)
+        .frame(maxHeight: 420)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func commitEdit(_ index: Int) {
+        defer { editingIndex = nil }
+        guard annotations.indices.contains(index) else { return }
+        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { delete(index) } else { annotations[index] = trimmed }
+    }
+
+    private func delete(_ index: Int) {
+        guard annotations.indices.contains(index) else { return }
+        editingIndex = nil
+        annotations.remove(at: index)
+        if annotations.isEmpty { close() }
     }
 }
 

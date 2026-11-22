@@ -242,9 +242,9 @@ extension InternalReviewPanelContent {
     }
 
     private func quoteIntoDraft(_ passage: String) {
-        let quoted = ChatQuoteDraft.adding(passage, to: quotedPassage)
-        guard quoted != quotedPassage else { return }
-        quotedPassage = quoted
+        let trimmed = passage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        composer.quotedAnnotations.append(trimmed)
         // A machine-inserted opener gives way to the quote; words the learner
         // typed stay, with the caret still after them.
         if draft == lastInsertedDefaultPrompt { draft = "" }
