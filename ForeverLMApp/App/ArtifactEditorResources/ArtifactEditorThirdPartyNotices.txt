@@ -3,7 +3,7 @@ ForeverLM Artifact Editor — Third-Party Notices
 The editor bundle contains the following open-source packages.
 
 ================================================================================
-@babel/helper-string-parser 7.29.7
+@babel/helper-string-parser 7.29.15
 License: MIT
 https://babel.dev/docs/en/next/babel-helper-string-parser
 ================================================================================
@@ -62,7 +62,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-@babel/parser 7.29.8
+@babel/parser 7.29.15
 License: MIT
 https://babel.dev/docs/en/next/babel-parser
 ================================================================================
@@ -89,7 +89,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@babel/types 7.29.8
+@babel/types 7.29.15
 License: MIT
 https://babel.dev/docs/en/next/babel-types
 ================================================================================
@@ -1071,7 +1071,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-@jridgewell/sourcemap-codec 1.5.5
+@jridgewell/sourcemap-codec 1.6.0
 License: MIT
 https://github.com/jridgewell/sourcemaps/tree/main/packages/sourcemap-codec
 ================================================================================
@@ -2535,7 +2535,7 @@ https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/unist
 
 
 ================================================================================
-@vue/compiler-core 3.5.41
+@vue/compiler-core 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/compiler-core#readme
 ================================================================================
@@ -2564,7 +2564,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/compiler-dom 3.5.41
+@vue/compiler-dom 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/compiler-dom#readme
 ================================================================================
@@ -2593,7 +2593,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/compiler-sfc 3.5.41
+@vue/compiler-sfc 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/compiler-sfc#readme
 ================================================================================
@@ -2622,7 +2622,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/compiler-ssr 3.5.41
+@vue/compiler-ssr 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/compiler-ssr#readme
 ================================================================================
@@ -2651,7 +2651,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/reactivity 3.5.41
+@vue/reactivity 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/reactivity#readme
 ================================================================================
@@ -2680,7 +2680,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/runtime-core 3.5.41
+@vue/runtime-core 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/runtime-core#readme
 ================================================================================
@@ -2709,7 +2709,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/runtime-dom 3.5.41
+@vue/runtime-dom 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/runtime-dom#readme
 ================================================================================
@@ -2738,7 +2738,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/server-renderer 3.5.41
+@vue/server-renderer 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/server-renderer#readme
 ================================================================================
@@ -2767,7 +2767,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-@vue/shared 3.5.41
+@vue/shared 3.5.46
 License: MIT
 https://github.com/vuejs/core/tree/main/packages/shared#readme
 ================================================================================
@@ -2983,7 +2983,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-csstype 3.2.3
+csstype 3.2.4
 License: MIT
 ================================================================================
 
@@ -3122,7 +3122,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-dompurify 3.4.13
+dompurify 3.5.0
 License: (MPL-2.0 OR Apache-2.0)
 https://github.com/cure53/DOMPurify
 ================================================================================
@@ -4624,35 +4624,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-katex 0.16.47
-License: MIT
-https://katex.org
-================================================================================
-
-The MIT License (MIT)
-
-Copyright (c) 2013-2020 Khan Academy and other contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-================================================================================
 micromark-factory-destination 2.0.1
 License: MIT
 ================================================================================
@@ -5308,7 +5279,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
 ================================================================================
-postcss 8.5.26
+postcss 8.5.33
 License: MIT
 https://postcss.org/
 ================================================================================
@@ -5336,7 +5307,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-nanoid 3.3.18
+nanoid 3.3.20
 License: MIT
 ================================================================================
 
@@ -5733,7 +5704,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-prosemirror-view 1.42.2
+prosemirror-view 1.42.3
 License: MIT
 ================================================================================
 
@@ -5966,7 +5937,7 @@ THE SOFTWARE.
 
 
 ================================================================================
-source-map-js 1.2.1
+source-map-js 1.2.4
 License: BSD-3-Clause
 https://github.com/7rulnik/source-map-js
 ================================================================================
@@ -6287,7 +6258,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-vue 3.5.41
+vue 3.5.46
 License: MIT
 https://vuejs.org/
 ================================================================================

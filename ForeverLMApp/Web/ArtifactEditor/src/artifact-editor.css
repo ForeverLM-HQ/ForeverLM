@@ -1573,6 +1573,14 @@ body.is-dragging-card * {
   margin: 0 0 0.82em;
 }
 
+/* The outer list owns the space after the list. Repeating that paragraph gap
+   on a list nested inside one of its items inserts an extra blank-looking line
+   before the next sibling bullet. Let the nested list end on the ordinary
+   list-item rhythm instead. */
+.milkdown .editor li :is(ul, ol) {
+  margin-bottom: 0;
+}
+
 /* Crepe's frame theme pads every paragraph and heading by 4px and 2px of its
    own and sets paragraphs to line-height 1.5. The rules here only ever set
    margins, so all of that survived: each block carried vertical padding the

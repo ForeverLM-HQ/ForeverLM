@@ -73,6 +73,14 @@ test('Tab nests a list item and does nothing in a paragraph', async ({ page }) =
   expect(await stored(page)).toContain('\nA paragraph.\n')
 })
 
+test('a nested list does not add a paragraph gap before the next parent bullet', async ({ page }) => {
+  await openEditor(page, '* parent\n  * nested\n* next\n* last\n')
+  const margins = await page.locator('.ProseMirror ul').evaluateAll((lists) => lists.map((list) => getComputedStyle(list).marginBottom))
+  expect(margins).toHaveLength(2)
+  expect(parseFloat(margins[0])).toBeGreaterThan(0)
+  expect(margins[1]).toBe('0px')
+})
+
 test('⌘Z never brings back another page', async ({ page }) => {
   await openEditor(page, '# Page A\n\nAlpha.\n', { key: 'a' })
   await caretIn(page, 'Alpha')
