@@ -168,6 +168,13 @@ struct InlineModelPicker: View {
         if let entry = AIModelCatalog.entry(provider: selectedProvider, modelID: selectedModel) {
             return (entry.maker.iconName, entry.maker.systemImageFallback)
         }
+        // Not in the catalog (an OpenRouter slug the picker has no card for,
+        // or one a privacy switch hides): the slug's author still names the
+        // maker, so openai/gpt-6.2-sol wears OpenAI's mark, not OpenRouter's.
+        if selectedProvider == .openRouter {
+            let maker = AIModelCatalog.maker(forOpenRouterSlug: selectedModel)
+            if maker != .other { return (maker.iconName, maker.systemImageFallback) }
+        }
         return (selectedProvider.iconName, selectedProvider.systemImageFallback)
     }
 
