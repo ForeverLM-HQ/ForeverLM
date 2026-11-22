@@ -24,6 +24,10 @@ struct PlanQuarterTests {
         #expect(PlanQuarter.containing(day(2026, 11, 7), zone: zone) == PlanQuarter(year: 2026, quarter: 4))
         #expect(PlanQuarter.containing(day(2026, 3, 31), zone: zone) == PlanQuarter(year: 2026, quarter: 1))
         #expect(PlanQuarter.containing(day(2026, 4, 1), zone: zone) == PlanQuarter(year: 2026, quarter: 2))
+        let q4 = PlanQuarter(year: 2026, quarter: 4)
+        #expect(q4.contains(day(2026, 10, 1), zone: zone))
+        #expect(q4.contains(day(2026, 12, 31), zone: zone))
+        #expect(!q4.contains(day(2027, 1, 1), zone: zone))
     }
 
     @Test("Ids and keys round-trip, and nothing else reads as a plan, a week least of all")

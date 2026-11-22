@@ -2,23 +2,16 @@ import Foundation
 
 // MARK: - Lists in the Space
 //
-// The product owner, 2026-10-07, showing ChatGPT's Space with its To-do list among the
-// pages: "also goals and ideas should be similarly to how chatgpt has e.g.
-// todo lists in spaces". He chose lists as Space items: a list of goals or
-// of ideas is made from New ▸ or the Space's Create strip, listed in All
-// beside the pages, filed in one of the learner's spaces (so each space can
-// hold its own goals and its own ideas), pinned, put in Trash and restored
-// like a page; opening one shows the goals or ideas it holds
-// (docs/docs-design.md, "Lists in the Space").
-//
-// The goals and ideas stay what they were: records of their own, listed in
-// the Goals tab and the Ideas place as before. A list is the learner's
-// grouping of them, as a space is of pages, so it is two kinds of synced
-// preference row and nothing on the records.
+// Lists in a Space hold Ideas. Goals belong to Planning and are visible in
+// the quarter selected by their deadline. The retired `goals` raw value is
+// kept only so an older synced preference row decodes; `SpaceLists.init`
+// drops it, so it never becomes a second, hidden home for Goals.
 
 /// One of the learner's lists: its id, what it holds, its name and dates.
 struct SpaceList: Identifiable, Equatable, Hashable, Sendable {
     enum Kind: String, Codable, CaseIterable, Sendable {
+        /// Compatibility-only: old builds synced this value. New reads drop
+        /// it and no creation surface accepts it.
         case goals
         case ideas
 
@@ -100,8 +93,11 @@ struct SpaceLists: Equatable, Sendable {
     private(set) var memberships: [String: String]
 
     init(lists: [String: SpaceList] = [:], memberships: [String: String] = [:]) {
-        self.lists = lists
-        self.memberships = memberships.filter { !$0.key.isEmpty && !$0.value.isEmpty }
+        let visible = lists.filter { $0.value.kind == .ideas }
+        self.lists = visible
+        self.memberships = memberships.filter {
+            !$0.key.isEmpty && !$0.value.isEmpty && visible[$0.value] != nil
+        }
     }
 
     /// The lists in a set of preference rows: every row under the two

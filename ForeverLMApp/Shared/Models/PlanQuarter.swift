@@ -87,6 +87,13 @@ struct PlanQuarter: Hashable, Sendable, Identifiable {
         offset(by: 1).start(zone: zone)
     }
 
+    /// Whether a deadline belongs to this plan. Goals have one deadline, so
+    /// their quarter is derived instead of stored as a second relationship
+    /// that could drift from the date.
+    func contains(_ date: Date, zone: TimeZone = .current) -> Bool {
+        Self.containing(date, zone: zone) == self
+    }
+
     /// The quarter `count` quarters on (back, for a negative count).
     func offset(by count: Int) -> PlanQuarter {
         let index = year * 4 + (quarter - 1) + count

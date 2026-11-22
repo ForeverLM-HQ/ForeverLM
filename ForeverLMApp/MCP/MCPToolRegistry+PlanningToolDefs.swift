@@ -227,14 +227,14 @@ extension MCPToolRegistry {
                         "source_ids": ["type": "array", "items": ["type": "string"], "description": "Optional seed source IDs to anchor discovery and the plan."],
                         "daily_target": ["type": "integer", "description": "Items per day. Defaults to 3."],
                         "discover": ["type": "boolean", "description": "Auto-discover related sources by topic each day. Defaults to true."],
-                        "artifact_id": ["type": "string", "description": "Optional id of the Doc, Site or animation this Goal is for — the deliverable itself, e.g. the site behind 'Make a site of the rare mitochondrial diseases' (from list_docs, list_animations or a save_site result). The Goals tab opens it from the row. Refused when no record has the id."],
+                        "artifact_id": ["type": "string", "description": "Optional id of the Doc, Site or animation this Goal is for — the deliverable itself, e.g. the site behind 'Make a site of the rare mitochondrial diseases' (from list_docs, list_animations or a save_site result). Plan opens it from the Goal row. Refused when no record has the id."],
                     ],
                     "required": ["title", "end_date"],
                 ]
             ),
             MCPToolDef(
                 name: "list_goals",
-                description: "List the learner's timebound Goals (deadline, days remaining, approved/completed source counts, review status, and the Doc, Site or animation each is for, as `artifact`). Omit notebook_id to list every Goal, tagged to a Notebook or standing alone; pass it to scope to one Notebook. Notebooks themselves are listed with list_notebooks.",
+                description: "List the learner's timebound Goals as shown in Plan: each has its deadline, quarter plan (`plan.doc_id` and `plan.title`), days remaining, approved/completed source counts, review status, and the Doc, Site or animation it is for as `artifact`. A Goal's deadline determines its quarter; there is no separate Goals list in a Space. Omit notebook_id to list every Goal, tagged to a Notebook or standing alone; pass it to scope to one Notebook. Notebooks themselves are listed with list_notebooks.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -259,14 +259,14 @@ extension MCPToolRegistry {
                         "discover": ["type": "boolean", "description": "Whether to auto-discover related sources by topic."],
                         "notebook_id": ["type": "string", "description": "Notebook to tag the Goal to. Must name a top-level Notebook; pass an empty string to untag it and let the Goal stand on its own."],
                         "status": ["type": "string", "description": "Lifecycle state: 'active', 'done', or 'archived'. Mark 'done' when the deliverable is finished. A Goal past its deadline that is still 'active' is reported as overdue, not complete — only set 'done' when the work is actually finished."],
-                        "artifact_id": ["type": "string", "description": "The Doc, Site or animation this Goal is for, by id (from list_docs, list_animations or a save_site result): the Goals tab opens it from the row. Pass an empty string to unlink. Refused when no record has the id."],
+                        "artifact_id": ["type": "string", "description": "The Doc, Site or animation this Goal is for, by id (from list_docs, list_animations or a save_site result): Plan opens it from the Goal row. Pass an empty string to unlink. Refused when no record has the id."],
                     ],
                     "required": ["goal_id"],
                 ]
             ),
             MCPToolDef(
                 name: "reorder_goals",
-                description: "Put the learner's Goals in an order — the drag of a row in the Goals tab. goal_ids may be a subset: the listed Goals are placed first in the given order, and every other open Goal follows in the order it already reads (placed Goals, then the rest by deadline), so reordering three never scrambles the rest. Pass an empty list to forget every placement and read by deadline again. The order drives the Goals tab and list_goals. Each id must name an open timebound Goal (from list_goals); a Notebook, a finished Goal or an unknown id is refused and nothing changes. Confirm the order with the learner before calling this.",
+                description: "Put the learner's Goals in an order — the drag of a Goal row in Plan. goal_ids may be a subset: the listed Goals are placed first in the given order, and every other open Goal follows in the order it already reads (placed Goals, then the rest by deadline), so reordering three never scrambles the rest. Pass an empty list to forget every placement and read by deadline again. The order drives Plan and list_goals. Each id must name an open timebound Goal (from list_goals); a Notebook, a finished Goal or an unknown id is refused and nothing changes. Confirm the order with the learner before calling this.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -277,7 +277,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "delete_learning_goal",
-                description: "Permanently delete one timebound Goal — the app's Delete on a row of the Goals tab. The Goal's record, its source pool and its Schedule tags go; the sources stay in the library, and a chat started from the Goal stays in Chats with the link cleared. Refused for a Notebook (delete_notebook takes those, with their Goals). Not undoable; to put a Goal away and keep it, use update_learning_goal with status archived instead. Confirm with the learner first.",
+                description: "Permanently delete one timebound Goal — the app's Delete on its row in Plan. The Goal's record, its source pool and its Schedule tags go; the sources stay in the library, and a chat started from the Goal stays in Chats with the link cleared. Refused for a Notebook (delete_notebook takes those, with their Goals). Not undoable; to put a Goal away and keep it, use update_learning_goal with status archived instead. Confirm with the learner first.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -561,7 +561,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "add_goal_sources",
-                description: "Put existing library sources on a timebound Goal — the app's drop of sources onto a Goal's row on the Goals tab. They join the Goal's approved pool at once (no discovery, no approval step), and a Goal tagged to a Notebook hands them on to that Notebook's pool too. Sources already on the Goal are skipped. Find ids with search_sources_semantic or list_sources; file new material with add_source first. A Notebook is refused — add_notebook_sources takes those. To place the sources on days, follow with assign_sources_to_day.",
+                description: "Put existing library sources on a timebound Goal — the app's drop of sources onto a Goal's row in Plan. They join the Goal's approved pool at once (no discovery, no approval step), and a Goal tagged to a Notebook hands them on to that Notebook's pool too. Sources already on the Goal are skipped. Find ids with search_sources_semantic or list_sources; file new material with add_source first. A Notebook is refused — add_notebook_sources takes those. To place the sources on days, follow with assign_sources_to_day.",
                 inputSchema: [
                     "type": "object",
                     "properties": [

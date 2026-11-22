@@ -976,7 +976,7 @@ struct ScreenRecordSpaceSidebarTests {
     }
 
     private func list(_ id: String, createdAt: Date) -> SpaceList {
-        SpaceList(id: id, kind: .goals, name: id, createdAt: createdAt, updatedAt: createdAt, trashedAt: nil)
+        SpaceList(id: id, kind: .ideas, name: id, createdAt: createdAt, updatedAt: createdAt, trashedAt: nil)
     }
 
     @Test("Recents, Pinned, the spaces and the teams show only what the take may show")

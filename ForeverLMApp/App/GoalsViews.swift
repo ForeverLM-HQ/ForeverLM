@@ -597,8 +597,6 @@ struct GoalRow: View {
             if isOpen {
                 Button("Find Directions") { vm.requestDirectionSearch(forGoal: goal) }
             }
-            // A list of goals in the Space holds it (`SpaceLists`).
-            SpaceListMenu(recordID: goal.id, kind: .goals)
             if let artifact {
                 Button("Open \(artifact.title)") { Task { await vm.openGoalArtifact(goal) } }
                 OtherWindowMenuItem(.teamArtifact(artifact.id))
@@ -1023,11 +1021,20 @@ struct SetGoalSheet: View {
         case custom
     }
 
-    init(presetNotebookID: String? = nil, presetTitle: String? = nil, create: @escaping (String, Date, String?, String?) -> Void) {
+    init(
+        presetNotebookID: String? = nil,
+        presetTitle: String? = nil,
+        presetDeadline: Date? = nil,
+        create: @escaping (String, Date, String?, String?) -> Void
+    ) {
         self.presetNotebookID = presetNotebookID
         self.presetTitle = presetTitle
         self.create = create
         _title = State(initialValue: presetTitle ?? "")
+        if let presetDeadline {
+            _choice = State(initialValue: .custom)
+            _customDeadline = State(initialValue: presetDeadline)
+        }
         _notebookID = State(initialValue: presetNotebookID)
         _isTagging = State(initialValue: presetNotebookID != nil)
     }

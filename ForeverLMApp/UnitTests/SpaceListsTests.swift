@@ -3,11 +3,11 @@ import Testing
 @testable import ForeverLM
 
 /// Lists in the Space (docs/docs-design.md, "Lists in the Space"): a list of
-/// goals or of ideas is a synced row of its own, and each goal or idea names
+/// Ideas is a synced row of its own, and each Idea names
 /// the one list it is in.
 @Suite("Lists in the Space: the rows")
 struct SpaceListRowTests {
-    private func list(_ id: String, _ kind: SpaceList.Kind = .goals, name: String = "Thesis", created: Double = 100, trashed: Double? = nil) -> SpaceList {
+    private func list(_ id: String, _ kind: SpaceList.Kind = .ideas, name: String = "Thesis", created: Double = 100, trashed: Double? = nil) -> SpaceList {
         SpaceList(
             id: id, kind: kind, name: name,
             createdAt: Date(timeIntervalSince1970: created),
@@ -29,31 +29,35 @@ struct SpaceListRowTests {
 
     @Test("Rows are read under their two prefixes; a record's row naming a deleted list is read past")
     func readsRows() {
-        let goals = list("lst-g")
+        let ideas = list("lst-i")
+        let retiredGoals = list("lst-g", .goals)
         let lists = SpaceLists(rows: [
-            SpaceLists.listKey(listID: "lst-g"): SpaceLists.rowValue(goals),
+            SpaceLists.listKey(listID: "lst-i"): SpaceLists.rowValue(ideas),
+            SpaceLists.listKey(listID: "lst-g"): SpaceLists.rowValue(retiredGoals),
+            SpaceLists.itemKey(recordID: "idea-1"): "lst-i",
             SpaceLists.itemKey(recordID: "goal-1"): "lst-g",
-            SpaceLists.itemKey(recordID: "goal-2"): "lst-gone",
-            SpaceLists.itemKey(recordID: "goal-3"): "  ",
-            "spaceList.": SpaceLists.rowValue(goals),
+            SpaceLists.itemKey(recordID: "idea-2"): "lst-gone",
+            SpaceLists.itemKey(recordID: "idea-3"): "  ",
+            "spaceList.": SpaceLists.rowValue(ideas),
             "pageSpace.psp-1": "Aging",
         ])
-        #expect(lists.all == [goals])
-        #expect(lists.listID(of: "goal-1") == "lst-g")
-        #expect(lists.listID(of: "goal-2") == nil, "its list is gone")
-        #expect(lists.listID(of: "goal-3") == nil)
-        #expect(lists.recordIDs(["goal-2", "goal-1"], in: "lst-g") == ["goal-1"])
+        #expect(lists.all == [ideas])
+        #expect(lists.listID(of: "idea-1") == "lst-i")
+        #expect(lists.listID(of: "goal-1") == nil, "retired Goals lists are not a hidden home")
+        #expect(lists.listID(of: "idea-2") == nil, "its list is gone")
+        #expect(lists.listID(of: "idea-3") == nil)
+        #expect(lists.recordIDs(["idea-2", "idea-1"], in: "lst-i") == ["idea-1"])
     }
 
     @Test("Filing writes only the rows that change; deleting a list takes every row naming it")
     func rowsAfterActs() {
-        let lists = SpaceLists(lists: ["lst-a": list("lst-a"), "lst-b": list("lst-b")], memberships: ["g1": "lst-a", "g2": "lst-b"])
-        let rows = lists.itemRowsAfterFiling(["g1", "g2", "g2", ""], in: "lst-a")
-        #expect(rows == [SpaceLists.ItemRow(recordID: "g2", listID: "lst-a")], "g1 is there already; g2 once")
+        let lists = SpaceLists(lists: ["lst-a": list("lst-a"), "lst-b": list("lst-b")], memberships: ["i1": "lst-a", "i2": "lst-b"])
+        let rows = lists.itemRowsAfterFiling(["i1", "i2", "i2", ""], in: "lst-a")
+        #expect(rows == [SpaceLists.ItemRow(recordID: "i2", listID: "lst-a")], "i1 is there already; i2 once")
         let after = lists.applying(rows)
-        #expect(after.listID(of: "g2") == "lst-a")
-        #expect(after.itemRowsAfterDeleting("lst-a").map(\.recordID) == ["g1", "g2"])
-        #expect(after.itemRowsAfterFiling(["g1"], in: nil) == [SpaceLists.ItemRow(recordID: "g1", listID: nil)])
+        #expect(after.listID(of: "i2") == "lst-a")
+        #expect(after.itemRowsAfterDeleting("lst-a").map(\.recordID) == ["i1", "i2"])
+        #expect(after.itemRowsAfterFiling(["i1"], in: nil) == [SpaceLists.ItemRow(recordID: "i1", listID: nil)])
     }
 
     @Test("A list is a Space place the window remembers")
@@ -76,7 +80,7 @@ struct SpaceListRowTests {
 }
 
 /// The view model's acts on lists: each writes the rows, and the Space follows
-/// at once; the goals and ideas themselves are never touched.
+/// at once; the Ideas themselves are never touched.
 @MainActor
 @Suite("Lists in the Space: the acts")
 struct SpaceListActTests {
@@ -94,20 +98,20 @@ struct SpaceListActTests {
         try withListDefaults { defaults in
             let vm = makeViewModel()
             let space = try #require(vm.createPageSpace(named: "Thesis"))
-            let list = vm.createSpaceList(.goals, inPageSpace: space.id, holding: ["goal-1", "goal-2"])
+            let list = vm.createSpaceList(.ideas, inPageSpace: space.id, holding: ["idea-1", "idea-2"])
             #expect(list.id.hasPrefix(SpaceLists.idPrefix))
-            #expect(list.name == "Goals", "a new goals list is called Goals")
+            #expect(list.name == "Ideas")
             #expect(defaults.string(forKey: SpaceLists.listKey(listID: list.id)) != nil)
-            #expect(defaults.string(forKey: SpaceLists.itemKey(recordID: "goal-1")) == list.id)
+            #expect(defaults.string(forKey: SpaceLists.itemKey(recordID: "idea-1")) == list.id)
             #expect(vm.pageSpace(ofPage: list.id) == space)
-            #expect(vm.spaceList(ofRecord: "goal-2") == list)
+            #expect(vm.spaceList(ofRecord: "idea-2") == list)
 
-            let other = vm.createSpaceList(.goals, named: "  Lab  ")
+            let other = vm.createSpaceList(.ideas, named: "  Lab  ")
             #expect(other.name == "Lab")
-            vm.moveRecords(["goal-2"], toSpaceList: other.id)
-            #expect(vm.spaceLists.listID(of: "goal-2") == other.id, "a goal is in one list at a time")
-            vm.moveRecords(["goal-2"], toSpaceList: nil)
-            #expect(defaults.object(forKey: SpaceLists.itemKey(recordID: "goal-2")) == nil)
+            vm.moveRecords(["idea-2"], toSpaceList: other.id)
+            #expect(vm.spaceLists.listID(of: "idea-2") == other.id, "an Idea is in one list at a time")
+            vm.moveRecords(["idea-2"], toSpaceList: nil)
+            #expect(defaults.object(forKey: SpaceLists.itemKey(recordID: "idea-2")) == nil)
         }
     }
 
@@ -145,10 +149,10 @@ struct SpaceListActTests {
     func deletedElsewhere() throws {
         try withListDefaults { defaults in
             let vm = makeViewModel()
-            let list = vm.createSpaceList(.goals)
+            let list = vm.createSpaceList(.ideas)
             defaults.removeObject(forKey: SpaceLists.listKey(listID: list.id))
-            #expect(vm.fileRecords(["goal-1"], inSpaceList: list.id) == 0)
-            #expect(defaults.object(forKey: SpaceLists.itemKey(recordID: "goal-1")) == nil)
+            #expect(vm.fileRecords(["idea-1"], inSpaceList: list.id) == 0)
+            #expect(defaults.object(forKey: SpaceLists.itemKey(recordID: "idea-1")) == nil)
             #expect(vm.spaceLists.list(list.id) == nil)
         }
     }

@@ -223,7 +223,7 @@ extension View {
 }
 
 /// ChatGPT's **Create pages in Space**: a row of what can be started here —
-/// a page, a list of goals, a list of ideas, a canvas — over All and over a
+/// a page or canvas — over All and over a
 /// space, made in the space on screen and opened. Its × puts it away on this
 /// Mac; New ▾ makes the same things.
 struct SpaceCreateStrip: View {
@@ -245,9 +245,6 @@ struct SpaceCreateStrip: View {
     private var templates: [Template] {
         var templates = [
             Template(id: "page", title: "Page", systemImage: "doc.text", tint: SpaceKindStyle.tint(.page), make: onNewPage),
-            Template(id: "goals", title: "Goals", systemImage: SpaceList.Kind.goals.symbolName, tint: SpaceKindStyle.tint(.goalList)) {
-                vm.makeAndOpenSpaceList(.goals, inPageSpace: spaceID, in: windowState)
-            },
         ]
         if vm.listsCanvases {
             templates.append(Template(id: "canvas", title: "Canvas", systemImage: KnowledgeMap.symbolName, tint: SpaceKindStyle.tint(.canvas)) {

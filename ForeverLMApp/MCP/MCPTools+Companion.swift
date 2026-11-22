@@ -324,7 +324,7 @@ extension MCPDataStore {
 
     // MARK: delete_learning_goal
 
-    /// The Goals tab's Delete, over MCP: one Goal gone, its sources kept, its
+    /// Plan's Delete, over MCP: one Goal gone, its sources kept, its
     /// chats unlinked. A Notebook is refused here so its Goals are never
     /// deleted by mistake — delete_notebook is explicit about that cascade.
     func deleteLearningGoal(goalID rawGoalID: String) throws -> String {
@@ -383,7 +383,7 @@ extension MCPDataStore {
     /// Notebook; with none, every Goal the learner has set — the ones tagged to
     /// a Notebook and the ones standing on their own alike, each carrying its
     /// `notebook_id` when it has one.
-    /// The MCP twin of a row drag in the Goals tab: the listed Goals first,
+    /// The MCP twin of a Goal row drag in Plan: the listed Goals first,
     /// the rest as they read, an empty list back to deadline order. Answers
     /// the open Goals in their final order, the rows `list_goals` gives.
     func reorderGoals(goalIDs: [String]) throws -> String {
@@ -420,7 +420,7 @@ extension MCPDataStore {
         }
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        // The order the Goals tab reads: the learner's placements first,
+        // The order Plan reads: the learner's placements first,
         // then by deadline (`LearningGoalRecord.listOrder`).
         let screenScope = screenRecordScope()
         let goals = try store.loadLearningGoals().filter { goal in
@@ -646,7 +646,7 @@ extension MCPDataStore {
             "end_date": isoDateOnly(goal.endAt, calendar: calendar),
             "progress": progressDict,
         ]
-        // The same count list_goals and the Goals tab give, not
+        // The same count list_goals and Plan give, not
         // the pacing divisor: 0 on the day the Goal falls due.
         if let remaining = goal.daysRemaining(asOf: day, calendar: calendar) {
             goalDict["days_remaining"] = max(0, remaining)
@@ -1678,7 +1678,7 @@ extension MCPDataStore {
 
     func companionGoalHeadline(_ goal: LearningGoalRecord, calendar: Calendar, today: Date) -> [String: Any] {
         let openEnded = goal.isOpenEnded
-        // The same whole-days count list_goals and the Goals tab draw (`LearningGoalRecord.daysRemaining`): 0 on the day a Goal
+        // The same whole-days count list_goals and Plan draw (`LearningGoalRecord.daysRemaining`): 0 on the day a Goal
         // falls due, negative once late, so a Goal the rail calls "due today"
         // lists here with no day left.
         let remaining = goal.daysRemaining(asOf: today, calendar: calendar) ?? 0
@@ -1711,6 +1711,11 @@ extension MCPDataStore {
             result["repository"] = goal.linkedRepository ?? NSNull()
         }
         if goal.isGoal {
+            // A Goal's deadline places it in exactly one quarter plan. Return
+            // that visible home explicitly so a client never invents a second
+            // hidden Goals inventory from list_goals.
+            let plan = PlanQuarter.containing(goal.endAt)
+            result["plan"] = ["doc_id": plan.id, "title": plan.title]
             // The Doc, Site or animation the Goal is for; null when none, so a
             // Goal row always answers the question. A linked record that has
             // since been deleted reads as none too, the way the row draws it.

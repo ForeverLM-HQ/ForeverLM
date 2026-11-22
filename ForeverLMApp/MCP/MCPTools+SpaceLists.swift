@@ -3,12 +3,12 @@ import Foundation
 
 // MARK: - Lists in the Space over MCP
 //
-// The learner's lists of goals and of ideas, items in their Space beside the
+// The learner's lists of ideas, items in their Space beside the
 // pages, as ChatGPT's To-do list is (docs/docs-design.md, "Lists in the
 // Space"). These tools list them with what each holds, make one, and rename,
 // file, pin, fill, trash or delete one, each on the learner's word, as the
-// Space's own menus do. The goals and ideas stay records of their own
-// (list_goals, list_ideas); a list is the learner's grouping of them, kept in
+// Space's own menus do. Ideas stay records of their own (`list_ideas`); a
+// list is the learner's grouping of them, kept in
 // synced rows the Mac writes, so the tools need the Mac.
 
 extension MCPToolRegistry {
@@ -16,12 +16,12 @@ extension MCPToolRegistry {
         let itemIDs: [String: Any] = [
             "type": "array",
             "items": ["type": "string"],
-            "description": "Goal IDs from list_goals for a goals list, or Idea IDs from list_ideas for an ideas list.",
+            "description": "Idea IDs from list_ideas.",
         ]
         return [
             MCPToolDef(
                 name: "list_space_lists",
-                description: "List the learner's lists in their Space: lists of goals and lists of ideas, items beside their pages and canvases, each filed in at most one of their spaces. Returns each list's list_id, kind (goals or ideas), name, created_at, the space it is in (space_id and name) if any, whether it is pinned, whether it is in Trash, and what it holds: for a goals list each goal's goal_id, title, deadline and status; for an ideas list each idea's idea_id, title and whether it is open. A goal or an idea is in one list at most and stays listed by list_goals or list_ideas whatever list it is in. Pass include_trash to list the lists in Trash too.",
+                description: "List the learner's lists of Ideas in their Space, beside their pages and canvases, each filed in at most one of their spaces. Returns each list's list_id, kind (ideas), name, created_at, the space it is in (space_id and name) if any, whether it is pinned, whether it is in Trash, and the ideas it holds. An Idea is in one list at most and stays listed by list_ideas whatever list it is in. Goals belong to Plan and never appear in Space lists. Pass include_trash to list the lists in Trash too.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -32,12 +32,12 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "create_space_list",
-                description: "Make a list in the learner's Space on their word (\"make a list of my goals for the thesis\"): kind goals or ideas, named as they say, filed in one of their spaces when they name one (space_id from list_spaces), and holding item_ids when given, each moved out of any list it was in. To put a new goal or idea in it, make the goal (create_learning_goal) or the idea (create_idea) first, then pass its id here or to update_space_list. Returns the list.",
+                description: "Make a list of Ideas in the learner's Space on their word, named as they say, filed in one of their spaces when they name one (space_id from list_spaces), and holding item_ids when given, each moved out of any list it was in. To put a new Idea in it, make the Idea with create_idea first, then pass its id here or to update_space_list. Goals belong to Plan and cannot be put in a Space list. Returns the list.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "kind": ["type": "string", "enum": ["goals", "ideas"], "description": "What the list holds."],
-                        "name": ["type": "string", "description": "The list's name. Defaults to Goals or Ideas."],
+                        "kind": ["type": "string", "enum": ["ideas"], "description": "What the list holds."],
+                        "name": ["type": "string", "description": "The list's name. Defaults to Ideas."],
                         "space_id": ["type": "string", "description": "Optional space ID from list_spaces to file the list in."],
                         "item_ids": itemIDs,
                     ],
@@ -46,7 +46,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "update_space_list",
-                description: "Change one of the learner's lists in their Space on their word, as its menu does: rename it (name), file it in one of their spaces (space_id from list_spaces) or take it out of every space (space_id \"\"), pin or unpin it in the Space sidebar (pinned), move it to Trash or restore it (in_trash), put goals or ideas in it (add_item_ids, each moved out of any list it was in) or take them out (remove_item_ids). A goal goes only in a goals list and an idea only in an ideas list. Pass only what changes; the goals and ideas themselves are not changed. Returns the list as it is now.",
+                description: "Change one of the learner's Idea lists in their Space on their word, as its menu does: rename it (name), file it in one of their spaces (space_id from list_spaces) or take it out of every space (space_id \"\"), pin or unpin it in the Space sidebar (pinned), move it to Trash or restore it (in_trash), put Ideas in it (add_item_ids, each moved out of any list it was in) or take them out (remove_item_ids). Pass only what changes; the Ideas themselves are not changed. Returns the list as it is now.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -63,7 +63,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "delete_space_list",
-                description: "Delete a list from the learner's Space forever, on their explicit word: the list, its place in a space and its pin go, on every device. The goals and ideas it held are not deleted; they stay in Goals and Ideas, in no list. Only a list already in Trash can be deleted (update_space_list with in_trash true first), as in the Space. This cannot be undone.",
+                description: "Delete an Idea list from the learner's Space forever, on their explicit word: the list, its place in a space and its pin go, on every device. The Ideas it held are not deleted; they stay in Ideas, in no list. Only a list already in Trash can be deleted (update_space_list with in_trash true first), as in the Space. This cannot be undone.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -82,12 +82,11 @@ extension MCPDataStore {
         case "list_space_lists":
             return try jsonString(try await Self.listSpaceLists(includeTrash: arguments["include_trash"] as? Bool ?? false))
         case "create_space_list":
-            guard let rawKind = Self.nilIfBlank(arguments["kind"] as? String ?? ""),
-                  let kind = SpaceList.Kind(rawValue: rawKind) else {
-                throw MCPError.invalidInput("kind must be goals or ideas.")
+            guard Self.nilIfBlank(arguments["kind"] as? String ?? "") == SpaceList.Kind.ideas.rawValue else {
+                throw MCPError.invalidInput("kind must be ideas. Goals belong to Plan, not a Space list.")
             }
             return try jsonString(try await Self.createSpaceList(
-                kind: kind,
+                kind: .ideas,
                 name: Self.nilIfBlank(arguments["name"] as? String ?? ""),
                 spaceID: Self.nilIfBlank(arguments["space_id"] as? String ?? ""),
                 itemIDs: Self.stringList(arguments["item_ids"])
@@ -114,11 +113,10 @@ extension MCPDataStore {
             .filter { !$0.isEmpty }
     }
 
-    /// The goals and ideas a list's tools read, loaded once.
+    /// The Ideas a list's tools read, loaded once.
     @MainActor
     private static func preparedStudio() async throws -> StudioViewModel {
         let studio = try AppModelBridge.requireStudio()
-        if !studio.hasLoadedLearningGoalsOnce { await studio.loadLearningGoals() }
         if !studio.hasLoadedIdeasOnce { await studio.loadIdeas() }
         studio.refreshSpaceListsFromRows()
         studio.refreshPageSpacesFromRows()

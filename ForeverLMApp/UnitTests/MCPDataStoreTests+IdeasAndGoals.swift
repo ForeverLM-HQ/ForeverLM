@@ -484,7 +484,7 @@ extension MCPDataStoreTests {
         #expect(try ids(try store.listCompanionLearningGoals(topLevelOnly: true)) == [notebook.id])
     }
 
-    @Test("list_goals counts the days a Goal has left the way the Goals tab does: 0 on the day it falls due, never one more")
+    @Test("list_goals matches Plan: the deadline names its quarter and has 0 days left on the day it falls due")
     func goalDaysRemainingMatchTheRail() async throws {
         let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
@@ -517,6 +517,11 @@ extension MCPDataStoreTests {
         #expect(remaining(dueToday.id) == dueToday.daysRemaining(asOf: now, calendar: calendar))
         #expect(remaining(inFive.id) == 5)
         #expect(remaining(inFive.id) == inFive.daysRemaining(asOf: now, calendar: calendar))
+        let fiveRow = try #require(listed.first { ($0["id"] as? String) == inFive.id })
+        let plan = try #require(fiveRow["plan"] as? [String: Any])
+        let expectedPlan = PlanQuarter.containing(inFive.endAt)
+        #expect(plan["doc_id"] as? String == expectedPlan.id)
+        #expect(plan["title"] as? String == expectedPlan.title)
 
         // get_goal reads the same figure, and the in-app quiz card plan too.
         let detail = try parseJSON(try store.getGoal(goalID: inFive.id))

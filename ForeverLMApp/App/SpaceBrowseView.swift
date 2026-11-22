@@ -1332,11 +1332,6 @@ struct SpaceBrowseView: View {
                 }
             }
         }
-        if vm.activeTeamID == nil {
-            make.append(SpaceMenuItem(id: "space.new.goalsList", title: "Goals List", systemImage: SpaceList.Kind.goals.symbolName) {
-                vm.makeAndOpenSpaceList(.goals, inPageSpace: destination.pageSpaceID, in: windowState)
-            })
-        }
         let space: [SpaceMenuItem] = vm.activeTeamID == nil
             ? [SpaceMenuItem(id: "space.new.space", title: "Space\u{2026}", systemImage: "square.stack", action: onNewSpace)]
             : []

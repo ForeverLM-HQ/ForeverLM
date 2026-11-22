@@ -584,7 +584,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "list_notebook_collections",
         "list_notebook_files", "read_notebook_markdown_file", "list_docs", "read_doc",
         // A page's versions on this Mac, and the learner's spaces of pages
-        // and their lists of goals and ideas.
+        // and their lists of ideas. Goals live in Plan.
         "list_doc_versions", "list_spaces", "list_space_lists",
         // The notes graph's reads. get_daily_note can make the day's empty
         // note when asked, so it is a writer here.

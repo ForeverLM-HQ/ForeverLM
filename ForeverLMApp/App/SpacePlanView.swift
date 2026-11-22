@@ -54,6 +54,8 @@ struct SpacePlanPage: View {
     /// The learner's groups and every calendar's colour, so an objective
     /// that names a group wears its colour (`CalendarGroup`).
     @State private var groupLook = PlanGroupLook()
+    /// A Goal is made from Plan now; its deadline places it in one quarter.
+    @State private var goalQuarter: PlanQuarter?
 
     private var isOwnLibrary: Bool { vm.activeTeamID == nil }
     private var thisQuarter: PlanQuarter { PlanQuarter.containing(Date()) }
@@ -101,8 +103,19 @@ struct SpacePlanPage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task(id: readKey) { await read() }
         .task(id: lookKey) { await readLooks() }
+        .task {
+            await vm.loadLearningGoals()
+            if !vm.hasLoadedArtifactsOnce { await vm.loadArtifacts() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in calendarChanges += 1 }
         .onReceive(NotificationCenter.default.publisher(for: .pluginConnectionChanged)) { _ in calendarChanges += 1 }
+        .sheet(item: $goalQuarter) { quarter in
+            SetGoalSheet(presetDeadline: defaultGoalDeadline(in: quarter)) { title, deadline, notebookID, artifactID in
+                Task {
+                    await vm.createGoal(title: title, deadline: deadline, notebookID: notebookID, artifactID: artifactID)
+                }
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("space.plan")
     }
@@ -244,6 +257,7 @@ struct SpacePlanPage: View {
         let shown = overview?.quarter == quarter ? overview : nil
         VStack(alignment: .leading, spacing: 18) {
             objectivesCard(quarter, shown)
+            goalsSection(quarter)
             if let loadError, shown == nil {
                 Text("Could not read \(quarter.title): \(loadError)")
                     .zoomedSystemFont(size: 12)
@@ -254,6 +268,49 @@ struct SpacePlanPage: View {
                 ProgressView().controlSize(.small)
             }
         }
+    }
+
+    /// Every structured Goal is visible from Planning. Its deadline is the
+    /// single source of truth for which quarter owns it; moving the deadline
+    /// moves the row, with no hidden list or second plan link to maintain.
+    private func goalsSection(_ quarter: PlanQuarter) -> some View {
+        let goals = vm.allGoals.filter { quarter.contains($0.endAt) }
+        return VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
+            HStack(spacing: 8) {
+                sectionLabel("Goals")
+                Spacer(minLength: 8)
+                if !vm.isActiveLibraryReadOnly, defaultGoalDeadline(in: quarter) != nil {
+                    Button("New Goal", systemImage: "plus") { goalQuarter = quarter }
+                        .buttonStyle(.hoverWash)
+                        .accessibilityIdentifier("space.plan.newGoal")
+                }
+            }
+            .padding(.horizontal, 10)
+
+            if goals.isEmpty {
+                Text("No goals this quarter")
+                    .zoomedSystemFont(size: 12.5)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+            } else {
+                ForEach(goals) { goal in
+                    GoalRow(goal: goal)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("space.plan.goals")
+    }
+
+    /// Tomorrow for this quarter, or its first day when planning ahead. A
+    /// past quarter offers no impossible new deadline.
+    private func defaultGoalDeadline(in quarter: PlanQuarter) -> Date? {
+        let calendar = PlanQuarter.gregorian()
+        let today = calendar.startOfDay(for: Date())
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+              let start = quarter.start(), let end = quarter.end(), end > tomorrow else { return nil }
+        return max(start, tomorrow)
     }
 
     /// The quarter's objectives, each in its colour with the hours its

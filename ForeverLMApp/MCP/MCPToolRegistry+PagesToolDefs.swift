@@ -567,7 +567,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "create_open_question",
-                description: "Create an open question on a Notebook: a research gap the learner is chasing, with no deadline. It is NOT a Goal and never appears in the Goals tab. When the learner says \"goal\" in any form (\"set up a goal\", \"add this to my goals\", \"my goal is to understand X\"), use create_learning_goal instead — and if they named no deadline, propose one and confirm it rather than filing the goal here as a question. Questions also accumulate automatically from end_review_session after reviews.",
+                description: "Create an open question on a Notebook: a research gap the learner is chasing, with no deadline. It is NOT a Goal and never appears in Plan. When the learner says \"goal\" in any form (\"set up a goal\", \"add this to my goals\", \"my goal is to understand X\"), use create_learning_goal instead — and if they named no deadline, propose one and confirm it rather than filing the goal here as a question. Questions also accumulate automatically from end_review_session after reviews.",
                 inputSchema: [
                     "type": "object",
                     "properties": [

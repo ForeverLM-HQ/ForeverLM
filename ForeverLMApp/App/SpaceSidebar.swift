@@ -538,11 +538,6 @@ struct SpaceSidebar: View {
                 .disabled(vm.isActiveLibraryReadOnly)
                 Button(ArtifactSection.docs.linkActionTitle, systemImage: "link.badge.plus") { onLink(.docs) }
                 Button(ArtifactSection.sites.linkActionTitle, systemImage: "link.badge.plus") { onLink(.sites) }
-                if vm.activeTeamID == nil {
-                    Button("New Goals List", systemImage: SpaceList.Kind.goals.symbolName) {
-                        vm.makeAndOpenSpaceList(.goals, inPageSpace: selection?.pageSpaceID, in: windowState)
-                    }
-                }
                 if vm.listsCanvases {
                     Button("New Canvas", systemImage: KnowledgeMap.symbolName) {
                         vm.makeAndOpenCanvas(inPageSpace: selection?.pageSpaceID, in: windowState)

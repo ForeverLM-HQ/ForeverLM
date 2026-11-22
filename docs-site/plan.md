@@ -11,7 +11,7 @@ Plan at three scales, the way Cal Newport teaches it: a plan for the **quarter**
 
 Find **Plan** in the Space's sidebar, under Board, or keep it on the icon strip like any other place. It lists the four quarters of a year (Q1 is January to March); the arrows step through years, **This Year** brings you back, and the present quarter is marked. You can plan any quarter, including one already under way.
 
-Click a quarter to open it in place: its objectives, each in a colour, and its weeks under them. Click **Objectives** (or right-click the quarter) to open its plan. The first time, it opens as a new Page with three headings:
+Click a quarter to open it in place: its objectives, its Goals, and its weeks. A Goal appears in the quarter that contains its deadline, so changing the deadline moves it and there is no separate Goals list to keep in sync. **New Goal** sets one here. Click **Objectives** (or right-click the quarter) to open its plan. The first time, it opens as a new Page with three headings:
 
 - **Big picture**: what the season is for, and the longer direction it serves.
 - **Objectives**: the few things that would make the quarter a success.
