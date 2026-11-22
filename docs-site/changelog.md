@@ -33,6 +33,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.237.0 (build 317) — 2026-11-22
+
+**Highlights:**
+- **The Library zooms on its own, by pinch or ⌘= / ⌘- / ⌘0.**
+
+- **The Library zooms by itself.** Pinch over the Library, or click in it and press ⌘= / ⌘- / ⌘0, and only the Library changes size; the sidebar and the other panes keep theirs.
+- **Chat points at passages in line-numbered preprints, and at tables.**
+- **A source's row in the Library no longer shows its card count.**
+- **`browse_library` shows books and thumbnails** in the in-chat ForeverLM view.
+- **Linked References leave the foot of a Page.**
+- **Antigravity has an official ForeverLM plugin,** and the docs say how to connect it.
+
 ## 0.236.0 (build 316) — 2026-11-22
 
 **Highlights:**

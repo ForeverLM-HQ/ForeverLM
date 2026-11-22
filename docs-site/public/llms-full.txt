@@ -3860,6 +3860,7 @@ choosing the closest match. `get_mcp_status` says which Mac that is.
 | `search_sources_keyword` | `keywords`, `match?`, `limit?`, `snippets_per_source?`, `source_type?`, `notebook_id?`, `show?`, `source_ids?` | Find every source whose title, author, or text literally contains a word or phrase, as a case-insensitive substring, with a mention count and passages for each. This is the exhaustive sweep the ranked search is not: `uncoupler` finds a source that only says `uncouplers`. One call takes up to 30 keywords; `source_ids` limits the sweep to particular sources, such as the papers in a chat, and the answer names the keywords none of them contain. It requires an active Mac, because the full text lives there. |
 | `list_shows` | `kind?` | List every podcast show and YouTube channel in the library with its episode count. Gives the exact names `filter_sources` and a search's `show` take. Needs the Mac open and connected. |
 | `filter_sources` | `show?`, `author?`, `title_contains?`, `text?`, `source_type?`, `include_archived?`, `limit?` | List every source whose metadata matches: all of one show's episodes, every paper by an author, everything with a name in its title, byline or show. Case-insensitive substrings, combined with AND, never ranked or cut off by similarity. Needs the Mac open and connected. |
+| `browse_library` | `text?`, `source_type?`, `limit?` | The Library page of the ForeverLM view inside Claude, Codex and ChatGPT, called by that view and hidden from the model: the library newest first with each book or course listed once, and a small thumbnail per row. Needs the Mac open and connected. |
 | `get_app_context` | — | What is open in the Mac app: the notebook each window holds, frontmost first, with its title, `notebook_id` and source count, then the sources the frontmost window's notebook reads. Call it only when the learner asks about what is open; it is never a default scope. |
 | `get_sync_status` | — | iCloud sync health for this Mac: what sync is doing and why it waits or stopped, changes still waiting to upload, the container environment, and how much of the learner's iCloud ForeverLM's files take. `migration` reports the library's move to the new iCloud store. Use it when items are missing or stale across devices, before concluding anything is lost. |
 
@@ -6860,6 +6861,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 0.237.0 (build 317) — 2026-11-22
+
+**Highlights:**
+- **The Library zooms on its own, by pinch or ⌘= / ⌘- / ⌘0.**
+
+- **The Library zooms by itself.** Pinch over the Library, or click in it and press ⌘= / ⌘- / ⌘0, and only the Library changes size; the sidebar and the other panes keep theirs.
+- **Chat points at passages in line-numbered preprints, and at tables.**
+- **A source's row in the Library no longer shows its card count.**
+- **`browse_library` shows books and thumbnails** in the in-chat ForeverLM view.
+- **Linked References leave the foot of a Page.**
+- **Antigravity has an official ForeverLM plugin,** and the docs say how to connect it.
 
 ## 0.236.0 (build 316) — 2026-11-22
 
