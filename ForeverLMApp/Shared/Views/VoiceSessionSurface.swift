@@ -40,6 +40,12 @@ struct VoiceContextItem: Identifiable {
     var subtitle: String? = nil
     let sourceType: String
     var thumbnailURL: URL? = nil
+#if os(macOS)
+    /// The library's own picture for the source on the Mac: a paper's first
+    /// page, a chapter's book cover, a podcast's art. Most of these are files
+    /// on this Mac, not addresses, so `thumbnailURL` cannot carry them.
+    var artwork: SourceArtwork.Origin? = nil
+#endif
 
     var systemImage: String {
         switch sourceType.lowercased() {
@@ -432,6 +438,8 @@ private struct VoiceContextCard: View {
 
 #if os(iOS)
     @State private var paperThumbnail: UIImage? = nil
+#elseif os(macOS)
+    @State private var artworkImage: NSImage? = nil
 #endif
 
     var body: some View {
@@ -471,6 +479,11 @@ private struct VoiceContextCard: View {
         .task(id: item.id) {
             await loadPaperThumbnailIfNeeded()
         }
+#elseif os(macOS)
+        .task(id: item.artwork?.cacheKey ?? item.id) {
+            guard let artwork = item.artwork else { artworkImage = nil; return }
+            artworkImage = await SourceArtwork.thumbnail(for: artwork, maxPixelSize: 96)
+        }
 #endif
     }
 
@@ -479,6 +492,16 @@ private struct VoiceContextCard: View {
 #if os(iOS)
         if let paperThumbnail {
             Image(uiImage: paperThumbnail)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            remoteThumbnail
+        }
+#elseif os(macOS)
+        if let artworkImage {
+            Image(nsImage: artworkImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: 48, height: 48)

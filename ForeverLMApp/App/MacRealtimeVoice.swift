@@ -38,8 +38,12 @@ enum MacRealtimeVoice {
     /// panel does not close in between.
     private(set) static var isReplacing = false
 
-    static func start(article: StudioArticle, notebookID: String?, opening: RealtimeVoiceOpening) {
+    /// `bookCoverPath` is the book's cover when `article` is a chapter
+    /// (`ReferenceCardArtwork.bookCoverPath(for:coverPaths:)`): the context card
+    /// wears it, as every other surface that shows a chapter does.
+    static func start(article: StudioArticle, notebookID: String?, opening: RealtimeVoiceOpening, bookCoverPath: String? = nil) {
         let id = article.id
+        let artwork: SourceArtwork.Origin? = bookCoverPath.map { .file($0) } ?? SourceArtwork.origin(for: article)
         let title = article.title
         let sourceType = article.sourceType.rawValue
         let byline = [article.author, article.journal]
@@ -53,7 +57,7 @@ enum MacRealtimeVoice {
                 await controller.end()
                 isReplacing = false
             }
-            currentContext = VoiceContextItem(id: id, title: title, subtitle: byline.isEmpty ? nil : byline, sourceType: sourceType)
+            currentContext = VoiceContextItem(id: id, title: title, subtitle: byline.isEmpty ? nil : byline, sourceType: sourceType, artwork: artwork)
             currentNotebookID = notebookID
             currentChatWriter = nil
             MacRealtimeVoicePanel.shared.show()
@@ -507,17 +511,25 @@ struct RealtimeVoiceMenuItems: View {
     let article: StudioArticle
     let notebookID: String?
 
+    @Environment(StudioViewModel.self) private var vm
+
     var body: some View {
         Button {
-            MacRealtimeVoice.start(article: article, notebookID: notebookID, opening: .talk)
+            MacRealtimeVoice.start(article: article, notebookID: notebookID, opening: .talk, bookCoverPath: bookCoverPath)
         } label: {
             Label("Talk About It", systemImage: "waveform")
         }
         Button {
-            MacRealtimeVoice.start(article: article, notebookID: notebookID, opening: .quiz)
+            MacRealtimeVoice.start(article: article, notebookID: notebookID, opening: .quiz, bookCoverPath: bookCoverPath)
         } label: {
             Label("Quiz Me Out Loud", systemImage: "questionmark.bubble")
         }
+    }
+
+    /// A chapter's own file is a page from inside the book, so the voice card
+    /// would wear a page of text; it wears the book's cover instead.
+    private var bookCoverPath: String? {
+        ReferenceCardArtwork.bookCoverPath(for: article, coverPaths: vm.bookCoverPaths)
     }
 }
 
