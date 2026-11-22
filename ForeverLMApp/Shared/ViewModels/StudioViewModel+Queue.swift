@@ -64,10 +64,19 @@ extension StudioViewModel {
         // authors"). Only ever upgrade away from a placeholder, never downgrade.
         let inMemoryByID = Dictionary(previousArticles.map { ($0.id, $0) }, uniquingKeysWith: { current, _ in current })
 
-        guard !loadedContentByID.isEmpty || !inMemoryByID.isEmpty else { return reloadedArticles }
-
         return reloadedArticles.map { article in
             var preserved = article
+
+            // A web page is fetched only by `fetchContent`, and only while this
+            // process holds it `.fetching` in memory. The store saying
+            // `.fetching` without that is a fetch that never finished (the app
+            // quit, or a save made mid-fetch wrote the state), and showing it
+            // kept the row on "Fetching content…" for good. It is unfetched.
+            if preserved.state == .fetching,
+               inMemoryByID[article.id]?.state != .fetching,
+               StudioViewModel.isFetchedOnlyByContentFetch(preserved) {
+                preserved.state = .queued
+            }
 
             if let loaded = loadedContentByID[article.id] {
                 preserved.content = loaded.content
@@ -75,7 +84,7 @@ extension StudioViewModel {
                 // the reloaded row's count while retaining newer in-memory text
                 // produces an internally inconsistent source after refresh.
                 preserved.wordCount = loaded.wordCount ?? loaded.content.split(separator: " ").count
-                preserved.state = loaded.state == .ready ? .ready : article.state
+                preserved.state = loaded.state == .ready ? .ready : preserved.state
                 preserved.errorMessage = loaded.errorMessage
             }
 

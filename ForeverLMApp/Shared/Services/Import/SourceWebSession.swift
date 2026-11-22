@@ -773,6 +773,13 @@ final class WebViewContentExtractor: NSObject, WKNavigationDelegate {
                 // timeout.
                 if self.securityChallengeFirstSeenAt != nil, let wv = self.webView {
                     self.extractDocumentText(from: wv)
+                    // A web view still busy with the check's scripts may never
+                    // answer that read. Requests run one after another on this
+                    // extractor, so an unanswered read would leave this caller,
+                    // and every page queued behind it, waiting for good.
+                    try? await Task.sleep(for: .seconds(Self.documentReadGrace))
+                    guard self.continuation != nil, self.webView === wv else { return }
+                    self.finishWith(error: SourceError.fetchFailed)
                 } else {
                     self.finishWith(error: SourceError.fetchFailed)
                 }
@@ -833,6 +840,10 @@ final class WebViewContentExtractor: NSObject, WKNavigationDelegate {
     /// Waiting for www.linkedin.com to respond* at twelve seconds, and the
     /// article arrived after that.
     private static let securityChallengeWaitBudget: TimeInterval = 30
+
+    /// How long the page's text may take to read once the timeout has asked
+    /// for it, before the load is given up as failed.
+    private static let documentReadGrace: TimeInterval = 10
 
     /// The moment the current load was first seen showing a bot check.
     private var securityChallengeFirstSeenAt: Date?

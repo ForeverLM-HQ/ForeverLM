@@ -144,6 +144,8 @@ enum SourceError: LocalizedError, Equatable {
     /// The address answered with a PDF file, not a web page. Ingestion
     /// downloads it as the source's document instead of reading it as a page.
     case linkIsPDF
+    /// The page did not finish loading within `StudioViewModel.webPageFetchDeadline`.
+    case fetchTimedOut
     case unsupportedBookFormat
     case bookChapterBoundaryMismatch(String)
     case kindleConversionToolMissing
@@ -158,6 +160,7 @@ enum SourceError: LocalizedError, Equatable {
         case .insufficientContent: return "The page had no article text to read"
         case .noArchiveSnapshot: return "No archive.ph snapshot found, or the snapshot was too short to use"
         case .linkIsPDF: return "This link opens a PDF, not a web page"
+        case .fetchTimedOut: return "The page took too long to load. Try again."
         case .httpError(404): return "Article not found (404) — the URL may be incorrect or the article may have been retracted"
         case .httpError(let code): return "HTTP error \(code)"
         case .decodingFailed: return "Failed to decode source content"

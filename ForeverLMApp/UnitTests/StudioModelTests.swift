@@ -350,6 +350,28 @@ struct StudioArticlePropertyTests {
         #expect(preserved[0].localFilePath == "Papers/10.1016_j.xcrm.2025.101968.pdf")
     }
 
+    @Test("a web page stored as fetching with no fetch running loads as unfetched")
+    func staleStoredFetchingWebPageLoadsQueued() {
+        var stored = StudioArticle(
+            url: "https://www.science.org/content/blog-post/messing-around-warburg-effect",
+            title: "Messing Around With the Warburg Effect",
+            sourceType: .article
+        )
+        stored.state = .fetching
+
+        let launched = StudioViewModel.preservingLoadedContent(in: [stored], preservingFrom: [])
+        #expect(launched[0].state == .queued)
+
+        // A fetch this process is running keeps its state through a reload.
+        let live = StudioViewModel.preservingLoadedContent(in: [stored], preservingFrom: [stored])
+        #expect(live[0].state == .fetching)
+
+        // A podcast's transcript worker marks it fetching too; that is left alone.
+        var podcast = StudioArticle(url: "apple-podcast://episode/1", title: "Episode", sourceType: .podcast)
+        podcast.state = .fetching
+        #expect(StudioViewModel.preservingLoadedContent(in: [podcast], preservingFrom: [])[0].state == .fetching)
+    }
+
     @Test("a reload never replaces a path the database supplied")
     func reloadDoesNotOverrideStoredLocalFilePath() {
         let inMemory = StudioArticle(

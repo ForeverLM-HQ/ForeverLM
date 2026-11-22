@@ -60,7 +60,14 @@ extension StudioViewModel {
         // Already in-flight elsewhere — but not when this call itself just marked
         // the source .fetching for the cache load above; bailing here would strand
         // cache-miss transcripts (and YouTube auto-fetch) in a permanent spinner.
-        guard articles[idx].state != .fetching || markedFetchingForCacheLoad else { return }
+        // A web page has no other worker: `contentFetchInFlight` already says
+        // whether it is being fetched, and a `.fetching` it carries is left
+        // over from a fetch that never finished (the app quit, or a save made
+        // mid-fetch wrote it to the store). Honouring that left the row on
+        // "Fetching content…" for good, with opening it fetching nothing.
+        guard articles[idx].state != .fetching
+                || markedFetchingForCacheLoad
+                || Self.isFetchedOnlyByContentFetch(articles[idx]) else { return }
 
         await reclassifyJournalPaperIfNeeded(articleId: articleId, idx: idx)
 
@@ -655,6 +662,65 @@ extension StudioViewModel {
         let archivedLocalPath: String?
     }
 
+    /// True for a source only `fetchContent` fetches: a web page, not a
+    /// YouTube video, Teachable lecture or Zoom recording, whose transcripts
+    /// have workers of their own that mark the source `.fetching` too.
+    nonisolated static func isFetchedOnlyByContentFetch(_ article: StudioArticle) -> Bool {
+        switch article.sourceType {
+        case .article, .manual, .unclassified, .xPost:
+            break
+        default:
+            return false
+        }
+        let url = article.url
+        return !YouTubeURLMetadata.isYouTubeURL(url)
+            && !TeachableCourseService.isLectureURL(url)
+            && !ZoomRecordingService.isZoomRecordingURL(url)
+    }
+
+    /// The longest one web page fetch may take, end to end: the plain request,
+    /// the hidden browser with its bot-check wait, and the archive with its
+    /// pictures. Each step has a timeout of its own, but a step that never
+    /// calls back left the source on "Fetching content…" for good (two
+    /// science.org posts, 2026-11-20). Past this the source is marked failed,
+    /// and opening it again tries again.
+    nonisolated static let webPageFetchDeadline: Duration = .seconds(180)
+
+    /// Runs `operation` and returns its result, or throws `timeout` once
+    /// `deadline` passes. Unlike a task group, which waits for every child to
+    /// end, this returns at the deadline even when the operation ignores
+    /// cancellation (a web view whose callback never comes); the operation is
+    /// cancelled and its late result dropped.
+    static func withDeadline<T>(
+        _ deadline: Duration,
+        timeout: Error,
+        _ operation: @escaping @MainActor () async throws -> T
+    ) async throws -> T {
+        let gate = DeadlineGate<T>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
+                gate.continuation = continuation
+                gate.work = Task { @MainActor in
+                    do {
+                        gate.finish(.success(try await operation()))
+                    } catch {
+                        gate.finish(.failure(error))
+                    }
+                }
+                gate.timer = Task { @MainActor in
+                    do {
+                        try await Task.sleep(for: deadline)
+                    } catch {
+                        return
+                    }
+                    gate.finish(.failure(timeout))
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in gate.finish(.failure(CancellationError())) }
+        }
+    }
+
     /// Fetches a source's web page (archiving web articles locally), falling back to a
     /// podcast web page when the primary address fails.
     private func fetchWebPage(idx: Int) async throws -> FetchedWebPage {
@@ -719,7 +785,9 @@ extension StudioViewModel {
     /// itself, true when the caller should clear the fetching flag and refresh embeddings.
     private func fetchWebArticle(articleId: String, idx: Int) async -> Bool {
         do {
-            let page = try await fetchWebPage(idx: idx)
+            let page = try await Self.withDeadline(Self.webPageFetchDeadline, timeout: SourceError.fetchTimedOut) {
+                try await self.fetchWebPage(idx: idx)
+            }
             let content = page.content
             let pageTitle = page.pageTitle
             let pageAuthor = page.pageAuthor
@@ -1371,5 +1439,23 @@ extension StudioViewModel {
         Task.detached(priority: .utility) {
             Self.prewarmBookCoverThumbnailOffMain(coverPath: coverPath)
         }
+    }
+}
+
+/// The one result `StudioViewModel.withDeadline` hands back: whichever of the
+/// operation, the timer or a cancellation finishes first; the others are
+/// stopped and ignored.
+@MainActor
+private final class DeadlineGate<T> {
+    var continuation: CheckedContinuation<T, Error>?
+    var work: Task<Void, Never>?
+    var timer: Task<Void, Never>?
+
+    func finish(_ result: Result<T, Error>) {
+        guard let continuation else { return }
+        self.continuation = nil
+        timer?.cancel()
+        work?.cancel()
+        continuation.resume(with: result)
     }
 }
