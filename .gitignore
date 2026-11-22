@@ -12,7 +12,7 @@ __pycache__/
 .DS_Store
 
 # iCloud resolves a sync conflict by keeping both copies, named "Foo 2.ext".
-# The repos have been moved out of the synced tree (see AGENTS.md), so these
+# The repos have been moved out of the synced tree, so these
 # should stop appearing — but a stray conflict copy of project.pbxproj that got
 # committed would be worse than the drift it came from.
 * [0-9].xcodeproj/
@@ -73,3 +73,6 @@ artifacts/
 output/
 tmp/
 .hop-screenshots/
+
+# The agent rules live in foreverlm-private (linked in by overlay.py).
+/AGENTS.md

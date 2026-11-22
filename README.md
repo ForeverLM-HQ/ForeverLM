@@ -42,8 +42,7 @@ podcasts you listen to on its own.
 
 In your own iCloud. ForeverLM does not store it.
 
-The rules of the codebase, its layout and how to verify a change are in
-[AGENTS.md](AGENTS.md). To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md);
+To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md);
 to report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 Licensed under [FSL-1.1-ALv2](LICENSE.md).
