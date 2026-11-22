@@ -455,8 +455,8 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "globe",
-                title: "Which browsers do you save pages in?",
-                detail: "Tick every browser you use."
+                title: "Which browsers do you use?",
+                detail: ""
             )
             ReadingListBrowserChoices(isEnabled: readingListBrowserBinding)
             if vm.needsBrowserAccess {
@@ -464,7 +464,6 @@ struct GettingStartedGuide: View {
             } else if let readingListCaption {
                 pageNote(readingListCaption)
             }
-            secondaryAction("Coming from Readwise, Instapaper or Pocket?") { show(.readLaterImport) }
         }
     }
 
