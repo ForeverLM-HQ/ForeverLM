@@ -11,6 +11,12 @@
 </p>
 
 <p align="center">
+  A source-available, local-first <strong>alternative to NotebookLM</strong> for Mac, iPhone and iPad:
+  an AI research assistant and study app that answers from your own papers, books, PDFs, podcasts and YouTube videos,
+  with any AI model you choose.
+</p>
+
+<p align="center">
   <a href="https://foreverlm.com/releases/ForeverLM.dmg"><strong>Download for Mac</strong></a>
   &middot; <a href="https://foreverlm.com">Website</a>
   &middot; <a href="https://docs.foreverlm.com">Docs</a><br>
@@ -37,6 +43,17 @@
 Yes, Apple only. We chose to make ForeverLM the best it can be on Apple's
 devices: your files live in your own iCloud, and ForeverLM keeps track of the
 podcasts you listen to on its own.
+
+**Is this an alternative to NotebookLM?**
+
+Yes, if you want it on your own Mac and in your own iCloud. Like NotebookLM,
+ForeverLM answers from sources you add, with citations, and makes audio and
+video overviews, flashcards, quizzes and reports. Unlike it, you pick the AI
+model (Claude, GPT, Gemini, DeepSeek, or a free router) with your own
+OpenRouter key, your library stays on your devices, it works with Claude,
+ChatGPT, Codex and any other MCP client, and the source code is here to read.
+The code is under the Functional Source License, which turns into Apache 2.0
+two years after each release.
 
 **Where does my data live?**
 
@@ -65,3 +82,5 @@ To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md);
 to report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 Licensed under [FSL-1.1-ALv2](LICENSE.md).
+
+<!-- Keywords: NotebookLM alternative, open source NotebookLM, AI research assistant, chat with PDFs, chat with papers, flashcards from papers, spaced repetition, AI tutor, MCP server, local-first, macOS, iOS, OpenRouter, bring your own key -->

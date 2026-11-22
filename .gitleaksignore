@@ -1,0 +1,23 @@
+# Reviewed 2026-11-22: identifier names and test fixtures, plus two public client values
+# (YouTube's public web InnerTube key, X's PKCE client id; neither grants private access).
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Models/JournalWatch.swift:generic-api-key:160
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Models/PlannerDayHours.swift:generic-api-key:17
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Services/AI/AIService+Knowledge.swift:generic-api-key:21
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Services/AI/FamilyPlanClient.swift:generic-api-key:243
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Services/Import/XBookmarkService.swift:generic-api-key:41
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Services/Import/YouTubeSlideExtractionService.swift:gcp-api-key:83
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Services/Import/YouTubeTranscriptService.swift:gcp-api-key:74
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Services/Import/YouTubeTranscriptService.swift:gcp-api-key:917
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Services/Storage/LegacyIdentityAdoption.swift:generic-api-key:17
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/Shared/Utilities/ForeverLMRuntimeIdentity.swift:generic-api-key:74
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/UnitTests/ArtifactMarkdownEditorViewTests.swift:generic-api-key:146
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/UnitTests/ArtifactMarkdownEditorViewTests.swift:generic-api-key:155
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/UnitTests/ArtifactMarkdownEditorViewTests.swift:generic-api-key:156
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/UnitTests/ArtifactPersistenceTests.swift:generic-api-key:1793
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/UnitTests/LearningCohortTests.swift:generic-api-key:461
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/UnitTests/SourceServiceTests.swift:generic-api-key:1274
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/UnitTests/Sync/CollectionProjectionTests.swift:generic-api-key:77
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/iOSUnitTests/Sync/MobileBlobOnDemandTests.swift:generic-api-key:147
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/iOSUnitTests/Sync/MobileBlobOnDemandTests.swift:generic-api-key:157
+1a56332db78428cb3c7a3587de24442973fec02e:ForeverLMApp/iOSUnitTests/Sync/MobileBlobOnDemandTests.swift:generic-api-key:382
+fe796264747e591c11b321b7c232f6311891cdc5:ForeverLMApp/UnitTests/SourceMetadataTests.swift:generic-api-key:81
