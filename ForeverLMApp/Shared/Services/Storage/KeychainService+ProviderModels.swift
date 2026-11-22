@@ -33,7 +33,7 @@ extension KeychainService {
 
     private static let defaultNVIDIAModel = AIModelDefaults.defaultNVIDIA
 
-    private static let defaultOpenRouterModel = AIModelDefaults.defaultOpenRouter
+    private static let defaultOpenRouterModel = AIModelDefaults.openRouterFreeRouter
 
     private static let defaultOpenAITranscriptionModel = AIModelDefaults.batchTranscription
 
@@ -70,12 +70,13 @@ extension KeychainService {
                let provider = AIProvider(rawValue: route.provider) {
                 return provider
             }
-            // This is the Chat (review) default. Unset, a stored "appleIntelligence",
-            // and unknown values all map to Anthropic. Without a managed Apple
+            // This is the Chat (review) default. Unset it is OpenRouter's Free
+            // Models Router, so a new learner's first chat costs nothing; a
+            // stored "appleIntelligence" and unknown values map to Anthropic. Without a managed Apple
             // session, resolveConfig returns nil and the review UI asks the user
             // to sign in instead of silently degrading.
             guard let raw = load(.aiProvider) else {
-                return .anthropic
+                return .openRouter
             }
             // Keep the stored identity visible. `resolveConfig` rejects retired
             // providers; changing the value here would silently present and run

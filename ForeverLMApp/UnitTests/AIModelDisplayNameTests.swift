@@ -496,11 +496,8 @@ struct VisionModelResolutionTests {
         // OpenRouter, the shipped default is DeepSeek V4 Flash — text-only.
         let visionDefault = KeychainService.defaultBackgroundMultimodalTaskRoute.model
         #expect(visionDefault != AIModelDefaults.defaultOpenRouter)
-        #expect(visionDefault == AIModelDefaults.visionOpenRouter)
-        #expect(AIModelDefaults.preferredOpenRouter.contains(visionDefault))
-        // The estimator and the vision request builder both key off the
-        // `google/gemini` prefix, so the chosen slug has to carry it.
-        #expect(visionDefault.hasPrefix("google/gemini"))
+        #expect(visionDefault == AIModelDefaults.openRouterFreeRouter)
+        #expect(KeychainService.modelSupportsVision(provider: .openRouter, model: visionDefault) == true)
     }
 
     @Test("The closed labs are treated as multimodal")

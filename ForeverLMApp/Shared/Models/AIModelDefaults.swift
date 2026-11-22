@@ -85,9 +85,10 @@ extension AIModelDefaults {
     static let defaultOpenAI = "gpt-6.2-sol"
     static let defaultGemini = latestGemini
 
-    /// Gemini Flash on OpenRouter — Background › Multimodal's shipped model
-    /// (`KeychainService.defaultBackgroundMultimodalTaskRoute`). The general
-    /// OpenRouter default is text-only, so work that reads an image needs a
+    /// Gemini Flash on OpenRouter — a pinned vision pick (Background ›
+    /// Multimodal now ships on the Free Models Router instead,
+    /// `KeychainService.defaultBackgroundMultimodalTaskRoute`). The general
+    /// OpenRouter pick is text-only, so work that reads an image needs a
     /// model of its own. The cost estimator already maps `google/gemini*`
     /// OpenRouter slugs to Google's rates, and the managed proxy prices it live.
     static let visionOpenRouter = "google/gemini-2.5-flash"

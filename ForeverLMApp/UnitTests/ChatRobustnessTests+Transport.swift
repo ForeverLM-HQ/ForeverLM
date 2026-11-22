@@ -83,12 +83,16 @@ extension ChatRobustnessTests {
     @Test("Background work has explicit text and multimodal default routes")
     func backgroundDefaultRoutesAreExplicit() {
         #expect(KeychainService.defaultBackgroundTaskRoute.provider == .openRouter)
-        #expect(KeychainService.defaultBackgroundTaskRoute.model == AIModelDefaults.defaultOpenRouter)
+        #expect(KeychainService.defaultBackgroundTaskRoute.model == AIModelDefaults.openRouterFreeRouter)
         #expect(KeychainService.defaultBackgroundMultimodalTaskRoute.provider == .openRouter)
         #expect(
             KeychainService.defaultBackgroundMultimodalTaskRoute.model
-                == AIModelDefaults.visionOpenRouter
+                == AIModelDefaults.openRouterFreeRouter
         )
+        #expect(KeychainService.modelSupportsVision(
+            provider: .openRouter,
+            model: AIModelDefaults.openRouterFreeRouter
+        ) == true)
         #expect(KeychainService.modelSupportsVision(
             provider: .gemini,
             model: AIModelDefaults.latestGemini

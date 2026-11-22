@@ -73,16 +73,20 @@ extension KeychainService {
     // MARK: - Background Model
 
     /// Routes used when the learner has never made a Background selection.
-    /// Text-only and image-reading work stay separate so a cheap text default
-    /// cannot make multimodal preparation fail at runtime.
+    /// Both are OpenRouter's Free Models Router, so opening the app never
+    /// starts spending money (product owner, 2026-11-21: "You don't want to
+    /// have people open the app and immediately it's already costing money by
+    /// doing some background processing"). The router sends each request to a
+    /// free model that can do the job, images included, so text and
+    /// image-reading work share it.
     static let defaultBackgroundTaskRoute = AITaskModelRoute(
         provider: .openRouter,
-        model: AIModelDefaults.defaultOpenRouter
+        model: AIModelDefaults.openRouterFreeRouter
     )
 
     static let defaultBackgroundMultimodalTaskRoute = AITaskModelRoute(
         provider: .openRouter,
-        model: AIModelDefaults.visionOpenRouter
+        model: AIModelDefaults.openRouterFreeRouter
     )
 
     static func storedRoute(_ key: AccountKey<Data?>) -> AIModelRoutePreference? {
@@ -931,7 +935,10 @@ extension KeychainService {
         case .anthropic, .openai, .gemini, .xai, .meta:
             return true
         case .openRouter:
-            if model == AIModelDefaults.visionOpenRouter {
+            // The Free Models Router only picks a free model that can do the
+            // job, so a request with images lands on one that reads them.
+            if model == AIModelDefaults.visionOpenRouter
+                || model == AIModelDefaults.openRouterFreeRouter {
                 return true
             }
             // Pinned capabilities are available at build time and must not
