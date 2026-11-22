@@ -435,8 +435,8 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.podcasts.icon,
-                title: "Which podcasts do you learn from?",
-                detail: "Tick the shows to bring in from Apple Podcasts. The episodes you play come in on their own."
+                title: "Which podcasts should come in?",
+                detail: "Tick the shows to bring in."
             )
             if vm.needsPodcastAccess || !hasFullDiskAccess {
                 needsFullDiskAccess("ForeverLM can read Apple Podcasts once it has Full Disk Access.")
@@ -456,7 +456,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "globe",
                 title: "Which browsers do you save pages in?",
-                detail: "Pages you add to a browser's Reading List come into ForeverLM. Tick every browser you use."
+                detail: "Tick every browser you use."
             )
             ReadingListBrowserChoices(isEnabled: readingListBrowserBinding)
             if vm.needsBrowserAccess {
@@ -485,7 +485,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "tray.and.arrow.down",
                 title: "Bring over your read-later app",
-                detail: "Export your saved articles from the app, then choose the export here. ForeverLM copies them once and never changes the app."
+                detail: "Choose your export. Your app is never changed."
             )
             primaryAction(
                 "Choose Export…",
@@ -518,7 +518,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "doc.text.magnifyingglass",
                 title: "Where do your papers live?",
-                detail: "Pick one. You can add papers from anywhere later."
+                detail: ""
             )
             VStack(spacing: 10) {
                 if hasZoteroLibrary == true {
@@ -555,14 +555,14 @@ struct GettingStartedGuide: View {
                 stepHeading(
                     icon: "books.vertical",
                     title: "Bring over your Zotero library",
-                    detail: "ForeverLM copies your papers once. Zotero itself is never changed."
+                    detail: "Copied once. Zotero is never changed."
                 )
                 ZoteroImportCard()
             case .referenceManager:
                 stepHeading(
                     icon: "books.vertical",
                     title: "Bring over your reference manager",
-                    detail: "Export your library as BibTeX or RIS, then choose the export here. Papers without a PDF are fetched by their DOI."
+                    detail: "Export as BibTeX or RIS, then choose the file."
                 )
                 primaryAction(
                     "Choose Export…",
@@ -590,7 +590,7 @@ struct GettingStartedGuide: View {
                 stepHeading(
                     icon: "doc",
                     title: "Add your PDFs",
-                    detail: "Drop them below, or choose them. You can carry on while they come in."
+                    detail: "Drop them below, or choose them."
                 )
                 fileDropZone(
                     "Drop PDFs here",
@@ -660,7 +660,7 @@ struct GettingStartedGuide: View {
                 stepHeading(
                     icon: "play.rectangle.fill",
                     title: "Connect YouTube",
-                    detail: "Sign in to YouTube, then choose which of your videos come into ForeverLM."
+                    detail: "Sign in, then choose what comes in."
                 )
                 primaryAction("Connect YouTube", inFlight: workingAction == "youtube-connect") {
                     run("youtube-connect") { await connectYouTube() }
@@ -670,13 +670,13 @@ struct GettingStartedGuide: View {
                 stepHeading(
                     icon: "play.rectangle.fill",
                     title: "Which videos should come in?",
-                    detail: "Only the videos you pick come in, never your whole history."
+                    detail: "Only what you pick comes in."
                 )
                 VStack(spacing: 10) {
                     choiceRow(
                         icon: "list.bullet.rectangle",
                         title: "A playlist named ForeverLM",
-                        detail: "Add a video to it on YouTube and it comes in.",
+                        detail: "Add a video to it and it comes in.",
                         recommended: true
                     ) {
                         showYouTubeSourceChoice = false
@@ -686,7 +686,7 @@ struct GettingStartedGuide: View {
                     choiceRow(
                         icon: "hand.thumbsup",
                         title: "Videos I like",
-                        detail: "Like a video on YouTube and it comes in."
+                        detail: "Like a video and it comes in."
                     ) {
                         showYouTubeSourceChoice = false
                         isChoosingLikedVideos = true
@@ -706,7 +706,7 @@ struct GettingStartedGuide: View {
                     choiceRow(
                         icon: "clock.arrow.circlepath",
                         title: "No, only new likes",
-                        detail: "Your library starts with what you like from now on.",
+                        detail: "Starts from now on.",
                         recommended: true
                     ) {
                         configureYouTube(.futureOnly)
@@ -714,7 +714,7 @@ struct GettingStartedGuide: View {
                     choiceRow(
                         icon: "tray.full",
                         title: "Yes, bring in my liked videos",
-                        detail: "This can spend a lot on AI for a long history."
+                        detail: "A long history can cost a lot in AI."
                     ) {
                         configureYouTube(.importExisting)
                     }
@@ -728,8 +728,8 @@ struct GettingStartedGuide: View {
                     icon: "play.rectangle.fill",
                     title: "YouTube is connected",
                     detail: source == .likedVideos
-                        ? "Like a video on YouTube and it comes in here."
-                        : "Add a video to your ForeverLM playlist on YouTube and it comes in here."
+                        ? "Like a video and it comes in."
+                        : "Add a video to your playlist and it comes in."
                 )
                 if let video = newestYouTubeVideo {
                     detectedSourceCard(video, label: "Last video in")
@@ -752,7 +752,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "book.closed",
                 title: "Add your books",
-                detail: "Drop EPUBs or PDFs below. ForeverLM splits each one into chapters."
+                detail: "Drop EPUBs or PDFs below."
             )
             fileDropZone(
                 "Drop EPUBs or PDFs here",
@@ -853,7 +853,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.moreSources.icon,
                 title: "What else do you learn from?",
-                detail: "Tick any you use. Each one gets set up next."
+                detail: "Tick any you use."
             )
             VStack(spacing: 10) {
                 ForEach(GettingStartedStep.moreSourceRows) { source in
@@ -914,8 +914,8 @@ struct GettingStartedGuide: View {
                 icon: "text.bubble",
                 title: vm.isXOAuthSignedIn ? "X is connected" : "Connect X",
                 detail: vm.isXOAuthSignedIn
-                    ? "Posts you bookmark on X come into ForeverLM."
-                    : "Sign in to X, and the posts you bookmark come into ForeverLM. You can also do this later from the X tab."
+                    ? "Bookmarked posts come in."
+                    : "Sign in, and bookmarked posts come in."
             )
             if !vm.isXOAuthSignedIn {
                 primaryAction(
@@ -938,7 +938,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "person.2.wave.2",
                 title: "Bring in your Zoom meetings",
-                detail: "ForeverLM watches the folder Zoom saves recordings to, and adds each meeting's transcript on its own."
+                detail: "Each meeting's transcript comes in on its own."
             )
             VStack(spacing: 10) {
                 Text(zoomFolderDisplayPath)
@@ -991,7 +991,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: GettingStartedStep.subscriptions.icon,
                 title: "Do you already pay for an AI app?",
-                detail: "Tick every one you pay for. Next, you add ForeverLM to each, so it can reach your library."
+                detail: "Tick every one you pay for."
             )
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -1222,8 +1222,8 @@ struct GettingStartedGuide: View {
                 icon: "plus.circle",
                 title: "Add \(ForeverLMRuntimeIdentity.displayName) to the list",
                 detail: isDevelopmentBuild
-                    ? "In System Settings, click \"+\" under the list, choose this exact \(ForeverLMRuntimeIdentity.displayName) app, and turn it on."
-                    : "In System Settings, click \"+\" under the list, choose ForeverLM in Applications, and turn it on."
+                    ? "Click \"+\", choose this exact app, and turn it on."
+                    : "Click \"+\", choose ForeverLM in Applications, and turn it on."
             )
             if hasFullDiskAccess {
                 doneLabel("Full Disk Access is on")
@@ -1283,7 +1283,7 @@ struct GettingStartedGuide: View {
                 icon: "key.fill",
                 assetIcon: "OpenRouterIcon",
                 title: "Connect OpenRouter",
-                detail: "Your AI runs on your own account, at cost."
+                detail: "Your AI runs on your own account."
             )
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
@@ -1348,7 +1348,7 @@ struct GettingStartedGuide: View {
                     icon: "creditcard",
                     assetIcon: "OpenRouterIcon",
                     title: "Use your plan's API credits",
-                    detail: "Claude Max, Ultra and Team, and ChatGPT Pro and Business include monthly API credits. They expire each month if unused, and plans change, so check yours."
+                    detail: "Some Claude and ChatGPT plans include monthly API credits. Check yours."
                 )
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(Self.providerCreditSteps.enumerated()), id: \.offset) { index, text in
@@ -1371,7 +1371,7 @@ struct GettingStartedGuide: View {
                     icon: "creditcard",
                     assetIcon: "OpenRouterIcon",
                     title: "Do you have a paid Claude or ChatGPT plan?",
-                    detail: "Some plans include monthly API credits that can pay for your AI here."
+                    detail: "Some plans include API credits."
                 )
                 VStack(spacing: 10) {
                     choiceRow(title: "Yes") {
