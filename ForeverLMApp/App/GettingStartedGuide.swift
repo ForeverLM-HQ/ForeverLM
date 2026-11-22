@@ -55,7 +55,7 @@ struct GettingStartedGuide: View {
     @State private var hasFullDiskAccess = false
     /// The sources ticked on the More sources question; each gets a page.
     @State private var moreSourcePicks: Set<GettingStartedStep> = []
-    /// "None of these" on the More sources question.
+    /// "Let's do it later" on the More sources question.
     @State private var noMoreSources = false
     /// Whether Zotero keeps a library on this Mac; nil until looked for.
     @State private var hasZoteroLibrary: Bool?
@@ -835,7 +835,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.moreSources.icon,
-                title: "What else do you learn from?"
+                title: "What else should we set up?"
             )
             VStack(spacing: 10) {
                 ForEach(GettingStartedStep.moreSourceRows) { source in
@@ -853,7 +853,7 @@ struct GettingStartedGuide: View {
                         }
                     }
                 }
-                choiceRow(icon: "xmark.circle", title: "None of these", isSelected: noMoreSources) {
+                choiceRow(icon: "clock", title: "Let's do it later", isSelected: noMoreSources) {
                     noMoreSources.toggle()
                     if noMoreSources { moreSourcePicks = [] }
                 }
@@ -1518,7 +1518,7 @@ struct GettingStartedGuide: View {
         case .youtube:
             return (youtubeAccount?.choices.source != nil && newestYouTubeVideo != nil)
                 || newestSource(of: .video) != nil
-        // The question waits for a pick or "None of these"; the pages after
+        // The question waits for a pick or "Let's do it later"; the pages after
         // it can each be left as they are.
         case .moreSources:
             return page != nil || !moreSourcePicks.isEmpty || noMoreSources

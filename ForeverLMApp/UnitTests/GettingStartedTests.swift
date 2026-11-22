@@ -61,7 +61,7 @@ struct GettingStartedTests {
         #expect(GettingStartedFlow.next(after: nil, in: picks) == .books)
         #expect(GettingStartedFlow.next(after: .books, in: picks) == .youtube)
         #expect(GettingStartedFlow.next(after: .youtube, in: picks) == nil)
-        // No picks ("None of these", or "No" to an AI app): no pages at all.
+        // No picks ("Let's do it later", or "No" to an AI app): no pages at all.
         #expect(GettingStartedFlow.next(after: nil, in: [GettingStartedStep]()) == nil)
         // A pick unticked after its page opened has no next page.
         #expect(GettingStartedFlow.next(after: .meetings, in: picks) == nil)
