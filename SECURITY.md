@@ -2,8 +2,8 @@
 
 ## Reporting a vulnerability
 
-Email **support@foreverlm.com** with "Security" in the subject. Please do not
-open a public issue for a vulnerability.
+Email **security@foreverlm.com**. Please do not open a public issue for a
+vulnerability.
 
 Include what you found, how to reproduce it, and the app version and build
 (ForeverLM › About). You will get a reply acknowledging the report, and we will
