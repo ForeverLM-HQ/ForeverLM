@@ -28,6 +28,8 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
     var onClose: () -> Void
     /// Double-click and the menu's Rename…; nil for a tab with no name of its own.
     var onRename: (() -> Void)? = nil
+    /// Told when the pointer enters and leaves the tab's × slot.
+    var onCloseHoverChange: (Bool) -> Void = { _ in }
 
     func makeNSView(context: Context) -> StudioCenterTabDragHandleView {
         let view = StudioCenterTabDragHandleView()
@@ -54,6 +56,13 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
         view.onSplitRight = onSplitRight
         view.onClose = onClose
         view.onRename = onRename
+        view.onCloseHoverChange = onCloseHoverChange
+        view.setAccessibilityCustomActions([
+            NSAccessibilityCustomAction(name: "Close \(title)") { [weak view] in
+                view?.onClose()
+                return true
+            }
+        ])
         view.toolTip = "\(title); drag to the side to view side by side"
         view.setAccessibilityLabel(title)
         view.setAccessibilityValue(isActive ? "Selected" : "Not selected")
@@ -125,11 +134,39 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
     var onSplitRight: () -> Void = {}
     var onClose: () -> Void = {}
     var onRename: (() -> Void)?
+    var onCloseHoverChange: (Bool) -> Void = { _ in }
+    private var closeHovered = false {
+        didSet {
+            guard closeHovered != oldValue else { return }
+            onCloseHoverChange(closeHovered)
+        }
+    }
+    private var closeTrackingArea: NSTrackingArea?
     /// An inactive tab's × stands at its leading edge, the active one's at its trailing.
     var closeSlotOnLeading: Bool { !isActive }
     private static let closeSlotWidth: CGFloat = 26
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let closeTrackingArea { removeTrackingArea(closeTrackingArea) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        closeTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
+
+    override func mouseMoved(with event: NSEvent) {
+        closeHovered = pressIsInCloseSlot(event)
+    }
+
+    override func mouseExited(with event: NSEvent) { closeHovered = false }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         // A tab leaving its window mid-press (a closed pane) must not leave
@@ -179,7 +216,7 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
 
     /// Whether `event` pressed where the tab's × stands: the trailing end of
     /// the active tab, the icon's place on an inactive one (`StudioCenterTabButton`).
-    private func pressIsInCloseSlot(_ event: NSEvent) -> Bool {
+    fileprivate func pressIsInCloseSlot(_ event: NSEvent) -> Bool {
         let x = convert(event.locationInWindow, from: nil).x
         return closeSlotOnLeading ? x <= Self.closeSlotWidth : x >= bounds.width - Self.closeSlotWidth
     }

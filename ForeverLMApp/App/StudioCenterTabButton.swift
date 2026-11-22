@@ -24,6 +24,9 @@ struct StudioCenterTabButton: View {
     var titleCap: CGFloat = StudioCenterTabButton.maxTextWidth
 
     @State private var hovering = false
+    /// The pointer is over the tab's × slot, which its own click surface reports
+    /// (`StudioCenterTabDragHandleView.onCloseHoverChange`).
+    @State private var closeHovering = false
     @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = 12
 
     /// The tab's ×, inside its trailing edge.
@@ -77,7 +80,8 @@ struct StudioCenterTabButton: View {
                 onSplitLeft: onSplitLeft,
                 onSplitRight: onSplitRight,
                 onClose: onClose,
-                onRename: onRename
+                onRename: onRename,
+                onCloseHoverChange: { closeHovering = $0 }
             )
             .frame(width: tabWidth, height: 26)
 
@@ -117,24 +121,26 @@ struct StudioCenterTabButton: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
-            // The strip rides in the titlebar band, where a SwiftUI Button
-            // loses its clicks to the window drag (`TitlebarBandHitSurfaceView`).
-            TitlebarBandButton(
-                help: "Close Tab",
-                accessibilityLabel: "Close \(title)",
-                washInset: 2,
-                controlSize: Self.closeSize,
-                cornerRadius: 4,
-                action: onClose
-            ) {
-                Image(systemName: "xmark")
-                    .zoomedSystemFont(size: 8.5, weight: .semibold)
-                    .foregroundStyle(.secondary)
-                    .frame(width: Self.closeSize, height: Self.closeSize)
-            }
-            .opacity(isActive || hovering ? 1 : 0)
-            .padding(isActive ? .trailing : .leading, isActive ? 6 : 8)
-            .frame(width: tabWidth, height: 26, alignment: isActive ? .trailing : .leading)
+            // Only drawn here. The tab's own click surface owns the press, × slot
+            // included: a second surface for the × let the band's router pick it
+            // as the tightest target, and a click there closed nothing (product
+            // owner, 2026-11-15 and 2026-11-21: "clicking the X in these tabs
+            // doesn't actually close them"). One surface decides, the way a
+            // terminal tab's × does.
+            Image(systemName: "xmark")
+                .zoomedSystemFont(size: 8.5, weight: .semibold)
+                .foregroundStyle(closeHovering ? Color.primary : Color.secondary)
+                .frame(width: Self.closeSize, height: Self.closeSize)
+                .background {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.primary.opacity(closeHovering ? 0.10 : 0))
+                        .padding(-2)
+                }
+                .opacity(isActive || hovering ? 1 : 0)
+                .padding(isActive ? .trailing : .leading, isActive ? 6 : 8)
+                .frame(width: tabWidth, height: 26, alignment: isActive ? .trailing : .leading)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
         .frame(width: tabWidth, height: 26)
         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
