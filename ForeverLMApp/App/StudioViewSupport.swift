@@ -680,11 +680,11 @@ enum StudioCenterTabStripFit {
     static let minimumTitleCap: CGFloat = 28
 
     /// What `count` tabs cost besides their titles: each one's padding and
-    /// icon with the strip's spacing after it, and the active tab's room for
-    /// its × (an inactive tab shows its × in its icon's place).
+    /// icon with the strip's spacing after it (a tab shows its × in its
+    /// icon's place, so it keeps no room for one).
     static func tabsChrome(count: Int, textSize: CGFloat) -> CGFloat {
         guard count > 0 else { return 0 }
-        return CGFloat(count) * (textSize + 24 + 2) + 14 + 4
+        return CGFloat(count) * (textSize + 24 + 2)
     }
 
     /// What the strip spends besides its tabs: its two edges, + and the split

@@ -29,7 +29,7 @@ struct StudioCenterTabButton: View {
     @State private var closeHovering = false
     @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = 12
 
-    /// The tab's ×, inside its trailing edge.
+    /// The tab's ×.
     private static let closeSize: CGFloat = 14
 
     /// Match the visual label's fixed metrics and give the representable an
@@ -37,19 +37,21 @@ struct StudioCenterTabButton: View {
     /// ideal size inside the ZStack can collapse its hit area to zero even
     /// while the SwiftUI label beside it remains visible.
     ///
-    /// Only the active tab keeps room for its × after the title. An inactive
-    /// tab's × shows only under the pointer, so the slot kept for it stood
-    /// empty after every title and made the gap after a tab three times the
-    /// gap before it (product owner, 2026-11-11: "the spacing here is kind of
-    /// weirdly or badly designed in this top bar"). A hovered inactive tab
-    /// shows its × in its icon's place instead, as Safari's tabs do, so
-    /// neither the strip nor the title moves.
+    /// No tab keeps a slot for its × after the title: an empty slot made the
+    /// gap after a tab three times the gap before it (product owner,
+    /// 2026-11-11: "the spacing here is kind of weirdly or badly designed in
+    /// this top bar"). Every tab, the active one included, shows its × in its
+    /// icon's place while the pointer is over it, as Safari's tabs do, so
+    /// neither the strip nor the title moves, and the × is in one place on
+    /// every tab (product owner, 2026-11-21: "It doesn't make sense to me the
+    /// way sometimes the X to close the tab is on the left and sometimes it's
+    /// on the right"; picked left, on hover).
     private var tabWidth: CGFloat {
-        min(fullTextWidth, titleCap) + tabTextSize + 24 + (isActive ? Self.closeSize + 4 : 0)
+        min(fullTextWidth, titleCap) + tabTextSize + 24
     }
 
-    /// An inactive tab under the pointer, whose × stands where its icon was.
-    private var closeTakesIconPlace: Bool { !isActive && hovering }
+    /// The tab is under the pointer, so its × stands where its icon was.
+    private var closeTakesIconPlace: Bool { hovering }
 
     /// The most of a title a tab shows; a longer one runs off the edge.
     /// A chat renamed to a long title took twice a place tab's width at 150
@@ -115,7 +117,7 @@ struct StudioCenterTabButton: View {
                     }
             }
                 .padding(.leading, 9)
-                .padding(.trailing, isActive ? 9 + Self.closeSize + 4 : 9)
+                .padding(.trailing, 9)
                 .frame(width: tabWidth, height: 26, alignment: .leading)
                 .background(StudioSelectionBackground(isSelected: isActive, isHovered: hovering))
                 .allowsHitTesting(false)
@@ -136,9 +138,9 @@ struct StudioCenterTabButton: View {
                         .fill(Color.primary.opacity(closeHovering ? 0.10 : 0))
                         .padding(-2)
                 }
-                .opacity(isActive || hovering ? 1 : 0)
-                .padding(isActive ? .trailing : .leading, isActive ? 6 : 8)
-                .frame(width: tabWidth, height: 26, alignment: isActive ? .trailing : .leading)
+                .opacity(closeTakesIconPlace ? 1 : 0)
+                .padding(.leading, 8)
+                .frame(width: tabWidth, height: 26, alignment: .leading)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
