@@ -6,7 +6,7 @@ title: Web Library
 # Web Library
 
 > The web app is being rebuilt around notebooks and is not open to everyone
-> yet. Use the [ForeverLM Mac app](https://foreverlm.com/download).
+> yet. Use the [ForeverLM Mac app](https://foreverlm.com/releases/ForeverLM.dmg).
 
 Sign in with the Apple Account that you use for ForeverLM. Web Studio reads and
 writes the same CloudKit records as the Mac and iPhone apps: your own library,
