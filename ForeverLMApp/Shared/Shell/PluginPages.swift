@@ -58,7 +58,7 @@ enum PluginPage: String, CaseIterable, Sendable {
 
     /// The ForeverLM tools this plugin brings to a chat and to an assistant
     /// over MCP, in the order its page lists them under Includes (Codex's
-    /// plugin page lists the MCP servers and skills a plugin includes). Empty
+    /// plugin page lists the MCP servers a plugin includes). Empty
     /// for a plugin that brings none of its own: Google Drive's recordings
     /// arrive as sources, and every plugin's connect state is
     /// `get_plugin_connections` and `disconnect_plugin`.
@@ -121,71 +121,26 @@ struct PluginDisconnectTarget: Identifiable, Equatable, Sendable {
 
 // MARK: - Where the place is
 
-/// The Plugins place's two lists and the pages under them, as Codex's
-/// Plugins | Skills tabs (`skills.appsPage.browseTabs`): the plugins'
-/// directory and each plugin's page; the learner's skills, one skill's page,
-/// and a new skill being written. A window's own, like the course it shows.
+/// Where a window is in the Plugins place: the plugins' directory or one
+/// plugin's page. A window's own, like the course it shows.
 enum PluginsPlaceLocation: Hashable, Sendable {
     case directory
     case plugin(PluginPage)
-    case skills
-    /// A skill's page, by its id (`SkillRecord.id`).
-    case skill(String)
-    case newSkill
-
-    /// Which of the two lists this is, or is under.
-    var tab: PluginsPlaceTab {
-        switch self {
-        case .directory, .plugin: return .plugins
-        case .skills, .skill, .newSkill: return .skills
-        }
-    }
 
     /// The plugin whose page this is, or nil.
     var pluginPage: PluginPage? {
         if case .plugin(let page) = self { return page }
         return nil
     }
-
-    /// The list a page goes back to.
-    var list: PluginsPlaceLocation { tab.location }
-}
-
-/// The place's two tabs.
-enum PluginsPlaceTab: String, CaseIterable, Sendable {
-    case plugins
-    case skills
-
-    var title: String {
-        switch self {
-        case .plugins: return "Plugins"
-        case .skills: return "Skills"
-        }
-    }
-
-    /// Codex's line under the title (`skills.appsPage.browseIntro`), with
-    /// ForeverLM's name in it.
-    var subtitle: String {
-        switch self {
-        case .plugins: return "Connect plugins to let ForeverLM work across your tools."
-        case .skills: return "Extend ForeverLM with task-specific skills."
-        }
-    }
-
-    var location: PluginsPlaceLocation { self == .plugins ? .directory : .skills }
 }
 
 // MARK: - Links
 
-/// A `foreverlm://` address for a place in the Plugins place, which a plugin's
-/// or a skill's Copy Link puts on the pasteboard and the app opens again:
-/// `foreverlm://plugins`, `foreverlm://plugins/slack`, `foreverlm://skills`,
-/// `foreverlm://skills/paper-walkthrough`. A skill is addressed by its name,
-/// the handle the learner knows it by, and opens the newest skill of that
-/// name (`[SkillRecord].skill(named:)`).
+/// A `foreverlm://` address for a place in the Plugins place, which a
+/// plugin's Copy Link puts on the pasteboard and the app opens again:
+/// `foreverlm://plugins`, `foreverlm://plugins/slack`.
 enum PluginsPlaceLink: Equatable, Sendable {
     case plugins(PluginPage?)
-    case skills(name: String?)
 
     static let scheme = "foreverlm"
 
@@ -193,9 +148,6 @@ enum PluginsPlaceLink: Equatable, Sendable {
         switch self {
         case .plugins(let page):
             return URL(string: "\(Self.scheme)://plugins" + (page.map { "/\($0.rawValue)" } ?? ""))!
-        case .skills(let name):
-            let normalized = name.map(SkillRecord.normalizedName) ?? ""
-            return URL(string: "\(Self.scheme)://skills" + (normalized.isEmpty ? "" : "/\(normalized)"))!
         }
     }
 
@@ -206,96 +158,10 @@ enum PluginsPlaceLink: Equatable, Sendable {
     static func parse(_ url: URL) -> PluginsPlaceLink? {
         guard let urlScheme = url.scheme?.lowercased(),
               urlScheme == scheme || urlScheme == ForeverLMRuntimeIdentity.urlScheme.lowercased(),
-              let host = url.host?.lowercased() else { return nil }
+              url.host?.lowercased() == "plugins" else { return nil }
         let rest = url.pathComponents.filter { $0 != "/" }
         guard rest.count <= 1 else { return nil }
-        switch host {
-        case "plugins":
-            guard let id = rest.first else { return .plugins(nil) }
-            return PluginPage(rawValue: id.lowercased()).map { .plugins($0) }
-        case "skills":
-            guard let raw = rest.first else { return .skills(name: nil) }
-            let name = SkillRecord.normalizedName(raw)
-            return name.isEmpty ? nil : .skills(name: name)
-        default:
-            return nil
-        }
-    }
-}
-
-// MARK: - The skills list
-
-/// What the Skills list shows: the learner's skills by name, those whose
-/// name or description holds every word of the search (a leading / or $ on
-/// a word is how the chat types a skill, so it is read past).
-enum SkillsDirectory {
-    static func rows(_ skills: [SkillRecord], query: String) -> [SkillRecord] {
-        let words = query.lowercased()
-            .split(whereSeparator: \.isWhitespace)
-            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "/$")) }
-            .filter { !$0.isEmpty }
-        let sorted = skills.sorted {
-            $0.name == $1.name ? $0.updatedAt > $1.updatedAt : $0.name.localizedStandardCompare($1.name) == .orderedAscending
-        }
-        guard !words.isEmpty else { return sorted }
-        return sorted.filter { skill in
-            let haystack = "\(skill.name) \(skill.description)".lowercased()
-            return words.allSatisfy { haystack.contains($0) }
-        }
-    }
-}
-
-/// A skill being written on its page: the three fields as typed, and what
-/// would stop it saving.
-struct SkillDraft: Equatable, Sendable {
-    var name: String
-    var description: String
-    var instructions: String
-
-    init(name: String = "", description: String = "", instructions: String = "") {
-        self.name = name
-        self.description = description
-        self.instructions = instructions
-    }
-
-    init(_ skill: SkillRecord) {
-        self.init(name: skill.name, description: skill.description, instructions: skill.instructions)
-    }
-
-    /// A `SKILL.md` read into the fields: its name, description and
-    /// instructions, each kept as typed where the file has none. nil when the
-    /// text has no frontmatter.
-    func filled(fromSkillMarkdown text: String) -> SkillDraft? {
-        guard let parsed = SkillRecord.parseSkillMarkdown(text) else { return nil }
-        return SkillDraft(
-            name: parsed.name ?? name,
-            description: parsed.description ?? description,
-            instructions: parsed.instructions.isEmpty ? instructions : parsed.instructions
-        )
-    }
-
-    /// The command the name becomes, as the chat will take it.
-    var command: String { SkillRecord.normalizedName(name) }
-
-    /// Why it cannot be saved, or nil: the record's own rules, then a name
-    /// another skill holds (the store refuses that too; saying it here says
-    /// it before Save).
-    func problem(among skills: [SkillRecord], editing skillID: String?) -> String? {
-        if let problem = SkillRecord.validationProblem(name: name, description: description, instructions: instructions) {
-            return problem
-        }
-        if skills.contains(where: { $0.name == command && $0.id != skillID }) {
-            return "Another skill is already called /\(command). Pick another name."
-        }
-        return nil
-    }
-
-    /// Whether it differs from what `skill` holds (or holds anything, for a
-    /// new one): leaving it asks before throwing it away only then.
-    func hasChanges(from skill: SkillRecord?) -> Bool {
-        guard let skill else {
-            return ![name, description, instructions].allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        }
-        return self != SkillDraft(skill)
+        guard let id = rest.first else { return .plugins(nil) }
+        return PluginPage(rawValue: id.lowercased()).map { .plugins($0) }
     }
 }

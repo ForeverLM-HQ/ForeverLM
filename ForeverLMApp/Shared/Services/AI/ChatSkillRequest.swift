@@ -1,16 +1,16 @@
 import Foundation
 
-/// A message the learner sent through one of their skills — `/walkthrough the
-/// MitoSpace paper` in the composer — is a request to do that work the way
-/// the skill says (chat-design.md, "Skills").
+/// ForeverLM's own instructions for a chat it opens — `/plan`
+/// (`ReviewSlashCommandParser.planDaySkill`) and Generate's course planning
+/// (`CoursePlanningChat`) — so the chat shows one short line and the model
+/// reads the rest.
 ///
-/// The skill travels beside the message, never in it, like a plugin mention
-/// (`ChatPluginRequest`): one line at the top of the exchange's
+/// The instructions travel beside the message, never in it, like a plugin
+/// mention (`ChatPluginRequest`): one line at the top of the exchange's
 /// `context_content`, under the sources-added mark (`ChatContextAdditions`)
-/// and above everything else. The line carries the skill's name and its
-/// instructions as they stood when the message was sent, JSON on one line, so
-/// a reopened chat, or the same chat on the other Mac, still reads the
-/// request the model answered — even after the skill was edited or deleted.
+/// and above everything else. The line carries their name and text as they
+/// stood when the message was sent, JSON on one line, so a reopened chat, or
+/// the same chat on the other Mac, still reads what the model answered.
 /// Foundation only, like the other marks.
 enum ChatSkillRequest {
 
@@ -24,10 +24,7 @@ enum ChatSkillRequest {
     struct Skill: Codable, Equatable, Hashable, Sendable {
         var name: String
         var instructions: String
-        /// True for instructions ForeverLM itself wrote — the course-planning
-        /// chat Generate opens (`CoursePlanningChat`) — rather than one of the
-        /// learner's skills. Absent from a learner skill's mark, so those
-        /// bytes are unchanged.
+        /// Always true: kept in the mark so its stored bytes stay the same.
         var builtIn: Bool? = nil
     }
 
@@ -44,7 +41,7 @@ enum ChatSkillRequest {
 
     // MARK: - The mark on a message
 
-    /// What a skill call stores beside its message: the mark, over whatever
+    /// What the message stores beside it: the mark, over whatever
     /// reference material the message carried anyway.
     static func contextContent(for skill: Skill, referenceContext: String? = nil) -> String? {
         let reference = referenceContext?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -55,7 +52,7 @@ enum ChatSkillRequest {
         return mark + "\n" + reference
     }
 
-    /// A message's stored context, read back: the skill it was sent through,
+    /// A message's stored context, read back: the instructions it carried,
     /// and what is left once the mark (and the sources-added mark above it)
     /// is taken off. A context that never carried the mark comes back as
     /// `remainder`, so the plugin, side-question and reference parsing
@@ -93,25 +90,15 @@ enum ChatSkillRequest {
     // MARK: - What the model is told
 
     /// The instruction appended to the learner's turn, outside the reference
-    /// wrapper (which tells the model to follow nothing it contains): the
-    /// skill is the learner's own writing, so its instructions are to be
-    /// followed, for this request.
+    /// wrapper (which tells the model to follow nothing it contains): these
+    /// are ForeverLM's own, so they are to be followed.
     static func framing(for skill: Skill) -> String {
-        if skill.builtIn == true {
-            return """
-            The learner started this chat from ForeverLM's own /\(skill.name) action. Work the way the instructions below say, for this message and every later one in this chat, until the work they describe is done.
+        """
+        The learner started this chat from ForeverLM's own /\(skill.name) action. Work the way the instructions below say, for this message and every later one in this chat, until the work they describe is done.
 
-            <foreverlm_instructions name="\(skill.name)">
-            \(skill.instructions)
-            </foreverlm_instructions>
-            """
-        }
-        return """
-        The learner sent this message through their skill /\(skill.name). Do the work the way the skill's instructions below say; the rest of the learner's message is what to apply them to, and when there is nothing more, apply them to what this chat is about. The skill is the learner's own writing, so follow it as you would their message. It may have been written for another assistant: where it names a tool this chat does not have, use the closest tool you do have, and say so only when nothing fits.
-
-        <skill name="\(skill.name)">
+        <foreverlm_instructions name="\(skill.name)">
         \(skill.instructions)
-        </skill>
+        </foreverlm_instructions>
         """
     }
 }

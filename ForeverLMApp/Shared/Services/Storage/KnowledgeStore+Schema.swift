@@ -36,11 +36,15 @@ extension KnowledgeStore {
     //
     // 178: the chat a Board card was taken into. `notebook_tasks.chat_id` (`Task.chatID`) is added,
     // NULL on every existing row: DDL only.
-    static let schemaVersion: Int32 = 178
+    //
+    // 179: the learner's chat skills are gone from the app (product owner, 2026-11-21: "remove skills
+    // from the app"). `skills` and `idx_skills_name` are dropped, and a fresh store never makes them.
+    static let schemaVersion: Int32 = 179
     static let generation1RemovalSchemaVersion: Int32 = 175
     static let deadObjectsRemovalSchemaVersion: Int32 = 176
     static let boardListsSchemaVersion: Int32 = 177
     static let boardChatSchemaVersion: Int32 = 178
+    static let skillsRemovalSchemaVersion: Int32 = 179
     /// The oldest store this build migrates: schema 174. An older store is
     /// refused (product owner, 2026-11: old versions are no longer supported).
     static let minimumMigratableSchemaVersion: Int32 = 174
@@ -147,6 +151,9 @@ extension KnowledgeStore {
                 if try scalarInteger("SELECT COUNT(*) FROM pragma_table_info('notebook_tasks') WHERE name = 'chat_id'") == 0 {
                     try exec("ALTER TABLE notebook_tasks ADD COLUMN chat_id TEXT")
                 }
+            }
+            if currentVersion < Self.skillsRemovalSchemaVersion {
+                try exec("DROP TABLE IF EXISTS skills")
             }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls

@@ -499,50 +499,6 @@ extension MCPToolRegistry {
                 ]
             ),
             MCPToolDef(
-                name: "list_skills",
-                description: "List the learner's skills. A skill is instructions the learner wrote for one kind of work, in the shape of a SKILL.md: a name (typed as /name in ForeverLM's chat), a description saying when it applies, and markdown instructions. Returns each skill's id, name and description, not its instructions; read those with get_skill.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [String: Any](),
-                ]
-            ),
-            MCPToolDef(
-                name: "get_skill",
-                description: "Read one of the learner's skills in full: its instructions, and the same skill as a SKILL.md file. Call it when a request matches a skill's description, before starting the work, then do the work the way the skill says. Pass the name (with or without the leading /) or the skill_id from list_skills.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "name": ["type": "string", "description": "The skill's name, e.g. \"paper-walkthrough\"."],
-                        "skill_id": ["type": "string", "description": "Skill ID from list_skills. Takes precedence over name."],
-                    ],
-                ]
-            ),
-            MCPToolDef(
-                name: "save_skill",
-                description: "Write a skill into ForeverLM. Without skill_id it creates one and needs name, description and instructions (or skill_markdown, a whole SKILL.md whose frontmatter gives the name and description); with skill_id it changes only the fields passed. The name becomes the /command in ForeverLM's chat: lowercase letters, digits and hyphens, and no two skills may share one. The description is what the chat reads to decide when the skill applies, so say when to use it, not only what it does. Write a skill only when the learner asks for one.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "skill_id": ["type": "string", "description": "Skill ID from list_skills, to change an existing skill."],
-                        "name": ["type": "string", "description": "Short name, typed after / in the chat."],
-                        "description": ["type": "string", "description": "When the skill applies and what it does, in one paragraph (at most 1,024 characters)."],
-                        "instructions": ["type": "string", "description": "Markdown: how to do the work."],
-                        "skill_markdown": ["type": "string", "description": "A whole SKILL.md (frontmatter with name and description, then the instructions), instead of the three fields. A field passed alongside it wins."],
-                    ],
-                ]
-            ),
-            MCPToolDef(
-                name: "delete_skill",
-                description: "Permanently delete one of the learner's skills. Chats that already used it keep what they were told. Not undoable; confirm with the learner first.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "skill_id": ["type": "string", "description": "Skill ID from list_skills."],
-                    ],
-                    "required": ["skill_id"],
-                ]
-            ),
-            MCPToolDef(
                 name: "list_working_notes",
                 description: "Read the working notes ForeverLM keeps about how the learner is working: short sentences, each a thread (work in progress), an interest, a preference, a fact or an outcome, kept by the learner or at their word and handed to every ForeverLM chat. Use it to see what they have been working on, or to answer what ForeverLM knows about them. With a query, the notes nearest those words come first (by the same on-device embedding the chat recalls with); without one, newest first. Answers with each note's id, kind, text and dates, whether notes are switched on, and running_log: ForeverLM's running summary of what they are working on (Right now, then the newest log lines). Both are kept in the background, never as Docs. Notes can be out of date; trust what the learner says now.",
                 inputSchema: [

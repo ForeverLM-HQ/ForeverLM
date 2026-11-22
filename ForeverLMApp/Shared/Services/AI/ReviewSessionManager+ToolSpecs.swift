@@ -127,10 +127,6 @@ extension ReviewSessionManager {
         // reading and answering tools stay with the agent surface.
         "generate_mnemonic_reading",
         "save_mnemonic_reading",
-        // The learner's own skills (chat-design.md, "Skills"): every kind of
-        // chat carries the catalog, so every kind can read one it names.
-        "list_skills",
-        "get_skill",
         // The notes about the learner's work: "remember that", "forget that"
         // are said in any chat.
         "list_working_notes",
@@ -322,7 +318,7 @@ extension ReviewSessionManager {
         "get_day_activity", "list_working_notes", "save_working_note",
         // The quarter's plan, which /plan reads before a week or a day.
         "get_plan",
-        "list_skills", "get_skill", "list_ideas", "list_open_questions",
+        "list_ideas", "list_open_questions",
     ]
 
     /// Characters of app-tool definitions a request carries before the tools

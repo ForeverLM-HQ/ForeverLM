@@ -600,8 +600,6 @@ final class MCPToolRegistry: @unchecked Sendable {
         "get_goal",
         "list_ideas",
         "find_directions", "list_directions", "search_literature",
-        "list_skills",
-        "get_skill",
         // The notes ForeverLM keeps about the learner's work: a read.
         "list_working_notes",
         "search_sources_semantic", "search_sources_keyword", "list_shows", "filter_sources", "get_review_sessions",
@@ -835,7 +833,6 @@ final class MCPToolRegistry: @unchecked Sendable {
         "delete_canvas_region",
         "delete_canvas_arrow",
         "delete_image",
-        "delete_skill",
         // A forgotten note is gone, and its line with it.
         "forget_working_note",
         "unschedule_sources",

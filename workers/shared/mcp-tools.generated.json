@@ -2497,23 +2497,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Permanently delete one of the learner's skills. Chats that already used it keep what they were told. Not undoable; confirm with the learner first.",
-    "inputSchema" : {
-      "properties" : {
-        "skill_id" : {
-          "description" : "Skill ID from list_skills.",
-          "type" : "string"
-        }
-      },
-      "required" : [
-        "skill_id"
-      ],
-      "type" : "object"
-    },
-    "name" : "delete_skill",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Permanently delete a source from the knowledge base by ID. For the Studio row's normal Remove behavior, use remove_source instead.",
     "inputSchema" : {
       "properties" : {
@@ -4894,24 +4877,6 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read one of the learner's skills in full: its instructions, and the same skill as a SKILL.md file. Call it when a request matches a skill's description, before starting the work, then do the work the way the skill says. Pass the name (with or without the leading /) or the skill_id from list_skills.",
-    "inputSchema" : {
-      "properties" : {
-        "name" : {
-          "description" : "The skill's name, e.g. \"paper-walkthrough\".",
-          "type" : "string"
-        },
-        "skill_id" : {
-          "description" : "Skill ID from list_skills. Takes precedence over name.",
-          "type" : "string"
-        }
-      },
-      "type" : "object"
-    },
-    "name" : "get_skill",
-    "readOnlyHint" : true
-  },
-  {
     "description" : "Report on text-to-speech audio generation started with generate_source_audio: what is generating now, what is queued, and what finished, failed, was skipped, or was cancelled, with reasons. Pass source_ids to also learn, for specific sources, whether audio already exists and where they stand in the queue. Also lists sources the learner is generating from the app itself.",
     "inputSchema" : {
       "properties" : {
@@ -6593,17 +6558,6 @@
       "type" : "object"
     },
     "name" : "list_shows",
-    "readOnlyHint" : true
-  },
-  {
-    "description" : "List the learner's skills. A skill is instructions the learner wrote for one kind of work, in the shape of a SKILL.md: a name (typed as /name in ForeverLM's chat), a description saying when it applies, and markdown instructions. Returns each skill's id, name and description, not its instructions; read those with get_skill.",
-    "inputSchema" : {
-      "properties" : {
-
-      },
-      "type" : "object"
-    },
-    "name" : "list_skills",
     "readOnlyHint" : true
   },
   {
@@ -9101,36 +9055,6 @@
       "type" : "object"
     },
     "name" : "save_site",
-    "readOnlyHint" : false
-  },
-  {
-    "description" : "Write a skill into ForeverLM. Without skill_id it creates one and needs name, description and instructions (or skill_markdown, a whole SKILL.md whose frontmatter gives the name and description); with skill_id it changes only the fields passed. The name becomes the /command in ForeverLM's chat: lowercase letters, digits and hyphens, and no two skills may share one. The description is what the chat reads to decide when the skill applies, so say when to use it, not only what it does. Write a skill only when the learner asks for one.",
-    "inputSchema" : {
-      "properties" : {
-        "description" : {
-          "description" : "When the skill applies and what it does, in one paragraph (at most 1,024 characters).",
-          "type" : "string"
-        },
-        "instructions" : {
-          "description" : "Markdown: how to do the work.",
-          "type" : "string"
-        },
-        "name" : {
-          "description" : "Short name, typed after / in the chat.",
-          "type" : "string"
-        },
-        "skill_id" : {
-          "description" : "Skill ID from list_skills, to change an existing skill.",
-          "type" : "string"
-        },
-        "skill_markdown" : {
-          "description" : "A whole SKILL.md (frontmatter with name and description, then the instructions), instead of the three fields. A field passed alongside it wins.",
-          "type" : "string"
-        }
-      },
-      "type" : "object"
-    },
-    "name" : "save_skill",
     "readOnlyHint" : false
   },
   {

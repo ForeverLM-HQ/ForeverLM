@@ -219,7 +219,7 @@ struct ContentView: View {
             }
         }
 
-        // A plugin's or a skill's Copy Link (`PluginsPlaceLink`).
+        // A plugin's Copy Link (`PluginsPlaceLink`).
         if let link = PluginsPlaceLink.parse(url) {
             StudioWorkspaceWindowCoordinator.shared.bringActiveWindowForward()
             Task { await PluginsPlace.open(link, vm: vm) }

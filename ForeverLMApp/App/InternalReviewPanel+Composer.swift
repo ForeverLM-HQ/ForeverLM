@@ -1026,7 +1026,7 @@ extension InternalReviewPanelContent {
     /// Notebook titles come from current app state, so `/notebook` can offer deterministic
     /// identity choices without asking the model to decide which stored record was meant.
     var slashCommands: [ReviewSlashCommand] {
-        var commands = ReviewSlashCommand.all.map { command in
+        ReviewSlashCommand.all.map { command in
             guard command.kind == .notebook else { return command }
             return command.withArguments(
                 vm.notebooks
@@ -1036,15 +1036,6 @@ extension InternalReviewPanelContent {
                     }
             )
         }
-        // The learner's skills follow the app's own commands. A name is taken
-        // once — the store refuses a built-in's name, and two skills of one
-        // name (two Macs, before sync met) offer the newer edit.
-        var taken = Set(commands.map(\.name))
-        for skill in SkillLibrary.shared.skills.sorted(by: { $0.updatedAt > $1.updatedAt }) where !taken.contains(skill.name) {
-            taken.insert(skill.name)
-            commands.append(.skill(skill))
-        }
-        return commands
     }
 
     private var pluginPresence: ChatPluginPresence { ChatPluginPresence.shared }

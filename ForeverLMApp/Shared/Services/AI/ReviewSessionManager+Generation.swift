@@ -710,16 +710,6 @@ extension ReviewSessionManager {
             query: String(recallQuery.prefix(800)),
             topK: Self.recalledWorkingNoteCount
         )
-        if sessionSkills == nil {
-            // Off-main through the storage actor. A failed read leaves the
-            // catalog out of this turn and is tried again on the next; the
-            // chat itself does not depend on it.
-            do {
-                sessionSkills = try await storage.loadSkills()
-            } catch {
-                logger.error("Skills could not be read for this chat: \(error.localizedDescription)")
-            }
-        }
         if memoryCompanionPlan != nil, nativeToolsDisabledForSession {
             throw AIError.apiError(
                 "This chat model previously rejected the private memory-recording tool, so the review cannot continue safely. Choose another Chat model and retry."

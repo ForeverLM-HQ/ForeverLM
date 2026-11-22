@@ -486,26 +486,6 @@ extension InternalReviewPanelContent {
             // Re-open the popup with the full command list.
             draft = "/"
 
-        case .skill:
-            // The learner's words go as typed, command included, so the
-            // transcript shows which skill answered; the skill's instructions,
-            // as they stand now, ride beside them (`ChatSkillRequest`).
-            guard let skill = SkillLibrary.shared.skills.skill(named: command.name),
-                  let context = ChatSkillRequest.contextContent(
-                      for: ChatSkillRequest.Skill(name: skill.name, instructions: skill.instructions)
-                  ) else {
-                // The Plugins place's Skills tab lists them, as Codex's does.
-                vm.showToast(
-                    "The skill /\(command.name) is gone. Plugins › Skills lists the ones you have.",
-                    action: StudioToastAction(title: "Show Skills") { [vm] window in
-                        vm.openPluginsPlace(at: .skills, in: window)
-                    }
-                )
-                return
-            }
-            let request = argument.map { "/\(skill.name) \($0)" } ?? "/\(skill.name)"
-            await sendReviewChatMessage(request, contextualContent: context)
-
         case .rename:
             guard let record = openChatRecord, canRenameChat else {
                 vm.showToast(manager.currentSessionID == nil

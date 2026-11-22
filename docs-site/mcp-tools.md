@@ -532,27 +532,6 @@ connected.
 | `delete_atlas` | `atlas_id` | Delete an Atlas; cards drafted from it stay. |
 | `get_source_levels` | `source_id`, `level?`, `write_if_missing?`, `approved_spend_usd?` | A source zoomed out: its gist, why it matters, its key findings, a line for each section and each paragraph, and its key terms, each anchored to the source's own first words there. `write_if_missing` writes them on your Reading Levels model when none fit the current text; otherwise nothing is spent. |
 
-## Skills
-
-A skill is instructions the learner wrote for one kind of work, in the shape of
-a `SKILL.md`: a name, a description that says when it applies, and markdown
-instructions. ForeverLM's chat lists every skill's name and description in its
-system prompt, reads a skill with `get_skill` when a request matches it, and
-takes `/name` in the composer to call one directly. An assistant beside the app
-can use the same skills: read one with `get_skill` before doing the work it
-describes.
-
-These tools need the learner's Mac open and connected: a skill is a row in the
-app's own store. The learner writes the same rows under **Plugins › Skills** in
-the Mac app; these tools are how an assistant writes them.
-
-| Tool | Parameters | Description |
-|---|---|---|
-| `list_skills` | — | List the learner's skills: id, name and description. |
-| `get_skill` | `name?`, `skill_id?` | Read one skill in full, with the same skill as a `SKILL.md`. |
-| `save_skill` | `skill_id?`, `name?`, `description?`, `instructions?`, `skill_markdown?` | Create a skill, or change the fields passed on one. A whole `SKILL.md` can stand in for the three fields. |
-| `delete_skill` | `skill_id` | Permanently delete one skill. Chats that already used it keep what they were told. |
-
 ## Working notes
 
 ForeverLM keeps short notes about how the learner is working: a thread of work

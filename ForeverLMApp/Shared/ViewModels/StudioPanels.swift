@@ -1215,8 +1215,8 @@ final class StudioWindowState: Identifiable {
     /// tab: two windows can be on two courses. Presentation, so not in
     /// `Snapshot`.
     var coursePageID: String?
-    /// Where this window's Plugins place is: the plugins' directory, a
-    /// plugin's page, the skills, a skill's page. The window's, like the
+    /// Where this window's Plugins place is: the plugins' directory or a
+    /// plugin's page. The window's, like the
     /// course page: two windows can be on two plugins. Presentation, so not
     /// in `Snapshot`.
     var pluginsLocation: PluginsPlaceLocation = .directory

@@ -149,7 +149,6 @@ const destructive = new Set([
   'delete_idea',
   // A Direction gone for good; set aside is the answer that keeps it.
   "delete_direction",
-  "delete_skill",
   // A forgotten working note is gone, and its line in the Doc with it.
   "forget_working_note",
   // The learner marked the passage by hand while reading; deleting it throws
@@ -250,7 +249,6 @@ const destructive = new Set([
   "save_animation",
   "save_paper_references",
   "save_site",
-  "save_skill",
   "save_walkthrough",
   "set_automatic_audio_settings",
   "set_calendar_settings",
@@ -593,12 +591,6 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "get_article_reading_view",
   "set_article_reading_view_shown",
   "clear_article_reading_view",
-  // A skill is a row in the Mac's own store, written through save_skill
-  // and read by the Mac's chat (docs/chat-design.md, "Skills").
-  "list_skills",
-  "get_skill",
-  "save_skill",
-  "delete_skill",
   // The learner's working notes are a file beside the Mac's own store, written
   // when its day closes and through these tools (docs/planner-design.md).
   "list_working_notes",

@@ -1170,7 +1170,6 @@ private extension ReviewSessionManager.Message.ToolActivity {
         case "generate_image", "list_generated_images": return "photo"
         case "show_source_image", "inspect_paper_figure": return "photo.on.rectangle"
         case "focus_source_anchor": return "scope"
-        case "list_skills", "get_skill", "save_skill", "delete_skill": return "wand.and.stars"
         case "list_working_notes", "save_working_note", "update_working_note", "forget_working_note": return "note.text"
         case "extract_video_slides": return "rectangle.on.rectangle.angled"
         case "run_code": return "terminal"

@@ -1,4 +1,4 @@
-// MCPDataStoreTests: skills, Ideas, directions, Goals and Notebook-scoped tools.
+// MCPDataStoreTests: Ideas, directions, Goals and Notebook-scoped tools.
 
 import Testing
 import AppKit
@@ -10,83 +10,6 @@ import SQLite3
 #if os(macOS)
 
 extension MCPDataStoreTests {
-    // MARK: - Skills (docs/chat-design.md, "Skills")
-
-    /// Skills over MCP: write one from a SKILL.md, read it back by
-    /// name, rename it, refuse a taken or built-in name, and delete it.
-    @Test("The skill tools write from a SKILL.md, read by name, refuse a taken name and delete")
-    func skillToolsOverMCP() async throws {
-        let (store, tmpPath) = try TestStores.mcp()
-        defer { cleanup(tmpPath) }
-        let knowledge = try store.knowledgeStore()
-        for name in ["list_skills", "get_skill", "save_skill", "delete_skill"] {
-            #expect(MCPToolRegistry.shared.tools.contains { $0.name == name }, "\(name) is not registered")
-        }
-
-        let empty = try parseJSON(try store.listSkills())
-        #expect(empty["count"] as? Int == 0)
-
-        let created = try parseJSON(try store.saveSkill(
-            skillID: nil, name: nil, description: nil, instructions: nil,
-            skillMarkdown: """
-            ---
-            name: Paper Walkthrough
-            description: >
-              Walk through a paper one point at a time,
-              with recall questions after the points they test.
-            ---
-
-            # Walkthrough
-
-            Read the whole paper before the first card.
-            """
-        ))
-        #expect(created["status"] as? String == "created")
-        #expect(created["name"] as? String == "paper-walkthrough", "the name becomes a / command")
-        let skillID = try #require(created["skill_id"] as? String)
-
-        let read = try parseJSON(try store.getSkill(name: "/paper-walkthrough", skillID: nil))
-        #expect(read["skill_id"] as? String == skillID)
-        #expect(read["description"] as? String == "Walk through a paper one point at a time, with recall questions after the points they test.")
-        #expect(read["instructions"] as? String == "# Walkthrough\n\nRead the whole paper before the first card.")
-        #expect((read["skill_markdown"] as? String)?.hasPrefix("---\nname: paper-walkthrough\n") == true)
-
-        do {
-            _ = try store.saveSkill(skillID: nil, name: "paper walkthrough", description: "Another", instructions: "Body", skillMarkdown: nil)
-            Issue.record("a second skill took a name already held")
-        } catch let error as MCPError {
-            #expect(error.localizedDescription.contains("/paper-walkthrough"))
-        }
-        do {
-            _ = try store.saveSkill(skillID: nil, name: "plan", description: "Mine", instructions: "Body", skillMarkdown: nil)
-            Issue.record("a skill took a built-in command's name")
-        } catch let error as MCPError {
-            #expect(error.localizedDescription.contains("ForeverLM's own commands"))
-        }
-
-        let renamed = try parseJSON(try store.saveSkill(
-            skillID: skillID, name: "walk", description: nil, instructions: nil, skillMarkdown: nil
-        ))
-        #expect(renamed["status"] as? String == "updated")
-        #expect(try knowledge.loadSkill(skillID)?.name == "walk")
-        #expect(try knowledge.loadSkill(skillID)?.instructions == "# Walkthrough\n\nRead the whole paper before the first card.", "a field not passed is kept")
-
-        let listed = try parseJSON(try store.listSkills())
-        let rows = try #require(listed["skills"] as? [[String: Any]])
-        #expect(rows.map { $0["name"] as? String } == ["walk"])
-        #expect(rows[0]["instructions"] == nil, "the list carries no instructions")
-
-        let deleted = try parseJSON(try store.deleteSkill(skillID: skillID))
-        #expect(deleted["status"] as? String == "deleted")
-        #expect(try knowledge.loadSkills().isEmpty)
-        do {
-            _ = try store.getSkill(name: "walk", skillID: nil)
-            Issue.record("a deleted skill was still found")
-        } catch let error as MCPError {
-            #expect(error.localizedDescription.contains("list_skills"))
-        }
-    }
-
     // MARK: - Ideas (docs/ideas-design.md)
 
     /// The Ideas tab over MCP: jot one down, link what it draws on, read it

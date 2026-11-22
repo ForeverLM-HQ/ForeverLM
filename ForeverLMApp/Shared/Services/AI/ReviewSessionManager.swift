@@ -378,13 +378,6 @@ final class ReviewSessionManager {
     /// Set when a provider rejects native tool definitions; the session then
     /// uses the <flm_tool_call> text protocol for its remaining turns.
     @ObservationIgnored var nativeToolsDisabledForSession = false
-    /// The learner's skills as this chat first saw them, read at its first
-    /// turn and kept for the conversation, so the catalog in the cached system
-    /// head stays the same bytes turn after turn (chat-design.md, "Skills").
-    /// A skill written mid-chat is still reachable: `get_skill` reads the
-    /// store, and `/name` carries its instructions in the message. nil until
-    /// read.
-    @ObservationIgnored var sessionSkills: [SkillRecord]?
     /// The working log's excerpt (`WorkingLog`), read at the start of every
     /// turn because it moves as the learner works. nil while it holds nothing
     /// or could not be read.
@@ -1407,7 +1400,6 @@ final class ReviewSessionManager {
         modelOverride = nil
         lastGenerationFailed = false
         nativeToolsDisabledForSession = false
-        sessionSkills = nil
         sessionWorkingLog = nil
         sessionRecalledNotes = []
         followUpGenerationRequested = false

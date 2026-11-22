@@ -458,8 +458,7 @@ extension InternalReviewPanelContent {
         // the tutor. Text that starts with `/` but isn't a known command falls through and
         // is sent as a normal message. A message with a picture attached is never a
         // command: the picture is what the learner is sending.
-        if !hasImages, let parsed = ReviewSlashCommandParser.parse(typedTrimmed, commands: slashCommands)
-            ?? ReviewSlashCommandParser.parseSkillInvocation(typedTrimmed, commands: slashCommands) {
+        if !hasImages, let parsed = ReviewSlashCommandParser.parse(typedTrimmed, commands: slashCommands) {
             // The words go; a quoted passage waits for the message it belongs to.
             draft = ""
             lastInsertedDefaultPrompt = nil
@@ -632,8 +631,8 @@ extension InternalReviewPanelContent {
         let pluginContext = mention.map {
             ChatPluginRequest.contextContent(for: $0.plugin, referenceContext: baseContext)
         } ?? baseContext
-        // Generate's chat: the course-planning instructions go on top, the
-        // way a skill's do, so every later turn re-reads them.
+        // Generate's chat: the course-planning instructions go on top
+        // (`ChatSkillRequest`), so every later turn re-reads them.
         // The day-planning chat carries its rules the same way, so the chat
         // shows one line and the model reads the rest.
         let messageContext = plansCourse

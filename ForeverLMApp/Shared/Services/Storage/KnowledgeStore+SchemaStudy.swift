@@ -1,6 +1,6 @@
 extension KnowledgeStore {
 
-    /// Walkthroughs, Ideas, Atlases, Directions, Skills and the day-close state.
+    /// Walkthroughs, Ideas, Atlases, Directions and the day-close state.
     func createWalkthroughIdeaAndDirectionTables() throws {
         // A paper's guided walkthrough (schema 122, walkthrough-design.md): the
         // steps the Reader follows beside the PDF, as one JSON document keyed by
@@ -135,25 +135,6 @@ extension KnowledgeStore {
             )
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_research_directions_home ON research_directions(home_id, status)")
-
-        // The learner's chat skills (schema 136): a `/` name, the one
-        // description the chat reads to decide when a skill applies, and the
-        // instructions it reads when it does. The name is not UNIQUE: two
-        // Macs can each write one of the same name, and an inbound record
-        // must not fail on the other's row; local writes refuse a taken name
-        // and a lookup takes the newest edit. One `Skill` CloudKit record a
-        // row, private zone only.
-        try exec("""
-            CREATE TABLE IF NOT EXISTS skills (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                instructions TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL
-            )
-        """)
-        try exec("CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name, updated_at DESC)")
 
         // A walk's progress (schema 133): the card the learner is on, the
         // steps dealt, the questions' outcomes and the chat questions went

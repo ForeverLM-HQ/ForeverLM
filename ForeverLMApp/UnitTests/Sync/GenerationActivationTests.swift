@@ -340,4 +340,33 @@ struct GenerationActivationTests {
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM notebook_task_lists") == 0)
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM notebook_tasks WHERE id = 'task-1' AND list_id IS NULL") == 1)
     }
+
+    // MARK: Schema 179: the learner's chat skills are gone
+
+    @Test("Schema 179 drops a 178 store's skills table and its index, rows and all")
+    func schema179DropsSkills() throws {
+        let root = try Schema154Fixture.temporaryRoot("179-from-178")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Schema154Fixture.makeLibrary(at: root, version: nil)
+        do {
+            // A 178 store: the skills table, its index and one skill.
+            let store = try KnowledgeStore(storeDirectory: root)
+            try store.executeScript("""
+                CREATE TABLE skills (
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL,
+                    instructions TEXT NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL
+                );
+                CREATE INDEX idx_skills_name ON skills(name, updated_at DESC);
+                INSERT INTO skills VALUES ('s1', 'outline', 'Headings', 'Make them.', 1, 1);
+                """)
+            try store.execForTesting("PRAGMA user_version = 178")
+        }
+        let skillObjects = "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('skills', 'idx_skills_name')"
+        #expect(Schema154Fixture.count(at: root, skillObjects) == 2)
+        let sources = Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources")
+        let store = try KnowledgeStore(storeDirectory: root)
+        #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion))
+        #expect(try Schema154Fixture.count(store, skillObjects) == 0)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources") == sources, "no library row is touched")
+    }
 }

@@ -172,7 +172,6 @@ struct ReviewSlashLibraryRowTests {
             return command.name
         }
         #expect(names == ["page"])
-        #expect(SkillRecord.reservedNames.isSuperset(of: ["page", "doc"]))
     }
 
     @Test("/site is offered beside /source and /settings while its name is typed")
@@ -765,7 +764,7 @@ struct WorkingLogTests {
     }
 }
 
-/// Codex's thread verbs as slash commands, and `$name` for a skill.
+/// Codex's thread verbs as slash commands.
 @Suite("Chat thread verbs")
 struct ChatThreadVerbTests {
     @Test("/rename, /pin, /hide, /fork and /reasoning are offered and parse their arguments")
@@ -810,30 +809,12 @@ struct ChatThreadVerbTests {
         #expect(ReviewSlashCommandParser.effort(named: " ") == nil)
     }
 
-    @Test("$name asks for a skill as /name does; $ names nothing else")
-    func dollarSkills() throws {
-        let skill = SkillRecord(name: "walk", description: "Walk through a paper", instructions: "Body")
-        let commands = ReviewSlashCommand.all + [.skill(skill)]
-
-        let offered = ReviewSlashCommandParser.suggestions(for: "$", commands: commands)
-        #expect(offered.map(\.title) == ["$walk [request]"])
-        let row = try #require(ReviewSlashCommandParser.suggestions(for: "$wa", commands: commands).first)
-        #expect(row.completionText == "$walk ")
-        #expect(!row.runsImmediately)
-        // Built-in commands are `/` only.
-        #expect(ReviewSlashCommandParser.suggestions(for: "$ne", commands: commands).isEmpty)
-
-        let parsed = try #require(ReviewSlashCommandParser.parseSkillInvocation("$walk the MitoSpace paper", commands: commands))
-        #expect(parsed.command.kind == .skill)
-        #expect(parsed.argument == "the MitoSpace paper")
-        #expect(ReviewSlashCommandParser.parseSkillInvocation("$new", commands: commands) == nil)
-        #expect(ReviewSlashCommandParser.parseSkillInvocation("$5 a month", commands: commands) == nil)
-        #expect(ReviewSlashCommandParser.parse("$walk", commands: commands) == nil)
-
-        // The composer paints `$walk` as it paints `/walk`.
-        let prefix = try #require(ReviewSlashCommandParser.commandPrefix(in: "$walk it", commands: commands))
-        #expect(prefix.command.name == "walk")
-        #expect(ReviewSlashCommandParser.commandPrefix(in: "$new", commands: commands) == nil)
+    @Test("$ starts no command")
+    func dollarIsProse() {
+        #expect(ReviewSlashCommandParser.suggestions(for: "$").isEmpty)
+        #expect(ReviewSlashCommandParser.suggestions(for: "$ne").isEmpty)
+        #expect(ReviewSlashCommandParser.commandPrefix(in: "$new") == nil)
+        #expect(ReviewSlashCommandParser.parse("$5 a month") == nil)
     }
 }
 

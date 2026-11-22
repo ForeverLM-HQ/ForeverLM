@@ -470,7 +470,7 @@ enum ShellCommands {
         case .ideas: return ["thoughts", "jots"]
         case .memory: return ["cards", "flashcards", "review", "to check"]
         case .library: return ["sources", "papers", "books", "articles", "podcasts"]
-        case .plugins: return ["connectors", "integrations", "skills"]
+        case .plugins: return ["connectors", "integrations"]
         case .reader: return ["read", "source"]
         case .activity: return ["day", "today", "calendar", "meetings"]
         case .activityLog: return ["activity", "log", "history", "time spent", "tracked"]

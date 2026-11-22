@@ -302,8 +302,7 @@ enum StudioWindowDestination: Equatable {
     /// nil, every notebook: the notebook's Studio Cards row when nothing
     /// waits to be checked.
     case memoryReview(notebookID: String?)
-    /// The Plugins place where it is: its directory, a plugin's page, the
-    /// skills or one skill's page.
+    /// The Plugins place where it is: its directory or a plugin's page.
     case plugins(PluginsPlaceLocation)
 
     /// What the menu item is opening, for the toast and for the label.
@@ -335,9 +334,6 @@ enum StudioWindowDestination: Equatable {
             switch location {
             case .directory: return "Plugins"
             case .plugin(let page): return page.title
-            case .skills: return "Skills"
-            case .skill: return "skill"
-            case .newSkill: return "new skill"
             }
         }
     }

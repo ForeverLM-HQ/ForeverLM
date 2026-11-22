@@ -44,10 +44,6 @@ struct ReviewSlashCommand: Identifiable, Equatable {
         /// A side chat about the whole chat (Codex's /side).
         case side
         case reasoning
-        /// One of the learner's own skills (chat-design.md, "Skills"): the
-        /// command's name is the skill's, and the message goes to the chat
-        /// with the skill's instructions beside it (`ChatSkillRequest`).
-        case skill
     }
 
     /// An enumerable argument value offered as a second-level suggestion (e.g. Notebook names).
@@ -110,17 +106,6 @@ struct ReviewSlashCommand: Identifiable, Equatable {
     var id: String { name }
     var takesArgument: Bool { argHint != nil }
 
-    /// The `/name` row for one of the learner's skills. Its description is
-    /// the popup's line, as it is the chat's cue for when the skill applies.
-    static func skill(_ skill: SkillRecord) -> ReviewSlashCommand {
-        ReviewSlashCommand(
-            kind: .skill,
-            name: skill.name,
-            summary: skill.description,
-            argHint: "[request]",
-            arguments: []
-        )
-    }
     var searchesArguments: Bool { argumentSource == .search }
 
     func withArguments(_ arguments: [Argument]) -> ReviewSlashCommand {
@@ -571,9 +556,8 @@ struct ReviewSlashSuggestion: Identifiable, Equatable {
     }
 
     let payload: Payload
-    /// What a command row is typed with: `/`, or `$` for a skill asked for the
-    /// way Codex's `$name` asks for one.
-    var sigil: Character = ReviewSlashCommandParser.commandSigil
+    /// What a command row is typed with.
+    private var sigil: Character { ReviewSlashCommandParser.commandSigil }
     /// The message typed before a command that follows it
     /// (`ReviewSlashCommandParser.inlineCommand`); it stays in the field when
     /// the row is taken. Empty for a command that is the whole draft.
@@ -753,44 +737,16 @@ enum ReviewSlashCommandParser {
         in text: String,
         commands: [ReviewSlashCommand] = ReviewSlashCommand.all
     ) -> (command: ReviewSlashCommand, range: Range<String.Index>)? {
-        guard let sigil = text.first, sigil == commandSigil || sigil == skillSigil,
-              !text.contains("\n") else { return nil }
+        guard text.first == commandSigil, !text.contains("\n") else { return nil }
         let end = text.firstIndex(where: { $0.isWhitespace }) ?? text.endIndex
         let range = text.startIndex..<end
         let name = text[text.index(after: text.startIndex)..<end].lowercased()
-        let offered = sigil == skillSigil ? commands.filter { $0.kind == .skill } : commands
-        guard let command = offered.first(where: { $0.name == name }) else { return nil }
+        guard let command = commands.first(where: { $0.name == name }) else { return nil }
         return (command, range)
     }
 
     /// What a command is typed with.
     static let commandSigil: Character = "/"
-    /// `$name` asks for one of the learner's skills, as Codex's `$name` does;
-    /// `/name` still does too.
-    static let skillSigil: Character = "$"
-
-    /// A draft that asks for a skill with `$`, read as the `/` command it is,
-    /// over the skills alone: `$` names nothing else.
-    private static func skillDraftAsCommand(
-        _ text: String,
-        commands: [ReviewSlashCommand]
-    ) -> (text: String, skills: [ReviewSlashCommand])? {
-        guard text.first == skillSigil else { return nil }
-        let skills = commands.filter { $0.kind == .skill }
-        return ("\(commandSigil)\(text.dropFirst())", skills)
-    }
-
-    /// A submitted `$name request`: the skill command and its request, or nil
-    /// when `$` does not name one of the learner's skills (`$5 a month` is a
-    /// message).
-    static func parseSkillInvocation(
-        _ text: String,
-        commands: [ReviewSlashCommand] = ReviewSlashCommand.all
-    ) -> (command: ReviewSlashCommand, argument: String?)? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let asCommand = skillDraftAsCommand(trimmed, commands: commands) else { return nil }
-        return parse(asCommand.text, commands: asCommand.skills)
-    }
 
     /// The word `/reasoning` takes for an effort: its stored value, which the
     /// popup offers and the learner can type.
@@ -825,13 +781,6 @@ enum ReviewSlashCommandParser {
         liveMentions: ChatMention.LiveResults? = nil,
         mentionTab: ChatMention.Tab = .all
     ) -> [ReviewSlashSuggestion] {
-        if let asCommand = skillDraftAsCommand(text, commands: commands) {
-            return suggestions(for: asCommand.text, commands: asCommand.skills).map { row in
-                var dollar = row
-                dollar.sigil = skillSigil
-                return dollar
-            }
-        }
         if let inline = inlineCommand(in: text, commands: commands) {
             return suggestions(
                 for: inline.draft,
@@ -954,7 +903,7 @@ enum ReviewSlashCommandParser {
         in text: String,
         commands: [ReviewSlashCommand] = ReviewSlashCommand.all
     ) -> (lead: String, draft: String)? {
-        guard let first = text.first, first != commandSigil, first != skillSigil else { return nil }
+        guard let first = text.first, first != commandSigil else { return nil }
         let inline = commands.filter(\.searchesArguments)
         guard !inline.isEmpty else { return nil }
         var index = text.endIndex

@@ -644,10 +644,6 @@ struct InternalReviewPanelContent: View {
         .task(id: requestedResumeSessionID) {
             await resumeRequestedSessionIfNeeded()
         }
-        .task {
-            // The learner's skills are `/` commands in this composer.
-            await SkillLibrary.shared.loadIfNeeded()
-        }
         .task(id: vm.reviewChatResetRequestID) {
             guard acceptsGlobalRequests else { return }
             resetRequestedChatIfNeeded()

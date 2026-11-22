@@ -12,13 +12,8 @@ import os
 /// learner's own — and a click on one shows that plugin's page here, with
 /// ‹ Plugins back to the list. A place like the Library: a pane with its ×,
 /// Open Beside, Open in Other Window and a drag; it leaves a notebook the way
-/// the Library does. Settings has no Plugins.
-///
-/// Codex's place has two lists, Plugins and Skills, under one head,
-/// as does this one: the Skills tab lists the
-/// learner's chat skills, each with a page to read, edit or delete it, and
-/// New Skill (`SkillsView.swift`). Where the window is in the place is
-/// `StudioWindowState.pluginsLocation`, so ‹ › step through it.
+/// the Library does. Settings has no Plugins. Where the window is in the
+/// place is `StudioWindowState.pluginsLocation`, so ‹ › step through it.
 struct PluginsPane: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
@@ -27,27 +22,20 @@ struct PluginsPane: View {
         let location = windowState.pluginsLocation
         Group {
             switch location {
-            case .directory, .skills:
-                PluginsBrowseView(tab: location.tab) { vm.openPluginsPlace(at: $0, in: windowState) }
+            case .directory:
+                PluginsBrowseView { vm.openPluginsPlace(at: $0, in: windowState) }
             case .plugin(let page):
                 PluginPageContent(page: page)
                     .id(page)
                     .environment(\.pluginPageBack, { vm.openPluginsPlace(at: .directory, in: windowState) })
-            case .skill(let skillID):
-                SkillPage(skillID: skillID) { vm.openPluginsPlace(at: $0, in: windowState) }
-                    .id(location)
-            case .newSkill:
-                SkillPage(skillID: nil) { vm.openPluginsPlace(at: $0, in: windowState) }
-                    .id(location)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .studioCenterTabCloseChrome(for: .plugins)
         .onExitCommand {
-            // A skill being written handles its own Escape (it may ask first).
             guard location.pluginPage != nil else { return }
-            vm.openPluginsPlace(at: location.list, in: windowState)
+            vm.openPluginsPlace(at: .directory, in: windowState)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Plugins")
@@ -69,24 +57,12 @@ enum PluginsPlace {
         NotificationCenter.default.post(name: .requestOpenPluginsPlace, object: location)
     }
 
-    /// A `foreverlm://plugins…` or `foreverlm://skills…` address opened: the
-    /// place there. A skill is found by its name, the newest of that name;
-    /// one that is gone opens the Skills list and says so.
+    /// A `foreverlm://plugins…` address opened: the place there.
     @MainActor
     static func open(_ link: PluginsPlaceLink, vm: StudioViewModel) async {
         switch link {
         case .plugins(let page):
             requestOpen(page)
-        case .skills(nil):
-            requestOpen(at: .skills)
-        case .skills(let name?):
-            await SkillLibrary.shared.loadIfNeeded()
-            if let skill = SkillLibrary.shared.skills.skill(named: name) {
-                requestOpen(at: .skill(skill.id))
-            } else {
-                requestOpen(at: .skills)
-                vm.showToast("There is no skill /\(name) any more.")
-            }
         }
     }
 
@@ -116,7 +92,7 @@ extension StudioViewModel {
         openPluginsPlace(at: page.map(PluginsPlaceLocation.plugin) ?? .directory, in: window)
     }
 
-    /// The Plugins place at `location`: a list, a plugin's page or a skill's.
+    /// The Plugins place at `location`: the directory or a plugin's page.
     func openPluginsPlace(at location: PluginsPlaceLocation, in window: StudioWindowState? = nil) {
         let window = window ?? activeWindowState
         if window.pluginsLocation != location { window.pluginsLocation = location }
@@ -124,14 +100,10 @@ extension StudioViewModel {
     }
 }
 
-// MARK: - The head and its two lists
+// MARK: - The head and the directory
 
-/// The place's lists under Codex's head: the title, its one line, the
-/// search, and the Plugins | Skills tabs; the Skills tab's one action is
-/// New Skill (Codex's `skills.page.createSkill`). The search is the tab's own
-/// and starts empty on each.
+/// The directory under Codex's head: the title, its one line and the search.
 private struct PluginsBrowseView: View {
-    let tab: PluginsPlaceTab
     let go: (PluginsPlaceLocation) -> Void
     @State private var query = ""
 
@@ -139,37 +111,17 @@ private struct PluginsBrowseView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
                 VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
-                    SpacePlaceHeader(searchText: $query, searchIdentifier: "plugins.search.\(tab.rawValue)") {
-                        SpacePlaceTitle(title: tab.title)
+                    SpacePlaceHeader(searchText: $query, searchIdentifier: "plugins.search.plugins") {
+                        SpacePlaceTitle(title: "Plugins")
                     } actions: {
-                        if tab == .skills {
-                            SpaceDarkPillButton(title: "New Skill", systemImage: "plus", image: nil) { go(.newSkill) }
-                                .help("Write a skill for the chat")
-                                .accessibilityIdentifier("skills.new")
-                        }
+                        EmptyView()
                     }
-                    Text(tab.subtitle)
+                    Text("Connect plugins to let ForeverLM work across your tools.")
                         .zoomedSystemFont(size: 13)
                         .foregroundStyle(.secondary)
                         .textSelection(.disabled)
-                    HStack(spacing: 4) {
-                        ForEach(PluginsPlaceTab.allCases, id: \.self) { candidate in
-                            SpaceScopePill(title: candidate.title, isSelected: candidate == tab) {
-                                guard candidate != tab else { return }
-                                query = ""
-                                go(candidate.location)
-                            }
-                            .accessibilityIdentifier("plugins.tab.\(candidate.rawValue)")
-                        }
-                    }
-                    .padding(.top, StudioDesign.Spacing.small)
                 }
-                switch tab {
-                case .plugins:
-                    PluginDirectoryView(query: query) { go(.plugin($0)) }
-                case .skills:
-                    SkillsListView(query: query, go: go)
-                }
+                PluginDirectoryView(query: query) { go(.plugin($0)) }
             }
             .spacePlaceColumn()
         }
@@ -878,7 +830,7 @@ private struct PluginDirectoryView: View {
     }
 }
 
-/// A plugin's row in the directory, and a skill's in the Skills list: its
+/// A plugin's row in the directory: its
 /// logo, its name and one line, its state, and the chevron that says it
 /// opens a page.
 struct PluginPickerRow<Icon: View>: View {

@@ -105,7 +105,7 @@ extension ReviewSessionManager {
                 // A plugin mark (`@slack`, `@linear`, `@github`) comes off
                 // first, so its instruction stands outside the wrapper below
                 // like the side-question framing does.
-                let skillRequest = ChatSkillRequest.parse(contextContent: message.contextualContent)
+                let instructionsRequest = ChatSkillRequest.parse(contextContent: message.contextualContent)
                 let pluginRequest = ChatPluginRequest.parse(contextContent: message.contextualContent)
                 let sideQuestion = ChatSideQuestion.parse(contextContent: pluginRequest.remainder)
                 if let context = sideQuestion.referenceContext, !context.isEmpty {
@@ -148,9 +148,9 @@ extension ReviewSessionManager {
                 if let plugin = pluginRequest.plugin {
                     content += "\n\n" + ChatPluginRequest.framing(for: plugin)
                 }
-                // `/name`: the learner's skill, as it stood when they sent
-                // this, outside the reference wrapper because it is theirs.
-                if let skill = skillRequest.skill {
+                // ForeverLM's own instructions for a /plan or /course chat,
+                // outside the reference wrapper because they are to be followed.
+                if let skill = instructionsRequest.skill {
                     content += "\n\n" + ChatSkillRequest.framing(for: skill)
                 }
                 if sideQuestion.isSideQuestion {
@@ -163,7 +163,7 @@ extension ReviewSessionManager {
                     content += "\n\n" + ChatSideQuestion.closingFraming(openQuestion: previous.openQuestion)
                 }
                 // Think first: the learner's guess, theirs, so outside the
-                // reference wrapper like a skill (`ChatGuess`).
+                // reference wrapper (`ChatGuess`).
                 if let guess = sideQuestion.guess {
                     content += "\n\n" + ChatGuess.framing(guess: guess)
                 }

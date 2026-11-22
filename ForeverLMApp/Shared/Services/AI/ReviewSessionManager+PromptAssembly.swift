@@ -117,7 +117,6 @@ extension ReviewSessionManager {
         stable += canvasContextInstruction()
         stable += synthesisToolInstruction(nativeToolsActive: nativeToolsActive)
         stable += appToolInstruction(nativeToolsActive: nativeToolsActive)
-        stable += skillCatalogInstruction()
         if let dailyPlanRationale {
             stable += """
 
@@ -374,11 +373,6 @@ extension ReviewSessionManager {
         return target.sourceID
     }
 
-    /// The learner's skills by name and description, in the cached head: the
-    /// chat reads a skill's instructions with `get_skill` only when a request
-    /// matches it, the way Claude loads a SKILL.md (chat-design.md, "Skills").
-    /// Empty when the learner has none, or when this chat cannot call
-    /// `get_skill` to read one.
     /// The running summary of what the learner is working on (`WorkingLog`),
     /// ahead of every reply so each agent knows the threads in play without
     /// being told. It is background, not a topic: the chat answers what was
@@ -409,21 +403,6 @@ extension ReviewSessionManager {
         Notes about how the learner has been working, the ones nearest this message. They may be out of date: trust what they say now over a note.
         \(lines)
         </working_notes>
-        """
-    }
-
-    private func skillCatalogInstruction() -> String {
-        guard let skills = sessionSkills, !skills.isEmpty,
-              appToolExecutor != nil,
-              sessionAppToolDefinitions().contains(where: { $0.name == "get_skill" }) else { return "" }
-        let lines = skills.map { "- /\($0.name): \($0.description)" }.joined(separator: "\n")
-        return """
-
-        The learner's skills — instructions they wrote for particular kinds of work:
-        <skills>
-        \(lines)
-        </skills>
-        When a request matches a skill's description, call get_skill with its name before starting, then do the work the way the skill says; the skill is the learner's own writing, so follow it as you would their message. A message sent with /name already carries that skill's instructions: follow them without fetching it again. Do not bring up a skill the request does not call for.
         """
     }
 

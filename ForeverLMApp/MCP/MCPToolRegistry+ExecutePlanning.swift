@@ -1,9 +1,9 @@
-// MCPToolRegistry: runs the schedule, goal, idea, direction, skill and memory-review tools; one topic's share of `executeTool`.
+// MCPToolRegistry: runs the schedule, goal, idea, direction and memory-review tools; one topic's share of `executeTool`.
 import Foundation
 
 extension MCPToolRegistry {
 
-    /// Runs one of the schedule, goal, idea, direction, skill and memory-review tools; nil for any other name.
+    /// Runs one of the schedule, goal, idea, direction and memory-review tools; nil for any other name.
     func executePlanningTool(name: String, arguments: [String: Any], hostSessionID: String?, access: MCPAccessContext) async throws -> String? {
         switch name {
         case "get_schedule":
@@ -88,23 +88,6 @@ extension MCPToolRegistry {
                 includeArchived: arguments["include_archived"] as? Bool ?? true,
                 notebookID: arguments["notebook_id"] as? String
             )
-        case "list_skills":
-            return try store.listSkills()
-        case "get_skill":
-            return try store.getSkill(
-                name: arguments["name"] as? String,
-                skillID: arguments["skill_id"] as? String
-            )
-        case "save_skill":
-            return try store.saveSkill(
-                skillID: arguments["skill_id"] as? String,
-                name: arguments["name"] as? String,
-                description: arguments["description"] as? String,
-                instructions: arguments["instructions"] as? String,
-                skillMarkdown: arguments["skill_markdown"] as? String
-            )
-        case "delete_skill":
-            return try store.deleteSkill(skillID: arguments["skill_id"] as? String ?? "")
         case "list_working_notes":
             return try await store.listWorkingNotes(arguments: arguments)
         case "save_working_note":

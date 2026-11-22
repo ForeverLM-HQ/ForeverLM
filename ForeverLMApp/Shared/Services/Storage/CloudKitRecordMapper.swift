@@ -54,11 +54,6 @@ enum CloudKitSyncEntity: String, CaseIterable, Sendable {
     /// `userModificationDate` in Development, then deploy it to Production
     /// before shipping schema 133.
     case walkthroughProgress
-    /// One of the learner's chat skills (chat-design.md, "Skills"). Private
-    /// zone only. Schema gate: create `Skill` with `payload` and
-    /// `userModificationDate` in Development, then deploy it to Production
-    /// before shipping schema 136.
-    case skill
     /// A Direction a search proposed toward a Goal, Notebook or Idea, with
     /// its evidence and the learner's answer, in one record
     /// (docs/directions-design.md). Private zone only. Schema gate: create
@@ -136,8 +131,6 @@ enum CloudKitSyncEntity: String, CaseIterable, Sendable {
             return "Idea"
         case .walkthroughProgress:
             return "WalkthroughProgress"
-        case .skill:
-            return "Skill"
         case .researchDirection:
             return "ResearchDirection"
         case .videoCitedPaper:
