@@ -145,12 +145,30 @@ extension StudioViewModel {
     ///
     /// With `companion` the pane comes forward *beside* that surface, which
     /// stays where it is (the Canvas's Open Beside).
-    func revealArtifact(_ artifactID: String, in destinationWindowState: StudioWindowState? = nil, beside companion: StudioCenterTab? = nil) {
+    ///
+    /// With `pane` the page opens in that pane and no other: a row clicked in
+    /// a pane opens there, beside a page another pane already shows (product
+    /// owner, 2026-11-22: "it should just always open it in the panel where we
+    /// are clicking").
+    func revealArtifact(_ artifactID: String, in destinationWindowState: StudioWindowState? = nil, beside companion: StudioCenterTab? = nil, pane: UUID? = nil) {
         let destination = destinationWindowState ?? activeWindowState
         let section = artifactSection(of: artifactID)
         if section == .docs {
             let scope = docsCanvasScope(for: artifactID, in: destination)
             if destination.artifactCanvasNotebookID != scope { destination.artifactCanvasNotebookID = scope }
+        }
+        if let pane,
+           let index = destination.centerTabGroups.groups.firstIndex(where: { $0.id == pane }),
+           let layout = destination.centerTabGroups.replacingPane(at: index, with: section.centerTab) {
+            if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
+            destination.focusedGroupID = pane
+            artifactRevealRequest = ArtifactRevealRequest(
+                artifactID: artifactID,
+                section: section,
+                windowID: destination.id,
+                groupID: pane
+            )
+            return
         }
         if let companion {
             revealCenterTab(section.centerTab, beside: companion, in: destination)

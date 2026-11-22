@@ -26,6 +26,9 @@ struct ArtifactsHomePane: View {
     /// The window this pane is in; the place it shows is the window's.
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
+    /// The pane this Space shows in: a page opened from it opens here, beside
+    /// one another pane already shows.
+    @Environment(\.studioPaneGroupID) private var paneGroupID
     @State private var searchText = ""
     @State private var searchFocusRequest = 0
     /// The link sheet, and the section it links into: a Google Doc into
@@ -122,7 +125,7 @@ struct ArtifactsHomePane: View {
         .sheet(item: $linkSection, onDismiss: {
             guard let id = linkedArtifactID else { return }
             linkedArtifactID = nil
-            vm.revealArtifact(id, in: windowState)
+            vm.revealArtifact(id, in: windowState, pane: paneGroupID)
         }) { section in
             LinkPageSheet(section: section) { urlString in
                 let artifact = try await vm.linkPage(
@@ -164,7 +167,7 @@ struct ArtifactsHomePane: View {
         if vm.activeTeamID == nil, artifact.teamID != nil {
             Task { await vm.openTeamArtifact(artifact.id, in: windowState) }
         } else {
-            vm.revealArtifact(artifact.id, in: windowState)
+            vm.revealArtifact(artifact.id, in: windowState, pane: paneGroupID)
         }
     }
 
@@ -193,7 +196,7 @@ struct ArtifactsHomePane: View {
                     linkedNotebookIDs: [],
                     pageSpaceID: destination.pageSpaceID
                 )
-                vm.revealArtifact(snapshot.artifact.id, in: windowState)
+                vm.revealArtifact(snapshot.artifact.id, in: windowState, pane: paneGroupID)
             } catch {
                 vm.errorMessage = error.localizedDescription
             }
