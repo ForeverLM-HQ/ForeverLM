@@ -113,16 +113,12 @@ struct GettingStartedTests {
     @Test("The credits page walks through OpenRouter's own-key setting")
     func providerCreditStepsFollowOpenRouter() {
         let steps = GettingStartedGuide.providerCreditSteps
-        #expect(steps.count == 4)
+        #expect(steps.count == 3)
         #expect(steps[1].contains("Settings › Integrations"))
-        #expect(steps.contains { $0.contains("OpenAI or Anthropic API key") })
+        #expect(steps.contains { $0.contains("API key from that OpenAI or Anthropic account") })
         // Without it, a call the key cannot serve bills OpenRouter credits.
         #expect(steps.contains { $0.contains("Never use shared capacity") })
         #expect(GettingStartedGuide.openRouterIntegrationsURL.host == "openrouter.ai")
-        #expect(GettingStartedGuide.openRouterBYOKGuideURL.path == "/docs/guides/overview/auth/byok")
-        // A ChatGPT or Claude subscription is not API credit; the page says so.
-        #expect(GettingStartedGuide.subscriptionIsNotCredit.contains("subscription isn't API credit by itself"))
-        #expect(GettingStartedGuide.subscriptionIsNotCredit.contains("Claude Max"))
     }
 
     @Test("The connector plan knows each AI app by the name it registered")

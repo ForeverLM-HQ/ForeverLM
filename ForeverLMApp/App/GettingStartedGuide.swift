@@ -20,6 +20,8 @@ struct GettingStartedGuide: View {
     @PreferenceStorage(Prefs.Models.backgroundUsageConsented) private var hasConsentedToBackgroundAIUsage
     /// The AI step's two pages: the key, then the credits.
     @State private var aiPage: AIStepPage = .key
+    /// The credits page's one question; nil until Yes opens the steps.
+    @State private var hasPaidPlan: Bool?
     @PreferenceStorage(Prefs.Rail.aiSubscriptions) private var aiSubscriptionAnswer
     @PreferenceStorage(Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled, default: false)
     private var automaticallyFormatLikedVideoTranscripts
@@ -112,7 +114,10 @@ struct GettingStartedGuide: View {
             }
         }
         .onChange(of: step) { _, newStep in
-            if newStep == .enhancements { aiPage = .key }
+            if newStep == .enhancements {
+                aiPage = .key
+                hasPaidPlan = nil
+            }
             startSourceAutoSync(for: newStep)
             Task { await prepare(newStep) }
         }
@@ -1334,61 +1339,66 @@ struct GettingStartedGuide: View {
     /// OpenRouter runs those labs' models on the learner's own provider key,
     /// and ForeverLM sends them to the lab's own endpoint
     /// (`AIService.pinLabModelToItsOwnEndpoint`), where that key applies.
-    /// Voice mode is the one feature outside OpenRouter, so the page says it
-    /// needs no key and where an own OpenAI key for it goes.
+    ///
+    /// The page is one question (product owner, 2026-11-21: "do you already
+    /// have a paid Claude or ChatGPT subscription? If so, you might have API
+    /// credits as part of your subscription"). No moves on; Yes opens the three
+    /// steps. Some paid plans now include monthly API credits, claimed in the
+    /// lab's own billing settings (docs-site/ai-providers.md has the same list).
     private var providerCreditsPage: some View {
         VStack(spacing: 24) {
-            stepHeading(
-                icon: "creditcard",
-                assetIcon: "OpenRouterIcon",
-                title: "Use your OpenAI or Anthropic credits",
-                detail: "Already have OpenAI or Anthropic API credits? Add that key to OpenRouter and GPT and Claude models run on your credits."
-            )
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(Array(Self.providerCreditSteps.enumerated()), id: \.offset) { index, text in
-                    instruction("\(index + 1)", text)
+            if hasPaidPlan == true {
+                stepHeading(
+                    icon: "creditcard",
+                    assetIcon: "OpenRouterIcon",
+                    title: "Use your plan's API credits",
+                    detail: "Claude Max, Ultra and Team, and ChatGPT Pro and Business include monthly API credits. They expire each month if unused, and plans change, so check yours."
+                )
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(Self.providerCreditSteps.enumerated()), id: \.offset) { index, text in
+                        instruction("\(index + 1)", text)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .setupCard()
+                VStack(spacing: 10) {
+                    primaryAction("Add my key on OpenRouter") { open(Self.openRouterIntegrationsURL) }
+                    HStack(spacing: 16) {
+                        Button("Claim Claude credits") { open(Self.claudeCreditsURL) }
+                        Button("Claim ChatGPT credits") { open(Self.openAICreditsURL) }
+                    }
+                    .buttonStyle(.link)
+                    .font(.subheadline)
+                }
+            } else {
+                stepHeading(
+                    icon: "creditcard",
+                    assetIcon: "OpenRouterIcon",
+                    title: "Do you have a paid Claude or ChatGPT plan?",
+                    detail: "Some plans include monthly API credits that can pay for your AI here."
+                )
+                VStack(spacing: 10) {
+                    choiceRow(title: "Yes") {
+                        withAnimation(.easeInOut(duration: 0.2)) { hasPaidPlan = true }
+                    }
+                    choiceRow(title: "No") { goForward() }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .setupCard()
-            VStack(spacing: 10) {
-                primaryAction("Add my key on OpenRouter") { open(Self.openRouterIntegrationsURL) }
-                Button("Read OpenRouter's bring-your-own-key guide") { open(Self.openRouterBYOKGuideURL) }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-            }
-            VStack(spacing: 6) {
-                pageNote(Self.subscriptionIsNotCredit)
-                HStack(spacing: 16) {
-                    Button("Claim Claude credits") { open(Self.claudeCreditsURL) }
-                    Button("Claim ChatGPT credits") { open(Self.openAICreditsURL) }
-                }
-                .buttonStyle(.link)
-                .font(.subheadline)
-            }
-            pageNote("Voice mode doesn't go through OpenRouter and needs no key. To run it on your own OpenAI key, add the key later under the OpenRouter button at the bottom left, in Voice mode.")
         }
     }
 
     /// OpenRouter's own-key (BYOK) setup, in its own words
     /// (openrouter.ai/docs/guides/overview/auth/byok).
     static let providerCreditSteps = [
-        "Get an API key from OpenAI (platform.openai.com) or Anthropic (console.anthropic.com), the account that holds your credits",
+        "Claim your monthly credits, then copy an API key from that OpenAI or Anthropic account",
         "On OpenRouter, open Settings › Integrations and paste the key under OpenAI or Anthropic",
         "Turn on Always use this key and Never use shared capacity, so your credits pay and your OpenRouter balance is never charged",
-        "Then in ForeverLM, open Settings and pick GPT or Claude models for chat",
     ]
-
-    /// A ChatGPT or Claude subscription is not API credit by itself, but some
-    /// paid plans now include monthly API credits, claimed in the lab's own
-    /// billing settings (docs-site/ai-providers.md has the same list).
-    static let subscriptionIsNotCredit = "A ChatGPT or Claude subscription isn't API credit by itself, but some plans include monthly API credits: Claude Max, Ultra and Team, and ChatGPT Pro and Business. Claim them on your account's billing page, then use that account's API key above. They expire each month if unused, and plans change, so check yours."
 
     static let claudeCreditsURL = URL(string: "https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers")!
     static let openAICreditsURL = URL(string: "https://platform.openai.com/settings/organization/billing/overview")!
 
     static let openRouterIntegrationsURL = URL(string: "https://openrouter.ai/settings/integrations")!
-    static let openRouterBYOKGuideURL = URL(string: "https://openrouter.ai/docs/guides/overview/auth/byok")!
 
     /// Back on the left, and on the right one way forward: Continue once the
     /// page is answered (Return presses it), Skip while it may be left
@@ -1475,7 +1485,9 @@ struct GettingStartedGuide: View {
         if !pages.isEmpty {
             withAnimation(.easeInOut(duration: 0.2)) { _ = pages.removeLast() }
         } else if step == .enhancements, aiPage == .credits {
-            withAnimation(.easeInOut(duration: 0.2)) { aiPage = .key }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if hasPaidPlan == nil { aiPage = .key } else { hasPaidPlan = nil }
+            }
         } else if let previous = previousStep {
             go(to: previous)
         } else {
@@ -1553,8 +1565,10 @@ struct GettingStartedGuide: View {
                     hasOwnKey: account.ownKey != nil,
                     ownKeyAllowed: account.ownKeyAllowed
                 )
+            // The question moves on at "No"; "Yes" opens the steps, and
+            // Continue waits for that.
             case .credits:
-                return true
+                return hasPaidPlan == true
             }
         case .storage:
             return true
