@@ -1340,14 +1340,14 @@ struct ScreenRecordNarrowedAnswerTests {
 
 #endif
 
-@Suite("Screen record mode hides the account name")
+@Suite("Screen record mode shows the first name only")
 struct ScreenRecordAccountNameTests {
-    @Test("While recording, the rail and greeting show the stand-in, never the saved name")
-    func recordingShowsTheStandIn() {
+    @Test("While recording, the rail and greeting show the first given name, never the surname")
+    func recordingShowsTheFirstName() {
         let shown = MacAccountUser.displayedFullName(saved: "Ada Lovelace", recording: true)
-        #expect(shown == MacAccountUser.recordingStandInName)
-        #expect(MacAccountUser.leadingName(of: shown) == "Richard")
-        #expect(MacAccountUser.monogram(of: shown) == "R")
+        #expect(shown == "Ada")
+        #expect(MacAccountUser.leadingName(of: shown) == "Ada")
+        #expect(MacAccountUser.monogram(of: shown) == "A")
         // Off the take, the saved name is what shows.
         #expect(MacAccountUser.displayedFullName(saved: "Ada Lovelace", recording: false)
             == MacAccountUser.resolvedFullName(saved: "Ada Lovelace"))
