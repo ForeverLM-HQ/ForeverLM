@@ -136,6 +136,7 @@ struct StudioView: View {
                             goldenWidth: golden,
                             isGettingStarted: showGettingStarted
                         )
+                        .appTourSpot(.region("Chats and notebooks"))
                         .transition(.move(edge: .leading).combined(with: .opacity))
                     }
                     studioContent
@@ -364,6 +365,7 @@ struct StudioView: View {
         case .library:
             LibraryPane()
                 .appTourSpot(.libraryPane)
+                .appTourSpot(.region("Your Library"))
         case .knowledgeMap:
             KnowledgeMapPane()
         case .atlas:
@@ -557,7 +559,7 @@ struct StudioView: View {
             // The tour's spotlight and card, over the window and under
             // Settings; the spots are the controls marked `appTourSpot`.
             .overlayPreferenceValue(AppTourSpotKey.self) { spots in
-                AppTourOverlay(model: tour, spots: spots, bandAbove: lift) { tour.stop() }
+                AppTourOverlay(model: tour, spots: spots, bandAbove: lift, homeGlyph: StudioRailItem.home.systemImage) { tour.stop() }
             }
             .onChange(of: tour.isRunning ? tourSignals : AppTourSignals()) { _, signals in
                 tour.observe(signals)
@@ -613,15 +615,24 @@ struct StudioView: View {
     /// What the tour's steps wait for in this window (`AppTourStep.isDone`).
     private var tourSignals: AppTourSignals {
         AppTourSignals(
-            libraryShown: vm.visibleCenterTabs(in: windowState).contains(.library),
             readerSourceID: windowState.readerArticleID,
-            paneCount: windowState.centerTabGroups.groups.count
+            paneCount: windowState.centerTabGroups.groups.count,
+            memoryShown: vm.visibleCenterTabs(in: windowState).contains(.memory),
+            spaceShown: windowState.showsSpace,
+            sidebarShown: windowState.sidebarToggleReadsShown
         )
     }
 
+    /// Starts on the learner's own Library, so the map and the first steps
+    /// show their sources rather than an empty pane.
     private func startTour() {
         tourSeen = true
-        tour.start(tourSignals)
+        vm.inWindow(windowState) { vm.openLibraryView() }
+        Task { @MainActor in
+            // One layout pass, so the map finds the Library on screen.
+            try? await Task.sleep(for: .milliseconds(250))
+            tour.start(tourSignals)
+        }
     }
 
     private func presentSettings() {

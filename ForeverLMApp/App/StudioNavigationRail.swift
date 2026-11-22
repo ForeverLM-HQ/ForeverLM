@@ -296,6 +296,7 @@ struct StudioNavigationRail: View {
             // under that like dividing bar").
             ForEach(topEntries) { entry in
                 topStripButton(entry, litShortcut: litShortcut)
+                    .appTourSpot(.icon(Self.tourTitle(entry)))
                     // A kept one dragged to the end shows there instead; the
                     // icon being dragged stays dimmed where it would land.
                     .opacity(entry == dragged || entry == landing.map(StudioStripEntry.shortcut) ? 0.35 : 1)
@@ -329,6 +330,7 @@ struct StudioNavigationRail: View {
                     .filter { !shortcuts.contains($0) },
                 open: openShortcut
             )
+            .appTourSpot(.icon("More places"))
             Spacer(minLength: 0)
             if account.creditsAreEmpty, !vm.isScreenRecordModeActive {
                 Button { onOpenSettings(.aiUsage) } label: {
@@ -354,6 +356,7 @@ struct StudioNavigationRail: View {
             ForEach(footerEntries) { entry in
                 if case .footer(let item) = entry {
                     footerStripButton(item)
+                        .appTourSpot(.icon(item.title))
                         .contextMenu {
                             Button {
                                 hiddenFooterItemsStorage = StudioStripFooterHiddenItems(storage: hiddenFooterItemsStorage)
@@ -399,6 +402,15 @@ struct StudioNavigationRail: View {
         .animation(.easeInOut(duration: 0.16), value: footerEntries)
     }
 
+    /// A strip icon's name on the tour's map (`AppTourOverlay`).
+    static func tourTitle(_ entry: StudioStripEntry) -> String {
+        switch entry {
+        case .row(let item): return item.title
+        case .shortcut(let shortcut): return shortcut.title
+        case .footer(let item): return item.title
+        }
+    }
+
     /// The strip's rows the learner has not hidden and the places kept
     /// there, in the order the learner dragged them into.
     private func stripTopEntries(shortcuts: [StudioRailShortcut]) -> [StudioStripEntry] {
@@ -422,7 +434,7 @@ struct StudioNavigationRail: View {
         switch entry {
         case .row(.space): spaceButton(compact: true, yieldsTo: litShortcut != nil).appTourSpot(.space)
         case .row(.memory): memoryButton(compact: true).appTourSpot(.memory)
-        case .row(.library): libraryButton(compact: true).appTourSpot(.library)
+        case .row(.library): libraryButton(compact: true)
         case .row(.plugins): pluginsButton(compact: true)
         case .row(.home): homeButton().appTourSpot(.home)
         case .row(.newChat), .row(.browser), .footer: EmptyView()

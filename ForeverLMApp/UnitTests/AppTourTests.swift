@@ -5,11 +5,12 @@ import Testing
 @Suite("Tour after Setup")
 struct AppTourTests {
 
-    @Test("The Library step is done once the Library shows")
-    func libraryStep() {
-        let entry = AppTourSignals()
-        #expect(!AppTourStep.library.isDone(now: entry, entry: entry))
-        #expect(AppTourStep.library.isDone(now: AppTourSignals(libraryShown: true), entry: entry))
+    @Test("The tour opens on the map, which waits for Next")
+    func mapStep() {
+        let busy = AppTourSignals(readerSourceID: "x", paneCount: 4, memoryShown: true, spaceShown: true)
+        #expect(AppTourStep.allCases.first == .map)
+        #expect(!AppTourStep.map.isAction)
+        #expect(!AppTourStep.map.isDone(now: busy, entry: AppTourSignals()))
     }
 
     @Test("Opening a source counts only for a source that was not already open")
@@ -27,15 +28,31 @@ struct AppTourTests {
         #expect(AppTourStep.splitChat.isDone(now: AppTourSignals(paneCount: 3), entry: entry))
     }
 
+    @Test("Memory and the Space are done once they show")
+    func placeSteps() {
+        let entry = AppTourSignals()
+        #expect(!AppTourStep.memory.isDone(now: entry, entry: entry))
+        #expect(AppTourStep.memory.isDone(now: AppTourSignals(memoryShown: true), entry: entry))
+        #expect(!AppTourStep.space.isDone(now: entry, entry: entry))
+        #expect(AppTourStep.space.isDone(now: AppTourSignals(spaceShown: true), entry: entry))
+    }
+
+    @Test("The sidebar step wants it folded and brought back")
+    func sidebarStep() {
+        let entry = AppTourSignals()
+        #expect(!AppTourStep.sidebar.isDone(now: entry, entry: entry, sidebarFlips: 1))
+        #expect(AppTourStep.sidebar.isDone(now: entry, entry: entry, sidebarFlips: 2))
+    }
+
     @Test("Read-only steps wait for Next, and the last step has none after it")
     func readSteps() {
-        let busy = AppTourSignals(libraryShown: true, readerSourceID: "x", paneCount: 4)
-        for step in [AppTourStep.ask, .memory, .space, .sidebar, .corner] {
+        let busy = AppTourSignals(readerSourceID: "x", paneCount: 4, memoryShown: true, spaceShown: true)
+        for step in [AppTourStep.map, .ask, .corner] {
             #expect(!step.isAction)
-            #expect(!step.isDone(now: busy, entry: AppTourSignals()))
+            #expect(!step.isDone(now: busy, entry: AppTourSignals(), sidebarFlips: 3))
         }
         #expect(AppTourStep.corner.next == nil)
-        #expect(AppTourStep.library.next == .openSource)
+        #expect(AppTourStep.map.next == .openSource)
     }
 
     @Test("Every step says it in a few words")
