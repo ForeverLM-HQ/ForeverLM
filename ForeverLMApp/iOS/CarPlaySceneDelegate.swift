@@ -32,6 +32,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private var narrationTemplate: CPVoiceControlTemplate?
     /// The title of the narration on screen; nil while the conversation is.
     private var shownNarrationTitle: String?
+    #if DEBUG
+    /// The scripted conversation `-foreverlm-uitest-carplay` plays instead of a real one.
+    private var scriptTask: Task<Void, Never>?
+    #endif
 
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
@@ -47,6 +51,13 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let template = makeVoiceTemplate()
         voiceTemplate = template
         interfaceController.setRootTemplate(template, animated: false, completion: nil)
+
+        #if DEBUG
+        if CarPlayVoiceScript.isEnabled {
+            scriptTask = CarPlayVoiceScript.play(on: template)
+            return
+        }
+        #endif
 
         voiceStateObserver = Publishers.CombineLatest3(realtime.$phase, realtime.$statusText, realtime.$needsOwnKey)
             .sink { [weak self] phase, statusText, needsOwnKey in
@@ -79,6 +90,10 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             self.interfaceController = nil
         }
         MobileRealtimeVoice.isCarConnected = false
+        #if DEBUG
+        scriptTask?.cancel()
+        scriptTask = nil
+        #endif
         voiceStateObserver?.cancel()
         voiceStateObserver = nil
         voiceTemplate = nil
@@ -451,3 +466,45 @@ private enum CarPlayVoiceMarkRenderer {
         context.restoreGState()
     }
 }
+
+#if DEBUG
+/// `-foreverlm-uitest-carplay` (with `-foreverlm-uitest-app`): the car's screen plays one spoken exchange
+/// of a voice review on the real template, in a loop, with no voice session, so the Simulator's CarPlay
+/// window can be filmed for the website without signing in or spending anything. The learner asks, the
+/// tutor thinks and asks a card, the learner answers, the tutor thinks and grades it. The loop starts
+/// and ends listening, so a clip cut at its length loops cleanly.
+enum CarPlayVoiceScript {
+    static let launchArgument = "-foreverlm-uitest-carplay"
+
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains(launchArgument)
+    }
+
+    /// Seconds from the start of the loop, and the state shown from then on.
+    static let beats: [(at: Double, state: String)] = [
+        (0, "listening"),
+        (3.0, "thinking"),
+        (4.4, "speaking"),
+        (8.6, "listening"),
+        (10.4, "thinking"),
+        (11.4, "speaking"),
+    ]
+    static let loop: Double = 14
+
+    @MainActor
+    static func play(on template: CPVoiceControlTemplate) -> Task<Void, Never> {
+        Task { @MainActor in
+            let clock = ContinuousClock()
+            while !Task.isCancelled {
+                let start = clock.now
+                for beat in beats {
+                    try? await clock.sleep(until: start + .milliseconds(Int(beat.at * 1000)))
+                    if Task.isCancelled { return }
+                    template.activateVoiceControlState(withIdentifier: beat.state)
+                }
+                try? await clock.sleep(until: start + .milliseconds(Int(loop * 1000)))
+            }
+        }
+    }
+}
+#endif
