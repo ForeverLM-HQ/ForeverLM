@@ -89,7 +89,7 @@ Pictures are attached to the message, not added to your library. Dropping a PDF,
 
 Select words in a reply and a bar of three actions appears over the selection, the way the Reader answers a selection there; the reply's right-click menu offers the same three.
 
-**Add to chat** drops the passage into the composer as a quote, with the cursor on the line beneath it, so you type the follow-up question under the words it is about. A draft you had already started keeps its words, and the quote follows them. Your sent message shows the quoted passage as a quote above your question, and the tutor reads it as the passage you meant.
+**Add to chat** drops the passage into the composer as a quote, with the cursor on the line beneath it, so you type the follow-up question under the words it is about. A draft you had already started keeps its words, and the quote follows them. Each **Add to chat** is its own annotation: the composer shows them as one **annotations** chip ("2 annotations") above the field. Click it to read the passages, edit or delete one; its x drops them all. Your sent message shows the quoted passage as a quote above your question, and the tutor reads it as the passage you meant.
 
 **More details** asks the tutor to expand those words, here, under the reply — the same lane as the footer's More details, about the passage rather than the whole reply.
 
@@ -125,6 +125,8 @@ The Mac app's composer offers only Chat and Deep Research.
 On the Mac, a trackpad pinch over a chat makes that chat's text larger or smaller. Only the chat changes: the sources column, a reader open beside it and the rest of the window keep their size, and a pinch over a reader zooms the document instead. The chat's size is remembered across launches.
 
 ⌘= and ⌘- zoom the whole app, and the chat follows along on top of whatever a pinch gave it. ⌘0 (View → Reset Zoom) returns both the app and the chat to the default.
+
+The Library zooms by itself the same way, and not remembered across launches: pinch over it, or click in it and press ⌘=, ⌘- or ⌘0, and only the Library changes size; the sidebar and the other panes keep theirs. While a reader has the keyboard, the keys zoom the reader as before.
 
 ## Reviews
 

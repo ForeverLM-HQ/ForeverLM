@@ -360,10 +360,9 @@ the notebook's name, which opens it again. A source
 clicked here opens in the Reader beside the list.
 
 The Library is also where every source gets its cards. A row is the source's
-picture, title and byline, with one quiet word at its end: how many cards it
-has ("3 cards", "To check"), or **To follow up** when it has none yet but
-passages wait. Click it for the source's cards, then the passages you set
-aside to follow up, and **Write Card**, which opens the source in the Reader
+picture, title and byline, with **To follow up** at its end when passages you
+set aside wait. Click it for the source's cards, then those passages, and
+**Write Card**, which opens the source in the Reader
 with a blank card beside it for you to write (**Write Another Card** once it
 has some). The **No Cards** pill beside the search lists the sources in the
 tab that have none, newest first, with their count. The row's right-click menu
@@ -1002,7 +1001,7 @@ The **Memory** row in the navigation rail, below New chat, opens Memory: the car
 - **To Check** (with how many wait beside its name): the cards drafted for you, dealt one at a time as Review deals them, until you go through them. Over the card are its source (click to open it; a card that several of your sources state shows them together, with the count beyond the first, and opens any of them) and where you are ("3 of 15"); under it, **Keep** makes it a card you review, **Edit** keeps it in your words, and **Skip** drops it for good (K, E and S, and Return keeps), and the next card comes up. Every card works the same way, the ones you asked for too. The **⋯** over the card has **Keep All** and **Skip All** for the rest of that source's cards. **Show Passage** on a card opens its source at the passage the card stands on, and on a card that stands on several sources lists each. When you make cards from several sources at once, ForeverLM also looks for the other sources that state each card, so it stands on all of them; **Take Off This Card** in the source menu drops one you do not want before you keep the card. A card keeps the sources it was kept on for good. A draft you leave waits until you go through it; it never expires. The questions you missed before cards existed are offered here once too: they are kept already, so Keep just says you have been through them, and Skip retires one. A notebook's Studio says how many cards wait on its sources on its **Cards** row and opens them here, and the Reader's toolbar does for its source.
 - **All Cards**: every card you kept, found by any of its words or its source's title, by source or by notebook. Click a card to edit it: a new question only rewords it, while a new answer or reason starts it over, after asking. Right-click to start it over as it is, keep it in its own words, retire it, or open its source.
 
-Which sources have cards, and a verdict on each, is the Library's business, not Memory's: see [The Library](#the-library) for the card counts on its rows, its **No Cards** pill, and **Make Cards** and **Not Worth Keeping** under the pointer.
+Which sources have cards, and a verdict on each, is the Library's business, not Memory's: see [The Library](#the-library) for its **To follow up** marks, its **No Cards** pill, and **Make Cards** and **Not Worth Keeping** under the pointer.
 
 **You write a source's card yourself**: writing the question and the answer in your own words is the learning, so no model writes it for you. **Write Card** in the Reader's **⋯** menu, on the Library's rows, in a notebook's Studio (**Cards ▸ Write Cards**, for its ticked sources) and in the morning notification opens the source in the Reader with Memory beside it, showing a blank card: the question, the answer in your own words, and the passage it stands on, which you select in the Reader and take with **Use Selection**. **Save Card** (⌘↩) keeps it at once, with nothing to check; write another, or **Next Source** when you are going through several. While you write, Memory's pills start with **Write**; any other pill ends it.
 
@@ -1055,7 +1054,7 @@ meaning beside the color.
 The colors steer the AI too. Passages you mark **Follow up** or **Doubt** are the
 ones you set aside to come back to: a review reads them first, and a flashcard
 is drafted from one only when the source answers it. In the
-**Library**, click a source's card count (or its **To follow up**) to list
+**Library**, click a source's **To follow up** to list
 them under its cards, newest first; a click on one opens the source in the
 Reader with that highlight's card. Hover one and click the check, or
 right-click it for **Followed Up**, and the passage goes back to **Remember**
