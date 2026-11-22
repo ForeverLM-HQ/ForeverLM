@@ -1654,19 +1654,50 @@ final class ChatZoomShortcutRouter {
         weak var window: NSWindow?
         weak var anchor: NSView?
         var handlers: () -> Handlers
+        /// True for a pane (the Library) whose own zoom also answers
+        /// ⌘=/⌘-/⌘0 after a click inside it; a chat answers to pinch only.
+        var capturesKeyboard: Bool
     }
 
     private var entries: [Entry] = []
 
-    func register(id: UUID, window: NSWindow, anchor: NSView, handlers: @escaping () -> Handlers = { .init() }) {
+    /// Where the last click in a window landed, so ⌘=/⌘-/⌘0 can go to the
+    /// keyboard-capturing pane that was clicked.
+    private weak var lastClickWindow: NSWindow?
+    private var lastClickPoint: CGPoint = .zero
+
+    func register(
+        id: UUID,
+        window: NSWindow,
+        anchor: NSView,
+        capturesKeyboard: Bool = false,
+        handlers: @escaping () -> Handlers = { .init() }
+    ) {
         entries.removeAll { $0.window == nil || $0.anchor == nil }
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].window = window
             entries[index].anchor = anchor
             entries[index].handlers = handlers
+            entries[index].capturesKeyboard = capturesKeyboard
         } else {
-            entries.append(Entry(id: id, window: window, anchor: anchor, handlers: handlers))
+            entries.append(Entry(id: id, window: window, anchor: anchor, handlers: handlers, capturesKeyboard: capturesKeyboard))
         }
+    }
+
+    func noteMouseDown(at windowPoint: CGPoint, in window: NSWindow?) {
+        lastClickWindow = window
+        lastClickPoint = windowPoint
+    }
+
+    /// The keyboard-capturing pane the last click in `window` landed on.
+    func clickedKeyboardHandlers(for window: NSWindow?) -> Handlers? {
+        guard let window, lastClickWindow === window else { return nil }
+        for entry in entries where entry.window === window && entry.capturesKeyboard {
+            guard let anchor = entry.anchor, anchor.window === window else { continue }
+            let rect = anchor.convert(anchor.bounds, to: nil)
+            if !rect.isEmpty, rect.contains(lastClickPoint) { return entry.handlers() }
+        }
+        return nil
     }
 
     func unregister(id: UUID) {
@@ -1708,6 +1739,7 @@ final class ChatZoomShortcutRouter {
 struct ChatZoomShortcutTarget: NSViewRepresentable {
     var step: (Int) -> Bool = { _ in false }
     var reset: () -> Void = {}
+    var capturesKeyboard = false
 
     private var currentHandlers: ChatZoomShortcutRouter.Handlers {
         .init(step: step, reset: reset)
@@ -1725,6 +1757,7 @@ struct ChatZoomShortcutTarget: NSViewRepresentable {
                     id: coordinator.id,
                     window: window,
                     anchor: view,
+                    capturesKeyboard: capturesKeyboard,
                     handlers: { [weak coordinator] in
                         coordinator?.handlers ?? .init()
                     }

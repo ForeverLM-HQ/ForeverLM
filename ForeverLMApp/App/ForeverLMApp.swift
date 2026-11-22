@@ -194,6 +194,7 @@ private struct UIZoomShortcutMonitor: NSViewRepresentable {
                     MainActor.assumeIsolated {
                         ReaderShortcutRouter.shared.noteMouseDown(at: event.locationInWindow, in: event.window)
                         SourceSearchShortcutRouter.shared.noteMouseDown(at: event.locationInWindow, in: event.window)
+                        ChatZoomShortcutRouter.shared.noteMouseDown(at: event.locationInWindow, in: event.window)
                     }
                     return event
                 }
@@ -241,6 +242,17 @@ private struct UIZoomShortcutMonitor: NSViewRepresentable {
                         return true
                     }
                     if let action = event.uiZoomKeyboardAction {
+                        // The Library zooms by itself after a click in it, unless
+                        // keyboard focus is inside a reader.
+                        if ReaderShortcutRouter.shared.focusedHandlers(for: window) == nil,
+                           let library = ChatZoomShortcutRouter.shared.clickedKeyboardHandlers(for: window) {
+                            switch action {
+                            case .zoomIn: _ = library.step(1)
+                            case .zoomOut: _ = library.step(-1)
+                            case .reset: library.reset()
+                            }
+                            return true
+                        }
                         if SourceSearchShortcutRouter.shared.focusedHandler(for: window) != nil {
                             return nil
                         }

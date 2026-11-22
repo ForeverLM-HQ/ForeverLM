@@ -77,11 +77,29 @@ struct LibraryPane: View {
 
     @Environment(StudioViewModel.self) private var vm
     @State private var isNarrow = false
+    @WindowStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
+    /// The Library's own zoom, an offset from the app-wide step like a chat's
+    /// (`ChatZoom`): pinch over it, or ⌘=/⌘-/⌘0 after a click in it, and the
+    /// sidebar and the other panes keep their size. Not persisted.
+    @State private var zoomOffset = 0
 
     var body: some View {
         NavigationStack {
             StudioSidebar()
                 .equatable()
+        }
+        .dynamicTypeSize(ChatZoom.size(appStep: uiZoomStep, offset: zoomOffset))
+        .environment(\.uiZoomScale, ChatZoom.scale(appStep: uiZoomStep, offset: zoomOffset))
+        .background {
+            ChatZoomShortcutTarget(
+                step: { delta in
+                    guard let next = ChatZoom.offset(stepping: delta, appStep: uiZoomStep, offset: zoomOffset) else { return false }
+                    zoomOffset = next
+                    return true
+                },
+                reset: { zoomOffset = 0 },
+                capturesKeyboard: true
+            )
         }
         // The kind tabs draw in flow under the pane's chrome line.
         .environment(\.studioTitlebarBandHeight, nil)
