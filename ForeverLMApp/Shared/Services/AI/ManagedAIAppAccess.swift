@@ -161,6 +161,11 @@ extension ManagedAI {
         /// days run out at `freeUntil` even offline.
         func isLocked(at serverNow: Date) -> Bool {
             if !unlocked || state == .locked { return true }
+            #if os(macOS) && FOREVERLM_FIRST_RUN
+            // The First Run app's day-31 switch: a comped account (the tester's
+            // own) reads as an ordinary one whose free days are over.
+            if state == .comped, FirstRunTrialSkip.isOn { return true }
+            #endif
             if state == .freeDays, let freeUntil, serverNow >= freeUntil { return true }
             return false
         }
