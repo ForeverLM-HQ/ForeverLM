@@ -33,6 +33,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.234.0 (build 314) — 2026-11-21
+
+**Highlights:**
+- **Setup is a short run of plain questions, then a tour of the window.**
+
+- **A tour after Setup.** When Setup finishes, a spotlight walks the window one control at a time, then an interactive demo runs on your own Library with a labelled map.
+- **Setup asks one plain question a page.** Papers, PDFs, browsers, podcasts, other sources, credits and the MCP server each ask a short question with one line under the title; every optional page offers "Let's do it later", and a first Setup has no close button.
+- **A new learner's chat and background work start on OpenRouter's Free Models Router.**
+- **The Codex clip in Setup is re-recorded,** in a plain chat, zoomed in on the prompt and the answer.
+- **'Watch the story again'** on the welcome's last page replays the animation.
+- **The publisher-check banner stays away for 10 minutes after Setup.**
+- **Tabs: the × stands in the icon's place, under the pointer,** and closes the tab on the first click; closing the last tab lands on Home's new chat, and a lone blank New Chat has no ×.
+- **The pay screen asks once, like software used to:** 30 days free, then one payment of $19 and no subscription. An already-paid answer re-reads the account instead of showing an error.
+- **Plugins show their list once every status has answered,** not row by row.
+- **Podcast transcript candidates are queued in one write,** not one per episode.
+
 ## 0.233.0 (build 313) — 2026-11-20
 
 **Highlights:**
