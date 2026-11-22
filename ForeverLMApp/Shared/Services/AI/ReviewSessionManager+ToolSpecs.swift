@@ -217,6 +217,9 @@ extension ReviewSessionManager {
         // Notebook adopt the Notebook the sidebar happened to show. Only an
         // external MCP assistant, which cannot see the window, needs this tool.
         "get_app_context",
+        // The library page the ForeverLM home inside Claude, Codex and ChatGPT
+        // draws: thumbnails as data URLs, for a view, never for a model.
+        "browse_library",
         // X posting: an assistant-facing surface, not an in-app chat job.
         "create_x_post",
         // Images over MCP. The chat has its own generate_image and

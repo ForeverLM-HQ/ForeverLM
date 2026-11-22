@@ -285,50 +285,14 @@ extension MCPDataStore {
         }
         let scope = try show.map { try showScopedSourceIDs($0, includeArchived: includeArchived) }
         let requestedLimit = max(1, min(limit, 1000))
-        let excludedSourceIDs = try knowledgeStore().knowledgeSearchExcludedSourceIDs(includeArchived: true)
-
-        var predicates: [String] = []
-        var params: [Any] = []
-        if !includeArchived { predicates.append("sp.status = 'active'") }
-        if !sourceTypeFamily.isEmpty {
-            predicates.append("sp.source_type IN (\(sourceTypeFamily.map { _ in "?" }.joined(separator: ", ")))")
-            params.append(contentsOf: sourceTypeFamily)
-        }
-        let whereClause = predicates.isEmpty ? "" : "WHERE \(predicates.joined(separator: " AND "))"
-        let rows: [[String: Any]] = try withDB { db in
-            try query(db, """
-                SELECT sp.id, sp.title, sp.source_type, sp.domain,
-                       COALESCE(NULLIF(sp.author, ''), NULLIF(bk.author, ''), NULLIF(co.instructors, '')) AS author,
-                       sp.journal, sp.published_year,
-                       sp.word_count, sp.date_added, sp.status, sp.state,
-                       COALESCE(sp.parent_group_title, sp.parent_group) AS group_name,
-                       bk.subtitle AS group_subtitle
-                FROM source_projection sp
-                LEFT JOIN books bk ON bk.id = sp.parent_group AND sp.source_type = 'book'
-                LEFT JOIN courses co ON co.id = sp.parent_group AND sp.source_type = 'course'
-                \(whereClause)
-                ORDER BY sp.date_added DESC
-            """, params: params)
-        }
-
-        func contains(_ field: Any?, _ needle: String) -> Bool {
-            guard let field = field as? String else { return false }
-            return field.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-        }
-        let matches = rows.filter { row in
-            guard let id = row["id"] as? String, !excludedSourceIDs.contains(id) else { return false }
-            if let scope, !scope.sourceIDs.contains(id) { return false }
-            if let author, !contains(row["author"], author) { return false }
-            // A book or course is stored as one source per chapter or lecture,
-            // so its own title lives in the group, not in the row's title.
-            if let titleContains,
-               !contains(row["title"], titleContains), !contains(row["group_name"], titleContains) { return false }
-            if let text {
-                let fields: [Any?] = [row["title"], row["author"], row["domain"], row["journal"], row["group_name"], row["group_subtitle"]]
-                if !fields.contains(where: { contains($0, text) }) { return false }
-            }
-            return true
-        }
+        let matches = try matchingSourceRows(
+            scope: scope?.sourceIDs,
+            author: author,
+            titleContains: titleContains,
+            text: text,
+            sourceTypeFamily: sourceTypeFamily,
+            includeArchived: includeArchived
+        )
 
         var filters: [String] = []
         if let scope { filters.append("show \(scope.names.map { "'\($0)'" }.joined(separator: " or "))") }
@@ -372,6 +336,63 @@ extension MCPDataStore {
             lines.append("- [\(type)] \(title) (\(metadata.joined(separator: ", ")))")
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// The source rows `filter_sources` and `browse_library` list, newest
+    /// first: every filter a case-insensitive substring, combined with AND, and
+    /// the knowledge boundary's hidden sources left out.
+    func matchingSourceRows(
+        scope: Set<String>?,
+        author: String?,
+        titleContains: String?,
+        text: String?,
+        sourceTypeFamily: [String],
+        includeArchived: Bool
+    ) throws -> [[String: Any]] {
+        let excludedSourceIDs = try knowledgeStore().knowledgeSearchExcludedSourceIDs(includeArchived: true)
+        var predicates: [String] = []
+        var params: [Any] = []
+        if !includeArchived { predicates.append("sp.status = 'active'") }
+        if !sourceTypeFamily.isEmpty {
+            predicates.append("sp.source_type IN (\(sourceTypeFamily.map { _ in "?" }.joined(separator: ", ")))")
+            params.append(contentsOf: sourceTypeFamily)
+        }
+        let whereClause = predicates.isEmpty ? "" : "WHERE \(predicates.joined(separator: " AND "))"
+        let rows: [[String: Any]] = try withDB { db in
+            try query(db, """
+                SELECT sp.id, sp.title, sp.source_type, sp.domain,
+                       COALESCE(NULLIF(sp.author, ''), NULLIF(bk.author, ''), NULLIF(co.instructors, '')) AS author,
+                       sp.journal, sp.published_year,
+                       sp.word_count, sp.date_added, sp.status, sp.state,
+                       sp.parent_group AS group_id,
+                       COALESCE(sp.parent_group_title, sp.parent_group) AS group_name,
+                       bk.subtitle AS group_subtitle
+                FROM source_projection sp
+                LEFT JOIN books bk ON bk.id = sp.parent_group AND sp.source_type = 'book'
+                LEFT JOIN courses co ON co.id = sp.parent_group AND sp.source_type = 'course'
+                \(whereClause)
+                ORDER BY sp.date_added DESC
+            """, params: params)
+        }
+
+        func contains(_ field: Any?, _ needle: String) -> Bool {
+            guard let field = field as? String else { return false }
+            return field.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+        return rows.filter { row in
+            guard let id = row["id"] as? String, !excludedSourceIDs.contains(id) else { return false }
+            if let scope, !scope.contains(id) { return false }
+            if let author, !contains(row["author"], author) { return false }
+            // A book or course is stored as one source per chapter or lecture,
+            // so its own title lives in the group, not in the row's title.
+            if let titleContains,
+               !contains(row["title"], titleContains), !contains(row["group_name"], titleContains) { return false }
+            if let text {
+                let fields: [Any?] = [row["title"], row["author"], row["domain"], row["journal"], row["group_name"], row["group_subtitle"]]
+                if !fields.contains(where: { contains($0, text) }) { return false }
+            }
+            return true
+        }
     }
 
     static func sourceFilterMinuteFormatter() -> DateFormatter {

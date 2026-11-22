@@ -283,6 +283,12 @@ function title(name: string): string {
 /// here also keeps them off the hosted-mirror fallback.
 const leavesAFile = new Set(["screenshot_canvas", "inspect_paper_figure", "find_card_sources"]);
 
+/// Mac tools only the ForeverLM view inside an assistant calls (MCP Apps
+/// `visibility: ["app"]`): the host hides them from its model. browse_library
+/// answers the view's Library page with thumbnails as data URLs, which would
+/// only cost a model tokens.
+export const APP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set(["browse_library"]);
+
 function tool(name: string, description: string, inputSchema: JSONSchema, registryReadOnly: boolean): ToolDefinition {
   const isReadOnly = registryReadOnly && !leavesAFile.has(name);
   return {
@@ -295,6 +301,7 @@ function tool(name: string, description: string, inputSchema: JSONSchema, regist
       destructiveHint: !isReadOnly && destructive.has(name),
       openWorldHint: openWorld.has(name),
     },
+    ...(APP_ONLY_TOOL_NAMES.has(name) ? { _meta: { ui: { visibility: ["app"] } } } : {}),
   };
 }
 
@@ -556,6 +563,9 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   // Study practices are Practice records the Mac keeps on the new iCloud sync,
   // and adopting one applies its setting through the Mac's own setters
   // (docs/cloudkit-schema-design.md §8c).
+  // The ForeverLM view's Library page: books folded from their chapters
+  // and every picture drawn from the Mac's own files and artwork cache.
+  "browse_library",
   "list_practices",
   "decide_practice",
   "set_practice",

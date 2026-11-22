@@ -602,7 +602,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "find_directions", "list_directions", "search_literature",
         // The notes ForeverLM keeps about the learner's work: a read.
         "list_working_notes",
-        "search_sources_semantic", "search_sources_keyword", "list_shows", "filter_sources", "get_review_sessions",
+        "search_sources_semantic", "search_sources_keyword", "list_shows", "filter_sources", "browse_library", "get_review_sessions",
         "get_review_session_transcript", "search_review_sessions",
         "list_review_session_links",
         "list_video_cited_papers",

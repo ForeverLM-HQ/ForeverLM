@@ -142,6 +142,12 @@ extension MCPToolRegistry {
                 includeArchived: arguments["include_archived"] as? Bool ?? false,
                 limit: arguments["limit"] as? Int ?? 200
             )
+        case "browse_library":
+            return try await store.browseLibrary(
+                text: arguments["text"] as? String,
+                sourceType: arguments["source_type"] as? String,
+                limit: arguments["limit"] as? Int ?? 40
+            )
         case "start_review_session":
             return try await store.startScopedReviewSession(
                 topic: arguments["topic"] as? String ?? "",

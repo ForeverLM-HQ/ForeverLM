@@ -884,6 +884,41 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "The Library page of the ForeverLM view an assistant shows inside its own window (Claude, Codex, ChatGPT); for that view, not for model use. Lists the library newest first as the Mac's Library does: a book or course once, under its own title, author and cover, rather than chapter by chapter, and every row with a small thumbnail as a JPEG data URL. Answers JSON: total, and items with kind (source, book or course), id (the chapter a book opens at, for open_in_app with kind source), type, title, byline, words, added and thumbnail. To read the library yourself, use filter_sources.",
+    "inputSchema" : {
+      "properties" : {
+        "limit" : {
+          "description" : "Rows to return, books counted once (default 40, maximum 400).",
+          "type" : "integer"
+        },
+        "source_type" : {
+          "description" : "Optional. One family of sources.",
+          "enum" : [
+            "article",
+            "paper",
+            "podcast",
+            "book",
+            "course",
+            "meeting",
+            "video",
+            "xPost"
+          ],
+          "type" : "string"
+        },
+        "text" : {
+          "description" : "Text the title, author, show or channel, journal, or book or course title contains.",
+          "type" : "string"
+        }
+      },
+      "required" : [
+
+      ],
+      "type" : "object"
+    },
+    "name" : "browse_library",
+    "readOnlyHint" : true
+  },
+  {
     "description" : "Lay a whole picture out on one of the learner's canvases in one call, on their word (\"lay this paper out visually on a canvas\", \"mock up how these ideas connect\"): write note cards, set them and cards from the library down in labelled groups, and draw arrows between them. Each note is an Idea of the learner's (a card with a title and a few lines of text; it is also linked to the canvas's notebook when the canvas belongs to one) that you author: a claim, a step, a question, a caveat. A note with source_id and quote is instead a passage card: the words are marked as a highlight in that source (the one the learner already has on them is reused), the card shows them, and clicking it opens the paper at those words, so quote the paper wherever a claim rests on it. Each group becomes a region of that name around its cards, set down in the order given, left to right; a card in no group is set down in free space. Cards from the library are named by item_id (source:<id>, doc:<id>, idea:<id>, canvas:<id> for a shortcut to another canvas, chat:<session_id>, picture:<image_id>), notes by the key you gave them. Arrows join two cards, each a note key or an item_id, with an optional short label. Keep what is observed apart from what is interpreted by putting them in different groups, and give each region a colour with the same meaning. A mind map is a tree: each trees entry names a region and a root note with nested children notes (all Ideas of the learner's, written the same way), set down left to right inside that region (the root at the left, each child to the right of its parent, a parent centred on its children), joined by tree branches, and the region's layout is a mind map so the Canvas keeps it one; a note in a tree may be named by its key in arrows. A paper can be laid out as its own pages too: each pdf_pages entry names a source with a PDF (a paper, or a book or hand-out kept as one), and its pages are set down as cards drawn from the PDF itself, one per page, left to right in a region named for the source, a row below the last, before the groups; name them page:<source_id>:<n> in groups and arrows, limit them to a range such as \"1-8\" (at most 60 at a time), and set collapsed to fold the region up to its name and count until the learner opens it. A talk can be laid out as its slides: each talks entry names a YouTube video or a meeting recording, and its slides are set down as a storyboard, the papers each slide cites that are in the library hung under it with an arrow from the slide. A paper whose PDF is on the Mac is set down as its first page, its title and authors under it, rather than as a card. Pass annotations (a note key or item_id to the words) to write the learner's reason for a card being on the canvas under it: any card but a note, whose own text holds its words; and give an arrow a stance (supports draws it green, contradicts red) to argue a claim. Nothing the learner already placed moves. Pass canvas_id (list_canvases) to build on a canvas other than the open one; it is opened. Returns the notes and passages made with their item_ids, the regions drawn, the mind maps laid out (trees: the region, the root and each note with its item_id), the pages laid out (pdf_pages: the region, the page count and each page's item_id), the talks laid out (talks: the region, the slides' and papers' item_ids and how many cited papers are not in the library) and the arrows drawn, and anything it could not resolve. One Undo step takes back everything it set down and drew, but the Ideas it made stay in the learner's Ideas. A card named in a group that is on the canvas already stays where it is (listed as already_on_canvas) and still takes its annotation and arrows.",
     "inputSchema" : {
       "properties" : {

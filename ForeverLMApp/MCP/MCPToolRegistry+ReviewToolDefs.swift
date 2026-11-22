@@ -361,6 +361,19 @@ extension MCPToolRegistry {
                 ]
             ),
             MCPToolDef(
+                name: "browse_library",
+                description: "The Library page of the ForeverLM view an assistant shows inside its own window (Claude, Codex, ChatGPT); for that view, not for model use. Lists the library newest first as the Mac's Library does: a book or course once, under its own title, author and cover, rather than chapter by chapter, and every row with a small thumbnail as a JPEG data URL. Answers JSON: total, and items with kind (source, book or course), id (the chapter a book opens at, for open_in_app with kind source), type, title, byline, words, added and thumbnail. To read the library yourself, use filter_sources.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "text": ["type": "string", "description": "Text the title, author, show or channel, journal, or book or course title contains."],
+                        "source_type": ["type": "string", "enum": StudioSourceType.searchFamilyNames, "description": "Optional. One family of sources."],
+                        "limit": ["type": "integer", "description": "Rows to return, books counted once (default 40, maximum 400)."],
+                    ],
+                    "required": [] as [String],
+                ]
+            ),
+            MCPToolDef(
                 name: "end_review_session",
                 description: "End a review session only after the learner explicitly asks to stop or confirms they want to finish; covering the planned concepts or reaching a question count is not permission to end. Records the score and summary and saves the review with its transcript. Pass the session_id from start_review_session or daily_quiz (the \"Session ID:\" line). If that id is lost, call this anyway with transcript and source_ids — the review is then saved as a completed imported review, never discarded. For daily_quiz sessions, pass any gaps you observed so they carry into future quizzes; source study state updates automatically.",
                 inputSchema: [
