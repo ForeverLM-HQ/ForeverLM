@@ -33,6 +33,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.236.0 (build 316) — 2026-11-22
+
+**Highlights:**
+- **An article stuck on "Fetching content…" fetches again, and the voice panel shows the source's own picture.**
+
+- **Screen record mode shows your first name.** The greeting and the account row read your own first name, never your surname, where they showed the made-up name "Richard".
+- **The voice panel's In context card shows the source's own picture** on the Mac: a book chapter its book's cover, a paper its first page, where every source showed its type's glyph.
+- **An article no longer sits on "Fetching content…" for good.** A fetch that never finished left the article marked as fetching, so opening it fetched nothing again; it now fetches, and a page fetch stops after three minutes instead of waiting on a page that never answers.
+
 ## 0.235.0 (build 315) — 2026-11-21
 
 **Highlights:**
