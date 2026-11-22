@@ -26,6 +26,7 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
     var onSplitLeft: () -> Void
     var onSplitRight: () -> Void
     var onClose: () -> Void
+    var canClose = true
     /// Double-click and the menu's Rename…; nil for a tab with no name of its own.
     var onRename: (() -> Void)? = nil
     /// Told when the pointer enters and leaves the tab's × slot.
@@ -55,14 +56,15 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
         view.onSplitLeft = onSplitLeft
         view.onSplitRight = onSplitRight
         view.onClose = onClose
+        view.canClose = canClose
         view.onRename = onRename
         view.onCloseHoverChange = onCloseHoverChange
-        view.setAccessibilityCustomActions([
+        view.setAccessibilityCustomActions(canClose ? [
             NSAccessibilityCustomAction(name: "Close \(title)") { [weak view] in
                 view?.onClose()
                 return true
             }
-        ])
+        ] : [])
         view.toolTip = "\(title); drag to the side to view side by side"
         view.setAccessibilityLabel(title)
         view.setAccessibilityValue(isActive ? "Selected" : "Not selected")
@@ -133,6 +135,11 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
     var onSplitLeft: () -> Void = {}
     var onSplitRight: () -> Void = {}
     var onClose: () -> Void = {}
+    /// A tab with no × (`StudioCenterTabButton.canClose`): its leading slot
+    /// is part of the tab, and no click, menu or middle click closes it.
+    var canClose = true {
+        didSet { if !canClose { closeHovered = false } }
+    }
     var onRename: (() -> Void)?
     var onCloseHoverChange: (Bool) -> Void = { _ in }
     private var closeHovered = false {
@@ -163,7 +170,7 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
     override func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
 
     override func mouseMoved(with event: NSEvent) {
-        closeHovered = pressIsInCloseSlot(event)
+        closeHovered = canClose && pressIsInCloseSlot(event)
     }
 
     override func mouseExited(with event: NSEvent) { closeHovered = false }
@@ -199,7 +206,7 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
             // press to this tab instead, a click on the × still closes the tab
             // (product owner, 2026-11-15: "i'm trying to click x on some of
             // these but it's not working").
-            if pressIsInCloseSlot(event) {
+            if canClose, pressIsInCloseSlot(event) {
                 onClose()
             // A double-click names the tab, as a terminal's does.
             } else if event.clickCount >= 2, let onRename {
@@ -248,14 +255,14 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
             menu.addItem(menuItem(title: "Rename…", action: #selector(renameTab), enabled: true))
         }
         menu.addItem(.separator())
-        menu.addItem(menuItem(title: "Close Tab", action: #selector(closeTab), enabled: true))
+        menu.addItem(menuItem(title: "Close Tab", action: #selector(closeTab), enabled: canClose))
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
     /// A middle click closes the tab, as it does in a browser.
     override func otherMouseUp(with event: NSEvent) {
         if event.buttonNumber == 2 {
-            onClose()
+            if canClose { onClose() }
         } else {
             super.otherMouseUp(with: event)
         }

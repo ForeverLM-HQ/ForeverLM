@@ -217,9 +217,12 @@ extension StudioViewModel {
 
     /// Dismisses the visible center surface without allowing a one-pane
     /// workspace to become a dead end. A split pane closes into its neighbor;
-    /// in the sole remaining pane, dismissal reveals one of that pane's other
-    /// destinations instead — except a chat playing a walk, which ends the
-    /// walk and opens New chat there (`leaveWalkthroughForNewChat`).
+    /// in the sole remaining pane, another open tab there comes forward, and
+    /// with none the pane lands on Home: a new chat, what the rail's Home
+    /// shows, in the window's notebook when it holds one (product owner,
+    /// 2026-11-21, agreeing to "closing any other last tab lands on this home
+    /// page" over leaving the pane empty). A chat playing a walk ends the walk
+    /// and opens New chat there (`leaveWalkthroughForNewChat`).
     func dismissCenterSurface(
         _ tab: StudioCenterTab,
         fromGroup groupID: UUID? = nil,
@@ -236,9 +239,21 @@ extension StudioViewModel {
             closeCenterPane(containing: tab, fromGroup: groupID, in: destination)
         } else if tab == .chat, leaveWalkthroughForNewChat(in: destination) {
             // The walk was the chat's content; the pane stays on Chat.
-        } else {
+        } else if destination.centerTabGroups.groups.first?.openTabs.contains(where: { $0 != tab }) == true {
             deactivateCenterTab(tab, fromGroup: groupID, in: destination)
+        } else {
+            closeLastTabOntoHome(tab, in: destination)
         }
+    }
+
+    /// The pane's only tab closed: Home's new chat takes its place, and the
+    /// closed surface is parked rather than kept as a tab behind it.
+    private func closeLastTabOntoHome(_ tab: StudioCenterTab, in destination: StudioWindowState) {
+        inWindow(destination) { requestNewChat() }
+        guard tab != .chat, !destination.centerTabGroups.groups.isEmpty else { return }
+        var layout = destination.centerTabGroups
+        layout.groups[0].openTabs.removeAll { $0 == tab }
+        if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
     }
 
     /// Moves a tab into the pane at `groupIndex`, as its strip's tab at

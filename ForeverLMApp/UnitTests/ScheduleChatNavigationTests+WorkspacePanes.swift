@@ -870,43 +870,54 @@ extension ScheduleChatNavigationTests {
         vm.dismissCenterSurface(.reader)
 
         #expect(vm.centerTabGroups.groups.count == 1)
-        #expect(vm.centerTabGroups.groups[0].activeTab == .artifacts, "the Notebooks home")
+        #expect(vm.centerTabGroups.groups[0].activeTab == .chat, "Home's new chat")
         #expect(vm.centerTabGroups.groups[0].tabs.contains(.reader))
     }
 
-    @Test("every sole center pane closes onto the Notebooks home")
+    @Test("a sole pane's only tab closes onto Home's new chat")
     func dismissSoleCenterPaneRevealsTheHome() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
         let vm = makeViewModel()
 
-        // Docs, Tasks and Chat close onto the home: an empty Reader is a
-        // second empty surface rather than a way out of the one being
-        // closed, and since 2026-10-01 the home is what a window holding no
-        // notebook shows.
-        for tab in [StudioCenterTab.notepad, .tasks, .chat, .library] {
+        // Closing the last tab never leaves an empty pane: it lands where the
+        // rail's Home does, a new chat (product owner, 2026-11-21).
+        for tab in [StudioCenterTab.notepad, .tasks, .library, .artifacts, .chat] {
             vm.centerTabGroups = StudioCenterTabGroups(groups: [
                 .init(
                     tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                     activeTab: tab
                 ),
             ])
+            vm.reviewChatResetRequestID = nil
 
             vm.dismissCenterSurface(tab)
 
             #expect(vm.centerTabGroups.groups.count == 1)
-            #expect(vm.centerTabGroups.groups[0].activeTab == .artifacts, "\(tab)")
-            // The closed surface is no tab behind the home.
-            #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts], "\(tab)")
+            #expect(vm.centerTabGroups.groups[0].activeTab == .chat, "\(tab)")
+            // The closed surface is no tab behind Home.
+            #expect(vm.centerTabGroups.groups[0].openTabs == [.chat], "\(tab)")
+            #expect(vm.reviewChatResetRequestID != nil, "\(tab): a fresh chat, not the last one")
         }
+    }
 
-        // The home is the one surface that cannot close onto itself; it
-        // reveals Chat instead.
-        vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
-        ])
-        vm.dismissCenterSurface(.artifacts)
-        #expect(vm.centerTabGroups.groups[0].activeTab == .chat)
+    @Test("a sole pane's tab with others open beside it shows its neighbour")
+    func dismissSoleCenterPaneTabWithNeighbours() {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let vm = makeViewModel()
+        var group = StudioCenterTabGroups.Group(
+            tabs: [.chat, .reader, .tasks, .notepad, .artifacts],
+            activeTab: .reader
+        )
+        group.openTabs = [.reader, .notepad]
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [group])
+        vm.reviewChatResetRequestID = nil
+
+        vm.dismissCenterSurface(.reader)
+
+        #expect(vm.centerTabGroups.groups[0].activeTab == .notepad)
+        #expect(vm.reviewChatResetRequestID == nil, "no new chat while a tab is still open")
     }
 
     @Test("pane close mutates the window that rendered the titlebar control")

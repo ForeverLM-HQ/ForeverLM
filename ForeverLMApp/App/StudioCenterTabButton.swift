@@ -18,6 +18,10 @@ struct StudioCenterTabButton: View {
     let onSplitLeft: () -> Void
     let onSplitRight: () -> Void
     let onClose: () -> Void
+    /// False for a tab that is already Home, a lone blank New Chat: it draws
+    /// no ×, since closing it would land on itself
+    /// (`StudioViewModel.dismissCenterSurface`).
+    var canClose = true
     var onRename: (() -> Void)? = nil
     /// The most of the title this tab shows: `maxTextWidth`, or less where
     /// the pane's strip would not fit otherwise (`StudioCenterTabStripFit`).
@@ -51,7 +55,7 @@ struct StudioCenterTabButton: View {
     }
 
     /// The tab is under the pointer, so its × stands where its icon was.
-    private var closeTakesIconPlace: Bool { hovering }
+    private var closeTakesIconPlace: Bool { hovering && canClose }
 
     /// The most of a title a tab shows; a longer one runs off the edge.
     /// A chat renamed to a long title took twice a place tab's width at 150
@@ -82,6 +86,7 @@ struct StudioCenterTabButton: View {
                 onSplitLeft: onSplitLeft,
                 onSplitRight: onSplitRight,
                 onClose: onClose,
+                canClose: canClose,
                 onRename: onRename,
                 onCloseHoverChange: { closeHovering = $0 }
             )

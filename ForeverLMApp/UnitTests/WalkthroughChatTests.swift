@@ -743,10 +743,12 @@ struct WalkthroughChatPlaybackTests {
         #expect(vm.reviewChatResetRequestID != nil)
         #expect(vm.reviewChatTargetWindowID == window.id)
 
-        // With no walk playing, the × reveals the Space, as a lone pane's ×
-        // does since 2026-10-01 (it was the Notebooks home until 2026-10-09).
+        // With no walk playing, the lone chat's × lands on Home: a new chat
+        // in the same place (product owner, 2026-11-21).
+        vm.reviewChatResetRequestID = nil
         vm.dismissCenterSurface(.chat, in: window)
-        #expect(window.centerTabGroups.groups.first?.activeTab == .artifacts)
+        #expect(window.centerTabGroups.groups.first?.activeTab == .chat)
+        #expect(vm.reviewChatResetRequestID != nil)
     }
 
     @Test("The wait for a step is named while it happens and gone after it, so the pane is never silently blank")
