@@ -249,8 +249,14 @@ extension StudioViewModel {
     /// The pane's only tab closed: Home's new chat takes its place, and the
     /// closed surface is parked rather than kept as a tab behind it.
     private func closeLastTabOntoHome(_ tab: StudioCenterTab, in destination: StudioWindowState) {
+        // A chat is already Home's new chat, so closing it would land on
+        // itself: it closes onto the Space, and the × always closes.
+        if tab == .chat {
+            deactivateCenterTab(tab, in: destination)
+            return
+        }
         inWindow(destination) { requestNewChat() }
-        guard tab != .chat, !destination.centerTabGroups.groups.isEmpty else { return }
+        guard !destination.centerTabGroups.groups.isEmpty else { return }
         var layout = destination.centerTabGroups
         layout.groups[0].openTabs.removeAll { $0 == tab }
         if layout != destination.centerTabGroups { destination.centerTabGroups = layout }

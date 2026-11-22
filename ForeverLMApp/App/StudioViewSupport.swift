@@ -1179,7 +1179,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                             titleCap: titleCap,
                             systemImage: systemImage,
                             isActive: group.activeTab == tab && store.isActiveChatTab(chatTab),
-                            canClose: !isHome(chatTab, of: store, place: tab, in: group),
                             action: {
                                 windowState.focusedGroupID = group.id
                                 vm.activateCenterTab(tab, in: windowState)
@@ -1305,7 +1304,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         titleCap: CGFloat,
         systemImage: String,
         isActive: Bool,
-        canClose: Bool = true,
         action: @escaping () -> Void,
         onClose: @escaping () -> Void,
         onRename: (() -> Void)? = nil
@@ -1343,7 +1341,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             onSplitLeft: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: false, in: windowState) },
             onSplitRight: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: true, in: windowState) },
             onClose: onClose,
-            canClose: canClose,
             onRename: onRename,
             titleCap: titleCap
         )
@@ -1355,25 +1352,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: tabIndex, in: windowState) },
             receive: { receiveFromAnotherWindow($0, .strip(group: groupIndex, position: tabIndex)) }
         ))
-    }
-
-    /// Whether `chatTab` is already Home: a blank New Chat, the only tab in
-    /// the window's only pane. Closing it would land on itself
-    /// (`StudioViewModel.dismissCenterSurface`), so it draws no × (product
-    /// owner, 2026-11-21, agreeing to "no × on the last tab when it's an
-    /// empty New Chat").
-    private func isHome(
-        _ chatTab: StudioAssistantSessionStore.ChatTab,
-        of store: StudioAssistantSessionStore,
-        place: StudioCenterTab,
-        in group: StudioCenterTabGroups.Group
-    ) -> Bool {
-        place == .chat
-            && chatTab.sessionID == nil
-            && store.shownChatTabs.count == 1
-            && group.openTabs == [place]
-            && windowState.centerTabGroups.groups.count == 1
-            && windowState.walkthroughDeckManager?.walkthroughPlayback == nil
     }
 
     /// A chat tab's name: its chat's title, "New Chat" before the first

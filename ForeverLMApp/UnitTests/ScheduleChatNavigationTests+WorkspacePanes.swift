@@ -882,7 +882,7 @@ extension ScheduleChatNavigationTests {
 
         // Closing the last tab never leaves an empty pane: it lands where the
         // rail's Home does, a new chat (product owner, 2026-11-21).
-        for tab in [StudioCenterTab.notepad, .tasks, .library, .artifacts, .chat] {
+        for tab in [StudioCenterTab.notepad, .tasks, .library, .artifacts] {
             vm.centerTabGroups = StudioCenterTabGroups(groups: [
                 .init(
                     tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
@@ -899,6 +899,14 @@ extension ScheduleChatNavigationTests {
             #expect(vm.centerTabGroups.groups[0].openTabs == [.chat], "\(tab)")
             #expect(vm.reviewChatResetRequestID != nil, "\(tab): a fresh chat, not the last one")
         }
+
+        // A chat is already Home's new chat: its × closes it onto the Space.
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.chat, .artifacts], activeTab: .chat),
+        ])
+        vm.dismissCenterSurface(.chat)
+        #expect(vm.centerTabGroups.groups[0].activeTab == .artifacts)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts])
     }
 
     @Test("a sole pane's tab with others open beside it shows its neighbour")
