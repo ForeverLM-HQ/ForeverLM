@@ -25,7 +25,7 @@ empty), so those steps show their words alone.
 
 | File | Page | Show |
 |---|---|---|
-| `setup-codex-library.mp4` | Setup: Do you already pay for an AI subscription? (until an app is ticked) | Codex (in the ChatGPT app), in an empty project: `@ForeverLM what papers and podcasts do I have on bioelectricity?` is typed and sent, the connector's calls run (sped up), and the answer lists the library's papers and podcast episodes, then fades back to the empty composer. Codex sidebar hidden, so no other chats show; filmed on the curated Bioelectricity library in Screen record mode. |
+| `setup-codex-library.mp4` | Setup: Do you want to set up the MCP server? (until an app is ticked) | Cropped tight (2x zoom, pans from composer to chat). Codex (in the ChatGPT app), in an empty project: `@ForeverLM what papers and podcasts do I have on bioelectricity?` is typed and sent, the connector's calls run (sped up), and the answer lists the library's papers and podcast episodes, then fades back to the empty composer. Codex sidebar hidden, so no other chats show; filmed on the curated Bioelectricity library in Screen record mode. |
 | `setup-openrouter-credits.mp4` | Setup: AI step, "Your OpenRouter key", under "Add credits at OpenRouter" | Safari on openrouter.ai/settings/credits, signed in: Add Credits, $10 typed in, and the pointer comes to rest on the pay button without pressing it. |
 | `setup-openrouter-privacy.mp4` | Setup: AI step, "Your data", under "Open OpenRouter privacy settings" | Safari on openrouter.ai/settings/privacy: the paid and free "endpoints that may train on inputs" switches are turned off, which is what the row asks for. |
 

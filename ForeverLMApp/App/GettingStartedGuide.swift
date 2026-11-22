@@ -968,7 +968,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.subscriptions.icon,
-                title: "Do you already pay for an AI app?"
+                title: "Do you want to set up the MCP server?"
             )
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -983,12 +983,12 @@ struct GettingStartedGuide: View {
             // so "works inside the AI app you already use" is seen, not read.
             if !paysForAISubscription, let url = WelcomeClipPlayer.url(named: Self.connectorClip) {
                 VStack(spacing: 8) {
-                    // 320 wide keeps the clip and its caption above the
+                    // 400 wide (the clip is cropped in tight) keeps the clip and its caption above the
                     // footer in the 640-point sheet; at 440 the clip ran
                     // under the footer and the caption was out of sight.
                     WelcomeClipPlayer(url: url)
                         .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                        .frame(maxWidth: 320)
+                        .frame(maxWidth: 400)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
