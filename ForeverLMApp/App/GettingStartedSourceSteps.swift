@@ -4,16 +4,8 @@ import SwiftUI
 // The parts of Setup's Podcasts, Articles and Papers steps that do the work
 // end to end (product owner, 2026-09-24): the learner decides what comes in before
 // anything is imported, brings a library over from where it lives today, and
-// sees the fetching and AI cleanup that follow run to the end. Each view keeps
+// sees the fetching that follows. Each view keeps
 // its own state, so GettingStartedGuide only places them.
-
-private extension View {
-    func sourceSetupCard() -> some View {
-        padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-}
 
 // MARK: - Podcasts
 
@@ -425,71 +417,5 @@ struct ZoteroImportCard: View {
                 self.error = error.localizedDescription
             }
         }
-    }
-}
-
-// MARK: - Cleanup progress
-
-/// How far the sources a step brought in have got: fetched and cleaned up,
-/// still on their way (including cleanup waiting to retry), or failed, and
-/// which model does the cleanup and who pays for it. Setup does not wait for
-/// it; the learner sees it running before moving on.
-struct SourceCleanupProgress: View {
-    let types: Set<StudioSourceType>
-    let task: AITask
-
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(ManagedAIAccountModel.self) private var account
-
-    var body: some View {
-        let sources = vm.activeArticles.filter { types.contains($0.sourceType) && !vm.isSourceCollectionHidden($0) }
-        if !sources.isEmpty {
-            let ready = sources.filter { $0.state == .ready }.count
-            let failed = sources.filter { $0.state == .error }.count
-            let underway = sources.count - ready - failed
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    if underway > 0 {
-                        ProgressView(value: Double(ready), total: Double(sources.count))
-                            .frame(maxWidth: 180)
-                    } else {
-                        Image(systemName: failed == 0 ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                            .foregroundStyle(failed == 0 ? Color.green : Color.orange)
-                    }
-                    Text(summary(total: sources.count, ready: ready, underway: underway, failed: failed))
-                        .font(.caption)
-                        .monospacedDigit()
-                }
-                Text(modelLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .sourceSetupCard()
-        }
-    }
-
-    private func summary(total: Int, ready: Int, underway: Int, failed: Int) -> String {
-        if underway == 0 && failed == 0 { return "All \(total) papers imported" }
-        var parts = ["\(ready) of \(total) papers imported"]
-        if underway > 0 { parts.append("the rest continue in the background, so you can carry on") }
-        if failed > 0 { parts.append("\(failed) could not be fetched; retry them from the Library later") }
-        return parts.joined(separator: ". ")
-    }
-
-    /// Named from the route cleanup will actually take, so a learner on the
-    /// free models reads that it costs nothing and anyone else reads which
-    /// model their key (or leftover balance) pays for.
-    private var modelLine: String {
-        guard KeychainService.resolveConfig(for: task) != nil else {
-            return "Cleanup waits until AI is set up in AI Usage (the sidebar's OpenRouter button)."
-        }
-        let selection = KeychainService.resolvedSelection(for: task)
-        let name = AIModelCatalog.displayName(provider: selection.provider, modelID: selection.model)
-        if AIFreeModels.isFreeSelection(provider: selection.provider, model: selection.model) {
-            return "Tidying the papers up costs you nothing. If it is busy, it tries again by itself."
-        }
-        let payer = account.ownKey != nil && account.ownKeyAllowed ? "your OpenRouter key" : "your leftover AI balance"
-        return "Tidying the papers up uses \(name), paid from \(payer)."
     }
 }

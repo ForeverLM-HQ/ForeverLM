@@ -592,7 +592,6 @@ struct GettingStartedGuide: View {
                     _ = try await vm.importPDF(from: url.path, selectInReader: false)
                 }
             }
-            SourceCleanupProgress(types: [.paper], task: .paperNarrationPreparation)
         }
     }
 
