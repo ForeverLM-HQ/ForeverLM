@@ -11,11 +11,6 @@ Thanks for looking. Bug reports, fixes and small improvements are welcome.
   and coding agents alike: the product's words, storage and migrations, AI
   routing, sync, UI, and how to verify a change.
 
-## Building
-
-See "Build from source" in the [README](README.md). A Debug build needs no
-secrets and no `.env`.
-
 ## Making a change
 
 - Keep a pull request to one change, and say in its description what you ran to
