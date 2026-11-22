@@ -56,6 +56,10 @@ ExportOptions*.plist
 # Generated secrets (contains API keys)
 Secrets.generated.swift
 
+# The Apple team the apps sign with (DEVELOPMENT_TEAM), kept out of the
+# repository; ForeverLMApp/Config/Signing.xcconfig includes it.
+ForeverLMApp/Signing.local.xcconfig
+
 # MCP plugin config (contains bearer token)
 .mcp.json
 !plugins/*/.mcp.json

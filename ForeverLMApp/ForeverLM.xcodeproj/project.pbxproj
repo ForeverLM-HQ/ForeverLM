@@ -3438,6 +3438,7 @@
 		762F51418841CAF3121CB5BE /* MCPToolRegistry+ExecutePlanning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPToolRegistry+ExecutePlanning.swift"; sourceTree = "<group>"; };
 		763339A0358F9979CCD85A6B /* MobileCardReviewSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCardReviewSessionTests.swift; sourceTree = "<group>"; };
 		764F669DED3A7DE7EFE73817 /* ArtifactSourcePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactSourcePicker.swift; sourceTree = "<group>"; };
+		765DA50B3005083C15DCB019 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		765E6BB273B0E9788B7EF6CF /* ReaderShortcutRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderShortcutRouterTests.swift; sourceTree = "<group>"; };
 		76601FE23B9D84E93EE7C6C9 /* SyncVectorRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncVectorRunner.swift; sourceTree = "<group>"; };
 		769358C11B83940D38105510 /* MacPatchOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPatchOutbox.swift; sourceTree = "<group>"; };
@@ -4689,6 +4690,7 @@
 			isa = PBXGroup;
 			children = (
 				889CC9CDBACB7446C07D7BCC /* App */,
+				83F942D2DD43F7BE214364CA /* Config */,
 				7899987B0FD44ABF30E4DD4F /* ForeverLM */,
 				30362EEA9C3E0C4B2909A3EC /* iOS */,
 				49706ADB81F69B534EFAD9D4 /* iOSShare */,
@@ -6055,6 +6057,14 @@
 			path = ..;
 			sourceTree = "<group>";
 		};
+		83F942D2DD43F7BE214364CA /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				765DA50B3005083C15DCB019 /* Signing.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		83F98681CCD568FEF3126900 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -7351,19 +7361,13 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1620;
 				TargetAttributes = {
-					1C6CB3537ACCE81B2C7C739E = {
-						DevelopmentTeam = XXXXXXXXXX;
-					};
 					294ECB89154279F2C5FA9CC9 = {
-						DevelopmentTeam = XXXXXXXXXX;
 						ProvisioningStyle = Automatic;
 					};
 					2E9AC166475B3B052224D789 = {
-						DevelopmentTeam = XXXXXXXXXX;
 						ProvisioningStyle = Automatic;
 					};
 					31DC4316A467F89257B661A8 = {
-						DevelopmentTeam = XXXXXXXXXX;
 						ProvisioningStyle = Manual;
 					};
 					53E8770585540BE962FF7487 = {
@@ -7373,15 +7377,12 @@
 						TestTargetID = 1C6CB3537ACCE81B2C7C739E;
 					};
 					DFE222C063FC6CDA4B694A44 = {
-						DevelopmentTeam = XXXXXXXXXX;
 						ProvisioningStyle = Automatic;
 					};
 					E53A0E84896D5AF1E0E5C69A = {
-						DevelopmentTeam = XXXXXXXXXX;
 						ProvisioningStyle = Manual;
 					};
 					EE564F3F6575A606AC85BF70 = {
-						DevelopmentTeam = XXXXXXXXXX;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -10121,6 +10122,7 @@
 		};
 		069781C37A084ADE5541F52A /* FirstRunDebug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 765DA50B3005083C15DCB019 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -10195,7 +10197,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10222,7 +10223,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10269,7 +10269,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/Complications/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10301,7 +10300,6 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 315;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (Dev)";
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
@@ -10338,7 +10336,6 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 315;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = ForeverLM;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
@@ -10371,7 +10368,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -10405,7 +10401,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10430,7 +10425,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -10454,7 +10448,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/App/Info.plist;
 				MARKETING_VERSION = 1.0.4;
@@ -10475,7 +10468,6 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -10519,7 +10511,6 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 315;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (First Run)";
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
@@ -10552,7 +10543,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/App/Info.plist;
 				MARKETING_VERSION = 1.0.4;
@@ -10592,7 +10582,6 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -10613,7 +10602,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -10646,7 +10634,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10671,7 +10658,6 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -10690,7 +10676,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -10731,7 +10716,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -10775,7 +10759,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/Complications/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10804,7 +10787,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Development;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -10838,7 +10820,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10863,7 +10844,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_PRODUCT_NAME = DevLM;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10887,7 +10867,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/Complications/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10909,6 +10888,7 @@
 		};
 		C93C97F75FAF2AC07EBBB8D6 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 765DA50B3005083C15DCB019 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -10983,7 +10963,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -11009,7 +10988,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 51;
-				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/App/Info.plist;
 				MARKETING_VERSION = 1.0.4;
@@ -11046,6 +11024,7 @@
 		};
 		EB72AC6999A0637221C4126D /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 765DA50B3005083C15DCB019 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

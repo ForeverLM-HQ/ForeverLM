@@ -8,8 +8,8 @@ set -euo pipefail
 #
 # The production library's older files still sit in the personal team's
 # retired iCloud container, iCloud~com~foreverlm/Documents/ForeverLM, which the
-# apps read by path and nothing writes any more (the company team, XXXXXXXXXX,
-# since 2026-10-09). The seed only reads that folder: its files are copied into
+# apps read by path and nothing writes any more (the company team, since
+# 2026-10-09). The seed only reads that folder: its files are copied into
 # ForeverLM Dev's own local content root, Application Support/ForeverLM Dev/
 # Content, where the Dev app writes content, and nothing is ever written to or
 # removed from the old container.

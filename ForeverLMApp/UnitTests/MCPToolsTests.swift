@@ -150,7 +150,7 @@ struct MCPOAuthConsentLabelTests {
 }
 
 /// A plugin is known by the client_name it registered, and an authorization
-/// request does not carry it. On 2026-10-10 the move to Apple team XXXXXXXXXX
+/// request does not carry it. On 2026-10-10 the move to the company's Apple team
 /// emptied the store of registrations; a plugin that came back with its old id
 /// was recreated with no name, so its sources would have filed under the raw
 /// `dyn_…` id instead of "Read AI Meetings".

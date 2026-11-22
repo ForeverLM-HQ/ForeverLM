@@ -16,7 +16,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TEAM_ID="${FOREVERLM_TEAM_ID:-XXXXXXXXXX}"
+source "$ROOT/scripts/schema/signing-team.sh"
+TEAM_ID="$(signing_team)"
 SCHEMA_FILE="$ROOT/schema/generated/foreverlm-library.ckdb"
 DRY_RUN=0
 for argument in "$@"; do
@@ -31,7 +32,7 @@ if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Develope
 fi
 
 CONTAINER="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).container)' "$ROOT/schema/cloudkit-schema.json")"
-# Only the container the apps sync, the company's (team XXXXXXXXXX)
+# Only the container the apps sync, the company team's
 # iCloud.com.foreverlm.knowledge. The personal team's iCloud.com.foreverlm and
 # iCloud.com.foreverlm.library are retired and nothing is imported into them
 # or any other container (§2.1, D2).

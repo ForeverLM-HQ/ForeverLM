@@ -48,7 +48,7 @@ struct FakeCloudKitTests {
         #expect(FakeCloudKit.libraryContainer == SyncSchema.containerIdentifier)
     }
 
-    /// Since the move to the company Apple team (XXXXXXXXXX, 2026-10-09) every build names one
+    /// Since the move to the company Apple team (2026-10-09) every build names one
     /// container, `iCloud.com.foreverlm.knowledge`, and nothing of the old team's: no
     /// `iCloud.com.foreverlm` or `iCloud.com.foreverlm.library`, no iCloud Documents (ubiquity)
     /// container, no key-value store and no retired FeynmanLM keychain group. `CKContainer(identifier:)`

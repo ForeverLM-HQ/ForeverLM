@@ -1,0 +1,9 @@
+// The Apple team that signs the apps and owns their iCloud container, App Group
+// and keychain groups. It is not kept in this repository. Put your own team in
+// ForeverLMApp/Signing.local.xcconfig (gitignored):
+//
+//     DEVELOPMENT_TEAM = <your team ID>
+//
+// Without it, a build that signs stops and asks for a development team.
+// project.yml applies this file to every target and configuration.
+#include? "../Signing.local.xcconfig"

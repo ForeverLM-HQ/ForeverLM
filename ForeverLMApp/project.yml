@@ -8,6 +8,13 @@ configs:
   FirstRunDebug: debug
   Release: release
 
+# Every target signs as the team in Config/Signing.xcconfig, which includes the
+# gitignored Signing.local.xcconfig: the team ID is not kept in this repository.
+configFiles:
+  Debug: Config/Signing.xcconfig
+  FirstRunDebug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+
 options:
   bundleIdPrefix: com.foreverlm
   createIntermediateGroups: true
@@ -299,7 +306,6 @@ targets:
           CODE_SIGN_ENTITLEMENTS: App/ForeverLMDevelopment.entitlements
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: XXXXXXXXXX
           PROVISIONING_PROFILE_SPECIFIER: ""
           ONLY_ACTIVE_ARCH: "YES"
         # A third app beside the installed one and the Dev app, with its own
@@ -320,7 +326,6 @@ targets:
           # ~/Library/Developer/Xcode/UserData/Provisioning Profiles.
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: XXXXXXXXXX
           PROVISIONING_PROFILE_SPECIFIER: "ForeverLM First Run Mac Development"
           ONLY_ACTIVE_ARCH: "YES"
         Release:
@@ -328,7 +333,6 @@ targets:
           CODE_SIGN_ENTITLEMENTS: App/ForeverLMDirectDownload.entitlements
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: XXXXXXXXXX
           PROVISIONING_PROFILE_SPECIFIER: ""
           ONLY_ACTIVE_ARCH: "NO"
 
@@ -887,7 +891,6 @@ targets:
         CODE_SIGN_ENTITLEMENTS: iOS/ForeverLMiOS.entitlements
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
-        DEVELOPMENT_TEAM: XXXXXXXXXX
         INFOPLIST_KEY_CFBundleDisplayName: "ForeverLM"
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
@@ -936,7 +939,6 @@ targets:
         CODE_SIGN_ENTITLEMENTS: iOSWidget/ForeverLMTodayWidget.entitlements
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
-        DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # The Apple Watch app, embedded in the iPhone app: today's cards, Listen on
   # the phone, and the bout's clock. It holds no library; everything comes from
@@ -973,7 +975,6 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Apple Development"
         PROVISIONING_PROFILE_SPECIFIER: "ForeverLM Watch Development"
-        DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # The watch face's complications and Smart Stack card.
   ForeverLMWatchComplications:
@@ -1001,7 +1002,6 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "Apple Development"
         PROVISIONING_PROFILE_SPECIFIER: "ForeverLM Watch Complications Development"
-        DEVELOPMENT_TEAM: XXXXXXXXXX
 
   ForeverLMShareExtension:
     type: app-extension
@@ -1028,7 +1028,6 @@ targets:
         CODE_SIGN_ENTITLEMENTS: iOSShare/ForeverLMShare.entitlements
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
-        DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # macOS Unit Tests (Swift Testing) — same sources, macOS host
   ForeverLMMacUnitTests:
@@ -1080,7 +1079,6 @@ targets:
           FOREVERLM_PRODUCT_NAME: "DevLM"
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # macOS UI Tests
   ForeverLMMacUITests:
@@ -1103,7 +1101,6 @@ targets:
         Debug:
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # iOS UI Tests
   # XCUITest is the only way to drive the iOS app on this machine: Xcode 27
@@ -1128,7 +1125,6 @@ targets:
         Debug:
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # iOS Unit Tests — direct coverage for CloudKit mutation convergence and
   # other phone-only behavior that cannot be exercised by the macOS host.
@@ -1156,7 +1152,6 @@ targets:
         Debug:
           CODE_SIGN_STYLE: Automatic
           CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: XXXXXXXXXX
 
   # Auxiliary command-line tool embedded in the macOS app (Contents/MacOS).
   # Mints Apple Podcasts API bearer tokens via the private PodcastsFoundation
@@ -1176,4 +1171,3 @@ targets:
         ENABLE_HARDENED_RUNTIME: "YES"
         SKIP_INSTALL: "YES"
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: XXXXXXXXXX

@@ -12,7 +12,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TEAM_ID="${FOREVERLM_TEAM_ID:-XXXXXXXXXX}"
+source "$ROOT/scripts/schema/signing-team.sh"
 SCHEMA_FILE="$ROOT/schema/generated/foreverlm-library.ckdb"
 
 if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Developer ]; then
@@ -34,6 +34,7 @@ if [ -n "${FOREVERLM_PRODUCTION_SCHEMA_FILE:-}" ]; then
   echo "Checking the Console export $FOREVERLM_PRODUCTION_SCHEMA_FILE, not cktool."
   cp "$FOREVERLM_PRODUCTION_SCHEMA_FILE" "$WORK/production.ckdb"
 else
+  TEAM_ID="$(signing_team)"
   xcrun cktool export-schema --team-id "$TEAM_ID" --container-id "$CONTAINER" \
     --environment production --output-file "$WORK/production.ckdb"
 fi
