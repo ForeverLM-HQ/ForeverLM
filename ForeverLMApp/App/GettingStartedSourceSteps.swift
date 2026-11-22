@@ -363,7 +363,7 @@ struct ZoteroImportCard: View {
             } else if isLocating {
                 ProgressView().controlSize(.small)
             } else if hasLooked {
-                Text("Zotero's library could not be read on this Mac. Go back and choose Another reference manager to pick its folder.")
+                Text("Zotero's library could not be read on this Mac. Go back and choose Import from another reference manager to pick its folder.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

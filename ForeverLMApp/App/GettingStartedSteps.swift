@@ -43,7 +43,7 @@ enum GettingStartedPage: Hashable {
     case connect(AISubscription)
 }
 
-/// The answers to "Where do your papers live?", each with its own page.
+/// The answers to "Do you want to add research papers?", each with its own page.
 enum GettingStartedPaperRoute: Hashable {
     case zotero
     case referenceManager

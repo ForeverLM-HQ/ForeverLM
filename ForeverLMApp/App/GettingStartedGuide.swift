@@ -513,24 +513,24 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "doc.text.magnifyingglass",
-                title: "Where do your papers live?"
+                title: "Do you want to add research papers?"
             )
             VStack(spacing: 10) {
                 if hasZoteroLibrary == true {
-                    choiceRow(icon: "books.vertical", title: "Zotero") {
+                    choiceRow(icon: "books.vertical", title: "Import from Zotero") {
                         show(.papers(.zotero))
                     }
                 }
                 choiceRow(
                     icon: "books.vertical",
-                    title: hasZoteroLibrary == true ? "Another reference manager" : "A reference manager"
+                    title: hasZoteroLibrary == true ? "Import from another reference manager" : "Import from a reference manager"
                 ) {
                     show(.papers(.referenceManager))
                 }
-                choiceRow(icon: "doc", title: "PDFs on this Mac") {
+                choiceRow(icon: "doc", title: "Add PDFs from this Mac") {
                     show(.papers(.pdfs))
                 }
-                choiceRow(icon: "xmark.circle", title: "I don't have any yet") {
+                choiceRow(icon: "xmark.circle", title: "Not now, I'll add papers later") {
                     completeAndAdvance()
                 }
             }
