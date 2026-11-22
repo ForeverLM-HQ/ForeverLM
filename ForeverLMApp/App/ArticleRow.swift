@@ -243,13 +243,6 @@ struct ArticleRow: View {
         vm.sourceRowActivityLabel(for: article)
     }
 
-    /// Where the source stands on cards, from the Library's one coverage
-    /// read; nil for a source that cannot have cards (a team's copy, hidden,
-    /// paywalled, without text), which gets no count.
-    private var cardState: SourceCardState? {
-        vm.sourceCardCoverage.statesByID[article.id]
-    }
-
     var body: some View {
         rowContent
         // Same neutral wash the app's buttons use, so a source reads as something
@@ -347,7 +340,7 @@ struct ArticleRow: View {
                     .help(attention)
                     .accessibilityLabel(attention)
             }
-            SourceCardsTrailer(sourceID: article.id, cardsLabel: cardState?.label)
+            SourceCardsTrailer(sourceID: article.id)
         }
         .padding(.vertical, 1)
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
@@ -542,9 +535,9 @@ struct ArticleRow: View {
 
                         Spacer()
 
-                        // Its cards, and the passages waiting to be followed
-                        // up behind them: one quiet word down the list.
-                        SourceCardsTrailer(sourceID: article.id, cardsLabel: cardState?.label)
+                        // The passages waiting to be followed up: one quiet
+                        // word down the list.
+                        SourceCardsTrailer(sourceID: article.id)
 
                         if let paperAttentionReason {
                             paperAttentionBadge(paperAttentionReason)

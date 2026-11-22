@@ -6,8 +6,8 @@ import Foundation
 // library, cards that help piece the ideas together, and every piece worth
 // its weight (product owner, 2026-10-16: "go through ALL the sources in my
 // library and come up with at least one flashcard; and then the option to
-// generate more"). The Library's rows carry each source's kept cards and,
-// under the pointer, a verdict on it: Make Cards (then Make More Cards, once
+// generate more"). The Library's rows never name a source's cards (product
+// owner, 2026-11-22); a source's right-click menu carries a verdict on it: Make Cards (then Make More Cards, once
 // it has some) or Not Worth Keeping, which removes it like the Sources
 // list's Remove (`StudioViewModel.removeArticle`, with its Undo banner); its
 // **No Cards** pill lists what still waits for one. One list, the Library's
@@ -39,18 +39,6 @@ enum SourceCardState: Equatable, Sendable {
     }
 
     var hasCards: Bool { self != .none }
-
-    /// "1 card", "12 cards", "Retired"; nil with none, and nil with only
-    /// drafts waiting: a Library row never says "To check" on its own (product
-    /// owner, 2026-11-16: "i don't want it to randomly say 'to check' on a
-    /// source"); drafts are reviewed in Memory.
-    var label: String? {
-        switch self {
-        case .none, .toCheck: return nil
-        case .cards(let count): return count == 1 ? "1 card" : "\(count) cards"
-        case .retired: return "Retired"
-        }
-    }
 
     /// The verdict that keeps the source: the first cards, or more.
     var makeCardsTitle: String { hasCards ? "Write Another Card" : "Write Card" }

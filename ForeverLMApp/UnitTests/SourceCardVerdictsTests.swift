@@ -22,13 +22,8 @@ struct SourceCardVerdictsTests {
         #expect(SourceCardState(keptCards: 0, hasDrafts: false, isAnchored: false) == .none)
     }
 
-    @Test("A row says how many cards it has and offers Make Cards, or Make More Cards once it has some")
-    func labelsAndVerdictTitles() {
-        #expect(SourceCardState.none.label == nil)
-        #expect(SourceCardState.toCheck.label == nil)
-        #expect(SourceCardState.cards(1).label == "1 card")
-        #expect(SourceCardState.cards(12).label == "12 cards")
-        #expect(SourceCardState.retired.label == "Retired")
+    @Test("A source offers Write Card, or Write Another Card once it has some")
+    func verdictTitles() {
         #expect(SourceCardState.none.makeCardsTitle == "Write Card")
         for state in [SourceCardState.toCheck, .cards(2), .retired] {
             #expect(state.makeCardsTitle == "Write Another Card")

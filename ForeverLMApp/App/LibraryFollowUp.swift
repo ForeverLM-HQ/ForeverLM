@@ -50,29 +50,25 @@ extension StudioViewModel {
     }
 }
 
-/// A Library row's one trailer: where the source stands on cards ("2 cards",
-/// "Retired"), in the row's grey ("Lists are monochrome",
-/// docs/ui-design.md). A click opens the source's cards and, under them, the
-/// passages still set aside to follow up or doubt, each opening the Reader at
-/// its mark, with its check to mark it followed up. A source with no card but
-/// passages waiting says "To follow up"; one with neither shows nothing.
-/// The popover ends with Write Card (Write Another Card once it has some),
-/// the source's one card action off its right-click menu.
-/// One quiet word instead of a flag count beside a card count (product owner,
-/// 2026-11-08: "why so many different bells and whistles on a source?",
-/// "go to the cards, and then you also see like the flag things").
+/// A Library row's one trailer: "To follow up" when passages are set aside
+/// to follow up or doubt, in the row's grey ("Lists are monochrome",
+/// docs/ui-design.md); nothing otherwise. A row never names its cards (product
+/// owner, 2026-11-22: "i don't want any cards to be linked here in the
+/// library"). A click opens the source's cards and, under them, the waiting
+/// passages, each opening the Reader at its mark, with its check to mark it
+/// followed up; the popover ends with Write Card (Write Another Card once it
+/// has some).
 struct SourceCardsTrailer: View {
     @Environment(StudioViewModel.self) private var vm
     /// The window the row is in, where Write Card opens the source.
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let sourceID: String
-    /// The row's card state's label; nil with no card.
-    let cardsLabel: String?
     @State private var isListing = false
 
     var body: some View {
         let followUps = vm.followUpMarks(forSource: sourceID).count
-        if let label = cardsLabel ?? (followUps > 0 ? "To follow up" : nil) {
+        if followUps > 0 {
+            let label = "To follow up"
             Button {
                 isListing = true
             } label: {
@@ -92,13 +88,13 @@ struct SourceCardsTrailer: View {
                 wash: .hoverWash(in: Capsule(), inset: 0, opacity: 0.08)
             ))
             .fixedSize()
-            .help(help(label: label, followUps: followUps))
-            .accessibilityLabel(help(label: label, followUps: followUps))
+            .help(help(followUps: followUps))
+            .accessibilityLabel(help(followUps: followUps))
             .accessibilityIdentifier("library.cards.trailer.\(sourceID)")
             .popover(isPresented: $isListing, arrowEdge: .bottom) {
                 SourceCardsPopover(
                     sourceID: sourceID,
-                    writeCardTitle: cardsLabel == nil ? "Write Card" : "Write Another Card",
+                    writeCardTitle: vm.sourceCardCoverage.statesByID[sourceID]?.makeCardsTitle ?? "Write Card",
                     writeCard: writeCard
                 )
                 .environment(vm)
@@ -118,10 +114,8 @@ struct SourceCardsTrailer: View {
         }
     }
 
-    private func help(label: String, followUps: Int) -> String {
-        guard followUps > 0, cardsLabel != nil else { return label }
-        let passages = followUps == 1 ? "1 passage" : "\(followUps) passages"
-        return "\(label), \(passages) to follow up"
+    private func help(followUps: Int) -> String {
+        followUps == 1 ? "1 passage to follow up" : "\(followUps) passages to follow up"
     }
 }
 
