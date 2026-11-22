@@ -435,8 +435,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.podcasts.icon,
-                title: "Which podcasts should come in?",
-                detail: "Tick the shows to bring in."
+                title: "Which podcasts should come in?"
             )
             if vm.needsPodcastAccess || !hasFullDiskAccess {
                 needsFullDiskAccess("ForeverLM can read Apple Podcasts once it has Full Disk Access.")
@@ -455,8 +454,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "globe",
-                title: "Which browsers do you use?",
-                detail: ""
+                title: "Which browsers do you use?"
             )
             ReadingListBrowserChoices(isEnabled: readingListBrowserBinding)
             if vm.needsBrowserAccess {
@@ -483,8 +481,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "tray.and.arrow.down",
-                title: "Bring over your read-later app",
-                detail: "Choose your export. Your app is never changed."
+                title: "Bring over your read-later app"
             )
             primaryAction(
                 "Choose Export…",
@@ -516,19 +513,17 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "doc.text.magnifyingglass",
-                title: "Where do your papers live?",
-                detail: ""
+                title: "Where do your papers live?"
             )
             VStack(spacing: 10) {
                 if hasZoteroLibrary == true {
-                    choiceRow(icon: "books.vertical", title: "Zotero", detail: "Found on this Mac") {
+                    choiceRow(icon: "books.vertical", title: "Zotero") {
                         show(.papers(.zotero))
                     }
                 }
                 choiceRow(
                     icon: "books.vertical",
-                    title: hasZoteroLibrary == true ? "Another reference manager" : "A reference manager",
-                    detail: "Paperpile, Mendeley, EndNote and others"
+                    title: hasZoteroLibrary == true ? "Another reference manager" : "A reference manager"
                 ) {
                     show(.papers(.referenceManager))
                 }
@@ -553,15 +548,13 @@ struct GettingStartedGuide: View {
             case .zotero:
                 stepHeading(
                     icon: "books.vertical",
-                    title: "Bring over your Zotero library",
-                    detail: "Copied once. Zotero is never changed."
+                    title: "Bring over your Zotero library"
                 )
                 ZoteroImportCard()
             case .referenceManager:
                 stepHeading(
                     icon: "books.vertical",
-                    title: "Bring over your reference manager",
-                    detail: "Export as BibTeX or RIS, then choose the file."
+                    title: "Bring over your reference manager"
                 )
                 primaryAction(
                     "Choose Export…",
@@ -588,8 +581,7 @@ struct GettingStartedGuide: View {
             case .pdfs:
                 stepHeading(
                     icon: "doc",
-                    title: "Add your PDFs",
-                    detail: "Drop them below, or choose them."
+                    title: "Add your PDFs"
                 )
                 fileDropZone(
                     "Drop PDFs here",
@@ -658,8 +650,7 @@ struct GettingStartedGuide: View {
             if !isYouTubeSignedIn {
                 stepHeading(
                     icon: "play.rectangle.fill",
-                    title: "Connect YouTube",
-                    detail: "Sign in, then choose what comes in."
+                    title: "Connect YouTube"
                 )
                 primaryAction("Connect YouTube", inFlight: workingAction == "youtube-connect") {
                     run("youtube-connect") { await connectYouTube() }
@@ -668,8 +659,7 @@ struct GettingStartedGuide: View {
             } else if showYouTubeSourceChoice || (youtubeAccount?.choices.source == nil && !isChoosingLikedVideos) {
                 stepHeading(
                     icon: "play.rectangle.fill",
-                    title: "Which videos should come in?",
-                    detail: "Only what you pick comes in."
+                    title: "Which videos should come in?"
                 )
                 VStack(spacing: 10) {
                     choiceRow(
@@ -698,8 +688,7 @@ struct GettingStartedGuide: View {
                 || (youtubeAccount?.choices.source == .likedVideos && youtubeAccount?.choices.likedPolicy == .undecided) {
                 stepHeading(
                     icon: "hand.thumbsup",
-                    title: "Bring in the videos you've already liked?",
-                    detail: "Nothing comes in until you choose."
+                    title: "Bring in the videos you've already liked?"
                 )
                 VStack(spacing: 10) {
                     choiceRow(
@@ -725,10 +714,7 @@ struct GettingStartedGuide: View {
             } else if let source = youtubeAccount?.choices.source {
                 stepHeading(
                     icon: "play.rectangle.fill",
-                    title: "YouTube is connected",
-                    detail: source == .likedVideos
-                        ? "Like a video and it comes in."
-                        : "Add a video to your playlist and it comes in."
+                    title: "YouTube is connected"
                 )
                 if let video = newestYouTubeVideo {
                     detectedSourceCard(video, label: "Last video in")
@@ -750,8 +736,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "book.closed",
-                title: "Add your books",
-                detail: "Drop EPUBs or PDFs below."
+                title: "Add your books"
             )
             fileDropZone(
                 "Drop EPUBs or PDFs here",
@@ -851,8 +836,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.moreSources.icon,
-                title: "What else do you learn from?",
-                detail: "Tick any you use."
+                title: "What else do you learn from?"
             )
             VStack(spacing: 10) {
                 ForEach(GettingStartedStep.moreSourceRows) { source in
@@ -911,10 +895,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "text.bubble",
-                title: vm.isXOAuthSignedIn ? "X is connected" : "Connect X",
-                detail: vm.isXOAuthSignedIn
-                    ? "Bookmarked posts come in."
-                    : "Sign in, and bookmarked posts come in."
+                title: vm.isXOAuthSignedIn ? "X is connected" : "Connect X"
             )
             if !vm.isXOAuthSignedIn {
                 primaryAction(
@@ -936,8 +917,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "person.2.wave.2",
-                title: "Bring in your Zoom meetings",
-                detail: "Each meeting's transcript comes in on its own."
+                title: "Bring in your Zoom meetings"
             )
             VStack(spacing: 10) {
                 Text(zoomFolderDisplayPath)
@@ -989,8 +969,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: GettingStartedStep.subscriptions.icon,
-                title: "Do you already pay for an AI app?",
-                detail: "Tick every one you pay for."
+                title: "Do you already pay for an AI app?"
             )
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -1202,7 +1181,6 @@ struct GettingStartedGuide: View {
                 // No explanation (product owner, 2026-11-20: "maybe no need
                 // for the explanation here either"); the next page walks
                 // through adding the app in System Settings.
-                detail: ""
             )
             if hasFullDiskAccess {
                 doneLabel("Full Disk Access is on")
@@ -1219,10 +1197,7 @@ struct GettingStartedGuide: View {
         VStack(spacing: 24) {
             stepHeading(
                 icon: "plus.circle",
-                title: "Add \(ForeverLMRuntimeIdentity.displayName) to the list",
-                detail: isDevelopmentBuild
-                    ? "Click \"+\", choose this exact app, and turn it on."
-                    : "Click \"+\", choose ForeverLM in Applications, and turn it on."
+                title: "Add \(ForeverLMRuntimeIdentity.displayName) to the list"
             )
             if hasFullDiskAccess {
                 doneLabel("Full Disk Access is on")
@@ -1281,8 +1256,7 @@ struct GettingStartedGuide: View {
             stepHeading(
                 icon: "key.fill",
                 assetIcon: "OpenRouterIcon",
-                title: "Connect OpenRouter",
-                detail: "Your AI runs on your own account."
+                title: "Connect OpenRouter"
             )
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
@@ -1346,8 +1320,7 @@ struct GettingStartedGuide: View {
                 stepHeading(
                     icon: "creditcard",
                     assetIcon: "OpenRouterIcon",
-                    title: "Use your plan's API credits",
-                    detail: "Some Claude and ChatGPT plans include monthly API credits. Check yours."
+                    title: "Use your plan's API credits"
                 )
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(Self.providerCreditSteps.enumerated()), id: \.offset) { index, text in
@@ -1369,8 +1342,7 @@ struct GettingStartedGuide: View {
                 stepHeading(
                     icon: "creditcard",
                     assetIcon: "OpenRouterIcon",
-                    title: "Do you have a paid Claude or ChatGPT plan?",
-                    detail: "Some plans include API credits."
+                    title: "Do you have a paid Claude or ChatGPT plan?"
                 )
                 VStack(spacing: 10) {
                     choiceRow(title: "Yes") {
@@ -1727,8 +1699,8 @@ struct GettingStartedGuide: View {
         }
     }
 
-    private func stepHeading(icon: String, assetIcon: String? = nil, title: String, detail: String) -> some View {
-        SetupStepHeading(icon: icon, title: title, detail: detail, assetIcon: assetIcon)
+    private func stepHeading(icon: String, assetIcon: String? = nil, title: String) -> some View {
+        SetupStepHeading(icon: icon, title: title, assetIcon: assetIcon)
     }
 
     private func instruction(_ number: String, _ text: String) -> some View {
@@ -1927,11 +1899,10 @@ struct GettingStartedGuide: View {
 
 }
 
-/// A page's icon, its question and one line on what to do.
+/// A page's icon and its question. No subtitle under it.
 struct SetupStepHeading: View {
     let icon: String
     let title: String
-    let detail: String
     /// An image from the asset catalog drawn in place of the SF Symbol, for a
     /// page about one company (OpenRouter's mark).
     var assetIcon: String? = nil
@@ -1957,14 +1928,6 @@ struct SetupStepHeading: View {
                 Text(title)
                     .font(.system(size: 26, weight: .semibold))
                     .multilineTextAlignment(.center)
-                // A page that needs no explanation passes an empty detail.
-                if !detail.isEmpty {
-                    Text(detail)
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
         }
         .frame(maxWidth: .infinity)
     }
