@@ -272,7 +272,7 @@ struct WelcomeStory: View {
     private var answerHeadline: some View {
         VStack(spacing: 14) {
             ForeverLMMark(width: 150, motion: .drifting)
-            Text("ForeverLM makes it all seamless.")
+            Text("Learn frictionlessly.")
                 .font(.system(size: 30, weight: .bold, design: .rounded))
             Text("Everything you read, hear and watch, right at your fingertips.")
                 .font(.title3)

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'ForeverLM',
-  description: 'Documentation for ForeverLM',
+  description: 'Learn frictionlessly. Documentation for ForeverLM',
   lang: 'en-US',
   cleanUrls: true,
   sitemap: {
@@ -25,7 +25,7 @@ export default defineConfig({
       .replace(/\.md$/, '')
     const canonicalURL = new URL(relativePath, 'https://docs.foreverlm.com/').href
     const title = pageData.title === 'Welcome' ? 'ForeverLM Documentation' : pageData.title
-    const description = pageData.description || 'Documentation for ForeverLM'
+    const description = pageData.description || 'Learn frictionlessly. Documentation for ForeverLM'
 
     return [
       ['link', { rel: 'canonical', href: canonicalURL }],

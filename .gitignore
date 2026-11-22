@@ -76,3 +76,6 @@ tmp/
 
 # The agent rules live in foreverlm-private (linked in by overlay.py).
 /AGENTS.md
+
+# Local Swift module caches from standalone typechecks
+ForeverLMApp/modcache/

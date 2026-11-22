@@ -219,6 +219,12 @@ struct MobileAccountWall: View {
             ForeverLMMark(width: 176, motion: .drifting)
                 .accessibilityHidden(true)
 
+            // The tagline every surface carries: the App Store, the website,
+            // the Mac's welcome and the repository (product owner, 2026-11-21).
+            Text("Learn frictionlessly.")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+
             if isResolving {
                 // First Keychain read still in flight (a frame or two). Neither
                 // flash a sign-in button at a signed-in user nor the app at a

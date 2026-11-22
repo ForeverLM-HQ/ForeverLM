@@ -10,6 +10,8 @@
 
 # ForeverLM
 
+**Learn frictionlessly.**
+
 ForeverLM keeps everything you learn from in one library, and you work on it in **notebooks**: the sources for one piece of work, a chat that reads the ones you tick, and a Studio that makes audio overviews, reports, cards and courses from them. The cards you keep come back for review across every notebook.
 
 ## The problem

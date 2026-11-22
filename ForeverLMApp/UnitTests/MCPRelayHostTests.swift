@@ -167,7 +167,7 @@ struct MCPTunnelProvisioningRequestTests {
 @Suite("MCP loopback personal URL")
 struct MCPLoopbackPersonalURLTests {
     private let port: UInt16 = 8522
-    private let url = "https://be13a8b307673678.foreverlm.com"
+    private let url = "https://0a1b2c3d4e5f6071.foreverlm.com"
 
     private func request(
         _ method: String = "GET",
