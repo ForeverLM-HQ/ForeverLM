@@ -516,6 +516,11 @@ final class ManagedAIAccountModel {
             let url = try await ManagedAI.planCheckoutURL(plan)
             open(url)
             watchForPayment()
+        } catch let error as ManagedAI.ServiceError where error.isAlreadyPaid {
+            // The server says this account has paid, so the pay screen is
+            // stale (paid in another window or on another device). Read the
+            // account again: that unlocks the app, and no error is shown.
+            await refresh(minimumInterval: 0, silently: true)
         } catch let error as ManagedAI.ServiceError {
             show(error)
         } catch {

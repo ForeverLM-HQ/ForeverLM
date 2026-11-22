@@ -828,6 +828,8 @@ enum ManagedAI {
         var errorDescription: String? { message }
 
         var isInvalidSession: Bool { code == "invalid_session" }
+        /// Checkout was asked for an account that has already paid.
+        var isAlreadyPaid: Bool { code == "already_paid" }
         /// The proxy closed the account (an operator, a Stripe dispute, or
         /// three metering failures in a row). The balance's `disabled` is the
         /// same flag, so a later balance read can say it no longer holds.
