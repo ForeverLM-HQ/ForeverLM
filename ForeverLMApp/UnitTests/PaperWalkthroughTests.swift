@@ -203,6 +203,51 @@ struct PaperWalkthroughValidationTests {
         #expect(outcome.walkthrough.steps[0].anchor?.passage == "fan-shaped body neurons fire during sleep")
     }
 
+    @Test("A line-numbered preprint's margin numbers are dropped before a passage is looked for, and figures that end a line are kept")
+    func matchesThroughMarginLineNumbers() {
+        // A medRxiv review copy as PDF text extraction gives it: each line's
+        // number glued to its end, a figure glued to one ("0.783121").
+        let lines = [
+            "Removing each input modality changed the model’s predictions,",
+            "with the largest score change for proteomics (Fig. 5d). Protein-derived and",
+            "metabolite-derived similarities were correlated. Dem-",
+            "ographic groups were held out too.",
+            "Strict transfer achieved a mean AUROC of 0.783",
+            "across 1,010 diseases (Table 1). Whole-chapter exclusions",
+            "extended this test across circulatory and respiratory diseases",
+            "chapters the model kept its ranking of risk well above",
+            "chance, and the shared state carried the signal between",
+            "them without retraining the readouts on the held-out",
+            "conditions, as the methods describe in full detail.",
+        ]
+        let numbered = lines.enumerated().map { "\($0.element)\(185 + $0.offset)" }.joined(separator: "\n")
+            + "\nTable 1: Disease prediction and transfer evaluations.\nHealthFlux Shared latent state 0.846 0.081"
+        let text = PaperWalkthroughValidation.normalizedSourceText(numbered)
+        for passage in [
+            "changed the model's predictions, with the largest score change for proteomics",
+            "Protein-derived and metabolite-derived similarities were correlated. Demographic groups",
+            "achieved a mean AUROC of 0.783 across 1,010 diseases",
+            "HealthFlux Shared latent state 0.846 0.081",
+        ] {
+            #expect(text.contains(PaperWalkthroughValidation.normalized(passage)), "\(passage)")
+        }
+        // Without a run of numbers the text is left as it is.
+        let plain = lines.joined(separator: "\n") + " 12\nand 0.846"
+        #expect(PaperWalkthroughValidation.withoutLineNumbers(plain) == plain)
+    }
+
+    @Test("A table is pointed at by its caption line, never by a sentence that cites it")
+    func tableCaptionPassage() {
+        let text = "risk sets (Table 1). Figure 2c shows\nTable 1: Disease prediction and transfer evaluations.\na, Specific disease prediction"
+        #expect(PaperWalkthroughValidation.isTableLabel("Table 1"))
+        #expect(PaperWalkthroughValidation.isTableLabel("Extended Data Table 2"))
+        #expect(!PaperWalkthroughValidation.isTableLabel("Figure 2"))
+        #expect(!PaperWalkthroughValidation.isTableLabel("Stable isotopes"))
+        #expect(PaperWalkthroughValidation.tableCaptionPassage(labelled: "Table 1", in: text) == "Table 1: Disease prediction and transfer evaluations.")
+        #expect(PaperWalkthroughValidation.tableCaptionPassage(labelled: "table 1", in: text) != nil)
+        #expect(PaperWalkthroughValidation.tableCaptionPassage(labelled: "Table 2", in: text) == nil)
+    }
+
     @Test("A question needs a reference answer; one without is dropped and the step explains instead")
     func validatesQuizzes() throws {
         let good = PaperWalkthroughQuiz(question: "Which rose after deprivation?", answer: "ATP, about 1.2 times.", keyPoints: ["ATP", "1.2 times"])

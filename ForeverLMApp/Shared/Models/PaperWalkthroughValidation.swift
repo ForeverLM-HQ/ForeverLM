@@ -125,7 +125,7 @@ enum PaperWalkthroughValidation {
         var warnings: [String] = []
         var steps: [PaperWalkthroughStep] = []
         var animations = 0
-        let normalizedText = normalized(text)
+        let normalizedText = normalizedSourceText(text)
 
         for (index, raw) in rawSteps.enumerated() {
             let position = index + 1
@@ -613,6 +613,101 @@ enum PaperWalkthroughValidation {
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+    }
+
+    /// A source's text in the shape a passage is looked for in:
+    /// `normalized`, after the margin line numbers of a line-numbered PDF
+    /// are dropped (`withoutLineNumbers`).
+    static func normalizedSourceText(_ text: String) -> String {
+        normalized(withoutLineNumbers(text))
+    }
+
+    /// The text without the line numbers a review-copy PDF prints in its
+    /// margin (a medRxiv or bioRxiv preprint, a journal's submission copy).
+    ///
+    /// Extracted text carries each number glued to the end of its line —
+    /// "changed the model’s predictions,185\nwith the largest", "demo-55\n
+    /// graphics" — so a passage copied as the reader sees it ("predictions,
+    /// with the largest") was never found, and the tutor's
+    /// `focus_source_anchor` and a walkthrough's passage anchors were refused
+    /// on every passage that crossed a line (2026-11-22). The numbers are
+    /// recognised by their run, consecutive integers ending consecutive
+    /// numbered lines, so a figure that merely ends a line ("0.846") is kept
+    /// unless it continues the run, and a run's number glued to a figure
+    /// ("0.783121" on line 121) comes off and leaves the figure. Text with no
+    /// such run (fewer than ten numbered lines) is returned as it is.
+    static func withoutLineNumbers(_ text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        guard lines.count >= 10 else { return text }
+        let tails: [String] = lines.map { line in
+            String(line.reversed().prefix(while: { $0.isASCII && $0.isNumber }).reversed())
+        }
+        /// The run's next number when `tail` ends with it.
+        func ends(_ tail: String, with number: Int) -> Bool {
+            let digits = String(number)
+            return tail.count >= digits.count && tail.hasSuffix(digits)
+        }
+        var expected: Int?
+        var stripped: [Int: Int] = [:]
+        for index in lines.indices {
+            let tail = tails[index]
+            guard !tail.isEmpty else { continue }
+            if let next = expected, ends(tail, with: next) {
+                stripped[index] = String(next).count
+                expected = next + 1
+                continue
+            }
+            // Start (or pick up again) a run: this line's number is the
+            // first of three numbered lines in a row that count up by one.
+            // The longest number is tried first: "185, 186, 187" also ends
+            // with "5, 6, 7", and the short run would leave "18" behind.
+            for length in stride(from: min(5, tail.count), through: 1, by: -1) {
+                let digits = tail.suffix(length)
+                guard digits.first != "0", let number = Int(digits) else { continue }
+                let following = tails[(index + 1)...].lazy.filter { !$0.isEmpty }.prefix(2)
+                guard following.count == 2,
+                      ends(following[following.startIndex], with: number + 1),
+                      ends(following[following.index(after: following.startIndex)], with: number + 2)
+                else { continue }
+                stripped[index] = length
+                expected = number + 1
+                break
+            }
+        }
+        guard stripped.count >= 10 else { return text }
+        for (index, length) in stripped {
+            lines[index] = String(lines[index].dropLast(length))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Whether a label names a table ("Table 1", "Extended Data Table 2",
+    /// "Supplementary Table S3") rather than a figure. A paper's figure index
+    /// holds figures only, so a table is pointed at by its caption.
+    static func isTableLabel(_ label: String) -> Bool {
+        let lowered = label.lowercased()
+        return lowered.range(of: #"(?<![a-z])table(?![a-z])"#, options: .regularExpression) != nil
+            && !lowered.contains("fig")
+    }
+
+    /// The caption line of the table `label` names, as the text prints it
+    /// ("Table 1: Disease prediction and transfer evaluations."), cut to a
+    /// passage: the line that opens with the label followed by a colon, a
+    /// full stop or a bar. A sentence citing "(Table 1)" never opens a line
+    /// that way. Nil when the text prints no such caption.
+    static func tableCaptionPassage(labelled label: String, in text: String) -> String? {
+        let words = label.split(whereSeparator: \.isWhitespace).map { NSRegularExpression.escapedPattern(for: String($0)) }
+        guard !words.isEmpty else { return nil }
+        let pattern = #"^[ \t]*"# + words.joined(separator: #"\s+"#) + #"(?![\p{L}\p{N}])[ \t]*[:.|]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .anchorsMatchLines]) else { return nil }
+        let source = withoutLineNumbers(text)
+        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        guard let match = regex.firstMatch(in: source, range: range),
+              let start = Range(match.range, in: source)?.lowerBound
+        else { return nil }
+        let line = source[start...].prefix { $0 != "\n" }
+        let passage = clippedPassage(String(line))
+        return passage.isEmpty ? nil : passage
     }
 
     /// The passage cut to what the Reader needs to find it.

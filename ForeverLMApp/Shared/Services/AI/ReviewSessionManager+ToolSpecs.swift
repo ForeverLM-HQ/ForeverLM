@@ -807,7 +807,7 @@ extension ReviewSessionManager {
                         ],
                         "figure_label": [
                             "type": "string",
-                            "description": "Printed figure label, for example Figure 2 or Fig. 3."
+                            "description": "Printed figure label, for example Figure 2 or Fig. 3, or a table's label, for example Table 1, whose caption is outlined."
                         ],
                         "panel_label": [
                             "type": "string",

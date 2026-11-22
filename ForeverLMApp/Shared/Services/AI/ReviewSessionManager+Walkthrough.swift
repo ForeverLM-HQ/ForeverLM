@@ -1269,6 +1269,22 @@ extension ReviewSessionManager {
             return AppToolResult(text: "Error: focus_source_anchor needs a figure_label, a passage copied from the source, or a page_number.", isError: true)
         }
         let sourceID = article.id
+        // A table is not in the figure index, which holds figures only:
+        // "Table 1" was refused as a figure not found, a failed row in the
+        // middle of a reply about the table (2026-11-22). It is pointed at by
+        // its caption line, as a passage.
+        if let label = anchor.figureLabel, PaperWalkthroughValidation.isTableLabel(label) {
+            let text = await storage.loadSourceContent(sourceID) ?? ""
+            guard let caption = PaperWalkthroughValidation.tableCaptionPassage(labelled: label, in: text) else {
+                return AppToolResult(
+                    text: "Error: \(label) has no caption line in \"\(article.title)\"'s text. Point at a passage copied from the table or from the sentence that cites it instead.",
+                    isError: true
+                )
+            }
+            anchor.figureLabel = nil
+            anchor.panelLabel = nil
+            if anchor.passage == nil { anchor.passage = caption }
+        }
         var figures: [PaperFigureRecord]
         do {
             figures = try await storage.paperFigures(sourceID: sourceID)
@@ -1313,7 +1329,7 @@ extension ReviewSessionManager {
         if let passage = anchor.passage {
             let clipped = PaperWalkthroughValidation.clippedPassage(passage)
             let text = await storage.loadSourceContent(sourceID) ?? ""
-            let normalizedText = PaperWalkthroughValidation.normalized(text)
+            let normalizedText = PaperWalkthroughValidation.normalizedSourceText(text)
             guard normalizedText.isEmpty || normalizedText.contains(PaperWalkthroughValidation.normalized(clipped)) else {
                 return AppToolResult(
                     text: "Error: the passage is not in \"\(article.title)\" as written. Copy eight to thirty of the source's own words exactly, in order, and call again.",

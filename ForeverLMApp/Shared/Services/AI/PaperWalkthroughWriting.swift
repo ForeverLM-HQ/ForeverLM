@@ -520,7 +520,9 @@ enum PaperWalkthroughWriting {
     /// anchor. The measured values and the authors' reasoning live in these
     /// paragraphs, and a writer's three-paragraph summary drops most of them.
     static func sourceExcerpt(for step: PaperWalkthroughStep, in text: String) -> String? {
-        let paragraphs = Self.paragraphs(of: text)
+        // Margin line numbers come off first, so the paragraph that holds a
+        // passage the validator found is found here too.
+        let paragraphs = Self.paragraphs(of: PaperWalkthroughValidation.withoutLineNumbers(text))
         var matching: [String] = []
         if let label = step.anchor?.figureLabel,
            let pattern = Self.figureMentionPattern(for: label) {
