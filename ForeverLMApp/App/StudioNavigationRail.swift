@@ -420,11 +420,11 @@ struct StudioNavigationRail: View {
     @ViewBuilder
     private func topStripButton(_ entry: StudioStripEntry, litShortcut: StudioRailShortcut?) -> some View {
         switch entry {
-        case .row(.space): spaceButton(compact: true, yieldsTo: litShortcut != nil)
-        case .row(.memory): memoryButton(compact: true)
-        case .row(.library): libraryButton(compact: true)
+        case .row(.space): spaceButton(compact: true, yieldsTo: litShortcut != nil).appTourSpot(.space)
+        case .row(.memory): memoryButton(compact: true).appTourSpot(.memory)
+        case .row(.library): libraryButton(compact: true).appTourSpot(.library)
         case .row(.plugins): pluginsButton(compact: true)
-        case .row(.home): homeButton()
+        case .row(.home): homeButton().appTourSpot(.home)
         case .row(.newChat), .row(.browser), .footer: EmptyView()
         case .shortcut(let shortcut): shortcutButton(shortcut, isSelected: shortcut == litShortcut)
         }
@@ -437,7 +437,7 @@ struct StudioNavigationRail: View {
         // "I should just be able to open voice mode ... in the bottom left
         // where those icons are"): the assistant that knows the plan, the
         // calendar and recent work (`MacRealtimeAssistant`).
-        case .voice: railVoiceButton
+        case .voice: railVoiceButton.appTourSpot(.voice)
         // What an AI app set the app's models to do, an explainer, an
         // import: the app's logo, over the paid work (product owner, 2026-10-13).
         case .work: StudioWorkButton()
@@ -462,7 +462,7 @@ struct StudioNavigationRail: View {
         // status also here in the bottom left as icons"). The account
         // menu keeps its rows for both.
         case .mcp: railMCPButton
-        case .settings: railSettingsButton
+        case .settings: railSettingsButton.appTourSpot(.settings)
         case .account: accountMenuButton(compact: true)
         }
     }

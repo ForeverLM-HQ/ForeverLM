@@ -200,6 +200,7 @@
 		13F15441D3E66A1F07405E41 /* StudioViewModel+KnowledgeMapOutside.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65460E24C50BB337645E96DF /* StudioViewModel+KnowledgeMapOutside.swift */; };
 		14032079E43E1B7DD1F19664 /* MobileShareAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 810EE7E2C540FA6B40B642EC /* MobileShareAcceptanceTests.swift */; };
 		14446ADF3B8CC73B0FE4B0B7 /* NotebookSyncFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B512BD249A5D69F886241FC2 /* NotebookSyncFixture.swift */; };
+		1448AFA9FC7E7801ACB1CDA7 /* AppTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DABB5E12657F692A332C341 /* AppTourTests.swift */; };
 		14822D3B7199C21558226315 /* MemoryCardChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E025331F160B801CE71073 /* MemoryCardChrome.swift */; };
 		148779AD49459373CE95BBB6 /* StorageService+JournalWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878365AE2A39EC002E432C5C /* StorageService+JournalWatch.swift */; };
 		1496C77EC37B416F3D053A03 /* brave-sync-000004.log in Resources */ = {isa = PBXBuildFile; fileRef = AC121F8C76C5362EDF303F30 /* brave-sync-000004.log */; };
@@ -1372,6 +1373,7 @@
 		8F70EFD3AAAEFF4052CE4901 /* MemoryGoalCelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF02FDE21E5FDB05862A3E7B /* MemoryGoalCelebrationView.swift */; };
 		8F7CB739EB1A802B0D6FF9A9 /* MCPToolRegistry+PagesToolDefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738272A9C36191452EB8A985 /* MCPToolRegistry+PagesToolDefs.swift */; };
 		8F8BFF976AFCE8AF46A1571B /* ArtifactServerMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECF723FFC946B8E90438B25B /* ArtifactServerMergeTests.swift */; };
+		8FE34F2263A11197D72FB91A /* AppTour.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5E196822663D17275EDDAE /* AppTour.swift */; };
 		8FFC6866055A95F7ECA573B9 /* MCPToolRegistry+SourceToolsToolDefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 329C5527B2DCF6AB826B8984 /* MCPToolRegistry+SourceToolsToolDefs.swift */; };
 		9004F66ACB6DB98C10D94791 /* KnowledgeStore+LearningBouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F00A5DBECC3A7B519E71C9E /* KnowledgeStore+LearningBouts.swift */; };
 		903103B91CDBBA805E95C574 /* SharingRightsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8A08108235AC261AEF6FD3 /* SharingRightsSheet.swift */; };
@@ -3235,6 +3237,7 @@
 		5D70C113564BABD1F526B3DE /* DayModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayModel.swift; sourceTree = "<group>"; };
 		5D8AB3E781B3169C0032B32E /* DailyReviewPreparationCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyReviewPreparationCore.swift; sourceTree = "<group>"; };
 		5DA71A6B4181F9CBEA64D163 /* PodcastFinderServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastFinderServiceTests.swift; sourceTree = "<group>"; };
+		5DABB5E12657F692A332C341 /* AppTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTourTests.swift; sourceTree = "<group>"; };
 		5DCD18D6E8D2BCBCF379A086 /* PodcastTranscriptHydrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastTranscriptHydrationTests.swift; sourceTree = "<group>"; };
 		5DE8D9F5E3A352E19A467CBD /* KnowledgeStore+CourseQuizzes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+CourseQuizzes.swift"; sourceTree = "<group>"; };
 		5E2E1CE4EA6DC5AACFE11CC8 /* JournalWatchRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalWatchRunner.swift; sourceTree = "<group>"; };
@@ -3923,6 +3926,7 @@
 		AC121F8C76C5362EDF303F30 /* brave-sync-000004.log */ = {isa = PBXFileReference; path = "brave-sync-000004.log"; sourceTree = "<group>"; };
 		AC160606B5EB94735741FAED /* AppUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateController.swift; sourceTree = "<group>"; };
 		AC2DDF5A2C6DB1D6F79305C5 /* CanvasVoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasVoiceTests.swift; sourceTree = "<group>"; };
+		AC5E196822663D17275EDDAE /* AppTour.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTour.swift; sourceTree = "<group>"; };
 		AC8790C46EABF60CB08E5B4F /* KnowledgeMapPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapPopupView.swift; sourceTree = "<group>"; };
 		ACABF6101D16985569775E41 /* MemoryTutorSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTutorSchedulerTests.swift; sourceTree = "<group>"; };
 		ACB5E33A4DC229850C070FB1 /* MemoryReviewChatHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryReviewChatHandoffTests.swift; sourceTree = "<group>"; };
@@ -5239,6 +5243,7 @@
 				8BB67F2E70A2CA6DD52AA3FC /* AppcastFeedTests.swift */,
 				272B05E7C6363C98C3A97CF5 /* AppleSignInSupportTests.swift */,
 				9B2A2149DA2CE14A85768012 /* AppPlanTests.swift */,
+				5DABB5E12657F692A332C341 /* AppTourTests.swift */,
 				E646A783EB2D9C1FE02C81F6 /* AppUpdateOfferPolicyTests.swift */,
 				0A1ECCBBCAD13A4D5FD8CEC1 /* ArticleChromeFilterTests.swift */,
 				B3BB69AF8D268554B6E499E1 /* ArticleLinkDiscoveryTests.swift */,
@@ -6094,6 +6099,7 @@
 				2ADD1108BA2A511E2F0178BE /* AppleAccountWall.swift */,
 				7303A9A95DC06E5C7EDC804D /* AppleBooksLibrary.swift */,
 				90F19B552A3330B4905AB979 /* AppPlanViews.swift */,
+				AC5E196822663D17275EDDAE /* AppTour.swift */,
 				AC160606B5EB94735741FAED /* AppUpdateController.swift */,
 				C7ED984E4999E05B80EFA05F /* AppUpdateUserDriver.swift */,
 				6A34C0DBFEE3C88A5CED466A /* ArticleReaderView.swift */,
@@ -7762,6 +7768,7 @@
 				2B6386E2F309E654C3AE9F73 /* ActivityLogProjectionTests.swift in Sources */,
 				85BD6CB2E9B190F7483149CC /* AnimationsTests.swift in Sources */,
 				8623B345602F807181CBB75C /* AppPlanTests.swift in Sources */,
+				1448AFA9FC7E7801ACB1CDA7 /* AppTourTests.swift in Sources */,
 				30CB1F817600AD73B02293F5 /* AppUpdateOfferPolicyTests.swift in Sources */,
 				4891A5F8EBB5CE2DD0096390 /* AppcastFeedTests.swift in Sources */,
 				4ABF0FAE45F8591F889892F9 /* AppleSignInSupportTests.swift in Sources */,
@@ -8787,6 +8794,7 @@
 				493B599762F78710DF27D0E1 /* AppLock.swift in Sources */,
 				4FE86EEB8FB84CE71B011974 /* AppPlanViews.swift in Sources */,
 				5BE37ABF6B0A55F18BEC2CF1 /* AppStorage+PreferenceKey.swift in Sources */,
+				8FE34F2263A11197D72FB91A /* AppTour.swift in Sources */,
 				78A0D34AAAD46F4C8C82DE7C /* AppUpdateController.swift in Sources */,
 				1D915F1EEA73D8F7723E20DA /* AppUpdateUserDriver.swift in Sources */,
 				08CD1F619A4A73B7065BC80D /* AppcastFeed.swift in Sources */,

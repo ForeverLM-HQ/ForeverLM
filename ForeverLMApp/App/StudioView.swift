@@ -38,6 +38,9 @@ struct StudioView: View {
     @PreferenceStorage(Prefs.Rail.gettingStartedDismissed) private var gettingStartedDismissed
     @PreferenceStorage(Prefs.Models.backgroundUsageConsented) private var backgroundAIUsageConsented
     @State private var showGettingStarted = false
+    /// The tour after Setup (`AppTour`): this window's step, if one is up.
+    @State private var tour = AppTourModel()
+    @PreferenceStorage(Prefs.Rail.tourSeen) private var tourSeen
     @State private var whatsNew = WhatsNewCenter.shared
     @State private var studioAssistantSessions = StudioAssistantSessionStore()
     /// The side chats beside the window's own: one store per second-chat
@@ -311,6 +314,7 @@ struct StudioView: View {
         switch tab {
         case .chat:
             dockedChatPanel
+                .appTourSpot(.chat)
         case .secondaryChat:
             comparisonChatPanel
         case .secondaryReader:
@@ -359,6 +363,7 @@ struct StudioView: View {
             MemoryPane()
         case .library:
             LibraryPane()
+                .appTourSpot(.libraryPane)
         case .knowledgeMap:
             KnowledgeMapPane()
         case .atlas:
@@ -524,6 +529,7 @@ struct StudioView: View {
                 HStack(spacing: StudioTopBar.leadingControlsSpacing) {
                     WindowPlaceArrows(reopen: reopenPlaceContent)
                     NavigationRailToggle(isVisible: navigationRailVisibilityBinding)
+                        .appTourSpot(.sidebarToggle)
                 }
                 .frame(height: band)
                 .padding(.leading, toggleLeading)
@@ -539,6 +545,26 @@ struct StudioView: View {
                 // Closing the guide, finished or not, arms whatever source
                 // watchers its steps did not already start.
                 if !isShowing { vm.startProtectedSourceAutoSyncIfReady() }
+                // Setup finished for the first time on this Mac: the tour
+                // of the window follows, once the Studio has come in.
+                if !isShowing, gettingStartedCompleted, !tourSeen {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(700))
+                        startTour()
+                    }
+                }
+            }
+            // The tour's spotlight and card, over the window and under
+            // Settings; the spots are the controls marked `appTourSpot`.
+            .overlayPreferenceValue(AppTourSpotKey.self) { spots in
+                AppTourOverlay(model: tour, spots: spots, bandAbove: lift) { tour.stop() }
+            }
+            .onChange(of: tour.isRunning ? tourSignals : AppTourSignals()) { _, signals in
+                tour.observe(signals)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showAppTour)) { note in
+                guard shouldHandleWindowCommand(note), !showGettingStarted else { return }
+                startTour()
             }
             .overlay {
                 if showSettings {
@@ -582,6 +608,20 @@ struct StudioView: View {
             .sheet(isPresented: $showManageWorkspaces) {
                 ManageWorkspacesSheet(store: workspaceViews)
             }
+    }
+
+    /// What the tour's steps wait for in this window (`AppTourStep.isDone`).
+    private var tourSignals: AppTourSignals {
+        AppTourSignals(
+            libraryShown: vm.visibleCenterTabs(in: windowState).contains(.library),
+            readerSourceID: windowState.readerArticleID,
+            paneCount: windowState.centerTabGroups.groups.count
+        )
+    }
+
+    private func startTour() {
+        tourSeen = true
+        tour.start(tourSignals)
     }
 
     private func presentSettings() {

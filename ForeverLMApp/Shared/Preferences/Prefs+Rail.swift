@@ -37,6 +37,9 @@ extension Prefs {
         static let slowFreeModelOfferDismissed = AccountKey<Bool>("chat.slowFreeModelOffer.dismissed", default: false)
         static let suggestionsArmed = DeviceKey<Bool>("gettingStarted.suggestionsArmed", default: false, reason: "device-local as it stands: declared with the synced wrapper but never listed as synced, so it never left this Mac; whether it should follow the account is undecided")
         static let suggestionsDone = DeviceKey<Int>("gettingStarted.suggestionsDone", default: 0, reason: "device-local as it stands: declared with the synced wrapper but never listed as synced, so it never left this Mac; whether it should follow the account is undecided")
+        /// The tour after Setup has started on this Mac (2026-11-21). Kept on
+        /// this Mac: the tour points at this Mac's window.
+        static let tourSeen = DeviceKey<Bool>("gettingStarted.tourSeen", default: false, reason: "the tour points at this Mac's window and starts once on it")
         static let welcomeSeen = DeviceKey<Bool>("gettingStarted.welcomeSeen", default: false, reason: "device-local as it stands: declared with the synced wrapper but never listed as synced, so it never left this Mac; whether it should follow the account is undecided")
 
         static let all: [AnyPreferenceKey] = [
@@ -56,6 +59,7 @@ extension Prefs {
             slowFreeModelOfferDismissed.erased,
             suggestionsArmed.erased,
             suggestionsDone.erased,
+            tourSeen.erased,
             welcomeSeen.erased,
         ]
     }

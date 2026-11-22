@@ -835,6 +835,9 @@ struct ForeverLMApp: App {
                 Button("Set Up ForeverLM…") {
                     postToActiveStudioWindow(.showGettingStarted)
                 }
+                Button("Take the Tour") {
+                    postToActiveStudioWindow(.showAppTour)
+                }
                 ThirdPartyLicensesMenuItem()
                 ScreenRecordModeMenuItem()
                 #if os(macOS) && FOREVERLM_FIRST_RUN

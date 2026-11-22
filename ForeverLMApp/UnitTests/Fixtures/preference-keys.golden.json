@@ -541,6 +541,12 @@
       "synced": false
     },
     {
+      "name": "gettingStarted.tourSeen",
+      "reason": "the tour points at this Mac's window and starts once on it",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "gettingStarted.welcomeSeen",
       "reason": "device-local as it stands: declared with the synced wrapper but never listed as synced, so it never left this Mac; whether it should follow the account is undecided",
       "scope": "device",
