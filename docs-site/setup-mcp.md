@@ -22,6 +22,7 @@ Always-on MCP keeps a revocable iCloud session and an account-scoped cache of sy
 - **Claude:** ForeverLM works today as a [custom Claude connector](#claude-custom-connector) on web, desktop, and mobile, and as a [Claude Code plugin](#claude-code-plugin) from its public marketplace. It is **not** in the [Claude Directory](https://claude.ai/directory) or the Claude plugin directory yet; both submissions are in progress. Use the setups below until the listings exist.
 - **ChatGPT and Codex:** ForeverLM was resubmitted to OpenAI on November 8, 2026 and is in review. OpenAI has not issued a public ForeverLM listing URL. The plugin will appear in the [ChatGPT Plugins Directory](https://chatgpt.com/plugins) only after approval and ForeverLM's separate publish action.
 - **Grok:** ForeverLM works today as a [custom Grok connector](#grok-custom-connector) on web, iOS, and Android. It is **not** listed in the [Grok connector catalog](https://grok.com/connectors) yet. Use the custom setup below until a catalog tile exists.
+- **Antigravity:** ForeverLM is packaged as an official Antigravity plugin bundling the remote Streamable HTTP MCP server, five study skills, and agent rules. It is submitted to the [Antigravity Marketplace](https://antigravity.google/docs/plugins/marketplace) (`antigravity-plugins-partners/plugin/foreverlm`). Use the setup below to install the plugin or connect directly.
 
 Until the ChatGPT plugin is public, use the custom setup below. ForeverLM will replace that primary action with OpenAI's canonical listing link after publication; no draft or guessed link is used.
 
@@ -93,7 +94,30 @@ Complete Sign in with Apple on first use, then ask Grok to call `get_mcp_status`
 
 ## Antigravity
 
-Google Antigravity connects to ForeverLM as a remote MCP server. It has no connector screen; you add the server to its MCP config file.
+Google Antigravity connects to ForeverLM either through the official plugin or directly as a remote MCP server.
+
+### Antigravity plugin
+
+The official ForeverLM plugin bundles the remote Streamable HTTP server, five skills, and agent rules.
+
+Once published in the Marketplace, install it directly:
+
+```bash
+agy plugin install foreverlm@antigravity-plugins-partners
+```
+
+For local testing or development, link the plugin from a local checkout:
+
+```bash
+mkdir -p ~/.gemini/config/plugins/
+ln -s /path/to/foreverlm-plugins/plugins/foreverlm ~/.gemini/config/plugins/foreverlm
+```
+
+On first use, complete Sign in with Apple when prompted.
+
+### Direct MCP config
+
+If you prefer to configure only the remote MCP endpoint without the bundled skills:
 
 1. In Web Studio, choose **MCP** in Chat and authorize always-on iCloud access. **MCP ✓** confirms it is ready.
 2. Open `~/.gemini/config/mcp_config.json` (create it if it is missing) and add ForeverLM under `mcpServers`:

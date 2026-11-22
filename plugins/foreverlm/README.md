@@ -53,6 +53,23 @@ grok plugin install foreverlm --trust
 Reload plugins (`r` in the Plugins tab) or start a new session. The `foreverlm`
 MCP server appears under MCP servers once trusted.
 
+### Antigravity
+
+Install the plugin from the Antigravity Marketplace:
+
+```bash
+agy plugin install foreverlm@antigravity-plugins-partners
+```
+
+Or install/link locally for development:
+
+```bash
+mkdir -p ~/.gemini/config/plugins/
+ln -s /path/to/foreverlm-plugins/plugins/foreverlm ~/.gemini/config/plugins/foreverlm
+```
+
+Then complete Sign in with Apple when prompted.
+
 ### Manual install from a local checkout
 
 ```bash

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "foreverlm",
+  "displayName": "ForeverLM",
+  "version": "1.0.8",
+  "description": "Connect Antigravity to your private ForeverLM library to plan your Schedule, study sources, run review sessions, and save transcripts.",
+  "logo": "assets/logo.png",
+  "suggestedPrompts": [
+    "What should I study today from my ForeverLM library?",
+    "Plan this week's Schedule and review topics in ForeverLM",
+    "Quiz me on today's sources using an explain-it-back review"
+  ],
+  "author": {
+    "name": "ForeverLM",
+    "url": "https://foreverlm.com"
+  },
+  "homepage": "https://foreverlm.com",
+  "repository": "https://github.com/ForeverLM-HQ/foreverlm-plugins"
+}

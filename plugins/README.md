@@ -33,6 +33,19 @@ grok plugin marketplace add ForeverLM-HQ/foreverlm-plugins
 grok plugin install foreverlm --trust
 ```
 
+## Antigravity
+
+```bash
+agy plugin install foreverlm@antigravity-plugins-partners
+```
+
+The plugin is submitted to the Google Antigravity Marketplace (`antigravity-plugins-partners/plugin/foreverlm`). For local testing:
+
+```bash
+mkdir -p ~/.gemini/config/plugins/
+ln -s /path/to/foreverlm-plugins/plugins/foreverlm ~/.gemini/config/plugins/foreverlm
+```
+
 ## ChatGPT and Codex
 
 ForeverLM is submitted to the OpenAI Plugins Directory, which ChatGPT and Codex
@@ -45,7 +58,7 @@ share. Until it is published there, follow the
 | --- | --- |
 | `.claude-plugin/marketplace.json` | Claude Code marketplace manifest |
 | `.grok-plugin/marketplace.json` | Grok Build marketplace manifest |
-| `plugins/foreverlm/` | The plugin: provider manifests, `.mcp.json`, the paper-library-migration, chat-export, ai-cost-review, walkthrough and figure-coverage skills, and icons |
+| `plugins/foreverlm/` | The plugin: provider manifests (.antigravity-plugin, .claude-plugin, .codex-plugin, .grok-plugin), `mcp_config.json`, `.mcp.json`, rules, the paper-library-migration, chat-export, ai-cost-review, walkthrough and figure-coverage skills, and icons |
 
 This repository is mirrored from the private ForeverLM monorepo by
 `scripts/publish-plugins-repo.sh` there; pull requests here are not merged

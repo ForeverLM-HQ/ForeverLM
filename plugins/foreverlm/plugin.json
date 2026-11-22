@@ -1,7 +1,7 @@
 {
   "name": "foreverlm",
   "version": "1.0.8",
-  "description": "Connect Grok to your ForeverLM library to plan your Schedule, study private sources, run reviews, and save transcripts.",
+  "description": "Connect your AI assistant to your private ForeverLM library to plan your Schedule, study private sources, run reviews, and save transcripts.",
   "author": {
     "name": "ForeverLM",
     "url": "https://foreverlm.com"
