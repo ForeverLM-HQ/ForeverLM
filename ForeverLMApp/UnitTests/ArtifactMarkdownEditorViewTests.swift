@@ -7,6 +7,33 @@ import UniformTypeIdentifiers
 
 @Suite("Artifact Markdown Editor")
 struct ArtifactMarkdownEditorViewTests {
+    @Test("The Page web view routes only the standard undo and redo shortcuts to its editor history")
+    func pageHistoryShortcuts() throws {
+        let event = { (characters: String, modifiers: NSEvent.ModifierFlags) in
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: modifiers,
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: characters,
+                charactersIgnoringModifiers: characters,
+                isARepeat: false,
+                keyCode: 6
+            )
+        }
+
+        let undo = try #require(event("z", [.command]))
+        let redo = try #require(event("z", [.command, .shift]))
+        #expect(ArtifactEditorWebView.historyAction(for: undo) == .undo)
+        #expect(ArtifactEditorWebView.historyAction(for: redo) == .redo)
+        #expect(ArtifactEditorWebView.historyScript(for: .undo) == "window.foreverLMArtifactEditor.performHistoryAction(\"undo\");")
+        #expect(ArtifactEditorWebView.historyAction(for: try #require(event("z", [.control]))) == nil)
+        #expect(ArtifactEditorWebView.historyAction(for: try #require(event("z", [.command, .option]))) == nil)
+        #expect(ArtifactEditorWebView.historyAction(for: try #require(event("x", [.command]))) == nil)
+    }
+
     @Test("A link target reaches the editor as the kind, id, title and detail its picker lists")
     func linkTargetEncodesForTheEditor() throws {
         let targets = [

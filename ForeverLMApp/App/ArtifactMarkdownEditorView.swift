@@ -276,6 +276,11 @@ struct ArtifactGroundingAttachment: Identifiable, Equatable {
 /// AppKit fitting width to the representable; SwiftUI then centers that width
 /// inside a narrower split and the page is clipped on both sides.
 final class ArtifactEditorWebView: WKWebView {
+    enum HistoryAction: String {
+        case undo
+        case redo
+    }
+
     /// The doc's find bar. The app-wide key monitor normally claims Cmd+F
     /// before it reaches this view; this is the fallback for a press that
     /// arrives here anyway, so the shortcut never dies in the web process.
@@ -466,6 +471,33 @@ final class ArtifactEditorWebView: WKWebView {
             return
         }
         super.keyDown(with: event)
+    }
+
+    /// AppKit owns Cmd-Z as an Edit-menu key equivalent. A focused web editor
+    /// therefore does not reliably receive the DOM keydown that Milkdown binds
+    /// to its history. Cross that native/web boundary explicitly; ordinary
+    /// native text controls still follow AppKit's responder-chain undo.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard let action = Self.historyAction(for: event) else {
+            return super.performKeyEquivalent(with: event)
+        }
+        evaluateJavaScript(Self.historyScript(for: action)) { _, _ in }
+        return true
+    }
+
+    static func historyAction(for event: NSEvent) -> HistoryAction? {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard modifiers.contains(.command),
+              !modifiers.contains(.control),
+              !modifiers.contains(.option),
+              event.charactersIgnoringModifiers?.lowercased() == "z" else {
+            return nil
+        }
+        return modifiers.contains(.shift) ? .redo : .undo
+    }
+
+    static func historyScript(for action: HistoryAction) -> String {
+        "window.foreverLMArtifactEditor.performHistoryAction(\"\(action.rawValue)\");"
     }
 
     override var intrinsicContentSize: NSSize {

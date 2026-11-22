@@ -31,7 +31,7 @@ import { addRowAfterCommand, createTable, footnoteDefinitionSchema, footnoteRefe
 import { trailingConfig } from '@milkdown/kit/plugin/trailing'
 import { nodeRule } from '@milkdown/kit/prose'
 import { lift, setBlockType } from '@milkdown/kit/prose/commands'
-import { closeHistory } from '@milkdown/kit/prose/history'
+import { closeHistory, redo as redoHistory, undo as undoHistory } from '@milkdown/kit/prose/history'
 import { inputRules, wrappingInputRule } from '@milkdown/kit/prose/inputrules'
 import { liftListItem } from '@milkdown/kit/prose/schema-list'
 import { DOMSerializer, Fragment, Slice } from '@milkdown/kit/prose/model'
@@ -8216,6 +8216,24 @@ function takeUnsentMarkdown() {
   return storageMarkdown
 }
 
+/// Run the history stack that owns the focused control. On the web, Milkdown's
+/// keymap sees Mod-Z itself. In the Mac app, AppKit can claim the menu key
+/// equivalent before WebKit creates that DOM event, so the host calls this
+/// same operation explicitly. A field in the page's chrome keeps its browser
+/// undo rather than undoing the prose behind it.
+function performHistoryAction(action) {
+  if (action !== 'undo' && action !== 'redo') return false
+  const view = activeEditorView()
+  const focused = document.activeElement
+  if (view && (focused === view.dom || view.dom.contains(focused))) {
+    userHasInteracted = true
+    const handled = (action === 'redo' ? redoHistory : undoHistory)(view.state, view.dispatch)
+    if (handled) reportMarkdownNow()
+    return handled
+  }
+  return document.execCommand(action)
+}
+
 /// Counts the writer's changes (`unreportedEdit`).
 const editWatchPlugin = $prose(() => new Plugin({
   appendTransaction(transactions) {
@@ -11877,6 +11895,7 @@ window.foreverLMArtifactEditor = {
     document.documentElement.style.setProperty('--artifact-font-size', `${fontSize}px`)
   },
   setPageWidth,
+  performHistoryAction,
   focus() {
     document.querySelector('.ProseMirror')?.focus()
   },

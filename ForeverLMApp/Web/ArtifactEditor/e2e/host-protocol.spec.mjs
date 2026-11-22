@@ -102,3 +102,27 @@ test('unsentMarkdown hands over typing once, and nothing for a page left alone',
   expect(unsent).toContain('Words. new')
   expect(await page.evaluate(() => window.foreverLMArtifactEditor.unsentMarkdown())).toBeNull()
 })
+
+test('the native host history bridge undoes and redoes the focused page', async ({ page }) => {
+  await openEditor(page, '# History\n\nOriginal.\n')
+  await caretIn(page, 'Original')
+  await page.keyboard.type(' Changed')
+  expect(await text(page)).toContain('Original. Changed')
+
+  expect(await page.evaluate(() => window.foreverLMArtifactEditor.performHistoryAction('undo'))).toBe(true)
+  expect(await text(page)).toContain('Original.')
+  expect(await text(page)).not.toContain('Changed')
+  expect(await page.evaluate(() => window.foreverLMArtifactEditor.performHistoryAction('redo'))).toBe(true)
+  expect(await text(page)).toContain('Original. Changed')
+
+  await page.evaluate(() => {
+    const input = document.createElement('input')
+    input.id = 'history-field'
+    document.body.append(input)
+    input.focus()
+  })
+  await page.keyboard.type('Field draft')
+  expect(await page.evaluate(() => window.foreverLMArtifactEditor.performHistoryAction('undo'))).toBe(true)
+  expect(await page.locator('#history-field').inputValue()).toBe('')
+  expect(await text(page)).toContain('Original. Changed')
+})
