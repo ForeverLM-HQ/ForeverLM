@@ -74,6 +74,10 @@ struct WelcomeStory: View {
     /// How many cards, oldest first, have lost their titles.
     @State private var forgottenMoments = 0
     @State private var showsFingertips = false
+    /// Bumped by "Watch the story again"; restarts `play()` from the top.
+    @State private var playRun = 0
+    /// True only for the first run of a story opened at its last page.
+    @State private var skipsToEnd: Bool?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -109,7 +113,7 @@ struct WelcomeStory: View {
             .frame(height: 44)
             .padding(.bottom, 36)
         }
-        .task { await play() }
+        .task(id: playRun) { await play() }
     }
 
     // MARK: Day stage
@@ -358,6 +362,13 @@ struct WelcomeStory: View {
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier("welcome.price")
+            Button(action: replay) {
+                Label("Watch the story again", systemImage: "arrow.counterclockwise")
+            }
+            .buttonStyle(.hoverWash)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier("welcome.replay")
         }
         .frame(maxWidth: 540)
         .padding(.horizontal, 40)
@@ -394,7 +405,9 @@ struct WelcomeStory: View {
     /// Plays the story forward on a clock. Skip can jump ahead at any point,
     /// so every beat only ever moves forward.
     private func play() async {
-        if startsAtEnd {
+        if skipsToEnd == nil { skipsToEnd = startsAtEnd }
+        if skipsToEnd == true {
+            skipsToEnd = false
             beat = .howItWorks
             return
         }
@@ -431,6 +444,19 @@ struct WelcomeStory: View {
         withAnimation(.easeInOut(duration: 0.6)) { showsFingertips = true }
         guard await pause(3.4) else { return }
         advance(to: .answer)
+    }
+
+    /// Plays the animation again from the first card. Beats only move
+    /// forward, so the state is put back before `play()` restarts.
+    private func replay() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            beat = .day
+            shownMoments = 0
+            clock = 7
+            forgottenMoments = 0
+            showsFingertips = false
+        }
+        playRun += 1
     }
 
     private func advance(to next: Beat) {
