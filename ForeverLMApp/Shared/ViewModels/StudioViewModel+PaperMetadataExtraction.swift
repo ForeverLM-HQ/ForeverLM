@@ -713,7 +713,19 @@ extension StudioViewModel {
         )
         logger.error("\(message)")
         if showToasts {
-            showToast(message)
+            showToast(message, action: paperMetadataRetryToastAction(id: id))
+        }
+    }
+
+    /// The toast's Retry, offered only when the row itself would offer one: a
+    /// failure whose fix is a setting, a PDF or the learner's own fields gets
+    /// no button that cannot succeed.
+    private func paperMetadataRetryToastAction(id: String) -> StudioToastAction? {
+        guard let article = articles.first(where: { $0.id == id }),
+              article.paperIngestionRecoveryAction(hasUsablePDF: displayHasUsablePDF(article)) == .retry
+        else { return nil }
+        return StudioToastAction(title: "Retry") { [weak self] _ in
+            await self?.extractPaperMetadataWithAI(id: id)
         }
     }
 
