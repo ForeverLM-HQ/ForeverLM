@@ -122,11 +122,6 @@ enum NotesGraphWire {
         }
     }
 
-    /// `setReferences`'s argument.
-    struct References: Encodable, Equatable, Sendable {
-        var linked: [Group]
-    }
-
     /// One thing a day held, in the page foot of its daily note.
     struct Activity: Encodable, Equatable, Sendable {
         /// "read", "listened", "watched", "highlight", "chat", "doc" or "card".
@@ -398,7 +393,6 @@ final class ArtifactNotesGraphBridge {
     private(set) var isDailyNote = false
     private(set) var allowsDates = true
     private(set) var contextJSON: String?
-    private(set) var referencesJSON = "null"
     private(set) var dailyContextJSON = "null"
     private var pendingReveal: ArtifactBlockRevealRequest?
     private var deliveredRevealTokens: Set<UUID> = []
@@ -413,7 +407,6 @@ final class ArtifactNotesGraphBridge {
         let opensAnotherDoc = docID != self.docID
         if opensAnotherDoc {
             contextJSON = nil
-            referencesJSON = "null"
             dailyContextJSON = "null"
             if pendingReveal?.artifactID != docID { pendingReveal = nil }
         }
@@ -427,12 +420,6 @@ final class ArtifactNotesGraphBridge {
         guard json != contextJSON else { return }
         contextJSON = json
         deliver(ArtifactNotesGraphScript.call("setGraphContext", [json]))
-    }
-
-    func setReferences(_ json: String) {
-        guard json != referencesJSON else { return }
-        referencesJSON = json
-        deliver(ArtifactNotesGraphScript.call("setReferences", [json]))
     }
 
     /// `force` says it again even when nothing changed: the answer to More
@@ -487,7 +474,6 @@ final class ArtifactNotesGraphBridge {
             NotesGraphWire.GraphContext.provisional(docID: docID, isDailyNote: isDailyNote, allowsDates: allowsDates)
         )
         deliver(ArtifactNotesGraphScript.call("setGraphContext", [context]))
-        deliver(ArtifactNotesGraphScript.call("setReferences", [referencesJSON]))
         deliver(ArtifactNotesGraphScript.call("setDailyContext", [dailyContextJSON]))
         deliverPendingReveal()
     }

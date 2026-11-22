@@ -1,5 +1,5 @@
 // What the notes graph draws around the writing rather than in it: the page
-// foot (a day's activity, Linked References and, on a daily note, the days
+// foot (a day's activity and, on a daily note, the days
 // before it), the preview a block reference shows on
 // hover, the list a referenced block's count opens, and the small menu a
 // bullet's right-click opens (docs/notes-graph-design.md). Everything here is
@@ -381,19 +381,15 @@ function referenceGroupElement(group, { compact = false } = {}) {
 }
 
 // ─── The page foot ──────────────────────────────────────────────────────────
-// Below the writing, inside the page's scroll, in the order Roam keeps them:
-// what the day held in the library (a daily note), Linked References, and a
-// daily note's earlier days with More days. A section with nothing in it is
-// not drawn; a host that sends nothing draws nothing. Roam's Unlinked
-// References are not drawn (product owner, 2026-10-19: "no unlinked
-// references should randomly show up"): a page titled with a common word
-// filled its foot with other Pages' prose. Linked References are the pages
-// that link here, each once as a plain link, not the blocks that link
-// (product owner, 2026-11-07: "can just be a normal link"): a page quoted
-// its whole paragraph, once per block that linked.
+// Below the writing, inside the page's scroll: what the day held in the
+// library (a daily note), and a daily note's earlier days with More days. A
+// section with nothing in it is not drawn; a host that sends nothing draws
+// nothing. No References section is drawn, linked or unlinked (product
+// owner, 2026-10-19: "no unlinked references should randomly show up";
+// 2026-11-22: Linked References gone from the Page too). A block's own
+// reference count still opens the pages that link to it.
 
 let footRoot = null
-let footReferences = null
 let footDaily = null
 let requestedMoreBefore = null
 /// How long a press waits for the host before it can be pressed again.
@@ -405,13 +401,6 @@ function ensureFoot() {
   footRoot.setAttribute('aria-label', 'References')
   footRoot.hidden = true
   footRoot.addEventListener('click', onFootClick)
-  footRoot.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    const row = event.target instanceof Element ? event.target.closest('[data-open-reference][role="button"]') : null
-    if (!row || row !== event.target) return
-    event.preventDefault()
-    host.post('openReferenceRequested', JSON.parse(row.dataset.openReference))
-  })
   const editorRoot = document.getElementById('editor')
   if (editorRoot) editorRoot.after(footRoot)
   else document.body.append(footRoot)
@@ -444,14 +433,7 @@ function onFootClick(event) {
     openAddress(activity.dataset.activityHref)
     return
   }
-  if (target.closest('a') && followSnippetLink(event)) return
-  if (target.closest('summary, details')) return
-  const reference = target.closest('[data-open-reference]')
-  if (reference) {
-    // Selecting words in a block is reading it, not following it.
-    if (String(window.getSelection?.() ?? '').trim()) return
-    host.post('openReferenceRequested', JSON.parse(reference.dataset.openReference))
-  }
+  if (target.closest('a')) followSnippetLink(event)
 }
 
 const activityWords = {
@@ -483,36 +465,6 @@ function dailySection(daily) {
     }
     row.append(title)
     if (item?.detail) row.append(element('span', 'artifact-foot-activity-detail', item.detail))
-    list.append(row)
-  }
-  section.append(list)
-  return section
-}
-
-/// The pages that link here, each once, as a link that opens it.
-function linkedSection(linked) {
-  const pages = []
-  const seen = new Set()
-  for (const group of Array.isArray(linked) ? linked : []) {
-    if (countReferences([group]) === 0) continue
-    const kind = ['doc', 'dailyNote', 'idea'].includes(group?.kind) ? group.kind : 'doc'
-    const id = String(group?.id ?? '')
-    const key = `${kind}:${id}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    pages.push({ kind, id, title: group?.title || (kind === 'idea' ? 'Idea' : 'Untitled') })
-  }
-  if (pages.length === 0) return null
-  const section = element('section', 'artifact-foot-section artifact-foot-linked')
-  section.append(element('h2', 'artifact-foot-title', 'Linked References'))
-  const list = element('ul', 'artifact-foot-links')
-  for (const page of pages) {
-    const row = element('li', 'artifact-foot-link-row')
-    const link = element('button', 'artifact-foot-link', page.title)
-    link.type = 'button'
-    link.dataset.openReference = JSON.stringify({ kind: page.kind, id: page.id })
-    row.append(link)
-    if (page.kind === 'idea') row.append(element('span', 'artifact-graph-kind', 'Idea'))
     list.append(row)
   }
   section.append(list)
@@ -554,7 +506,6 @@ function daysSection(daily) {
 function renderFoot() {
   const sections = [
     footDaily ? dailySection(footDaily) : null,
-    footReferences ? linkedSection(footReferences.linked) : null,
     footDaily ? daysSection(footDaily) : null,
   ].filter(Boolean)
   if (sections.length === 0) {
@@ -576,12 +527,6 @@ function renderFoot() {
   document.body.classList.add('has-page-foot')
 }
 
-/// `setReferences`: `{ linked: [Group] }`, or null.
-export function setFootReferences(references) {
-  footReferences = references && typeof references === 'object' ? references : null
-  renderFoot()
-}
-
 /// `setDailyContext`: a daily note's day, or null for any other doc.
 export function setFootDaily(daily) {
   const next = daily && typeof daily === 'object' ? daily : null
@@ -593,6 +538,6 @@ export function setFootDaily(daily) {
 
 /// Draw the foot again: the block texts and titles it resolves have changed.
 export function refreshFoot() {
-  if (footReferences || footDaily) renderFoot()
+  if (footDaily) renderFoot()
 }
 

@@ -223,19 +223,19 @@ struct NotesGraphHostTests {
         bridge.open(docID: "doc-a", isDailyNote: false, allowsDates: true)
         let page = RecordingPage(docID: "doc-a")
         bridge.attach(page)
-        bridge.setReferences(#"{"linked":[]}"#)
+        bridge.setDailyContext(#"{"dayKey":"2026-11-22"}"#)
         #expect(page.scripts.isEmpty, "nothing reaches a page before it is ready")
+        bridge.setDailyContext("null")
 
         bridge.pageBecameReady(page)
-        #expect(page.scripts.count == 3)
+        #expect(page.scripts.count == 2)
         #expect(page.scripts[0].contains(#"e.setGraphContext({"allowsDates":true,"blocks":{},"docID":"doc-a""#))
-        #expect(page.scripts[1].contains(#"e.setReferences({"linked":[]})"#))
-        #expect(page.scripts[2].contains("e.setDailyContext(null)"))
+        #expect(page.scripts[1].contains("e.setDailyContext(null)"))
 
-        bridge.setReferences(#"{"linked":[]}"#)
-        #expect(page.scripts.count == 3, "the same answer twice is said once")
         bridge.setContext(#"{"docID":"doc-a"}"#)
-        #expect(page.scripts.count == 4)
+        #expect(page.scripts.count == 3)
+        bridge.setContext(#"{"docID":"doc-a"}"#)
+        #expect(page.scripts.count == 3, "the same answer twice is said once")
     }
 
     @MainActor

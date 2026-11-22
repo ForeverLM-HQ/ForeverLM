@@ -2431,39 +2431,6 @@ body.ready .artifact-page-foot {
   letter-spacing: 0;
 }
 
-.artifact-foot-links {
-  display: grid;
-  gap: 3px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.artifact-foot-link-row {
-  display: flex;
-  align-items: baseline;
-  min-width: 0;
-  font-size: 0.93em;
-}
-
-.artifact-foot-link {
-  min-width: 0;
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: LinkText;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.artifact-foot-link:hover {
-  text-decoration: underline;
-}
-
 .artifact-foot-activity {
   display: grid;
   gap: 3px;

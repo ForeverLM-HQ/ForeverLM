@@ -35,12 +35,12 @@
     <output id="demo-log">Loading</output>
     <script>
       // A stub of the Mac host for the notes graph (PROTOCOL.md): it hands the
-      // editor a doc, its place in the graph, its references and, with
+      // editor a doc, its place in the graph, its block references and, with
       // `?daily`, a day's activity and earlier days, and answers every message
       // the editor posts from the fixtures below. Every message lands in the
       // log at the bottom right and in `window.demoMessages`.
       //
-      //   demo-notes.html          a Doc with Linked References
+      //   demo-notes.html          a Doc whose blocks are referenced
       //   demo-notes.html?daily    today's daily note
       //   window.roundTripReport() what a save writes for every grammar form
 
@@ -315,7 +315,6 @@ A reference to this doc's own first paragraph: ((a1b2c3d4e))
         await editor.create(window.demoMarkdown, 15)
         editor.setMarkdown(window.demoMarkdown, { key: docID, folds: '' })
         editor.setGraphContext(graphContext())
-        editor.setReferences(references)
         editor.setDailyContext(dailyContext)
         note(`ready: ${docTitle}`)
       })()

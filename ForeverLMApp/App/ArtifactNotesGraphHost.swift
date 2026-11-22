@@ -36,7 +36,6 @@ final class ArtifactNotesGraphHost {
     private var flushDraft: () async throws -> Void = {}
 
     private var contextTask: Task<Void, Never>?
-    private var referencesTask: Task<Void, Never>?
     private var activityTask: Task<Void, Never>?
     private var earlierTask: Task<Void, Never>?
     private var dailySendTask: Task<Void, Never>?
@@ -102,7 +101,6 @@ final class ArtifactNotesGraphHost {
         bridge.onMessage = { [weak self] message, reply in self?.handle(message, reply: reply) }
 
         refreshContext()
-        refreshReferences()
         if isDailyNote {
             refreshActivity()
             reloadEarlierDays()
@@ -115,7 +113,7 @@ final class ArtifactNotesGraphHost {
     /// what is in flight stops, and the draft's accessors, which hold the
     /// pane, are let go.
     func close() {
-        for task in [contextTask, referencesTask, activityTask, earlierTask, dailySendTask, searchTask] {
+        for task in [contextTask, activityTask, earlierTask, dailySendTask, searchTask] {
             task?.cancel()
         }
         earlierTask = nil
@@ -135,7 +133,6 @@ final class ArtifactNotesGraphHost {
         guard isOpen, signature != librarySignature else { return }
         librarySignature = signature
         refreshContext()
-        refreshReferences()
         if isDailyNote { reloadEarlierDays() }
     }
 
@@ -211,29 +208,6 @@ final class ArtifactNotesGraphHost {
             let json = await NotesGraphWire.jsonOffMain(context)
             guard !Task.isCancelled, self.docID == docID else { return }
             self.bridge.setContext(json)
-            if let failure { self.report(failure) }
-        }
-    }
-
-    private func refreshReferences() {
-        guard let vm, !pageID.isEmpty else { return }
-        referencesTask?.cancel()
-        let storage = vm.storage
-        let docID = docID
-        let pageID = pageID
-        let teamID = teamID
-        referencesTask = Task { [weak self] in
-            var linked: [DocGraphReferenceGroup] = []
-            var failure: Error?
-            do { linked = try await storage.docGraphLinkedReferences(to: .doc(pageID), teamID: teamID) } catch { failure = error }
-            guard !Task.isCancelled, let self, self.docID == docID else { return }
-            let references = NotesGraphWire.References(
-                // A doc's own draft is not a page pointing at the doc.
-                linked: linked.filter { $0.id != docID }.map(NotesGraphWire.Group.init)
-            )
-            let json = await NotesGraphWire.jsonOffMain(references)
-            guard !Task.isCancelled, self.docID == docID else { return }
-            self.bridge.setReferences(json)
             if let failure { self.report(failure) }
         }
     }

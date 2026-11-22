@@ -77,7 +77,6 @@ import {
   scheduleReferencePreview,
   scheduleReferencePreviewHide,
   setFootDaily,
-  setFootReferences,
   showBlockMenu,
   toggleBlockReferences,
 } from './notes-graph.js'
@@ -11884,7 +11883,6 @@ window.foreverLMArtifactEditor = {
   // The notes graph (docs/notes-graph-design.md; the messages in PROTOCOL.md).
   setGraphContext,
   setBlocks,
-  setReferences: setFootReferences,
   setDailyContext: setFootDaily,
   setBlockSearchResults,
   setBlockReferencesFor,
