@@ -271,7 +271,7 @@ struct AppPlanTests {
                 "a proxy that has not said the count gets no count of the build's own")
         #expect(EarlyUserDealOffer.ownKeyLine == "AI runs on your own OpenRouter key, at OpenRouter's cost. ForeverLM adds nothing.")
         #expect(AppLockWall.title == "Your free days are over")
-        #expect(AppLockWall.message == "Keep everything you've built: pay once and ForeverLM is yours to use.")
+        #expect(AppLockWall.message == "Please unlock the app. We don't charge a monthly subscription: pay once and you can use ForeverLM forever.")
         #expect(AppLockWall.libraryLine == "Nothing is deleted: your library stays on this Mac as plain files you own.")
         #expect(ManagedAI.appLockedMCPMessage == "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue.")
         #expect(ManagedAI.appLockedMessage == "Your free days of ForeverLM are over.")

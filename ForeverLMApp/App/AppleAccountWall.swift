@@ -173,7 +173,7 @@ struct AppleAccountWall: View {
 /// `AppleAccountWall`.
 struct AppLockWall: View {
     static let title = "Your free days are over"
-    static let message = "Keep everything you've built: pay once and ForeverLM is yours to use."
+    static let message = "Please unlock the app. We don't charge a monthly subscription: pay once and you can use ForeverLM forever."
     static let libraryLine = "Nothing is deleted: your library stays on this Mac as plain files you own."
 
     @Environment(ManagedAIAccountModel.self) private var account
