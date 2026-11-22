@@ -1282,7 +1282,7 @@ struct GettingStartedGuide: View {
                 icon: "key.fill",
                 assetIcon: "OpenRouterIcon",
                 title: "Connect OpenRouter",
-                detail: "ForeverLM's AI runs on your own OpenRouter account, at cost."
+                detail: "Your AI runs on your own account, at cost."
             )
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
