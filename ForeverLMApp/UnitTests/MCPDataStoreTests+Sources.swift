@@ -36,8 +36,10 @@ extension MCPDataStoreTests {
         let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
+        // add_source takes a local path only inside the library, Desktop, Documents,
+        // Downloads or a temporary folder, so the file names the test's own folder.
         let result = try store.addSource(
-            url: "/path/to/lecture.pdf",
+            url: tmpPath + "/lecture.pdf",
             title: "Lecture 1 - Intro",
             sourceType: "course",
             content: "Lecture notes content.",
@@ -57,7 +59,7 @@ extension MCPDataStoreTests {
         // a library row nothing can show. Ask for the course instead of adding it.
         #expect(throws: MCPError.self) {
             _ = try store.addSource(
-                url: "/path/to/handout.pdf",
+                url: tmpPath + "/handout.pdf",
                 title: "Handout",
                 sourceType: "course",
                 content: "Handout content.",
@@ -67,7 +69,7 @@ extension MCPDataStoreTests {
         }
         #expect(throws: MCPError.self) {
             _ = try store.addSource(
-                url: "/path/to/handout.pdf",
+                url: tmpPath + "/handout.pdf",
                 title: "Handout",
                 sourceType: "course",
                 content: "Handout content.",

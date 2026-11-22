@@ -834,8 +834,10 @@ struct MCPCourseToolsTests {
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
 
+        // add_source takes a local path only inside the library, Desktop, Documents,
+        // Downloads or a temporary folder, so the file names the test's own folder.
         _ = try store.addSource(
-            url: "/path/to/handout-1.pdf",
+            url: path + "/handout-1.pdf",
             title: "Handout 1",
             sourceType: "course",
             content: "One.",
@@ -851,7 +853,7 @@ struct MCPCourseToolsTests {
 
         // The title keeps resolving to that course rather than minting another.
         _ = try store.addSource(
-            url: "/path/to/handout-2.pdf",
+            url: path + "/handout-2.pdf",
             title: "Handout 2",
             sourceType: "course",
             content: "Two.",
