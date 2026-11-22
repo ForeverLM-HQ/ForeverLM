@@ -255,6 +255,11 @@ private struct PluginDirectoryView: View {
     @State private var googleDriveAccounts: [GoogleDriveAccount] = []
     @State private var userPlugins: [MCPOAuthProvider.UserPluginSummary] = []
     @State private var userPluginSourceCounts: [String: Int] = [:]
+    /// False until the first round of status checks has answered (or two
+    /// seconds have passed). Until then every plugin would read as "not
+    /// connected" and the rows would hop up into Installed one by one as each
+    /// check returned, so the list stays hidden and then appears whole.
+    @State private var hasLoadedStates = false
     /// Slack, Linear, GitHub and Notion are connected on the web and their
     /// tokens live on the gateway, so each state is a network answer rather
     /// than a Keychain read. They live in `GatewayPluginState` so the page a
@@ -517,7 +522,9 @@ private struct PluginDirectoryView: View {
         let yours = searched(yourPluginRows)
         let installed = (builtIn + yours).filter { PluginStatus.isInstalled($0.status) }
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.xLarge) {
-            if builtIn.isEmpty && yours.isEmpty {
+            if !hasLoadedStates {
+                Color.clear.frame(height: 1)
+            } else if builtIn.isEmpty && yours.isEmpty {
                 SpaceEmptyLine(systemImage: "magnifyingglass", text: "No results for “\(query.trimmingCharacters(in: .whitespacesAndNewlines))”")
                     .frame(maxWidth: .infinity)
                     .padding(.top, SpacePlaceMetrics.emptyTopPadding - StudioDesign.Spacing.xLarge)
@@ -685,7 +692,7 @@ private struct PluginDirectoryView: View {
 
     private func refreshPluginStates() {
         vm.checkXSignInStatus()
-        Task {
+        let local = Task {
             // Synced Keychain keys read fresh from securityd every time; keep
             // that IPC off the main actor (same shape as the sidebar's
             // `refreshGoogleDriveConnectionState`).
@@ -714,27 +721,41 @@ private struct PluginDirectoryView: View {
                 userPluginSourceCounts = [:]
             }
         }
-        Task {
+        let slack = Task {
             // A round trip to the gateway, so it runs apart from the Keychain
             // reads above and keeps whatever it last knew when it cannot answer.
             if let connection = await MCPDataStore.slackWorkspaceConnection() {
                 GatewayPluginState.shared.slack = connection
             }
         }
-        Task {
+        let linear = Task {
             if let connection = await MCPDataStore.linearConnection() {
                 GatewayPluginState.shared.linear = connection
             }
         }
-        Task {
+        let github = Task {
             if let connection = await MCPDataStore.githubConnection() {
                 GatewayPluginState.shared.github = connection
             }
         }
-        Task {
+        let notion = Task {
             if let connection = await MCPDataStore.notionConnection() {
                 GatewayPluginState.shared.notion = connection
             }
+        }
+        // Show the list once every answer is in, or after two seconds if the
+        // gateway is slow; a late answer still updates the rows in place.
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            hasLoadedStates = true
+        }
+        Task {
+            await local.value
+            await slack.value
+            await linear.value
+            await github.value
+            await notion.value
+            hasLoadedStates = true
         }
     }
 
