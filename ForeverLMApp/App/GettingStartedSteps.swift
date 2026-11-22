@@ -211,6 +211,6 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
 
 extension Notification.Name {
     /// Posted by the app menu's "Set Up ForeverLM…" item; the active Studio
-    /// window reopens the Getting Started guide, also after "Continue later".
+    /// window reopens the Getting Started guide, also once it was finished.
     static let showGettingStarted = Notification.Name("showGettingStarted")
 }

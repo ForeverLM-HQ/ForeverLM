@@ -10,7 +10,6 @@ struct GettingStartedGuide: View {
     @Binding var isPresented: Bool
 
     @PreferenceStorage(Prefs.Rail.gettingStartedCompleted) private var isCompleted
-    @PreferenceStorage(Prefs.Rail.gettingStartedDismissed) private var isDismissed
     @PreferenceStorage(Prefs.Rail.gettingStartedCompletedSteps) private var completedSteps
     /// Set by the welcome's Get Started. The first step's Relaunch comes back
     /// with no step done yet, and must land on that step, not replay the
@@ -136,12 +135,6 @@ struct GettingStartedGuide: View {
     /// first step lands on the last page rather than replaying the story.
     private var welcome: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                closeButton
-            }
-            .padding(20)
-
             WelcomeStory(startsAtEnd: welcomeOverride == true) {
                 welcomeSeen = true
                 withAnimation(.easeInOut(duration: 0.25)) { welcomeOverride = false }
@@ -149,12 +142,16 @@ struct GettingStartedGuide: View {
         }
     }
 
-    /// The bar and the ×. The bar alone tells the progress — no section name
-    /// in capitals, no "3 of 7" (product owner, 2026-10-06: "fewer buttons and bells and whistles").
+    /// The bar, and the × only on a guide reopened after setup was finished.
+    /// The bar alone tells the progress — no section name in capitals, no
+    /// "3 of 7" (product owner, 2026-10-06: "fewer buttons and bells and
+    /// whistles"). First setup cannot be closed (product owner, 2026-11-21:
+    /// "it shouldn't let you click away the onboarding; it's important to
+    /// complete").
     private var header: some View {
         HStack(spacing: 12) {
             progressBar
-            closeButton
+            if isCompleted { closeButton }
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
@@ -182,14 +179,13 @@ struct GettingStartedGuide: View {
 
     private var closeButton: some View {
         Button {
-            isDismissed = true
             isPresented = false
         } label: {
             Image(systemName: "xmark")
         }
         .buttonStyle(.hoverWash(in: Circle()))
-        .help("Continue later")
-        .accessibilityLabel("Continue later")
+        .help("Close")
+        .accessibilityLabel("Close")
     }
 
     private var stepPosition: Int? {
@@ -1615,7 +1611,6 @@ struct GettingStartedGuide: View {
         guard let next = nextIncompleteStep else {
             let isFirstFinish = !isCompleted
             isCompleted = true
-            isDismissed = false
             arrivalSuggestionsArmed = true
             // The Studio appears with suggestions for what to do first
             // (product owner, 2026-09-22), and they live on the Reader's idle
