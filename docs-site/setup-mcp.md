@@ -5,7 +5,7 @@ title: Connect an AI Assistant
 
 # Connect an AI Assistant
 
-Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 30 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. Once the 30 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
+Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 30 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code, Antigravity and every other MCP client on your account. Once the 30 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
 
 ::: tip Most people don't need this
 The easiest way to use your sources with AI is to [drag & drop](/drag-and-drop) them directly from Studio. A persistent connection lets an assistant search your full library and run review sessions without dragging files each time.
@@ -90,6 +90,30 @@ grok mcp add --transport http foreverlm "https://plugin.foreverlm.com/mcp"
 ```
 
 Complete Sign in with Apple on first use, then ask Grok to call `get_mcp_status`.
+
+## Antigravity
+
+Google Antigravity connects to ForeverLM as a remote MCP server. It has no connector screen; you add the server to its MCP config file.
+
+1. In Web Studio, choose **MCP** in Chat and authorize always-on iCloud access. **MCP ✓** confirms it is ready.
+2. Open `~/.gemini/config/mcp_config.json` (create it if it is missing) and add ForeverLM under `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "foreverlm": {
+      "url": "https://plugin.foreverlm.com/mcp"
+    }
+  }
+}
+```
+
+If the file already lists other servers, add the `foreverlm` entry beside them.
+3. Restart Antigravity, or reload its MCP servers from **Additional Options (…) → MCP Servers**.
+4. When Antigravity asks you to sign in to ForeverLM, complete Sign in with Apple. Antigravity receives the sign-in on this Mac, so the ForeverLM page names the destination as **an app on this computer** and says ForeverLM has not reviewed it. Continue when you started the connection from Antigravity yourself.
+5. Ask the agent to call `get_mcp_status`.
+
+Use the `/mcp` address, not `/sse`: Antigravity speaks Streamable HTTP and not the older SSE transport.
 
 ## Meta Muse custom connector
 
