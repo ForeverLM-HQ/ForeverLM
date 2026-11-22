@@ -1285,7 +1285,7 @@ struct GettingStartedGuide: View {
                 icon: "key.fill",
                 assetIcon: "OpenRouterIcon",
                 title: "Connect OpenRouter",
-                detail: "ForeverLM's AI runs on your own OpenRouter account, which reaches every major AI model at cost. Free models cost nothing, and OpenAI or Anthropic API credits you already have can pay for those companies' models."
+                detail: "ForeverLM's AI runs on your own OpenRouter account, at cost."
             )
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
@@ -1334,11 +1334,8 @@ struct GettingStartedGuide: View {
                             .disabled(ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ownKeySaving)
                         }
                     } else {
-                        // A new learner may never have heard of OpenRouter:
-                        // its sign-in page also makes the account.
-                        Text("No OpenRouter account yet? You make one on the way.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        // OpenRouter's sign-in page also makes the account, so a
+                        // new learner needs no line about it.
                         Button("Paste a key instead") { showsKeyField = true }
                             .buttonStyle(.plain)
                             .font(.subheadline)
