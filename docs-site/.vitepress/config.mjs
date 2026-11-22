@@ -5,6 +5,8 @@ export default defineConfig({
   description: 'Learn frictionlessly. Documentation for ForeverLM',
   lang: 'en-US',
   cleanUrls: true,
+  // docs-site/website is the private website, laid over by overlay.py; never a docs page.
+  srcExclude: ['website/**'],
   sitemap: {
     hostname: 'https://docs.foreverlm.com',
     transformItems: (items) => items.filter((item) => !item.url.startsWith('website/')),
