@@ -34,7 +34,29 @@ final class WebVerificationRequests {
     /// The request a banner should render. Newest wins: a later check is the one
     /// blocking work right now, and clearing it usually clears the earlier ones
     /// too (the `cf_clearance` cookie is shared across every WebView).
-    var latest: Request? { pending.last }
+    ///
+    /// Nil while banners are held (`holdBanners`): requests keep waiting in
+    /// `pending`, they just are not offered.
+    var latest: Request? { isHeld ? nil : pending.last }
+
+    /// True while the banner is held back. Observable, so the Studio banner
+    /// reappears by itself when the hold ends.
+    private(set) var isHeld = false
+    private var holdTask: Task<Void, Never>?
+
+    /// Keeps the banner off screen for `duration`. Setup's paper imports run
+    /// into publisher checks, and the banner they raise must not greet the
+    /// learner the moment setup finishes (product owner, 2026-11-21: "when I
+    /// finished onboarding and don't yet want to see these notifications").
+    func holdBanners(for duration: Duration) {
+        isHeld = true
+        holdTask?.cancel()
+        holdTask = Task { [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.isHeld = false
+        }
+    }
 
     @discardableResult
     func request(

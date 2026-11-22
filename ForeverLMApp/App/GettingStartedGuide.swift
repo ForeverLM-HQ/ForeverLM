@@ -1588,6 +1588,8 @@ struct GettingStartedGuide: View {
             // it, so the first finish brings the Reader forward; a guide
             // reopened later leaves the window as the learner had it.
             if isFirstFinish {
+                // Publisher checks from setup's imports wait quietly.
+                WebVerificationRequests.shared.holdBanners(for: .seconds(600))
                 vm.revealCenterTab(.reader, beside: .reader)
             }
             isPresented = false

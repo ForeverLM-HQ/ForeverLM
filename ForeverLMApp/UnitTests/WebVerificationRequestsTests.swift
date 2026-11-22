@@ -84,4 +84,17 @@ struct WebVerificationRequestsTests {
         registry.withdraw(second)
         #expect(registry.latest?.message == "first")
     }
+
+    @Test("a held registry keeps requests waiting but offers no banner until the hold ends")
+    func holdKeepsBannerOff() async {
+        let registry = makeRegistry()
+        registry.request(message: "check", detail: "Paper", open: {}, skip: {})
+
+        registry.holdBanners(for: .milliseconds(50))
+        #expect(registry.pending.count == 1)
+        #expect(registry.latest == nil)
+
+        try? await Task.sleep(for: .milliseconds(300))
+        #expect(registry.latest?.detail == "Paper")
+    }
 }
