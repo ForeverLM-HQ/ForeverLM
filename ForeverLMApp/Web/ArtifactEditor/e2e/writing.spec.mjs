@@ -350,3 +350,15 @@ test('a click is checked once the caret has settled: a plain one says nothing, o
   expect(reported[0].click.x).toBeCloseTo(third.x, 0)
   expect(JSON.stringify(reported[0])).not.toContain('third')
 })
+
+test('a list marker typed at the start of an item changes the list it is in', async ({ page }) => {
+  const errors = await openEditor(page, '# T\n\n* **Proposed model:**\n  * Replication errors.\n  * Separate nuclear.\n')
+  await caretIn(page, 'Replication errors', 0)
+  await page.keyboard.type('1. ')
+  await expect.poll(() => stored(page)).toContain('* **Proposed model:**\n  1. Replication errors.\n  2. Separate nuclear.')
+  await caretIn(page, 'Separate nuclear', 0)
+  await page.keyboard.type('- ')
+  await expect.poll(() => stored(page)).toContain('  * Replication errors.\n  * Separate nuclear.')
+  expect(await stored(page)).not.toContain('\\.')
+  expect(errors).toEqual([])
+})

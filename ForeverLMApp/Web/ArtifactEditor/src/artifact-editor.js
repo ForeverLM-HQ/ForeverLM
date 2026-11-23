@@ -32,7 +32,7 @@ import { trailingConfig } from '@milkdown/kit/plugin/trailing'
 import { nodeRule } from '@milkdown/kit/prose'
 import { lift, setBlockType } from '@milkdown/kit/prose/commands'
 import { closeHistory, redo as redoHistory, undo as undoHistory } from '@milkdown/kit/prose/history'
-import { inputRules, wrappingInputRule } from '@milkdown/kit/prose/inputrules'
+import { InputRule, inputRules, wrappingInputRule } from '@milkdown/kit/prose/inputrules'
 import { liftListItem } from '@milkdown/kit/prose/schema-list'
 import { DOMSerializer, Fragment, Slice } from '@milkdown/kit/prose/model'
 import { NodeSelection, Plugin, PluginKey, Selection, TextSelection } from '@milkdown/kit/prose/state'
@@ -8030,6 +8030,7 @@ async function create(markdown, fontSize) {
     editor.editor.config(withRoomAroundTheCaret)
     editor.editor.config(withBlockShortcutsOnEnter)
     editor.editor.use(checklistShortcut)
+    editor.editor.use(listKindShortcut)
     editor.editor.config(withDoubleDollarMath)
     // After Crepe's remark-math, whose `$` reading and writing it changes.
     editor.editor.use(dollarMathRemark)
@@ -8948,30 +8949,52 @@ function liftSelectionOutOf(view, typeName) {
 function changeListKind(view, id) {
   const { state } = view
   const { $from } = state.selection
-  const nodes = state.schema.nodes
   let depth = $from.depth
   while (depth > 0 && !['bullet_list', 'ordered_list'].includes($from.node(depth).type.name)) depth -= 1
   if (depth <= 0) return
-  const list = $from.node(depth)
-  const listPos = $from.before(depth)
+  view.dispatch(setListKind(state.tr, $from.before(depth), id))
+}
+
+/// Re-marks the list at `listPos` in `tr` as bulleted, numbered (counting from
+/// `order`) or checklist; see `changeListKind`.
+function setListKind(tr, listPos, id, order = 1) {
+  const list = tr.doc.nodeAt(listPos)
+  const nodes = tr.doc.type.schema.nodes
   const ordered = id === 'numbered'
   const listType = ordered ? nodes.ordered_list : nodes.bullet_list
-  const tr = state.tr
-  if (list.type !== listType) {
-    tr.setNodeMarkup(listPos, listType, ordered ? { order: 1, spread: list.attrs.spread } : { spread: list.attrs.spread })
+  if (list.type !== listType || (ordered && list.attrs.order !== order)) {
+    tr.setNodeMarkup(listPos, listType, ordered ? { order, spread: list.attrs.spread } : { spread: list.attrs.spread })
   }
   list.forEach((item, offset, index) => {
     if (item.type !== nodes.list_item) return
     const attrs = {
       ...item.attrs,
       listType: ordered ? 'ordered' : 'bullet',
-      label: ordered ? `${index + 1}.` : '•',
+      label: ordered ? `${order + index}.` : '•',
     }
     if ('checked' in item.attrs) attrs.checked = id === 'todo' ? (item.attrs.checked ?? false) : null
     tr.setNodeMarkup(listPos + 1 + offset, undefined, attrs)
   })
-  view.dispatch(tr)
+  return tr
 }
+
+/// `1. ` typed at the start of a bullet makes its list numbered, and `- `
+/// (or `* `, `+ `) at the start of a numbered item makes its list bulleted,
+/// as the slash menu's rows do. Milkdown's own list rules only wrap a plain
+/// line, so inside a list the marker stayed as text and was stored as `1\.`.
+const listKindShortcut = $inputRule(() => new InputRule(/^(?:(\d+)\.|[-*+])\s$/, (state, match, start, end) => {
+  const $start = state.doc.resolve(start)
+  const depth = $start.depth
+  if (depth < 3 || $start.parentOffset !== 0 || $start.parent.type.name !== 'paragraph') return null
+  const item = $start.node(depth - 1)
+  if (item.type.name !== 'list_item' || $start.index(depth - 1) !== 0 || item.attrs.checked != null) return null
+  const list = $start.node(depth - 2)
+  const numbered = match[1] != null
+  const wanted = numbered ? 'ordered_list' : 'bullet_list'
+  if (list.type.name === wanted || !['bullet_list', 'ordered_list'].includes(list.type.name)) return null
+  const tr = state.tr.delete(start, end)
+  return setListKind(tr, $start.before(depth - 2), numbered ? 'numbered' : 'bullet', numbered ? Number(match[1]) : 1)
+}))
 
 /// The stretch of writing the caret sits in: its heading plus every block down
 /// to the next one. This is what the note hands Chat, so a question arrives with
