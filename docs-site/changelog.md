@@ -33,6 +33,20 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.0 (build 318) — 2026-11-22
+
+**Highlights:**
+- **ForeverLM 1.0.** The stable release of the Mac app.
+- **Two pages side by side.** A page opens in the pane you click it in.
+- **The Library zooms on its own, by pinch or ⌘= / ⌘- / ⌘0.**
+
+- **ForeverLM 1.0.** The Mac app is now the stable release: the same app you have been betting on, with its tools, sync format and plugins held steady from here.
+- **Goals live in Plan.** The Goals tab is gone from Space lists; goals, open questions and ideas follow the Plan page, and the assistant's tool descriptions say so.
+- **Nested lists in a Page keep the ordinary list spacing,** and the editor and chat renderer are rebuilt on patched dependencies.
+- **A page clicked in a pane opens in that pane,** so two pages can stand side by side; it used to open in whichever pane already showed Pages.
+- **⌘Z and ⇧⌘Z undo and redo in a page** as you type.
+- **Quoted passages sit in the chat composer as one annotations chip,** with a list popover to review or remove them, where each quote took its own row.
+
 ## 0.237.0 (build 317) — 2026-11-22
 
 **Highlights:**
