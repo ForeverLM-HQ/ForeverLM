@@ -144,7 +144,7 @@ extension NotebookTint {
 }
 
 /// One notebook in Home's gallery on iPad, the Mac's gallery card,
-/// drawn as NotebookLM draws its own: a card in the notebook's soft colour
+/// drawn as Gemini Notebook draws its own: a card in the notebook's soft colour
 /// (`NotebookTint`), its emoji large in the corner, its name under it and
 /// "12 sources · 2 hr ago", and ▶ in its bottom-right corner while it has an
 /// audio overview. The same data as the phone's row (`MobileNotebookListRow`)

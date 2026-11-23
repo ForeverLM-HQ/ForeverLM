@@ -292,7 +292,7 @@ struct ArticleRow: View {
         }
     }
 
-    /// One line, as NotebookLM's Sources column draws a source (product
+    /// One line, as Gemini Notebook's Sources column draws a source (product
     /// owner, 2026-10-12, of a notebook's column showing the Library's
     /// full rows: "how can this look better. how does gemini notebook do
     /// this?"): a small cover or the kind's glyph, the title, the show,

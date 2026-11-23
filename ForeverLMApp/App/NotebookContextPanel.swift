@@ -1289,7 +1289,7 @@ private struct NotebookLibraryBrowser: View {
             }
             // The kind tabs draw in flow, as in the docked Library.
             .environment(\.studioTitlebarBandHeight, nil)
-            // One line a source and the kinds as words, as NotebookLM's
+            // One line a source and the kinds as words, as Gemini Notebook's
             // column reads.
             .environment(\.sourcesListLayout, .compact)
             .environment(\.sourcesListHidesIdleSearch, true)

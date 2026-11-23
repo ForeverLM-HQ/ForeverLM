@@ -6,7 +6,7 @@ description: How ForeverLM compares to Paper (paper.ac), the study workspace tha
 
 # ForeverLM vs Paper (paper.ac)
 
-Paper (paper.ac) is a study workspace that sets out to replace NotebookLM, Notion, Anki and Quizlet at once. You upload PDFs, lectures, videos and web pages, chat with them, and turn them into notes, FSRS flashcards, quizzes, podcasts and slide decks, all inside a Notion-style editor. It is free while in beta. ForeverLM overlaps on the study loop. It differs on where the library lives (your iCloud, not a vendor's cloud), which AI runs it (any model, or the assistant you already use), and how sources arrive (on their own, podcasts included).
+Paper (paper.ac) is a study workspace that sets out to replace Gemini Notebook, Notion, Anki and Quizlet at once. You upload PDFs, lectures, videos and web pages, chat with them, and turn them into notes, FSRS flashcards, quizzes, podcasts and slide decks, all inside a Notion-style editor. It is free while in beta. ForeverLM overlaps on the study loop. It differs on where the library lives (your iCloud, not a vendor's cloud), which AI runs it (any model, or the assistant you already use), and how sources arrive (on their own, podcasts included).
 
 ## At a glance
 

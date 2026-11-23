@@ -113,10 +113,10 @@ export default defineConfig({
         collapsed: true,
         items: [
           { text: 'ForeverLM vs Alternatives', link: '/compare/' },
-          { text: 'Best NotebookLM Alternatives', link: '/compare/best-notebooklm-alternatives' },
+          { text: 'Best Gemini Notebook Alternatives', link: '/compare/best-notebooklm-alternatives' },
           { text: 'Best PDF Listening Apps', link: '/compare/best-pdf-listening-apps' },
           { text: 'Best AI Research Libraries', link: '/compare/best-ai-research-library-apps' },
-          { text: 'vs NotebookLM', link: '/compare/notebooklm' },
+          { text: 'vs Gemini Notebook', link: '/compare/notebooklm' },
           { text: 'vs Heptabase', link: '/compare/heptabase' },
           { text: 'vs Anki', link: '/compare/anki' },
           { text: 'vs RemNote', link: '/compare/remnote' },

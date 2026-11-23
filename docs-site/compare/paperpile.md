@@ -20,7 +20,7 @@ Paperpile helps you move from **paper to citation**. ForeverLM helps you move fr
 | **Organization** | Notebooks, source types, search, tags, status, and Schedule | Folders, labels, stars, filters, duplicate merging, full-text search, and shared libraries |
 | **PDF workflow** | Reader, extracted text and figures, Text to Speech, Chat, and review | PDF reader; notes, highlighting, and collaboration on Expert |
 | **Citations** | Stores paper metadata, but no cite-while-you-write plugin | Word and Google Docs plugins, BibTeX/LaTeX, 10,000+ styles, and Overleaf integration |
-| **AI workflow** | Chat inside ForeverLM or connect any MCP assistant to search and operate the full library; sessions and reviews can be saved back | Ask AI beta uploads selected PDFs and prompts into ChatGPT, Claude, Gemini, Copilot, or NotebookLM |
+| **AI workflow** | Chat inside ForeverLM or connect any MCP assistant to search and operate the full library; sessions and reviews can be saved back | Ask AI beta uploads selected PDFs and prompts into ChatGPT, Claude, Gemini, Copilot, or Gemini Notebook |
 | **Beyond papers** | Articles, books, podcasts, videos, courses, meetings, and X posts share the same notebooks and Chat | Focused on references, PDFs, and academic writing |
 | **Storage** | Local SQLite + files in your private iCloud container | Account-based service with unlimited research PDF storage and optional Google Drive/OneDrive sync |
 
@@ -28,7 +28,7 @@ Paperpile helps you move from **paper to citation**. ForeverLM helps you move fr
 
 ## AI is where the workflows diverge
 
-Paperpile's Ask AI feature is a useful bridge. Select one or more PDFs, choose a research prompt, and Paperpile opens ChatGPT, Claude, Gemini, Copilot, or NotebookLM with the files attached. It is a pragmatic way to bring a paper into the assistant you already use.
+Paperpile's Ask AI feature is a useful bridge. Select one or more PDFs, choose a research prompt, and Paperpile opens ChatGPT, Claude, Gemini, Copilot, or Gemini Notebook with the files attached. It is a pragmatic way to bring a paper into the assistant you already use.
 
 ForeverLM supports that lightweight workflow too: drag selected sources into an AI chat. But it also goes further in two directions.
 

@@ -51,7 +51,7 @@ Your knowledge base lives in your private iCloud container. ForeverLM servers do
 - [Articles](/articles), [Papers](/papers), [Books](/books), [Courses](/courses), [Podcasts](/podcasts), [X Posts](/x-posts), [Plugins](/external-plugins)
 
 **Choosing a learning tool?**
-- [ForeverLM vs Alternatives](/compare/): honest comparisons with NotebookLM, Speechify, Readwise, Zotero, Paperpile, Anki, Obsidian, and more
+- [ForeverLM vs Alternatives](/compare/): honest comparisons with Gemini Notebook, Speechify, Readwise, Zotero, Paperpile, Anki, Obsidian, and more
 
 **Use with AI:**
 - [In-App Chat](/in-app-chat): review sources inside ForeverLM with your configured API provider

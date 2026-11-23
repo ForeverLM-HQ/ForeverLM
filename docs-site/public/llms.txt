@@ -48,10 +48,10 @@
 ## Compare
 
 - [ForeverLM vs Alternatives](https://docs.foreverlm.com/compare): Comparison overview.
-- [Best NotebookLM Alternatives](https://docs.foreverlm.com/compare/best-notebooklm-alternatives): Research-library alternatives to NotebookLM.
+- [Best Gemini Notebook Alternatives](https://docs.foreverlm.com/compare/best-notebooklm-alternatives): Research-library alternatives to Gemini Notebook.
 - [Best PDF Listening Apps](https://docs.foreverlm.com/compare/best-pdf-listening-apps): PDF and document listening tools.
 - [Best AI Research Libraries](https://docs.foreverlm.com/compare/best-ai-research-library-apps): AI-assisted research-library tools.
-- [ForeverLM vs NotebookLM](https://docs.foreverlm.com/compare/notebooklm)
+- [ForeverLM vs Gemini Notebook](https://docs.foreverlm.com/compare/notebooklm)
 - [ForeverLM vs Heptabase](https://docs.foreverlm.com/compare/heptabase)
 - [ForeverLM vs Anki](https://docs.foreverlm.com/compare/anki)
 - [ForeverLM vs RemNote](https://docs.foreverlm.com/compare/remnote)

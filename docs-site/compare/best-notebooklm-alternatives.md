@@ -12,7 +12,7 @@ There is no universal replacement. These are the strongest options by job.
 
 ## Quick comparison
 
-| App | Best for | Main advantage over NotebookLM | Main trade-off |
+| App | Best for | Main advantage over Gemini Notebook | Main trade-off |
 |---|---|---|---|
 | **ForeverLM** | A private library you intend to learn from | Local iCloud library, any model, podcasts, Schedule, and saved review | Full workflow is Mac-centered |
 | [Elicit](/compare/elicit) | Systematic literature reviews | Searches, screens, and extracts evidence from scholarly literature | Research workflow rather than a personal knowledge library |
@@ -30,7 +30,7 @@ There is no universal replacement. These are the strongest options by job.
 
 ## Best overall for long-term learning: ForeverLM
 
-Both work in notebooks, but a NotebookLM notebook holds its own uploads, while a ForeverLM notebook draws on one library. Articles, papers, books, podcasts, videos, courses, and meetings accumulate in one local database, and a notebook points at the sources it uses instead of each notebook being uploaded in isolation.
+Both work in notebooks, but a Gemini Notebook notebook holds its own uploads, while a ForeverLM notebook draws on one library. Articles, papers, books, podcasts, videos, courses, and meetings accumulate in one local database, and a notebook points at the sources it uses instead of each notebook being uploaded in isolation.
 
 The difference is clearest after the first answer. A source can be assigned to a day, read or heard, discussed with any supported model, and reviewed through a dialogue that asks you to explain it back. That review remains linked to the source. If your goal is to remember what you consume rather than generate artifacts from it, this is the strongest alternative. Moving over is one paste: a Gemini Notebook's link brings its sources, chats and notes into ForeverLM as a notebook ([Importing a Gemini Notebook](/studio#importing-a-gemini-notebook)).
 
@@ -72,4 +72,4 @@ DEVONthink is the power-user choice for a private Mac archive. It handles docume
 - Choose **DEVONthink** for a private, automated Mac document archive.
 - Stay with **Gemini Notebook** if Gemini, generated artifacts, and easy cloud notebooks already solve the job.
 
-For the direct product breakdown, see [ForeverLM vs NotebookLM](/compare/notebooklm).
+For the direct product breakdown, see [ForeverLM vs Gemini Notebook](/compare/notebooklm).

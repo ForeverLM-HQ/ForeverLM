@@ -19,7 +19,7 @@ enum SourcesListLayout: Equatable, Sendable {
     case sidebar
     case wide
     /// Inside a notebook's Sources column (`NotebookLibraryBrowser`): one
-    /// line a source and the kinds as words, as NotebookLM's column reads.
+    /// line a source and the kinds as words, as Gemini Notebook's column reads.
     /// Otherwise the narrow list.
     case compact
 }

@@ -239,7 +239,7 @@ struct NotebookSharePopover: View {
 
 /// **Share** at the top right of the notebook, on the Studio column's chrome
 /// line: a titlebar-band control, as everything on that line is, labelled as
-/// NotebookLM labels its own. Opens the notebook's Share popover.
+/// Gemini Notebook labels its own. Opens the notebook's Share popover.
 struct NotebookShareButton: View {
     @Environment(\.uiZoomScale) private var uiZoomScale
     let action: () -> Void

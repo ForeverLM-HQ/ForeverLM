@@ -242,7 +242,7 @@ struct NotebooksHomeOrder: Equatable, Sendable {
     }
 }
 
-/// How the home draws its notebooks: cards (the default, as NotebookLM's
+/// How the home draws its notebooks: cards (the default, as Gemini Notebook's
 /// home), or a dense sortable list for a large library (product owner,
 /// 2026-10-03). Device-local, with the order.
 enum NotebooksHomeLayout: String, CaseIterable, Identifiable, Sendable {

@@ -41,7 +41,7 @@ struct NotebookTitle: Equatable, Sendable {
 }
 
 /// The soft colour a notebook's emoji is drawn on in the Space's list, as
-/// NotebookLM's are (product owner, 2026-10-02: "this can also look nicer and more
+/// Gemini Notebook's are (product owner, 2026-10-02: "this can also look nicer and more
 /// like notebooklm"): one of eight hues, light in light mode and deep in dark
 /// mode, chosen by a 32-bit FNV-1a hash of the notebook's id, so a notebook
 /// keeps its colour through renames and on every device. The web's twin is

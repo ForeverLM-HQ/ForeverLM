@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import AppKit
 
 /// Studio — Knowledge Base interface: the navigation rail on the left and the center panes beside it.
-/// Inspired by NotebookLM but with one persistent knowledge base (not per-notebook).
+/// Inspired by Gemini Notebook but with one persistent knowledge base (not per-notebook).
 struct StudioView: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState

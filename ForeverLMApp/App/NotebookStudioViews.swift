@@ -49,7 +49,7 @@ struct NotebookStudioPanel: View {
                 .zoomedSystemFont(size: 12.5, weight: .semibold)
                 .lineLimit(1)
             Spacer(minLength: 8)
-            // NotebookLM's place for Share: the top right of the notebook.
+            // Gemini Notebook's place for Share: the top right of the notebook.
             NotebookShareButton { isShowingShare = true }
                 .popover(isPresented: $isShowingShare, arrowEdge: .bottom) {
                     NotebookSharePopover(goal: goal, close: { isShowingShare = false })

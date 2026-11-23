@@ -126,7 +126,7 @@ struct MobileNotebookScreen: View {
             onLayoutChange: { hidesTabBar = false }
         )
         .toolbar {
-            // Share at the top right, the NotebookLM place for it, beside ⋯.
+            // Share at the top right, the Gemini Notebook place for it, beside ⋯.
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     showsShare = true

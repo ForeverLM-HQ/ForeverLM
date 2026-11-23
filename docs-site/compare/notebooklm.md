@@ -10,7 +10,7 @@ NotebookLM, renamed **Gemini Notebook** in July 2026 and now at notebook.google.
 
 ## At a glance
 
-| | ForeverLM | NotebookLM |
+| | ForeverLM | Gemini Notebook |
 |---|---|---|
 | **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (capped); higher limits via Google AI bundles: $7.99/mo Plus, $19.99/mo Pro, $99.99+/mo Ultra |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included, but capped per day/tier (chats, overviews, quizzes) |
@@ -31,7 +31,7 @@ Gemini Notebook itself is free, with up to 100 notebooks of 50 sources each and 
 
 ForeverLM is **30 days free, then $19 once** (no subscription), and has no daily caps of its own. There are no tiers to upgrade through: bring your own OpenRouter key, pick any model in the in-app Chat, and OpenRouter bills you at its cost with nothing added by ForeverLM, or use free models and pay nothing. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: that subscription covers the inference, and ForeverLM charges nothing per request. In the app, a little also goes to background work like transcript cleanup, billed the same way; search embeddings are made on your Mac, for free. Every conversation's cost is shown to the cent.
 
-## Where NotebookLM is better
+## Where Gemini Notebook is better
 
 - **Audio and Video Overviews.** The generated podcast-style discussions are best-in-class and genuinely delightful. A ForeverLM notebook's audio overview is one narrator reading a script written from its sources (a deep dive, a brief or a critique), and Text to Speech reads you the *actual source*; there is no two-host show, and ForeverLM's videos are short explainer films of one concept rather than a video overview of a notebook.
 - **Genuinely free AI, forever, with no key.** A Google account is the only requirement, and within the daily caps the free tier costs nothing indefinitely. ForeverLM is paid after its 30 free days, and its built-in AI runs on your own OpenRouter key: free models cost nothing, paid ones cost what OpenRouter charges.
@@ -40,11 +40,11 @@ ForeverLM is **30 days free, then $19 once** (no subscription), and has no daily
 
 ## Where ForeverLM is better
 
-- **Your data never leaves your control.** ForeverLM's library is a local SQLite database plus files in your private iCloud container, synced through your Apple account. NotebookLM requires uploading everything to Google, with no local copy and a weak export story.
-- **Any AI, not one AI.** ForeverLM works with Claude, ChatGPT, Gemini, Grok, or any model through your own OpenRouter key — use the subscription you already pay for, switch anytime. NotebookLM is Gemini-only with no model visibility at all.
-- **A learning system, not a generator.** NotebookLM produces flashcards and quizzes as one-shot artifacts — nothing schedules review, nothing tracks what you've mastered. ForeverLM keeps the cards you choose, brings them back on a spaced schedule across every notebook, runs review sessions where you explain sources back and the AI probes your gaps, and keeps the full review history per source. See [Why Quizzing?](/why-quizzing)
-- **One library for life, under every notebook.** NotebookLM silos knowledge into notebooks capped at 50–600 sources, each with its own uploads. A ForeverLM notebook draws on a single accumulating library — five years of reading, listening, and studying in one searchable place — so a paper is added once, can be in any number of notebooks, and a notebook's Add sources searches the whole library first.
-- **Real podcast support.** Follow your shows, get full transcripts, read/listen/review. NotebookLM can't subscribe to a podcast feed at all.
+- **Your data never leaves your control.** ForeverLM's library is a local SQLite database plus files in your private iCloud container, synced through your Apple account. Gemini Notebook requires uploading everything to Google, with no local copy and a weak export story.
+- **Any AI, not one AI.** ForeverLM works with Claude, ChatGPT, Gemini, Grok, or any model through your own OpenRouter key — use the subscription you already pay for, switch anytime. Gemini Notebook is Gemini-only with no model visibility at all.
+- **A learning system, not a generator.** Gemini Notebook produces flashcards and quizzes as one-shot artifacts — nothing schedules review, nothing tracks what you've mastered. ForeverLM keeps the cards you choose, brings them back on a spaced schedule across every notebook, runs review sessions where you explain sources back and the AI probes your gaps, and keeps the full review history per source. See [Why Quizzing?](/why-quizzing)
+- **One library for life, under every notebook.** Gemini Notebook silos knowledge into notebooks capped at 50–600 sources, each with its own uploads. A ForeverLM notebook draws on a single accumulating library — five years of reading, listening, and studying in one searchable place — so a paper is added once, can be in any number of notebooks, and a notebook's Add sources searches the whole library first.
+- **Real podcast support.** Follow your shows, get full transcripts, read/listen/review. Gemini Notebook can't subscribe to a podcast feed at all.
 - **Sources flow in automatically** from your Safari reading list, Apple Podcasts, and reference managers — no per-notebook uploading ritual.
 - **Your notebooks come with you.** Paste a notebook's link into ForeverLM and it becomes a ForeverLM notebook: its sources, its chats and its notes, kept in your own library. See [Importing a Gemini Notebook](/studio#importing-a-gemini-notebook).
 

@@ -16,7 +16,7 @@ An AI research library should do more than accept a few PDFs in a chat window. T
 | [Papers](/compare/papers) | Hosted scholarly reference library | PDF chat, selected-library chat, and AI search | Academic teams and citation-heavy workflows |
 | [Mendeley](/compare/mendeley) | Elsevier-hosted reference library | Reading Assistant, Ask My Library, experiment comparison | Researchers using Word and Elsevier services |
 | [DEVONthink](/compare/devonthink) | Local Mac document databases | AI chat plus powerful search and automation | Private document archives and advanced workflows |
-| [NotebookLM](/compare/notebooklm) | Isolated hosted notebooks | Grounded Q&A and generated study artifacts | Fast analysis of bounded source collections |
+| [Gemini Notebook](/compare/notebooklm) | Isolated hosted notebooks | Grounded Q&A and generated study artifacts | Fast analysis of bounded source collections |
 | [Elicit](/compare/elicit) | Cloud research notebooks and evidence tables | Literature search, screening, and extraction | Systematic reviews |
 | [SciSpace](/compare/scispace) | Cloud academic workspace | Discovery, deep review, PDF explanation, writing | End-to-end academic research assistance |
 | [Zotero](/compare/zotero) | Local-first reference library | Community AI plugins | Open-source citation management |

@@ -132,7 +132,7 @@ extension StudioSidebar {
 
     /// The kinds as words, inside a notebook's Sources column: one quiet row
     /// of the Space's scope pills, the chosen kind on a grey step, where the
-    /// narrow list draws a bar of glyphs (NotebookLM's column).
+    /// narrow list draws a bar of glyphs (Gemini Notebook's column).
     /// Papers missing a PDF keep their count.
     private var compactSourceTabWords: some View {
         ScrollView(.horizontal, showsIndicators: false) {

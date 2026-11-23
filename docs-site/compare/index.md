@@ -1,7 +1,7 @@
 ---
 layout: doc
 title: ForeverLM vs Alternatives
-description: Compare ForeverLM with NotebookLM, Speechify, Readwise, Zotero, Papers, Elicit, SciSpace, DEVONthink, and other research and learning tools.
+description: Compare ForeverLM with Gemini Notebook, Speechify, Readwise, Zotero, Papers, Elicit, SciSpace, DEVONthink, and other research and learning tools.
 ---
 
 # ForeverLM vs the Alternatives
@@ -25,7 +25,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 | Tool | Best at | Pricing | AI | Retention/review |
 |---|---|---|---|---|
 | **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **30 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
-| [NotebookLM](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
+| [Gemini Notebook](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
 | [Heptabase](/compare/heptabase) | Card-first whiteboards for thinking | $107.88–$647.88/yr, no free tier | Credit-metered (Gemini; more on Premium) | AI tutor on $215.88/yr tier; spaced repetition unshipped |
 | [Anki](/compare/anki) | Memorizing with self-graded flashcards | Free (iOS $24.99 one-time) | None built in | Self-graded flashcards, SM-2/FSRS |
 | [RemNote](/compare/remnote) | Notes with flashcards and exam scheduling | Free (capped); $96–$216/yr; $395 lifetime (AI extra) | Credit-metered (OpenAI/Anthropic/Google) | Flashcards + AI quizzes/grading, exam scheduler |
@@ -62,7 +62,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 ## More head-to-head comparisons
 
-### NotebookLM-style study workspaces
+### Gemini Notebook-style study workspaces
 
 - [Paper (paper.ac)](/compare/paper-ac): a free-in-beta study workspace with FSRS flashcards, quizzes, podcasts, and a Notion-style editor
 - [Memo](/compare/memo-cards): AI flashcards with FSRS, cloze and image occlusion, practice tests, and Anki export
@@ -95,15 +95,15 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 ## Broader buying guides
 
-- [Best NotebookLM alternatives](/compare/best-notebooklm-alternatives)
+- [Best Gemini Notebook alternatives](/compare/best-notebooklm-alternatives)
 - [Best apps for listening to PDFs](/compare/best-pdf-listening-apps)
 - [Best AI research library apps](/compare/best-ai-research-library-apps)
 
 ## Compare by what you're optimizing for
 
-**"I want an AI to study my documents with"** → [NotebookLM](/compare/notebooklm) is the big-tech default; ForeverLM keeps the data in your iCloud, works with any model, and adds the retention loop NotebookLM lacks.
+**"I want an AI to study my documents with"** → [Gemini Notebook](/compare/notebooklm) is the big-tech default; ForeverLM keeps the data in your iCloud, works with any model, and adds the retention loop Gemini Notebook lacks.
 
-**"I want NotebookLM with flashcards built in"** → [Paper](/compare/paper-ac) (free while in beta) or [Memo](/compare/memo-cards) (FSRS cards with Anki export, on every platform). ForeverLM keeps the library in your iCloud, fills it on its own, and reviews by dialogue as well as cards.
+**"I want Gemini Notebook with flashcards built in"** → [Paper](/compare/paper-ac) (free while in beta) or [Memo](/compare/memo-cards) (FSRS cards with Anki export, on every platform). ForeverLM keeps the library in your iCloud, fills it on its own, and reviews by dialogue as well as cards.
 
 **"I want my documents and models to stay on my machine"** → [AnythingLLM](/compare/anythingllm) runs document chat on local models, on any desktop or your own server. ForeverLM keeps the library in your iCloud and adds the learning loop AnythingLLM doesn't have.
 
@@ -145,7 +145,7 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Recall Plus | $360 |
 | RemNote Pro + AI | ~$648 |
 | Heptabase Premium | ~$648 |
-| NotebookLM via Google AI Pro | ~$720 |
+| Gemini Notebook via Google AI Pro | ~$720 |
 
 ForeverLM is the one row without a fixed total, and that's the honest answer: the app is $19 once, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for is included, and the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
 

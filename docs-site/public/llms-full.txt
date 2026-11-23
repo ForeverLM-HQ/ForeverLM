@@ -56,7 +56,7 @@ Your knowledge base lives in your private iCloud container. ForeverLM servers do
 - [Articles](/articles), [Papers](/papers), [Books](/books), [Courses](/courses), [Podcasts](/podcasts), [X Posts](/x-posts), [Plugins](/external-plugins)
 
 **Choosing a learning tool?**
-- [ForeverLM vs Alternatives](/compare/): honest comparisons with NotebookLM, Speechify, Readwise, Zotero, Paperpile, Anki, Obsidian, and more
+- [ForeverLM vs Alternatives](/compare/): honest comparisons with Gemini Notebook, Speechify, Readwise, Zotero, Paperpile, Anki, Obsidian, and more
 
 **Use with AI:**
 - [In-App Chat](/in-app-chat): review sources inside ForeverLM with your configured API provider
@@ -5018,7 +5018,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 | Tool | Best at | Pricing | AI | Retention/review |
 |---|---|---|---|---|
 | **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **30 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
-| [NotebookLM](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
+| [Gemini Notebook](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
 | [Heptabase](/compare/heptabase) | Card-first whiteboards for thinking | $107.88–$647.88/yr, no free tier | Credit-metered (Gemini; more on Premium) | AI tutor on $215.88/yr tier; spaced repetition unshipped |
 | [Anki](/compare/anki) | Memorizing with self-graded flashcards | Free (iOS $24.99 one-time) | None built in | Self-graded flashcards, SM-2/FSRS |
 | [RemNote](/compare/remnote) | Notes with flashcards and exam scheduling | Free (capped); $96–$216/yr; $395 lifetime (AI extra) | Credit-metered (OpenAI/Anthropic/Google) | Flashcards + AI quizzes/grading, exam scheduler |
@@ -5055,7 +5055,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 ## More head-to-head comparisons
 
-### NotebookLM-style study workspaces
+### Gemini Notebook-style study workspaces
 
 - [Paper (paper.ac)](/compare/paper-ac): a free-in-beta study workspace with FSRS flashcards, quizzes, podcasts, and a Notion-style editor
 - [Memo](/compare/memo-cards): AI flashcards with FSRS, cloze and image occlusion, practice tests, and Anki export
@@ -5088,15 +5088,15 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 ## Broader buying guides
 
-- [Best NotebookLM alternatives](/compare/best-notebooklm-alternatives)
+- [Best Gemini Notebook alternatives](/compare/best-notebooklm-alternatives)
 - [Best apps for listening to PDFs](/compare/best-pdf-listening-apps)
 - [Best AI research library apps](/compare/best-ai-research-library-apps)
 
 ## Compare by what you're optimizing for
 
-**"I want an AI to study my documents with"** → [NotebookLM](/compare/notebooklm) is the big-tech default; ForeverLM keeps the data in your iCloud, works with any model, and adds the retention loop NotebookLM lacks.
+**"I want an AI to study my documents with"** → [Gemini Notebook](/compare/notebooklm) is the big-tech default; ForeverLM keeps the data in your iCloud, works with any model, and adds the retention loop Gemini Notebook lacks.
 
-**"I want NotebookLM with flashcards built in"** → [Paper](/compare/paper-ac) (free while in beta) or [Memo](/compare/memo-cards) (FSRS cards with Anki export, on every platform). ForeverLM keeps the library in your iCloud, fills it on its own, and reviews by dialogue as well as cards.
+**"I want Gemini Notebook with flashcards built in"** → [Paper](/compare/paper-ac) (free while in beta) or [Memo](/compare/memo-cards) (FSRS cards with Anki export, on every platform). ForeverLM keeps the library in your iCloud, fills it on its own, and reviews by dialogue as well as cards.
 
 **"I want my documents and models to stay on my machine"** → [AnythingLLM](/compare/anythingllm) runs document chat on local models, on any desktop or your own server. ForeverLM keeps the library in your iCloud and adds the learning loop AnythingLLM doesn't have.
 
@@ -5138,7 +5138,7 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Recall Plus | $360 |
 | RemNote Pro + AI | ~$648 |
 | Heptabase Premium | ~$648 |
-| NotebookLM via Google AI Pro | ~$720 |
+| Gemini Notebook via Google AI Pro | ~$720 |
 
 ForeverLM is the one row without a fixed total, and that's the honest answer: the app is $19 once, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for is included, and the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
 
@@ -5158,7 +5158,7 @@ There is no universal replacement. These are the strongest options by job.
 
 ## Quick comparison
 
-| App | Best for | Main advantage over NotebookLM | Main trade-off |
+| App | Best for | Main advantage over Gemini Notebook | Main trade-off |
 |---|---|---|---|
 | **ForeverLM** | A private library you intend to learn from | Local iCloud library, any model, podcasts, Schedule, and saved review | Full workflow is Mac-centered |
 | [Elicit](/compare/elicit) | Systematic literature reviews | Searches, screens, and extracts evidence from scholarly literature | Research workflow rather than a personal knowledge library |
@@ -5176,7 +5176,7 @@ There is no universal replacement. These are the strongest options by job.
 
 ## Best overall for long-term learning: ForeverLM
 
-Both work in notebooks, but a NotebookLM notebook holds its own uploads, while a ForeverLM notebook draws on one library. Articles, papers, books, podcasts, videos, courses, and meetings accumulate in one local database, and a notebook points at the sources it uses instead of each notebook being uploaded in isolation.
+Both work in notebooks, but a Gemini Notebook notebook holds its own uploads, while a ForeverLM notebook draws on one library. Articles, papers, books, podcasts, videos, courses, and meetings accumulate in one local database, and a notebook points at the sources it uses instead of each notebook being uploaded in isolation.
 
 The difference is clearest after the first answer. A source can be assigned to a day, read or heard, discussed with any supported model, and reviewed through a dialogue that asks you to explain it back. That review remains linked to the source. If your goal is to remember what you consume rather than generate artifacts from it, this is the strongest alternative. Moving over is one paste: a Gemini Notebook's link brings its sources, chats and notes into ForeverLM as a notebook ([Importing a Gemini Notebook](/studio#importing-a-gemini-notebook)).
 
@@ -5218,7 +5218,7 @@ DEVONthink is the power-user choice for a private Mac archive. It handles docume
 - Choose **DEVONthink** for a private, automated Mac document archive.
 - Stay with **Gemini Notebook** if Gemini, generated artifacts, and easy cloud notebooks already solve the job.
 
-For the direct product breakdown, see [ForeverLM vs NotebookLM](/compare/notebooklm).
+For the direct product breakdown, see [ForeverLM vs Gemini Notebook](/compare/notebooklm).
 
 ---
 
@@ -5284,7 +5284,7 @@ An AI research library should do more than accept a few PDFs in a chat window. T
 | [Papers](/compare/papers) | Hosted scholarly reference library | PDF chat, selected-library chat, and AI search | Academic teams and citation-heavy workflows |
 | [Mendeley](/compare/mendeley) | Elsevier-hosted reference library | Reading Assistant, Ask My Library, experiment comparison | Researchers using Word and Elsevier services |
 | [DEVONthink](/compare/devonthink) | Local Mac document databases | AI chat plus powerful search and automation | Private document archives and advanced workflows |
-| [NotebookLM](/compare/notebooklm) | Isolated hosted notebooks | Grounded Q&A and generated study artifacts | Fast analysis of bounded source collections |
+| [Gemini Notebook](/compare/notebooklm) | Isolated hosted notebooks | Grounded Q&A and generated study artifacts | Fast analysis of bounded source collections |
 | [Elicit](/compare/elicit) | Cloud research notebooks and evidence tables | Literature search, screening, and extraction | Systematic reviews |
 | [SciSpace](/compare/scispace) | Cloud academic workspace | Discovery, deep review, PDF explanation, writing | End-to-end academic research assistance |
 | [Zotero](/compare/zotero) | Local-first reference library | Community AI plugins | Open-source citation management |
@@ -5334,7 +5334,7 @@ NotebookLM, renamed **Gemini Notebook** in July 2026 and now at notebook.google.
 
 ## At a glance
 
-| | ForeverLM | NotebookLM |
+| | ForeverLM | Gemini Notebook |
 |---|---|---|
 | **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (capped); higher limits via Google AI bundles: $7.99/mo Plus, $19.99/mo Pro, $99.99+/mo Ultra |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included, but capped per day/tier (chats, overviews, quizzes) |
@@ -5355,7 +5355,7 @@ Gemini Notebook itself is free, with up to 100 notebooks of 50 sources each and 
 
 ForeverLM is **30 days free, then $19 once** (no subscription), and has no daily caps of its own. There are no tiers to upgrade through: bring your own OpenRouter key, pick any model in the in-app Chat, and OpenRouter bills you at its cost with nothing added by ForeverLM, or use free models and pay nothing. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: that subscription covers the inference, and ForeverLM charges nothing per request. In the app, a little also goes to background work like transcript cleanup, billed the same way; search embeddings are made on your Mac, for free. Every conversation's cost is shown to the cent.
 
-## Where NotebookLM is better
+## Where Gemini Notebook is better
 
 - **Audio and Video Overviews.** The generated podcast-style discussions are best-in-class and genuinely delightful. A ForeverLM notebook's audio overview is one narrator reading a script written from its sources (a deep dive, a brief or a critique), and Text to Speech reads you the *actual source*; there is no two-host show, and ForeverLM's videos are short explainer films of one concept rather than a video overview of a notebook.
 - **Genuinely free AI, forever, with no key.** A Google account is the only requirement, and within the daily caps the free tier costs nothing indefinitely. ForeverLM is paid after its 30 free days, and its built-in AI runs on your own OpenRouter key: free models cost nothing, paid ones cost what OpenRouter charges.
@@ -5364,11 +5364,11 @@ ForeverLM is **30 days free, then $19 once** (no subscription), and has no daily
 
 ## Where ForeverLM is better
 
-- **Your data never leaves your control.** ForeverLM's library is a local SQLite database plus files in your private iCloud container, synced through your Apple account. NotebookLM requires uploading everything to Google, with no local copy and a weak export story.
-- **Any AI, not one AI.** ForeverLM works with Claude, ChatGPT, Gemini, Grok, or any model through your own OpenRouter key — use the subscription you already pay for, switch anytime. NotebookLM is Gemini-only with no model visibility at all.
-- **A learning system, not a generator.** NotebookLM produces flashcards and quizzes as one-shot artifacts — nothing schedules review, nothing tracks what you've mastered. ForeverLM keeps the cards you choose, brings them back on a spaced schedule across every notebook, runs review sessions where you explain sources back and the AI probes your gaps, and keeps the full review history per source. See [Why Quizzing?](/why-quizzing)
-- **One library for life, under every notebook.** NotebookLM silos knowledge into notebooks capped at 50–600 sources, each with its own uploads. A ForeverLM notebook draws on a single accumulating library — five years of reading, listening, and studying in one searchable place — so a paper is added once, can be in any number of notebooks, and a notebook's Add sources searches the whole library first.
-- **Real podcast support.** Follow your shows, get full transcripts, read/listen/review. NotebookLM can't subscribe to a podcast feed at all.
+- **Your data never leaves your control.** ForeverLM's library is a local SQLite database plus files in your private iCloud container, synced through your Apple account. Gemini Notebook requires uploading everything to Google, with no local copy and a weak export story.
+- **Any AI, not one AI.** ForeverLM works with Claude, ChatGPT, Gemini, Grok, or any model through your own OpenRouter key — use the subscription you already pay for, switch anytime. Gemini Notebook is Gemini-only with no model visibility at all.
+- **A learning system, not a generator.** Gemini Notebook produces flashcards and quizzes as one-shot artifacts — nothing schedules review, nothing tracks what you've mastered. ForeverLM keeps the cards you choose, brings them back on a spaced schedule across every notebook, runs review sessions where you explain sources back and the AI probes your gaps, and keeps the full review history per source. See [Why Quizzing?](/why-quizzing)
+- **One library for life, under every notebook.** Gemini Notebook silos knowledge into notebooks capped at 50–600 sources, each with its own uploads. A ForeverLM notebook draws on a single accumulating library — five years of reading, listening, and studying in one searchable place — so a paper is added once, can be in any number of notebooks, and a notebook's Add sources searches the whole library first.
+- **Real podcast support.** Follow your shows, get full transcripts, read/listen/review. Gemini Notebook can't subscribe to a podcast feed at all.
 - **Sources flow in automatically** from your Safari reading list, Apple Podcasts, and reference managers — no per-notebook uploading ritual.
 - **Your notebooks come with you.** Paste a notebook's link into ForeverLM and it becomes a ForeverLM notebook: its sources, its chats and its notes, kept in your own library. See [Importing a Gemini Notebook](/studio#importing-a-gemini-notebook).
 
@@ -6005,7 +6005,7 @@ Paperpile helps you move from **paper to citation**. ForeverLM helps you move fr
 | **Organization** | Notebooks, source types, search, tags, status, and Schedule | Folders, labels, stars, filters, duplicate merging, full-text search, and shared libraries |
 | **PDF workflow** | Reader, extracted text and figures, Text to Speech, Chat, and review | PDF reader; notes, highlighting, and collaboration on Expert |
 | **Citations** | Stores paper metadata, but no cite-while-you-write plugin | Word and Google Docs plugins, BibTeX/LaTeX, 10,000+ styles, and Overleaf integration |
-| **AI workflow** | Chat inside ForeverLM or connect any MCP assistant to search and operate the full library; sessions and reviews can be saved back | Ask AI beta uploads selected PDFs and prompts into ChatGPT, Claude, Gemini, Copilot, or NotebookLM |
+| **AI workflow** | Chat inside ForeverLM or connect any MCP assistant to search and operate the full library; sessions and reviews can be saved back | Ask AI beta uploads selected PDFs and prompts into ChatGPT, Claude, Gemini, Copilot, or Gemini Notebook |
 | **Beyond papers** | Articles, books, podcasts, videos, courses, meetings, and X posts share the same notebooks and Chat | Focused on references, PDFs, and academic writing |
 | **Storage** | Local SQLite + files in your private iCloud container | Account-based service with unlimited research PDF storage and optional Google Drive/OneDrive sync |
 
@@ -6013,7 +6013,7 @@ Paperpile helps you move from **paper to citation**. ForeverLM helps you move fr
 
 ## AI is where the workflows diverge
 
-Paperpile's Ask AI feature is a useful bridge. Select one or more PDFs, choose a research prompt, and Paperpile opens ChatGPT, Claude, Gemini, Copilot, or NotebookLM with the files attached. It is a pragmatic way to bring a paper into the assistant you already use.
+Paperpile's Ask AI feature is a useful bridge. Select one or more PDFs, choose a research prompt, and Paperpile opens ChatGPT, Claude, Gemini, Copilot, or Gemini Notebook with the files attached. It is a pragmatic way to bring a paper into the assistant you already use.
 
 ForeverLM supports that lightweight workflow too: drag selected sources into an AI chat. But it also goes further in two directions.
 
@@ -6577,7 +6577,7 @@ Honestly, they stack well: listen and snip in Snipd, then let ForeverLM's Apple 
 
 # ForeverLM vs Paper (paper.ac)
 
-Paper (paper.ac) is a study workspace that sets out to replace NotebookLM, Notion, Anki and Quizlet at once. You upload PDFs, lectures, videos and web pages, chat with them, and turn them into notes, FSRS flashcards, quizzes, podcasts and slide decks, all inside a Notion-style editor. It is free while in beta. ForeverLM overlaps on the study loop. It differs on where the library lives (your iCloud, not a vendor's cloud), which AI runs it (any model, or the assistant you already use), and how sources arrive (on their own, podcasts included).
+Paper (paper.ac) is a study workspace that sets out to replace Gemini Notebook, Notion, Anki and Quizlet at once. You upload PDFs, lectures, videos and web pages, chat with them, and turn them into notes, FSRS flashcards, quizzes, podcasts and slide decks, all inside a Notion-style editor. It is free while in beta. ForeverLM overlaps on the study loop. It differs on where the library lives (your iCloud, not a vendor's cloud), which AI runs it (any model, or the assistant you already use), and how sources arrive (on their own, podcasts included).
 
 ## At a glance
 

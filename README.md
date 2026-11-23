@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  A source-available, local-first <strong>alternative to NotebookLM</strong> for Mac, iPhone and iPad:
+  A source-available, local-first <strong>alternative to Gemini Notebook</strong> for Mac, iPhone and iPad:
   an AI research assistant and study app that answers from your own papers, books, PDFs, podcasts and YouTube videos,
   with any AI model you choose.
 </p>
@@ -44,9 +44,9 @@ Yes, Apple only. We chose to make ForeverLM the best it can be on Apple's
 devices: your files live in your own iCloud, and ForeverLM keeps track of the
 podcasts you listen to on its own.
 
-**Is this an alternative to NotebookLM?**
+**Is this an alternative to Gemini Notebook?**
 
-Yes, if you want it on your own Mac and in your own iCloud. Like NotebookLM,
+Yes, if you want it on your own Mac and in your own iCloud. Like Gemini Notebook,
 ForeverLM answers from sources you add, with citations, and makes audio and
 video overviews, flashcards, quizzes and reports. Unlike it, you pick the AI
 model (Claude, GPT, Gemini, DeepSeek, or a free router) with your own
