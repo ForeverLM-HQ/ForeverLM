@@ -75,10 +75,11 @@ enum MobileRealtimeVoice {
     static func start(
         source: MobileCloudSource,
         notebook: MobileCloudNotebook?,
-        opening: RealtimeVoiceOpening
+        opening: RealtimeVoiceOpening,
+        inCar: Bool = false
     ) async {
         if await offersVoiceChoice(then: { await start(source: source, notebook: notebook, opening: opening) }) { return }
-        await prepareToTalk()
+        await prepareToTalk(inCar: inCar)
         currentSource = source
         currentNotebookID = notebook?.id
         let id = source.id
@@ -128,9 +129,9 @@ enum MobileRealtimeVoice {
     /// Review by Voice: today's cards in the card review's scope, asked and
     /// graded out loud (`MobileRealtimeCardReview`). The chat is filed in the
     /// notebook the review is narrowed to.
-    static func startCardReview(scope: MemoryReviewScope, scopeTitle: String) async {
+    static func startCardReview(scope: MemoryReviewScope, scopeTitle: String, inCar: Bool = false) async {
         if await offersVoiceChoice(then: { await startCardReview(scope: scope, scopeTitle: scopeTitle) }) { return }
-        await prepareToTalk()
+        await prepareToTalk(inCar: inCar)
         currentSource = nil
         if case .notebook(let notebookID) = scope {
             currentNotebookID = notebookID

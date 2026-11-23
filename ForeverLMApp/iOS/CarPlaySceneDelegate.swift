@@ -23,6 +23,14 @@ import UIKit
 // go back to the assistant, and Pause or Play. When it has played to its end,
 // or could not be played, the assistant comes back by itself and says so
 // (`CarPlayVoiceScreen`).
+//
+// Voice stays the way in, but a few things are a tap away (product owner,
+// 2026-11-23: "it should still be primarily voice based; but a few things
+// should be clickable; or like 'do flashcards'"). Papers, on the bar of both
+// screens, lists the sources attended to lately; picking one offers Listen
+// (its narration) or Talk About It (a voice conversation on that source).
+// Cards starts today's cards by voice. Both lists are list templates, which
+// the voice-based conversation category allows; there are no action sheets.
 @MainActor
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private var interfaceController: CPInterfaceController?
@@ -32,6 +40,12 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private var narrationTemplate: CPVoiceControlTemplate?
     /// The title of the narration on screen; nil while the conversation is.
     private var shownNarrationTitle: String?
+    /// The Papers list and the paper picked from it, while on screen.
+    private var papersTemplate: CPListTemplate?
+    private var paperTemplate: CPListTemplate?
+    /// The price the learner was shown for making a paper's narration: the
+    /// next tap on Listen makes it.
+    private var pricedListenSourceID: String?
     #if DEBUG
     /// The scripted conversation `-foreverlm-uitest-carplay` plays instead of a real one.
     private var scriptTask: Task<Void, Never>?
@@ -97,6 +111,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         voiceStateObserver?.cancel()
         voiceStateObserver = nil
         voiceTemplate = nil
+        papersTemplate = nil
+        paperTemplate = nil
+        pricedListenSourceID = nil
         narrationObserver?.cancel()
         narrationObserver = nil
         narrationTemplate = nil
@@ -185,6 +202,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let template = CPVoiceControlTemplate(voiceControlStates: [playing, paused])
         if #available(iOS 26.4, *) {
             configureNarrationActionButtons(on: template)
+            configureTapButtons(on: template)
         }
         return template
     }
@@ -281,6 +299,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         let template = CPVoiceControlTemplate(voiceControlStates: states)
         if #available(iOS 26.4, *) {
             configureVoiceActionButtons(on: template)
+            configureTapButtons(on: template)
         }
         return template
     }
@@ -312,6 +331,136 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         }
     }
 
+    // MARK: - Things a tap away
+
+    /// Papers and Cards on the bar, on the conversation's screen and the
+    /// narration's alike.
+    @available(iOS 26.4, *)
+    private func configureTapButtons(on template: CPVoiceControlTemplate) {
+        let papers = CPBarButton(title: "Papers") { [weak self] _ in
+            self?.showPapers()
+        }
+        papers.buttonStyle = .rounded
+        let cards = CPBarButton(title: "Cards") { [weak self] _ in
+            self?.startCards()
+        }
+        cards.buttonStyle = .rounded
+        template.trailingNavigationBarButtons = [papers, cards]
+    }
+
+    /// Cards: today's cards over every notebook, asked and graded by voice,
+    /// in place of whatever conversation or narration was running.
+    private func startCards() {
+        Task { @MainActor [weak self] in
+            await self?.clearTheAudio()
+            await MobileRealtimeVoice.startCardReview(
+                scope: .allNotebooks,
+                scopeTitle: MobileCardReviewCopy.scopeTitle(.allNotebooks, notebooks: []),
+                inCar: true
+            )
+        }
+    }
+
+    /// Ends the conversation and stops a narration, so what was tapped can
+    /// start, and takes the lists off.
+    private func clearTheAudio() async {
+        let audio = MobileAudioReviewViewModel.shared
+        if let listen = audio.voiceListen {
+            if audio.isPlaying { audio.togglePlayback() }
+            audio.stopTextToSpeechGeneration(sourceID: listen.sourceID)
+            audio.voiceListen = nil
+        }
+        await MobileRealtimeVoice.controller.end()
+        interfaceController?.popToRootTemplate(animated: true, completion: nil)
+    }
+
+    /// The sources attended to lately, newest first, then the newest added.
+    private func showPapers() {
+        guard let interfaceController else { return }
+        let template = CPListTemplate(title: "Papers", sections: [])
+        template.emptyViewTitleVariants = ["Nothing in your library yet"]
+        template.emptyViewSubtitleVariants = ["Add sources on your Mac"]
+        papersTemplate = template
+        interfaceController.pushTemplate(template, animated: true, completion: nil)
+        Task { @MainActor [weak self, weak template] in
+            let sources = await CarPlayPapers.recent(limit: CarPlayPapers.limit)
+            guard let self, let template, self.papersTemplate === template else { return }
+            let items = sources.map { source -> CPListItem in
+                let item = CPListItem(
+                    text: source.title,
+                    detailText: source.citationSubtitle,
+                    image: UIImage(systemName: CarPlayPapers.symbol(for: source.sourceType))
+                )
+                item.accessoryType = .disclosureIndicator
+                item.handler = { [weak self] _, completion in
+                    self?.showPaper(source)
+                    completion()
+                }
+                return item
+            }
+            template.updateSections([CPListSection(items: items)])
+        }
+    }
+
+    /// One paper: Listen to its narration, or Talk About It by voice.
+    private func showPaper(_ source: MobileCloudSource) {
+        guard let interfaceController else { return }
+        pricedListenSourceID = nil
+        let template = CPListTemplate(title: source.title, sections: [])
+        paperTemplate = template
+        updatePaper(template, source: source, listenDetail: nil, listenText: "Listen")
+        interfaceController.pushTemplate(template, animated: true, completion: nil)
+    }
+
+    private func updatePaper(_ template: CPListTemplate, source: MobileCloudSource, listenDetail: String?, listenText: String) {
+        let listen = CPListItem(text: listenText, detailText: listenDetail, image: UIImage(systemName: "headphones"))
+        listen.handler = { [weak self] _, completion in
+            self?.listen(to: source)
+            completion()
+        }
+        let talk = CPListItem(text: "Talk About It", detailText: nil, image: UIImage(systemName: "waveform"))
+        talk.handler = { [weak self] _, completion in
+            self?.talk(about: source)
+            completion()
+        }
+        template.updateSections([CPListSection(items: [listen, talk])])
+    }
+
+    /// Listen plays the narration as `listen_to_source` would. One that costs
+    /// money to make shows its price first, and a second tap makes it.
+    private func listen(to source: MobileCloudSource) {
+        let audio = MobileAudioReviewViewModel.shared
+        let confirmed = pricedListenSourceID == source.id
+        Task { @MainActor [weak self] in
+            let answer = await audio.voiceListenAnswer(sourceID: source.id, costConfirmed: confirmed)
+            guard let self else { return }
+            switch answer {
+            case .starting:
+                self.pricedListenSourceID = nil
+                await self.clearTheAudio()
+                await audio.startVoiceListen(sourceID: source.id)
+            case .needsPrice(_, let price):
+                self.pricedListenSourceID = source.id
+                if let template = self.paperTemplate {
+                    self.updatePaper(template, source: source, listenDetail: "Making it costs \(price)", listenText: "Make Narration and Listen")
+                }
+            case .refused(let reason):
+                if let template = self.paperTemplate {
+                    self.updatePaper(template, source: source, listenDetail: reason, listenText: "Listen")
+                }
+            }
+        }
+    }
+
+    /// Talk About It: a voice conversation on this source, in place of the
+    /// assistant.
+    private func talk(about source: MobileCloudSource) {
+        Task { @MainActor [weak self] in
+            await self?.clearTheAudio()
+            await MobileRealtimeVoice.start(source: source, notebook: nil, opening: .talk, inCar: true)
+        }
+    }
+
     private func endVoiceSession() {
         // The controller is authoritative; rendered CarPlay state can lag
         // during async startup or a route transition.
@@ -332,6 +481,43 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         case "Speaking": return "speaking"
         default:
             return phase == .failed ? "unavailable" : "listening"
+        }
+    }
+}
+
+/// What the Papers list offers: the sources attended to lately, newest
+/// first, then the newest added, short enough to scan while parked.
+@MainActor
+enum CarPlayPapers {
+    static let limit = 12
+
+    static func recent(limit: Int, now: Date = Date()) async -> [MobileCloudSource] {
+        let catalog = MobileCloudSourceCatalog.shared
+        let sources = await catalog.currentSources().filter { !$0.isPaywalled && $0.state == "ready" }
+        var latest: [String: Date] = [:]
+        for entry in await catalog.currentRecentSourceAttention(now: now) {
+            latest[entry.sourceID] = max(latest[entry.sourceID] ?? .distantPast, entry.discussedAt)
+        }
+        return order(sources, latest: latest, limit: limit)
+    }
+
+    static func order(_ sources: [MobileCloudSource], latest: [String: Date], limit: Int) -> [MobileCloudSource] {
+        let attended = sources
+            .filter { latest[$0.id] != nil }
+            .sorted { latest[$0.id]! > latest[$1.id]! }
+        let rest = sources
+            .filter { latest[$0.id] == nil }
+            .sorted { $0.dateAdded > $1.dateAdded }
+        return Array((attended + rest).prefix(limit))
+    }
+
+    static func symbol(for sourceType: String) -> String {
+        switch sourceType {
+        case "paper": return "doc.text"
+        case "book", "chapter": return "book"
+        case "podcast", "episode": return "mic"
+        case "video", "youtube": return "play.rectangle"
+        default: return "doc.plaintext"
         }
     }
 }
