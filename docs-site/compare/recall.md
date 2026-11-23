@@ -12,7 +12,7 @@ Recall (recall.it, formerly getrecall.ai) is a self-organizing AI knowledge base
 
 | | ForeverLM | Recall |
 |---|---|---|
-| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (10 AI summaries/mo); Plus $120/yr; Max $456/yr (billed yearly) |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (10 AI summaries/mo); Plus $120/yr; Max $456/yr (billed yearly) |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included in subscription; model auto-selected on Plus, model choice only on Max |
 | **Platforms** | Native macOS app (macOS 14+) | Web app + browser extensions, iOS, Android — no native desktop app |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Local-first on device; sync via Recall's cloud (Google Cloud, EU) |
@@ -27,12 +27,12 @@ Recall (recall.it, formerly getrecall.ai) is a self-organizing AI knowledge base
 
 Recall's free tier stores unlimited content but allows only **10 AI summaries a month** — the product's core is effectively paid. Plus is **$120/yr billed yearly**, and choosing which AI model answers you costs **$456/yr** on Max.
 
-ForeverLM has no tiers to climb, because it has no tiers: the app is **30 days free, then $19 once**, and every model in the in-app Chat is open. That Chat runs on your own OpenRouter key, and OpenRouter bills you at its cost with nothing added by ForeverLM; its free models cost nothing. Or connect whichever of Claude, ChatGPT, Gemini, or Grok you already subscribe to over MCP: your subscription covers the inference. The in-app ledger accounts for it to the cent. There's no tier where the model picker lives, because the model picker was never behind one.
+ForeverLM has no tiers to climb, because it has no tiers: the app is **7 days free, then $19 once**, and every model in the in-app Chat is open. That Chat runs on your own OpenRouter key, and OpenRouter bills you at its cost with nothing added by ForeverLM; its free models cost nothing. Or connect whichever of Claude, ChatGPT, Gemini, or Grok you already subscribe to over MCP: your subscription covers the inference. The in-app ledger accounts for it to the cent. There's no tier where the model picker lives, because the model picker was never behind one.
 
 ## Where Recall is better
 
 - **Works everywhere.** Web app, iOS, and Android — save and review from any device. ForeverLM is Mac-only.
-- **AI that stays free with no key.** Recall's free tier keeps giving you 10 AI summaries a month indefinitely at $0 with nothing to set up. ForeverLM is paid after its 30 free days, and its built-in AI needs your own OpenRouter key; free models on it cost nothing.
+- **AI that stays free with no key.** Recall's free tier keeps giving you 10 AI summaries a month indefinitely at $0 with nothing to set up. ForeverLM is paid after its 7 free days, and its built-in AI needs your own OpenRouter key; free models on it cost nothing.
 - **Knowledge graph and auto-tagging.** Recall automatically links related saves into a browsable graph; ForeverLM organizes by notebooks, source type, and Schedule instead.
 - **Augmented browsing.** Recall's extension surfaces your saved knowledge while you browse the web.
 - **Reddit imports.** Recall ingests Reddit threads; ForeverLM doesn't.
@@ -50,4 +50,4 @@ ForeverLM has no tiers to climb, because it has no tiers: the app is **30 days f
 
 Choose **Recall** if you need Android, Windows, or the web — or you want a free place to pile up saves with light AI summaries and are happy with card-style quizzing at $120/yr.
 
-Choose **ForeverLM** if you're on a Mac and want the deeper loop: automatic source capture including full podcast transcripts, a weekly plan, review with the AI of your choice, and a library that lives in your own iCloud — for $19 once after 30 free days, plus only what your AI use actually costs.
+Choose **ForeverLM** if you're on a Mac and want the deeper loop: automatic source capture including full podcast transcripts, a weekly plan, review with the AI of your choice, and a library that lives in your own iCloud — for $19 once after 7 free days, plus only what your AI use actually costs.

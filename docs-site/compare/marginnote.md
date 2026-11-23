@@ -12,7 +12,7 @@ MarginNote 4 combines PDF and EPUB reading, highlighting, mind maps, flashcards,
 
 | | ForeverLM | MarginNote 4 |
 |---|---|---|
-| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Pro $12.99 lifetime on iPhone/iPad; Max $16.99/year or $51.99 lifetime |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Pro $12.99 lifetime on iPhone/iPad; Max $16.99/year or $51.99 lifetime |
 | **Platforms** | Mac-centered with synced iPhone access | Mac, iPhone, and iPad, depending on plan |
 | **Reading** | Papers, articles, books, and transcripts | Deep PDF and EPUB reading with OCR and visual extraction |
 | **Knowledge structure** | Notebooks, source relationships, search, and Schedule | One card can be a highlight, mind-map node, and flashcard |

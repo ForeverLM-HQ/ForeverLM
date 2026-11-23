@@ -28,7 +28,7 @@ New versions reach beta testers first. To be one of them, turn on **Settings →
 
 ## First Launch
 
-ForeverLM asks you to **Sign in with Apple** before anything else. Your Apple Account is your ForeverLM account: there is no separate password to create, no card is needed, and the same sign-in works on every device. Signing in starts your 30 free days of the whole app; after that, ForeverLM is $19 paid once (no subscription), in **Settings → Billing**. In the Mac app, Apple's sign-in opens in a sheet inside the app; sign in as you would on any Apple device and choose whether to share or hide your email.
+ForeverLM asks you to **Sign in with Apple** before anything else. Your Apple Account is your ForeverLM account: there is no separate password to create, no card is needed, and the same sign-in works on every device. Signing in starts your 7 free days of the whole app; after that, ForeverLM is $19 paid once (no subscription), in **Settings → Billing**. In the Mac app, Apple's sign-in opens in a sheet inside the app; sign in as you would on any Apple device and choose whether to share or hide your email.
 
 The in-app Chat, quizzes and background AI work run on your own [OpenRouter API key](https://openrouter.ai/keys), billed by OpenRouter at its cost with nothing added; OpenRouter is the provider supported today. ForeverLM adds nothing to it: add the key from the OpenRouter button at the bottom of the sidebar, then pay models at cost or use free models, which cost $0. Connecting Claude, ChatGPT, Gemini, or Grok [over MCP](/setup-mcp) needs no key and nothing extra to buy.
 

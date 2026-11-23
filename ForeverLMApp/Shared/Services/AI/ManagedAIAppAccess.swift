@@ -2,10 +2,10 @@ import Foundation
 
 /// ForeverLM is a paid app (product owner, 2026-10-10 and 2026-10-11, and again
 /// 2026-11-12: "basically just payment to keep using the app after 30 days and
-/// just one time"; docs/pricing-pro-design.md): 30 days free from the first
+/// just one time"; docs/pricing-pro-design.md): 7 days free from the first
 /// sign-in, with no card and no click, then $19 paid once (the Early user
 /// deal). Nothing is sold by the month ("No ongoing subscription or anything
-/// like that"). Paying gets the whole app; there are no tiers. Day 31 without
+/// like that"). Paying gets the whole app; there are no tiers. Day 8 without
 /// payment locks the Mac app and the web library (the iPhone and iPad apps stay
 /// open and show no price), and nothing is deleted: paying restores everything.
 /// The count of free days and the price come from the proxy (`freeDaysTotal`,

@@ -14,7 +14,7 @@ Paperpile helps you move from **paper to citation**. ForeverLM helps you move fr
 
 | | ForeverLM | Paperpile |
 |---|---|---|
-| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Regular $99.60/year; Expert $138/year; eligible academics pay 50% less after a 30-day trial |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Regular $99.60/year; Expert $138/year; eligible academics pay 50% less after a 30-day trial |
 | **Platforms** | Mac-centered library with synced iPhone access | Web, iOS, and Android; browser extensions for Chrome, Safari, and Firefox |
 | **Paper capture** | Browser reading lists, URL paste, local PDFs, MCP, and custom plugins; automatic open-PDF retrieval | One-click browser import, database and publisher integrations, identifier search, automatic PDF retrieval |
 | **Organization** | Notebooks, source types, search, tags, status, and Schedule | Folders, labels, stars, filters, duplicate merging, full-text search, and shared libraries |
@@ -50,7 +50,7 @@ First, Chat is built into the source library. You can discuss the current paper 
 - **The result comes back.** Review sessions retain their transcript, summary, score, and source links. The library records what was covered rather than forgetting the interaction when the external tab closes.
 - **Papers can be heard as well as read.** Text to Speech cleans academic text for narration, skips citation clutter and reference sections, caches the audio, and syncs it to iPhone.
 - **The reading queue is actionable.** Schedule papers for specific days, move them when plans change, and connect completion to a real review.
-- **No reference-manager subscription.** The paper library, notebooks, Schedule, local reading, Text to Speech, built-in AI and MCP all come with the app: 30 days free, then $19 once. AI and voices run on your own OpenRouter key at OpenRouter's cost.
+- **No reference-manager subscription.** The paper library, notebooks, Schedule, local reading, Text to Speech, built-in AI and MCP all come with the app: 7 days free, then $19 once. AI and voices run on your own OpenRouter key at OpenRouter's cost.
 
 ## Which should you choose?
 

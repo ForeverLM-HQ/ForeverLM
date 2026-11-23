@@ -57,7 +57,7 @@ enum FirstRunFreshStart {
 }
 
 /// A switch that exists only in the First Run app: it moves the app's idea of
-/// "now" 31 days ahead, so the 30 free days are over and the real pay screen
+/// "now" 31 days ahead, so the 7 free days are over and the real pay screen
 /// shows, with nothing changed on the server. Off again, the app is back on
 /// day one. It lives in this app's own defaults, so no other app sees it.
 enum FirstRunTrialSkip {

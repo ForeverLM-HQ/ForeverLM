@@ -13,7 +13,7 @@ There are a lot of tools in the "learn and remember more" space, and they're gen
 The five things that most distinguish it:
 
 1. **Your data stays yours** — a local SQLite database and files in your private iCloud container, synced through your Apple account. No uploading your library to a vendor's cloud.
-2. **30 days free, then $19 once. No subscription.** No tiers: paying gets the whole app, MCP included. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or free models for nothing. Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP.
+2. **7 days free, then $19 once. No subscription.** No tiers: paying gets the whole app, MCP included. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or free models for nothing. Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP.
 3. **Podcasts are first-class** — follow shows, get full episode transcripts, read, listen, and get quizzed on them.
 4. **Any model, no lock-in** — MCP works with every major assistant; in-app Chat takes any model through your own OpenRouter key; your files stay in open formats on your disk.
 5. **Review that tests understanding** — explain the source back; an AI tutor with the full text probes your gaps. Not self-graded cards, not one-shot quizzes.
@@ -24,7 +24,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 | Tool | Best at | Pricing | AI | Retention/review |
 |---|---|---|---|---|
-| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **30 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
+| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **7 days free, then $19 once** (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
 | [Gemini Notebook](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
 | [Heptabase](/compare/heptabase) | Card-first whiteboards for thinking | $107.88–$647.88/yr, no free tier | Credit-metered (Gemini; more on Premium) | AI tutor on $215.88/yr tier; spaced repetition unshipped |
 | [Anki](/compare/anki) | Memorizing with self-graded flashcards | Free (iOS $24.99 one-time) | None built in | Self-graded flashcards, SM-2/FSRS |
@@ -151,4 +151,4 @@ ForeverLM is the one row without a fixed total, and that's the honest answer: th
 
 ## Try it
 
-ForeverLM is 30 days free, then $19 once: [get it for Mac](https://foreverlm.com) and point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.
+ForeverLM is 7 days free, then $19 once: [get it for Mac](https://foreverlm.com) and point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.

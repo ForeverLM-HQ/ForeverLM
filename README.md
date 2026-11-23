@@ -20,7 +20,7 @@
   <a href="https://foreverlm.com/releases/ForeverLM.dmg"><strong>Download for Mac</strong></a>
   &middot; <a href="https://foreverlm.com">Website</a>
   &middot; <a href="https://docs.foreverlm.com">Docs</a><br>
-  30 days free, then $19 once. No subscription.
+  7 days free, then $19 once. No subscription.
 </p>
 
 <p align="center">

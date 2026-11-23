@@ -26,7 +26,7 @@ struct EarlyUserDealOffer: View {
         onceCents.map { "Get the Early User Deal: \(ManagedAI.dollars($0))" } ?? "Get the Early User Deal"
     }
 
-    /// "30 days free, then $19 once. No subscription." The count of free days
+    /// "7 days free, then $19 once. No subscription." The count of free days
     /// is the proxy's (`AppAccess.freeDaysTotal`), like the price; a part the
     /// proxy has not said is left unnamed rather than guessed.
     static func headline(onceCents: Int?, freeDays: Int?) -> String {
@@ -36,7 +36,7 @@ struct EarlyUserDealOffer: View {
     }
 
     /// What the welcome screen says once: the whole app's price and free days.
-    /// "30 day free trial, then one-time $19. No monthly subscription!"
+    /// "7 day free trial, then one-time $19. No monthly subscription!"
     /// (product owner, 2026-11-21).
     static func welcomeLine(onceCents: Int?, freeDays: Int?) -> String {
         let start = freeDays.map { "\($0) day free trial" } ?? "Free to start"
@@ -45,7 +45,7 @@ struct EarlyUserDealOffer: View {
     }
 
     /// The welcome line for an account's access: the price and the count of
-    /// free days, which are the account server's (30 days free, then $19
+    /// free days, which are the account server's (7 days free, then $19
     /// once, since 2026-11-11). Before the access is known the line names
     /// neither; "free, MCP included" only when the server says MCP is free or
     /// sells nothing.

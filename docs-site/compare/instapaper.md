@@ -12,7 +12,7 @@ Instapaper is a long-running read-later service that turns web content into a cl
 
 | | ForeverLM | Instapaper |
 |---|---|---|
-| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Premium $6/month or $60/year |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Premium $6/month or $60/year |
 | **Platforms** | Mac-centered with synced iPhone access | Web, iPhone, iPad, Android, Kindle, and Kobo workflows |
 | **Content** | Articles, papers, books, podcasts, videos, courses, and more | Articles, videos, long email, X saves, and PDFs on Premium |
 | **Listening** | Any speech model OpenRouter serves, free ones included | AI voice playlists and text-to-speech on Premium |

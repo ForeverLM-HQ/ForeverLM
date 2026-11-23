@@ -12,7 +12,7 @@ LiquidText is a deep-reading workspace for pulling excerpts out of PDFs and web 
 
 | | ForeverLM | LiquidText |
 |---|---|---|
-| **Price** | 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic; paid purchases and Live subscriptions vary by platform and region |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic; paid purchases and Live subscriptions vary by platform and region |
 | **Best for** | Long-term research library and learning | Close reading, excerpting, and spatial synthesis |
 | **Sources** | Papers, articles, books, podcasts, videos, courses, meetings, and more | PDFs, documents, web pages, and reference-manager imports |
 | **Annotation** | Reader, extracted text and figures, notes, and source chat | Rich ink, highlights, margin notes, excerpt workspaces, and live links |

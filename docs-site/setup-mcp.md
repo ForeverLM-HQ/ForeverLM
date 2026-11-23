@@ -5,7 +5,7 @@ title: Connect an AI Assistant
 
 # Connect an AI Assistant
 
-Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 30 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code, Antigravity and every other MCP client on your account. Once the 30 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
+Connecting an assistant is part of ForeverLM, with nothing extra to buy: it works in your 7 free days and after you pay ($19 once, no subscription, in **Settings → Billing**), for Claude, ChatGPT, Grok, Gemini, Claude Code, Antigravity and every other MCP client on your account. Once the 7 free days are over and nothing is paid, assistants are told "Your free days of ForeverLM are over. Open ForeverLM on your Mac to continue."
 
 ::: tip Most people don't need this
 The easiest way to use your sources with AI is to [drag & drop](/drag-and-drop) them directly from Studio. A persistent connection lets an assistant search your full library and run review sessions without dragging files each time.

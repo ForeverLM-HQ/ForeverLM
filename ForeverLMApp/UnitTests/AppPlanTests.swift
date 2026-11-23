@@ -63,12 +63,12 @@ struct AppPlanTests {
         #expect(old.filling(.init(state: "free", unlocked: true, freeUntil: nil)).state == .free)
         // The welcome line names no price while nothing is sold; before the
         // access is known it names neither the days nor the price (2026-11-11:
-        // the whole app is paid again, after 30 free days).
+        // the whole app is paid again, after 7 free days).
         #expect(EarlyUserDealOffer.welcomeLine(access: access) == "ForeverLM is free, MCP included.")
         #expect(EarlyUserDealOffer.welcomeLine(access: nil) == "Free to start, then pay once. No monthly subscription!")
         #expect(EarlyUserDealOffer.freeTitle == "MCP is free")
         let selling = ManagedAI.AppAccess(state: .freeDays, prices: .init(onceCents: 1900), freeDaysTotal: 30)
-        #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "30 day free trial, then one-time $19. No monthly subscription!")
+        #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "7 day free trial, then one-time $19. No monthly subscription!")
         for text in [EarlyUserDealOffer.freeWelcomeLine, EarlyUserDealOffer.freeTitle] {
             #expect(!text.contains("$"))
             #expect(!text.contains("—"))
