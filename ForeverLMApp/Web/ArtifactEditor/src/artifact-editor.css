@@ -1581,6 +1581,15 @@ body.is-dragging-card * {
   margin-bottom: 0;
 }
 
+/* Two lists of the same kind back to back (a bullet written with `*` and the
+   next with `-`, or a list pasted under another) are two nodes, but the writer
+   sees one list: the paragraph gap after the first opened a blank-looking line
+   between two bullets. Let the pair keep the list-item rhythm. */
+.milkdown .editor ul:has(+ ul),
+.milkdown .editor ol:has(+ ol) {
+  margin-bottom: 0;
+}
+
 /* Crepe's frame theme pads every paragraph and heading by 4px and 2px of its
    own and sets paragraphs to line-height 1.5. The rules here only ever set
    margins, so all of that survived: each block carried vertical padding the
