@@ -483,24 +483,37 @@ final class ManagedAIAccountModel {
     // MARK: - Own key and plan
 
     private(set) var openRouterConnectInFlight = false
+    private var openRouterConnectTask: Task<Bool, Never>?
 
     /// "Connect OpenRouter": signs in at OpenRouter in the browser and stores
     /// the key it hands back exactly as a pasted key is stored (checked first).
+    /// Calling it again while one is waiting is the retry (product owner,
+    /// 2026-11-23): the waiting sign-in is cancelled and a fresh one opens.
     @discardableResult
     func connectOpenRouter() async -> Bool {
-        guard !openRouterConnectInFlight else { return false }
-        openRouterConnectInFlight = true
-        defer { openRouterConnectInFlight = false }
-        errorMessage = nil
-        do {
-            let key = try await OpenRouterConnect.connect()
-            return await setOwnKey(key, router: .openRouter)
-        } catch is CancellationError {
-            return false
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
+        openRouterConnectTask?.cancel()
+        let task = Task { [weak self] () -> Bool in
+            do {
+                let key = try await OpenRouterConnect.connect()
+                try Task.checkCancellation()
+                guard let self else { return false }
+                return await self.setOwnKey(key, router: .openRouter)
+            } catch is CancellationError {
+                return false
+            } catch {
+                if !Task.isCancelled { self?.errorMessage = error.localizedDescription }
+                return false
+            }
         }
+        openRouterConnectTask = task
+        openRouterConnectInFlight = true
+        errorMessage = nil
+        let connected = await task.value
+        if openRouterConnectTask == task {
+            openRouterConnectTask = nil
+            openRouterConnectInFlight = false
+        }
+        return connected
     }
 
     /// Opens Stripe Checkout in the browser: the Early user deal (`.once`),

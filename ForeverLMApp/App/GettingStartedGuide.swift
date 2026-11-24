@@ -1294,6 +1294,13 @@ struct GettingStartedGuide: View {
                         Text("Finish in your browser, then come back.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                        // The browser tab got closed or lost: open a fresh
+                        // sign-in in place of the waiting one.
+                        secondaryAction("Try again") {
+                            Task { await account.connectOpenRouter() }
+                        }
+                        .underline()
+                        .accessibilityIdentifier("gettingStarted.retryOpenRouter")
                     }
                 }
             }

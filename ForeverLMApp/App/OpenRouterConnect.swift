@@ -75,7 +75,13 @@ enum OpenRouterConnect {
             throw ConnectError(message: "Couldn't open OpenRouter in your browser.")
         }
 
-        let returned = try await callbackTask.value
+        // A retry cancels this call: pass that on to the wait, which an
+        // unstructured task would not inherit.
+        let returned = try await withTaskCancellationHandler {
+            try await callbackTask.value
+        } onCancel: {
+            callbackTask.cancel()
+        }
         guard let code = URLComponents(url: returned, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
             server.completeBrowserCallback(success: false, message: "OpenRouter didn't send a key. Return to ForeverLM and try again.")
