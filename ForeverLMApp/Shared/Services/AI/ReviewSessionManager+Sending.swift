@@ -696,13 +696,17 @@ extension ReviewSessionManager {
         let contextualContent = attachOnScreenSources(to: contextualContent)
         let trimmedTopic = reviewTitle(topic: topic, articles: articles)
         let sessionTopic: String
-        let titleEchoesMessage: Bool
+        let titleIsDraft: Bool
         if isGenericSessionTitle(trimmedTopic) || trimmedTopic.isEmpty {
             sessionTopic = topicFromInitialMessage(message)
-            titleEchoesMessage = true
+            titleIsDraft = true
         } else {
             sessionTopic = trimmedTopic
-            titleEchoesMessage = false
+            // A chat on one source is named after that source only until the
+            // title model answers: a book chapter's name ("6) The flux
+            // capacitor") says nothing about the question asked of a passage
+            // in it. A topic the caller chose for itself stays.
+            titleIsDraft = articles.count == 1 && trimmedTopic == articles[0].title
         }
         guard let config = await resolvedGenerationConfigOrShowError(for: mode) else {
             rollbackOptimisticUserMessage(message)
@@ -712,7 +716,7 @@ extension ReviewSessionManager {
 
         self.topic = sessionTopic
         notebookSourceScopeID = Self.nonEmptyTrimmed(notebookScopeID)
-        self.titleIsProvisional = titleEchoesMessage
+        self.titleIsProvisional = titleIsDraft
         sessionPromptKind = mode.sessionPromptKindForUserMessage
         errorMessage = nil
         lastGenerationFailed = false
@@ -773,7 +777,7 @@ extension ReviewSessionManager {
         }
         await persistPendingUserMessage(message, contextContent: askedContext, docAnchor: docAnchor)
         markSendPreparation("message row")
-        if titleEchoesMessage {
+        if titleIsDraft {
             // Name the chat from the opening message while the reply runs,
             // so the tab never sits on the learner's typed words.
             Task { await self.updateSuggestedSessionTitleIfNeeded(from: nil) }

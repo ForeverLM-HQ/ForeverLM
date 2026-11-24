@@ -25,7 +25,8 @@ extension ReviewSessionManager {
         return ""
     }
 
-    /// Replace the echoed opening message with an AI-suggested title.
+    /// Replace the provisional title (the echoed opening message, or the name
+    /// of the one source the chat opened on) with an AI-suggested title.
     ///
     /// Runs twice at most: once from the opening message alone as soon as the
     /// chat is created (`assistantResponse` nil), so the tab names the topic
