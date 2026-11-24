@@ -248,6 +248,7 @@ extension MCPDataStore {
             payload["logged_minutes"] = [:] as [String: Int]
             payload["bouts"] = []
             payload["minutes_learned"] = 0
+            payload["sources_engaged"] = try await daySourcesEngaged([], date: date, nowMinuteIfToday: nil)
             if includeChatTranscripts { payload["chat_transcripts"] = [] as [[String: Any]] }
             return try jsonString(payload)
         }
@@ -258,6 +259,7 @@ extension MCPDataStore {
         payload["logged_minutes"] = Dictionary(uniqueKeysWithValues: detail.loggedMinutesByKind.map { ($0.key.rawValue, $0.value) })
         payload["bouts"] = detail.boutsByRecency.map { learningBoutPayload($0) }
         payload["minutes_learned"] = detail.minutesLearned()
+        payload["sources_engaged"] = try await daySourcesEngaged(detail.activities, date: date, nowMinuteIfToday: nowMinute)
         if includeChatTranscripts {
             let maxCharsPerChat = min(max(rawMaxCharsPerChat ?? 50_000, 1_000), 200_000)
             var seenChatIDs: Set<String> = []
@@ -290,6 +292,68 @@ extension MCPDataStore {
             payload["chat_transcripts"] = transcripts
         }
         return try jsonString(payload)
+    }
+
+    /// What the learner read, listened to and watched on a day, one entry per
+    /// source with the time spent on it, plus the passages they marked in it
+    /// that day. A recap of "what did I learn" stands on this as much as on the
+    /// day's chats: the log already holds every Reader sitting, and summing it
+    /// per source answers "how long" without the caller adding spans up.
+    /// A source marked that day but not seen open in the log still counts,
+    /// with zero minutes, because the mark itself is evidence it was read.
+    func daySourcesEngaged(_ activities: [DayActivity], date: String, nowMinuteIfToday: Int?) async throws -> [[String: Any]] {
+        struct Engaged {
+            var title: String
+            var minutesByKind: [String: Int] = [:]
+            var firstStart: Int?
+            var lastEnd: Int?
+            var highlights: [[String: Any]] = []
+        }
+        var order: [String] = []
+        var bySource: [String: Engaged] = [:]
+        for activity in activities where activity.kind.targetKind == "source" {
+            let ongoing = nowMinuteIfToday.flatMap { activity.isOngoing(atMinute: $0) ? $0 : nil }
+            let end = ongoing ?? activity.endMinute
+            var entry = bySource[activity.targetID] ?? {
+                order.append(activity.targetID)
+                return Engaged(title: activity.title)
+            }()
+            entry.minutesByKind[activity.kind.rawValue, default: 0] += max(0, end - activity.startMinute)
+            entry.firstStart = min(entry.firstStart ?? activity.startMinute, activity.startMinute)
+            entry.lastEnd = max(entry.lastEnd ?? end, end)
+            bySource[activity.targetID] = entry
+        }
+        for highlight in try await notebookFileStorage.sourceHighlights(madeOn: date) {
+            var entry = bySource[highlight.sourceID] ?? {
+                order.append(highlight.sourceID)
+                let title = try? withDB { db in
+                    try query(db, "SELECT title FROM source_projection WHERE id = ? LIMIT 1", params: [highlight.sourceID])
+                        .first?["title"] as? String
+                }
+                return Engaged(title: (title ?? nil) ?? "Untitled")
+            }()
+            var mark: [String: Any] = ["quote": highlight.quote]
+            if !highlight.note.isEmpty { mark["note"] = highlight.note }
+            entry.highlights.append(mark)
+            bySource[highlight.sourceID] = entry
+        }
+        return order.compactMap { id -> (Int, [String: Any])? in
+            guard let entry = bySource[id] else { return nil }
+            let minutes = entry.minutesByKind.values.reduce(0, +)
+            var row: [String: Any] = [
+                "source_id": id,
+                "title": entry.title,
+                "minutes": minutes,
+                "minutes_by_kind": entry.minutesByKind,
+                "link": "\(StudioEntityLink.productScheme)://source/\(StudioEntityLink.encode(id))",
+            ]
+            if let first = entry.firstStart { row["first_seen"] = DayPlan.clockString(minute: first) }
+            if let last = entry.lastEnd { row["last_seen"] = DayPlan.clockString(minute: last) }
+            if !entry.highlights.isEmpty { row["highlights_made"] = entry.highlights }
+            return (minutes, row)
+        }
+        .sorted { $0.0 > $1.0 }
+        .map(\.1)
     }
 
     /// The Activity pane's Delete on a sitting, one span at a time: the span
