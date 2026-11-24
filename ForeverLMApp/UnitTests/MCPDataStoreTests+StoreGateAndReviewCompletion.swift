@@ -1116,6 +1116,75 @@ extension MCPDataStoreTests {
         #expect(done.contains("Learner: TMRM, non-quench."))
     }
 
+    @Test("get_day_activity can return the day's distinct chat transcripts for a grounded recap")
+    func dayActivityIncludesChatTranscripts() async throws {
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let date = "2026-11-23"
+        let start = try #require(DayPlan.startOfDay(date))
+
+        try knowledge.createReviewSession(
+            id: "chat-grounded",
+            topic: "Why redox proteomics needs occupancy",
+            sourceIDs: [],
+            startedAt: start.addingTimeInterval(9 * 3600),
+            chatKind: .chat
+        )
+        try knowledge.addReviewExchange(
+            sessionID: "chat-grounded",
+            question: "What would distinguish abundance from occupancy?",
+            answer: "Measure the modified fraction of each cysteine site.",
+            evaluation: "Yes — total protein abundance alone cannot answer that.",
+            score: nil,
+            knowledgeNote: nil,
+            sourceRefs: [],
+            answeredAt: start.addingTimeInterval(9 * 3600 + 600)
+        )
+        _ = try knowledge.recordDayActivitySpan(
+            kind: .chat,
+            targetID: "chat-grounded",
+            title: "Redox occupancy",
+            from: start.addingTimeInterval(9 * 3600),
+            to: start.addingTimeInterval(9 * 3600 + 600)
+        )
+        // Two sittings of one chat yield one transcript, not duplicate context.
+        _ = try knowledge.recordDayActivitySpan(
+            kind: .chat,
+            targetID: "chat-grounded",
+            title: "Redox occupancy",
+            from: start.addingTimeInterval(10 * 3600),
+            to: start.addingTimeInterval(10 * 3600 + 300)
+        )
+        // A deleted chat remains explicit instead of being replaced by sources.
+        _ = try knowledge.recordDayActivitySpan(
+            kind: .chat,
+            targetID: "chat-deleted",
+            title: "Deleted discussion",
+            from: start.addingTimeInterval(11 * 3600),
+            to: start.addingTimeInterval(11 * 3600 + 60)
+        )
+
+        let response = try await store.getDayActivity(
+            date: date,
+            includeChatTranscripts: true,
+            maxCharsPerChat: 2_000
+        )
+        let data = Data(response.utf8)
+        let payload = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let chats = try #require(payload["chat_transcripts"] as? [[String: Any]])
+        #expect(chats.count == 2)
+
+        let available = try #require(chats.first { ($0["chat_id"] as? String) == "chat-grounded" })
+        #expect((available["available"] as? Bool) == true)
+        #expect((available["transcript"] as? String)?.contains("Measure the modified fraction") == true)
+        #expect((available["truncated"] as? Bool) == false)
+
+        let unavailable = try #require(chats.first { ($0["chat_id"] as? String) == "chat-deleted" })
+        #expect((unavailable["available"] as? Bool) == false)
+        #expect((unavailable["error"] as? String)?.contains("not found") == true)
+        #expect(unavailable["transcript"] == nil)
+    }
+
     @Test("endReviewSession stores a role-labelled export as separate turns")
     func endReviewSessionStoresRoleLabelledTurns() async throws {
         let (_, tmpPath) = try TestStores.mcp()

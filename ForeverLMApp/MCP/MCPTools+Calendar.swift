@@ -234,7 +234,11 @@ extension MCPDataStore {
 
     /// What ForeverLM saw the learner do on a day, span by span, with the
     /// day's bouts: the half of the day the calendar cannot hold.
-    func getDayActivity(date rawDate: String?) async throws -> String {
+    func getDayActivity(
+        date rawDate: String?,
+        includeChatTranscripts: Bool = false,
+        maxCharsPerChat rawMaxCharsPerChat: Int? = nil
+    ) async throws -> String {
         let date = try resolvedDayDate(rawDate)
         let clock = DayClock(date: date, now: Date())
         var payload: [String: Any] = ["date": date]
@@ -244,6 +248,7 @@ extension MCPDataStore {
             payload["logged_minutes"] = [:] as [String: Int]
             payload["bouts"] = []
             payload["minutes_learned"] = 0
+            if includeChatTranscripts { payload["chat_transcripts"] = [] as [[String: Any]] }
             return try jsonString(payload)
         }
         // Screen record mode (admin only): the take's own log and bouts.
@@ -253,6 +258,37 @@ extension MCPDataStore {
         payload["logged_minutes"] = Dictionary(uniqueKeysWithValues: detail.loggedMinutesByKind.map { ($0.key.rawValue, $0.value) })
         payload["bouts"] = detail.boutsByRecency.map { learningBoutPayload($0) }
         payload["minutes_learned"] = detail.minutesLearned()
+        if includeChatTranscripts {
+            let maxCharsPerChat = min(max(rawMaxCharsPerChat ?? 50_000, 1_000), 200_000)
+            var seenChatIDs: Set<String> = []
+            var transcripts: [[String: Any]] = []
+            for activity in detail.activities where activity.kind == .chat {
+                guard seenChatIDs.insert(activity.targetID).inserted else { continue }
+                var entry: [String: Any] = [
+                    "chat_id": activity.targetID,
+                    "title": activity.title,
+                    "link": activity.link ?? StudioEntityLink.chat(activity.targetID).markdownDestination,
+                ]
+                do {
+                    let transcript = try getReviewSessionTranscript(sessionID: activity.targetID)
+                    let truncated = transcript.count > maxCharsPerChat
+                    entry["available"] = true
+                    entry["transcript"] = String(transcript.prefix(maxCharsPerChat))
+                    entry["truncated"] = truncated
+                    if truncated {
+                        entry["full_transcript_instruction"] = "Call get_review_session_transcript with this chat_id for the complete transcript."
+                    }
+                } catch {
+                    // An old activity span can outlive a chat the learner deleted.
+                    // Say that plainly; never substitute the sources the chat used,
+                    // because those do not reveal what the learner actually discussed.
+                    entry["available"] = false
+                    entry["error"] = String(describing: error)
+                }
+                transcripts.append(entry)
+            }
+            payload["chat_transcripts"] = transcripts
+        }
         return try jsonString(payload)
     }
 

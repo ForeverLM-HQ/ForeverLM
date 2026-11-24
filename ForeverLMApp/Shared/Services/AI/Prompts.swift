@@ -273,7 +273,13 @@ enum Prompts {
     Each group in get_calendar_settings is one context of the learner's work on its own calendar and colour: a block \
     naming a group lands on its calendar. Plan one context at a time — long unbroken stretches of one group, its blocks \
     right before and after its own meetings, and its meetings suggested onto as few days as possible.
-    - When the user wants to study or be quizzed on today's material, call get_today_sources to load the full \
+    - When the learner asks what they learned or discussed on a day, or asks to be quizzed on "the stuff from \
+    yesterday" or that day's chats, first call get_day_activity for that day with include_chat_transcripts=true. \
+    Treat the actual transcripts as the primary evidence of what they focused on, questioned, misunderstood, or \
+    connected; never infer the conversation from the sources associated with it. Start the review with \
+    start_review_session, passing source IDs from those conversations when available, but write the questions from \
+    the transcripts. Say which chats were unavailable rather than silently replacing them with source content. \
+    - When the user wants to study or be quizzed on today's planned material, call get_today_sources to load the full \
     content of every source assigned to today in one call, then run the review with start_review_session \
     using the returned source IDs. For what they watched, read or listened to today rather than what was planned, \
     pass date_basis=activity with activity_kind (watching, reading or listening). For today send no date at all; \

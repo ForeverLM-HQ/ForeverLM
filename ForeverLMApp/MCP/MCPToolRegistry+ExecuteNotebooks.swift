@@ -237,7 +237,11 @@ extension MCPToolRegistry {
         case "delete_calendar_event":
             return try await store.deleteCalendarEvent(arguments: arguments)
         case "get_day_activity":
-            return try await store.getDayActivity(date: arguments["date"] as? String)
+            return try await store.getDayActivity(
+                date: arguments["date"] as? String,
+                includeChatTranscripts: arguments["include_chat_transcripts"] as? Bool ?? false,
+                maxCharsPerChat: try MCPDataStore.intArgument(arguments, "max_chars_per_chat")
+            )
         case "delete_day_activity":
             return try await store.deleteDayActivity(activityID: arguments["activity_id"] as? String)
         case "get_learning_bout":
