@@ -6861,6 +6861,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.4 (build 322) — 2026-11-24
+
+**Highlights:**
+- **Citations in older papers open their reference,** where a PDF prints "[26]" without a link.
+
+- **Citations in older papers open their reference.** A paper whose PDF prints "[26]" without linking it (many older journals and preprints) now shows the entry on hover or click, as linked papers always did, with **Open** or **Add to Library**. A reference list numbered in full-width brackets ("［1］") is read too.
+- **Listen goes to a paper's section.** The Listen bar has a **Sections** menu with each heading and the time it starts; right-clicking a line of a paper's PDF offers **Listen from Here**.
+- **"What did I learn yesterday" counts the reading too:** the sources you read, listened to or watched that day, with the minutes spent on each and what you highlighted, beside the day's chats.
+- **Assistants that show ForeverLM's app can list hidden items** and attach a book or source by its own identity.
+
 ## 1.0.3 (build 321) — 2026-11-24
 
 **Highlights:**
