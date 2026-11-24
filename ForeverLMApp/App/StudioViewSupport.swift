@@ -573,14 +573,23 @@ enum WindowMoveLock {
 /// pane can paint its own backing across the band and show a different color
 /// from the pane beside it (the chat's white title row next to the Review's
 /// grey one).
+///
+/// `backsBelowBand: false` stops the backing at the pane's top edge instead
+/// of `StudioTopBar.extraBandHeight` below it. A center pane's tab strip
+/// takes it: the pane under the strip draws its own first row, so the extra
+/// grey read as a thin bar above the Reader, its surface starting 6pt lower
+/// than the sidebar's beside it (product owner, 2026-11-24: "why is there a
+/// little thin gray bar above this paper?"). The row keeps the full band, so
+/// the tabs stay on the traffic lights' line.
 fileprivate struct StudioBandRow<Row: View>: View {
     let band: CGFloat
+    var backsBelowBand = true
     @ViewBuilder let row: () -> Row
 
     var body: some View {
         ZStack(alignment: .top) {
             StudioInsetCardStyle.chrome
-                .frame(height: band)
+                .frame(height: backsBelowBand ? band : -StudioTopBar.hangOffset(band: band))
             row()
         }
         .offset(y: StudioTopBar.hangOffset(band: band))
@@ -986,7 +995,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             )
         } band: {
             if let band = titlebarBandHeight, showsStrip {
-                StudioBandRow(band: band) {
+                StudioBandRow(band: band, backsBelowBand: false) {
                     strip(for: group, at: index, isLeading: isLeading)
                         .frame(height: band)
                 }
