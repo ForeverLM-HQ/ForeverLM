@@ -130,6 +130,9 @@ final class ReaderWalkthroughSpotlight {
         }
     }
 
+    /// Whether an outline, shade or passage of the walkthrough is on the page.
+    var showsMarks: Bool { !annotations.isEmpty || selection != nil }
+
     /// Takes every mark down. Safe to call when nothing is painted.
     func clear() {
         guard appliedRevision != nil || !annotations.isEmpty || selection != nil else { return }

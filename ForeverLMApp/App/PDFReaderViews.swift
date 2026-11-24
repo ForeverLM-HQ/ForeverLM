@@ -1424,6 +1424,7 @@ struct PDFKitInlineView: NSViewRepresentable {
         pdfView.cursorForAnnotation = Coordinator.cursorForAnnotation
         pdfView.pageTurner = pageTurns
         pdfView.listenFromHere = context.coordinator.listenFromHere(vm: vm)
+        pdfView.walkthroughMarksDismissal = context.coordinator.walkthroughMarksDismissal(vm: vm)
         pdfView.pointerNearFootChanged = pointerNearFootChanged
         pageTurns?.pdfView = pdfView
         // Before the document, so every page PDFKit lays out asks for one.
@@ -1916,6 +1917,22 @@ struct PDFKitInlineView: NSViewRepresentable {
         /// "Listen from Here" for a page: plays the narration of the source
         /// the page belongs to (a book's chapter, or the paper) from a passage.
         @MainActor
+        /// The learner takes the walkthrough's outline down (Escape, or Hide
+        /// Outline on the page): the focus this Reader follows is spent, so
+        /// the outline stays down until the chat moves to another step.
+        func walkthroughMarksDismissal(vm: StudioViewModel) -> @MainActor () -> (@MainActor () -> Void)? {
+            { [weak self, weak vm] in
+                guard let self, vm != nil, self.walkthroughSpotlight.showsMarks else { return nil }
+                return { [weak self, weak vm] in
+                    guard let self else { return }
+                    self.walkthroughSpotlight.clear()
+                    guard let vm, let focus = vm.readerWalkthroughFocus,
+                          ReaderRequestWindow.reaches(focus.windowID, readerIn: self.readerWindowID) else { return }
+                    vm.clearWalkthroughFocus()
+                }
+            }
+        }
+
         func listenFromHere(vm: StudioViewModel) -> @MainActor (PDFPage) -> (@MainActor (String) -> Void)? {
             { [weak self, weak vm] page in
                 guard let self, let vm, let document = page.document else { return nil }

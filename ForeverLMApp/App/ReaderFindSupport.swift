@@ -1860,6 +1860,13 @@ final class FindablePDFView: PDFView {
     /// "Listen from Here" for a page: the action that plays the page's
     /// source from a passage, or nil where its source cannot be listened to.
     var listenFromHere: (@MainActor (PDFPage) -> (@MainActor (String) -> Void)?)?
+    /// Takes down the walkthrough's outline (and the shade a spotlight puts
+    /// round it) when this view shows one: nil when it shows none. Escape and
+    /// the page's "Hide Outline" call it, so the learner can clear the figure
+    /// once they are done looking (product owner, 2026-11-24: "I do need a
+    /// way to get rid of that blue bounding box once it gets put on").
+    var walkthroughMarksDismissal: (@MainActor () -> (@MainActor () -> Void)?)?
+    private var hideOutlineMenuTarget: MenuActionTarget?
     /// The open menu's "Listen from Here" target, held because menu items hold
     /// theirs weakly and AppKit sends the action after the menu closes.
     private var listenMenuTarget: MenuActionTarget?
@@ -1944,6 +1951,17 @@ final class FindablePDFView: PDFView {
                 if built.items.count > 1 { built.insertItem(.separator(), at: 1) }
                 result = built
             }
+        }
+        if let dismiss = walkthroughMarksDismissal?() {
+            let item = NSMenuItem(title: "Hide Outline", action: #selector(MenuActionTarget.fire), keyEquivalent: "")
+            item.image = NSImage(systemSymbolName: "rectangle.dashed", accessibilityDescription: nil)
+            let target = MenuActionTarget { MainActor.assumeIsolated { dismiss() } }
+            hideOutlineMenuTarget = target
+            item.target = target
+            let built = result ?? NSMenu()
+            built.insertItem(item, at: 0)
+            if built.items.count > 1 { built.insertItem(.separator(), at: 1) }
+            result = built
         }
         guard let pageTurner else { return result }
         let built = result ?? NSMenu()
@@ -2072,6 +2090,13 @@ final class FindablePDFView: PDFView {
             case .zoomOut: zoomOutAction?()
             case .reset: resetZoomAction?()
             }
+            return
+        }
+        // Escape takes the walkthrough's outline down.
+        if event.keyCode == 53,
+           event.modifierFlags.intersection(.deviceIndependentFlagsMask).isDisjoint(with: [.command, .option, .control, .shift]),
+           let dismiss = walkthroughMarksDismissal?() {
+            dismiss()
             return
         }
         super.keyDown(with: event)
