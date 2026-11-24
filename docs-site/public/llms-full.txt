@@ -6861,6 +6861,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.2 (build 320) — 2026-11-24
+
+**Highlights:**
+- **The Reader starts level with the sidebar,** with no grey strip above a paper.
+
+- **No thin grey bar above the Reader.** Under the tab strip the top bar's grey ran 6pt into the pane, so a paper's header started lower than the sidebar beside it; it now stops at the pane's edge.
+
 ## 1.0.1 (build 319) — 2026-11-23
 
 **Highlights:**
