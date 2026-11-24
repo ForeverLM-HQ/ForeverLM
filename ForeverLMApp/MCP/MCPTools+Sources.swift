@@ -364,6 +364,7 @@ extension MCPDataStore {
                        COALESCE(NULLIF(sp.author, ''), NULLIF(bk.author, ''), NULLIF(co.instructors, '')) AS author,
                        sp.journal, sp.published_year,
                        sp.word_count, sp.date_added, sp.status, sp.state,
+                       sp.is_hidden,
                        sp.parent_group AS group_id,
                        COALESCE(sp.parent_group_title, sp.parent_group) AS group_name,
                        bk.subtitle AS group_subtitle

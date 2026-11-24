@@ -362,7 +362,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "browse_library",
-                description: "The Library page of the ForeverLM view an assistant shows inside its own window (Claude, Codex, ChatGPT); for that view, not for model use. Lists the library newest first as the Mac's Library does: a book or course once, under its own title, author and cover, rather than chapter by chapter, and every row with a small thumbnail as a JPEG data URL. Answers JSON: total, and items with kind (source, book or course), id (the chapter a book opens at, for open_in_app with kind source), type, title, byline, words, added and thumbnail. To read the library yourself, use filter_sources.",
+                description: "The Library page of the ForeverLM view an assistant shows inside its own window (Claude, Codex, ChatGPT); for that view, not for model use. Lists the visible library newest first as the Mac's Library does: a book or course once, under its own title, author and cover, rather than chapter by chapter, and every row with a small thumbnail as a JPEG data URL. Hidden sources remain readable and are returned separately for the view's Hidden Items fold. Answers JSON: total and items for visible rows, hidden_total and hidden_items for hidden rows. Each item has kind (source, book or course), id (the chapter a book opens at, for open_in_app with kind source), type, title, byline, words, added, is_hidden and thumbnail; grouped items also have group_id and source_ids. To read the library yourself, use filter_sources.",
                 inputSchema: [
                     "type": "object",
                     "properties": [

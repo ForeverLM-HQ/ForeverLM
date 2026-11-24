@@ -1951,6 +1951,63 @@ struct MCPDataStoreTests {
         #expect(byTitleContains.contains("chapter-5") && byTitleContains.contains("chapter-6") && !byTitleContains.contains("other-chapter"))
     }
 
+    @Test("browse_library separates hidden books and chapters without removing them from knowledge")
+    func browseLibrarySeparatesHiddenBooks() async throws {
+        let (store, tmpPath) = try TestStores.mcp()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+        for (id, title) in [
+            ("shown-1", "Shown chapter"),
+            ("shown-hidden", "Hidden chapter in shown book"),
+            ("hidden-1", "First hidden chapter"),
+            ("hidden-2", "Second hidden chapter"),
+        ] {
+            try insertSource(dbPath: dbPath, id: id, title: title, content: title, sourceType: "book")
+        }
+        try execSQL(dbPath: dbPath, """
+            INSERT INTO books (id, title, author) VALUES
+                ('book-shown', 'Shown Book', 'Zara Holt'),
+                ('book-hidden', 'Hidden Book', 'Zara Holt');
+            INSERT INTO group_members (source_id, group_id, sort_index) VALUES
+                ('shown-1', 'book-shown', 0),
+                ('shown-hidden', 'book-shown', 1),
+                ('hidden-1', 'book-hidden', 0),
+                ('hidden-2', 'book-hidden', 1);
+        """)
+        let knowledgeStore = try store.knowledgeStore()
+        try knowledgeStore.setSourceHidden("shown-hidden", hidden: true)
+        try knowledgeStore.setSourceHidden("hidden-1", hidden: true)
+        try knowledgeStore.setSourceHidden("hidden-2", hidden: true)
+
+        let answer = try await store.browseLibrary(text: nil, sourceType: "book", limit: 40)
+        let data = try #require(answer.data(using: .utf8))
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let visible = try #require(json["items"] as? [[String: Any]])
+        let hidden = try #require(json["hidden_items"] as? [[String: Any]])
+
+        #expect(json["total"] as? Int == 1)
+        #expect(visible.map { $0["title"] as? String } == ["Shown Book"])
+        #expect(visible.first?["is_hidden"] as? Bool == false)
+        #expect(Set(visible.first?["source_ids"] as? [String] ?? []) == ["shown-1", "shown-hidden"])
+        #expect(json["hidden_total"] as? Int == 2)
+        #expect(Set(hidden.compactMap { $0["title"] as? String }) == ["Hidden Book", "Hidden chapter in shown book"])
+        #expect(hidden.allSatisfy { ($0["is_hidden"] as? Bool) == true })
+        #expect(hidden.first { ($0["title"] as? String) == "Hidden Book" }?["group_id"] as? String == "book-hidden")
+
+        // Hiding is presentation state. The model-facing metadata tool still
+        // sees every chapter, including a fully hidden book's chapters.
+        let knowledge = try store.filterSources(
+            show: nil,
+            author: nil,
+            titleContains: nil,
+            text: "Zara Holt",
+            sourceType: "book",
+            includeArchived: false,
+            limit: 20
+        )
+        #expect(knowledge.contains("hidden-1") && knowledge.contains("hidden-2"))
+    }
+
     func insertSource(
         dbPath: String,
         id: String,

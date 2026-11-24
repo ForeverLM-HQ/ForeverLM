@@ -58,12 +58,38 @@ extension MCPDataStore {
             }
         }
 
-        let shown = Array(entries.prefix(max(1, min(limit, 400))))
+        // Hiding one source is presentation state: the source remains available
+        // to chat and search. The app view still needs the bit so it can match
+        // the Mac Library's visible list and its Hidden Items fold instead of
+        // presenting a hidden book as though it were visible.
+        var visibleEntries: [Entry] = []
+        var hiddenEntries: [Entry] = []
+        for entry in entries {
+            let hiddenRows = entry.rows.filter { ($0["is_hidden"] as? Int) == 1 }
+            if hiddenRows.count == entry.rows.count {
+                hiddenEntries.append(entry)
+            } else {
+                visibleEntries.append(entry)
+                // A chapter hidden on its own stays under its visible book in
+                // the native list, and appears separately in Hidden Items.
+                for row in hiddenRows {
+                    hiddenEntries.append(Entry(kind: "source", groupID: nil, rows: [row]))
+                }
+            }
+        }
+
+        let pageLimit = max(1, min(limit, 400))
+        let shownVisible = Array(visibleEntries.prefix(pageLimit))
+        let shownHidden = Array(hiddenEntries.prefix(pageLimit))
+        let shown = shownVisible.map { (entry: $0, hidden: false) }
+            + shownHidden.map { (entry: $0, hidden: true) }
         let store = try knowledgeStore()
-        let coverPaths = shown.contains(where: { $0.kind == StudioSourceType.book.rawValue })
+        let coverPaths = shown.contains(where: { $0.entry.kind == StudioSourceType.book.rawValue })
             ? (try? store.loadBooks().coverPaths) ?? [:]
             : [:]
-        let bookIDs = shown.filter { $0.kind == StudioSourceType.book.rawValue }.compactMap(\.groupID)
+        let bookIDs = shown
+            .filter { $0.entry.kind == StudioSourceType.book.rawValue }
+            .compactMap { $0.entry.groupID }
         // A book row opens where the Library's own book row does: the chapter
         // the reader would resume, or the first one.
         let resumeChapters: [String: String] = bookIDs.isEmpty ? [:] : await MainActor.run {
@@ -78,9 +104,11 @@ extension MCPDataStore {
         let dayFormatter = Self.sourceFilterDayFormatter()
         var items: [[String: Any]] = []
         var origins: [Int: SourceArtwork.Origin] = [:]
-        for (index, entry) in shown.enumerated() {
+        for (index, listing) in shown.enumerated() {
+            let entry = listing.entry
             guard let newest = entry.rows.first else { continue }
             var item: [String: Any] = [:]
+            item["is_hidden"] = listing.hidden
             let words = entry.rows.reduce(0) { $0 + ($1["word_count"] as? Int ?? 0) }
             if words > 0 { item["words"] = words }
             if let added = newest["date_added"] as? Double {
@@ -90,6 +118,7 @@ extension MCPDataStore {
                 item["kind"] = entry.kind
                 item["type"] = entry.kind
                 item["group_id"] = groupID
+                item["source_ids"] = entry.rows.compactMap { $0["id"] as? String }
                 item["title"] = (newest["group_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled"
                 item["parts"] = entry.rows.count
                 if let subtitle = newest["group_subtitle"] as? String, !subtitle.isEmpty { item["subtitle"] = subtitle }
@@ -144,7 +173,13 @@ extension MCPDataStore {
             items[index]["thumbnail"] = url
         }
 
-        return try jsonString(["total": entries.count, "items": items])
+        let visibleCount = shownVisible.count
+        return try jsonString([
+            "total": visibleEntries.count,
+            "items": Array(items.prefix(visibleCount)),
+            "hidden_total": hiddenEntries.count,
+            "hidden_items": Array(items.dropFirst(visibleCount)),
+        ])
     }
 
     /// "Smith et al." for a paper with many authors, as the Library's rows say it.
