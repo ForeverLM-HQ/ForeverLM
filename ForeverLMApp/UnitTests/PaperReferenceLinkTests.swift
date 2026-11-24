@@ -965,6 +965,17 @@ struct PaperReferenceSummaryTests {
         }
     }
 
+    @Test("A book's footnote is prose, not an entry: no title is read off it, so the card shows it whole")
+    func footnote() {
+        let notes = [
+            "1 There are occasional examples of mitochondrial DNA inherited from the father too, very rarely in humans but more commonly in some other species. But these examples are really a footnote to the rule.",
+            "2 In his PhD with me and Andrew Pomiankowski, Marco Colnaghi has done some beautiful mathematical modelling on how the female germline selects for the best mitochondria.",
+        ]
+        for note in notes {
+            #expect(PaperReferenceSummary(entryText: note, stored: nil).title == nil, "\(note)")
+        }
+    }
+
     @Test("A stored entry's catalog record wins over the words")
     func stored() {
         let reference = PaperReference(

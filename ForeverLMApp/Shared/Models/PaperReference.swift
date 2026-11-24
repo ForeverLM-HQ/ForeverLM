@@ -202,7 +202,14 @@ struct PaperReferenceSummary: Equatable, Sendable {
         var byline = surname.map { several ? "\($0) et al." : $0 }
         if let year { byline = byline.map { "\($0), \(year)" } ?? year }
         self.byline = byline
-        self.title = Self.nonBlank(stored?.title) ?? Self.printedTitle(in: text)
+        // A title is read off the words only when they open with an author. A book's footnote
+        // is prose ("1 There are occasional examples of mitochondrial DNA inherited from the
+        // father too, …"), and read as an entry its last sentence passed for the title: the card
+        // showed "But these examples are really a footnote to the rule." alone (product owner,
+        // 2026-11-23: "this footnote is not properly ingested"). With no title the card shows
+        // the whole note.
+        let printed = Self.firstSurname(in: text) == nil ? nil : Self.printedTitle(in: text)
+        self.title = Self.nonBlank(stored?.title) ?? printed
     }
 
     static func nonBlank(_ value: String?) -> String? {
@@ -215,7 +222,9 @@ struct PaperReferenceSummary: Equatable, Sendable {
     static func firstSurname(in text: String) -> String? {
         guard let head = firstAuthorHead(in: text).map(PaperReferenceSummary.firstName(in:)),
               head.count <= 60, let surname = SlideCitationService.surname(inAuthorEntry: head),
-              surname.first?.isLetter == true else { return nil }
+              // A surname is capitalised, its particles aside ("van der Berg"): a note's prose
+              // before its first comma ("In his PhD with me and …") ends on a word that is not.
+              surname.split(separator: " ").last?.first?.isUppercase == true else { return nil }
         return surname
     }
 
