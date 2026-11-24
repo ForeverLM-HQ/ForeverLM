@@ -945,3 +945,24 @@ struct ChatLibraryMentionTests {
         #expect(empty.contains("no messages yet"))
     }
 }
+
+@Suite("Source picker paper line")
+struct SourcePickerPaperAttributionTests {
+    @Test("A preprint and its published version read apart: byline, venue, year")
+    func preprintAndPublished() {
+        let authors = "Garyk Brixi; Matthew G. Durrant; Jerome Ku; Michael Poli"
+        #expect(StudioViewModel.sourcePickerPaperAttribution(author: authors, journal: "bioRxiv", year: "2025")
+            == "Brixi et al. · bioRxiv 2025")
+        #expect(StudioViewModel.sourcePickerPaperAttribution(author: authors, journal: "Nature", year: "2026-03-04")
+            == "Brixi et al. · Nature 2026")
+    }
+
+    @Test("Bylines: one name whole, two by surname, a stored et al. kept")
+    func bylines() {
+        #expect(StudioViewModel.sourcePickerByline("Zara Holt") == "Zara Holt")
+        #expect(StudioViewModel.sourcePickerByline("Brixi, Garyk; Durrant, Matthew") == "Brixi & Durrant")
+        #expect(StudioViewModel.sourcePickerByline("Martin Picard et al.") == "Martin Picard et al.")
+        #expect(StudioViewModel.sourcePickerByline("A Smith, B Jones, C Lee") == "Smith et al.")
+        #expect(StudioViewModel.sourcePickerPaperAttribution(author: nil, journal: nil, year: nil) == "")
+    }
+}

@@ -847,10 +847,16 @@ extension StudioViewModel {
 
             // Who wrote it says more than where it lives, and it is the half a
             // learner scanning the picker recognizes — the domain only stands in
-            // when nothing named the author.
+            // when nothing named the author. A paper reads as a citation does
+            // (`Brixi et al. · Nature 2026`), so a preprint and its published
+            // version — same title, same authors — show what tells them apart.
             let type = Self.sourcePickerTypeLabel(source.sourceType)
-            let attribution = (source.author ?? source.journal ?? source.domain)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let attribution = source.sourceType == .paper
+                ? Self.sourcePickerPaperAttribution(
+                    author: source.author, journal: source.journal, year: source.publishedYear
+                )
+                : (source.author ?? source.journal ?? source.domain)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
             rows.append(ArtifactSourcePickerIndex.RowFields(
                 row: ArtifactSourcePickerRow(
                     id: "source:\(source.id)",
@@ -865,6 +871,50 @@ extension StudioViewModel {
             ))
         }
         return rows
+    }
+
+    /// A paper's line in the source picker: its authors cut to a citation's
+    /// byline, then where and when it appeared — "Brixi et al. · bioRxiv 2025".
+    /// The whole author list filled the line before, so two versions of one
+    /// paper read the same and the venue and year never showed.
+    static func sourcePickerPaperAttribution(author: String?, journal: String?, year: String?) -> String {
+        let trimmed = { (value: String?) in value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
+        var yearText = trimmed(year)
+        if yearText.count > 4, yearText.prefix(4).allSatisfy(\.isNumber) {
+            yearText = String(yearText.prefix(4))
+        }
+        let venue = [trimmed(journal), yearText].filter { !$0.isEmpty }.joined(separator: " ")
+        return [sourcePickerByline(trimmed(author)), venue]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    /// "Brixi", "Brixi & Durrant", "Brixi et al." from a stored author list.
+    /// Papers store one name per `;`; a list with no `;` but three or more
+    /// commas is read as comma-separated. Anything else is one name, shown whole.
+    static func sourcePickerByline(_ author: String) -> String {
+        guard !author.isEmpty else { return "" }
+        if author.hasSuffix(" et al.") || author.hasSuffix(" et al") { return author }
+        var names = author.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }
+        if names.count == 1 {
+            let commaParts = author.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard commaParts.count >= 3 else { return author }
+            names = commaParts
+        }
+        names = names.filter { !$0.isEmpty }
+        guard let first = names.first else { return author }
+        func surname(_ name: String) -> String {
+            // "Brixi, Garyk" keeps what comes before its comma.
+            if let comma = name.firstIndex(of: ",") {
+                return String(name[..<comma]).trimmingCharacters(in: .whitespaces)
+            }
+            return name.split(separator: " ").last.map(String.init) ?? name
+        }
+        switch names.count {
+        case 1: return first
+        case 2: return "\(surname(first)) & \(surname(names[1]))"
+        default: return "\(surname(first)) et al."
+        }
     }
 
     static func sourcePickerTypeLabel(_ type: StudioSourceType) -> String {
