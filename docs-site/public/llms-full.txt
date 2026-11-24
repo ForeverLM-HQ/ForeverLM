@@ -6861,6 +6861,21 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.1 (build 319) — 2026-11-23
+
+**Highlights:**
+- **"1 annotation" in the composer.** A passage you ask about shows as one chip; click it for the quote.
+- **Chats on a source get their own titles.**
+- **Numbered lists in Pages:** type 1. at the start of a bullet.
+
+- **A passage you ask about sits in the chat composer as "1 annotation".** Click it to read the quote; the × still removes it.
+- **A chat opened on one source gets a title of its own,** written by the model from the conversation, where it took the source's name.
+- **A book's footnote card shows the whole note,** however long, where it showed only its last sentence as a title or cut it at 900 characters.
+- **In a Page, typing 1. at the start of a bullet makes the list numbered, and - makes it bulleted.** Two lists back to back keep the bullet rhythm, with no blank-looking gap.
+- **Setup is clearer.** The Full Disk Access page shows the System Settings list and macOS's Quit & Reopen prompt, numbered; Connect OpenRouter offers Try Again while it waits on the browser and says OpenRouter lets you use any AI model you want; the welcome story's day line is shorter.
+- **The free start is 7 days again,** then $19 once.
+- **NotebookLM is called Gemini Notebook** in the app's comparison pages and text.
+
 ## 1.0.0 (build 318) — 2026-11-22
 
 **Highlights:**
