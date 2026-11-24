@@ -138,7 +138,7 @@ struct WelcomeStory: View {
     /// The day's line and its readout, then the question in the same place.
     private var headline: some View {
         ZStack {
-            Text("Every day, you take in so much.")
+            Text("Every day, you take in so much information.")
                 .opacity(beat == .day && shownMoments > 0 ? 1 : 0)
             Text("How much of it do you actually remember?")
                 .opacity(beat == .question ? 1 : 0)
