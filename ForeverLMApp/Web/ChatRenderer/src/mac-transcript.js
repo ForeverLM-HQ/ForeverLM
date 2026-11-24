@@ -256,6 +256,7 @@ function placeChildren(parent, wanted) {
 // Drawing
 
 const icons = {
+  annotation: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H7.5L4.5 13.5V11H3a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/><path d="M5 6.25h6M5 8.25h4"/></svg>',
   copy: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.25" y="5.25" width="8" height="8.5" rx="1.6"/><path d="M10.75 5.25V3.9c0-.88-.72-1.6-1.6-1.6H4.1c-.88 0-1.6.72-1.6 1.6v5.4c0 .88.72 1.6 1.6 1.6h1.15"/></svg>',
   check: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>',
   side: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.75v4.5c0 1.24 1 2.25 2.25 2.25h6.5"/><path d="M9.75 6.75l2.75 2.75-2.75 2.75"/></svg>',
@@ -364,6 +365,43 @@ function addedRow(added) {
   return row;
 }
 
+/// The passages a message was asked about, folded to one chip like the
+/// composer's: "1 annotation", or "3 annotations". A click shows each in full.
+function annotationRow(passages, open) {
+  const row = element("div", "user-annotations");
+  const count = passages.length;
+  const toggle = element("button", "user-annotations-toggle");
+  toggle.type = "button";
+  toggle.innerHTML = icons.annotation;
+  toggle.append(element("span", null, count === 1 ? "1 annotation" : `${count} annotations`));
+  toggle.setAttribute("aria-expanded", "false");
+  const list = element("div", "user-annotations-list");
+  list.hidden = true;
+  for (const passage of passages) {
+    if (open) {
+      const quote = element("button", "user-passage", passage);
+      quote.type = "button";
+      quote.title = "Open in the Reader";
+      quote.addEventListener("click", (event) => {
+        event.preventDefault();
+        open();
+      });
+      list.append(quote);
+    } else {
+      list.append(element("div", "user-quote", passage));
+    }
+  }
+  toggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    keepingPlace(() => {
+      list.hidden = !list.hidden;
+      toggle.setAttribute("aria-expanded", list.hidden ? "false" : "true");
+    });
+  });
+  row.append(toggle, list);
+  return row;
+}
+
 function momentImage(url) {
   const img = element("img");
   img.src = url;
@@ -428,19 +466,16 @@ function drawUser(block, entry) {
     column.append(images);
   }
   if (block.passage) {
-    const quote = element("button", "user-passage", `“${block.passage}”`);
-    quote.type = "button";
-    quote.title = "Open in the Reader";
-    quote.addEventListener("click", (event) => {
-      event.preventDefault();
-      sendAction("openPassage", block.id);
-    });
-    column.append(quote);
+    // The Reader passage the chat was asked about: a chip, "1 annotation",
+    // as the composer showed it; a click lays the passage out, and the
+    // passage opens the Reader.
+    column.append(annotationRow([block.passage], () => sendAction("openPassage", block.id)));
   }
   if (block.quote) {
-    // Words quoted into the message: a quote above what was typed, in full,
-    // with nothing to open.
-    column.append(element("div", "user-quote", block.quote));
+    // Words quoted into the message: the same chip, one annotation per
+    // passage (the composer joins them with a blank line), shown in full
+    // on a click, with nothing to open.
+    column.append(annotationRow(block.quote.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean)));
   }
   if (block.text) {
     const bubble = element("div", "user-bubble");
