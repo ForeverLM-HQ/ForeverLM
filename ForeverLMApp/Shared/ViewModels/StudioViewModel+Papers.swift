@@ -973,10 +973,12 @@ extension StudioViewModel {
 /// A preprint and the journal version it became are two versions of one work and two rows of the
 /// library (docs/paper-versions.md). The rows share no identity key (`paperDedupDisplayKeys`), so
 /// importing the journal version adds a paper rather than being refused as a copy; what ties them is
-/// the DOI the preprint resolved to, or an identical title, read here from what the rows already hold.
+/// the DOI the preprint resolved to, or the title and first author (`isSameWorkByTitle`), read here
+/// from what the rows already hold.
 extension StudioViewModel {
     /// The journal version of a preprint, among `papers`: the paper whose DOI is the one the preprint
-    /// resolved to, else a journal record in the same library with the same title.
+    /// resolved to, else a journal record in the same library whose title says it is the same work
+    /// (`isSameWorkByTitle`).
     nonisolated static func publishedVersion(of preprint: StudioArticle, in papers: [StudioArticle]) -> StudioArticle? {
         guard preprint.sourceType == .paper, paperVersionKind(of: preprint) == .preprint else { return nil }
         let candidates = papers.filter {
@@ -991,14 +993,105 @@ extension StudioViewModel {
                 return match
             }
         }
-        guard !titleNeedsResolution(preprint.title, domain: preprint.domain, url: preprint.url) else { return nil }
-        let titleKey = normalizedPaperTitle(preprint.title)
-        guard !titleKey.isEmpty else { return nil }
+        let preprintFacts = PaperVersionFacts(preprint)
+        guard preprintFacts.titleKey != nil else { return nil }
         return candidates.first { candidate in
-            paperVersionKind(of: candidate) == .journal
-                && !titleNeedsResolution(candidate.title, domain: candidate.domain, url: candidate.url)
-                && normalizedPaperTitle(candidate.title) == titleKey
+            guard paperVersionKind(of: candidate) == .journal else { return false }
+            return isSameWorkByTitle(preprintFacts, PaperVersionFacts(candidate))
         }
+    }
+
+    /// Whether two versions' titles and authors say they are one work: the same title once
+    /// spelling and punctuation are folded (`paperVersionTitleKey`), or, under the same first
+    /// author, titles sharing nearly all their words. A journal edits a preprint's title
+    /// (British spelling in Nature, "modelling" for "modeling"; a dropped colon; a word added),
+    /// and only the title and the authors are left to say so when the preprint never learned
+    /// its published DOI. This links versions; it never merges them (docs/paper-versions.md).
+    nonisolated static func isSameWorkByTitle(_ lhs: PaperVersionFacts, _ rhs: PaperVersionFacts) -> Bool {
+        guard let left = lhs.titleKey, let right = rhs.titleKey else { return false }
+        if left == right { return true }
+        guard let author = lhs.firstAuthor, author == rhs.firstAuthor else { return false }
+        return paperTitlesNearlyMatch(lhs.titleWords, rhs.titleWords)
+    }
+
+    /// The share of words two titles must have in common, under one first author, to be one work.
+    nonisolated static let paperVersionTitleOverlap = 0.8
+
+    /// Titles of at least four words each that share `paperVersionTitleOverlap` of their words.
+    /// Short titles never match this way: two words in common out of three is not evidence.
+    nonisolated static func paperTitlesNearlyMatch(_ lhs: Set<String>, _ rhs: Set<String>) -> Bool {
+        guard lhs.count >= 4, rhs.count >= 4 else { return false }
+        let shared = lhs.intersection(rhs).count
+        return Double(shared) / Double(lhs.union(rhs).count) >= paperVersionTitleOverlap
+    }
+
+    /// A title as versions of one paper compare it: `normalizedPaperTitle`, then every run of
+    /// punctuation a space ("single-cell" meets "single cell", a trailing period goes), and each
+    /// word's British spelling folded to the American one (`foldedSpelling`). Both sides fold the
+    /// same way, so a fold that also changes an unrelated word ("precise" to "precize") changes
+    /// it in both titles and compares equal.
+    nonisolated static func paperVersionTitleKey(_ title: String) -> String {
+        paperVersionTitleWords(title).joined(separator: " ")
+    }
+
+    nonisolated static func paperVersionTitleWords(_ title: String) -> [String] {
+        normalizedPaperTitle(title)
+            .lowercased()
+            .split(whereSeparator: { !($0.isLetter || $0.isNumber) })
+            .map { foldedSpelling(String($0)) }
+    }
+
+    /// One word with its British spelling folded to the American: -elling/-elled/-eller to one l,
+    /// -ise/-isation to -ize, -yse to -yze, -our to -or, -tre to -ter, -ogue to -og, and the
+    /// ae/oe of haemoglobin and oestrogen to e. Words under five letters are left alone.
+    nonisolated static func foldedSpelling(_ word: String) -> String {
+        guard word.count >= 5 else { return word }
+        var w = word
+        for (british, american) in [("ae", "e"), ("oe", "e")] where w.dropFirst().contains(british) {
+            w = String(w.prefix(1)) + w.dropFirst().replacingOccurrences(of: british, with: american)
+        }
+        let suffixes: [(String, String)] = [
+            ("isations", "izations"), ("isation", "ization"),
+            ("ellings", "elings"), ("elling", "eling"), ("elled", "eled"), ("ellers", "elers"), ("eller", "eler"),
+            ("ising", "izing"), ("ised", "ized"), ("ises", "izes"), ("ise", "ize"),
+            ("ysing", "yzing"), ("ysed", "yzed"), ("yse", "yze"),
+            ("ours", "ors"), ("our", "or"),
+            ("tres", "ters"), ("tre", "ter"),
+            ("ogues", "ogs"), ("ogue", "og"),
+        ]
+        for (british, american) in suffixes where w.hasSuffix(british) && w.count > british.count + 1 {
+            return String(w.dropLast(british.count)) + american
+        }
+        return w
+    }
+
+    /// The first author's surname, folded for comparison: the first name of a `;`-separated
+    /// list (or a list of three or more `,`-separated names), the part before a comma
+    /// ("Brixi, Garyk"), else the last word, unless that is only initials ("Brixi GA").
+    nonisolated static func paperFirstAuthorKey(_ author: String?) -> String? {
+        guard let author = author?.trimmingCharacters(in: .whitespacesAndNewlines), !author.isEmpty else { return nil }
+        var names = author.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }
+        if names.count == 1 {
+            let commaParts = author.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            if commaParts.count >= 3 { names = commaParts }
+        }
+        guard let first = names.first(where: { !$0.isEmpty }) else { return nil }
+        let surname: Substring
+        if let comma = first.firstIndex(of: ",") {
+            surname = first[..<comma]
+        } else {
+            let words = first.split(separator: " ")
+            if let last = words.last, words.count > 1,
+               last.count <= 3, last.allSatisfy({ $0.isUppercase || $0 == "." }) {
+                surname = words[0]
+            } else {
+                surname = words.last ?? Substring(first)
+            }
+        }
+        let key = String(surname)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .filter(\.isLetter)
+        return key.isEmpty ? nil : key
     }
 
     /// The preprints among `papers` whose journal version is `published`, newest first.
@@ -1011,7 +1104,7 @@ extension StudioViewModel {
     }
 
     /// What `supersededPreprintIDs` reads off one paper: its place among its versions, its own
-    /// DOI, the DOI it resolved to, and its exact-title key. Each is a parse of the address, the
+    /// DOI, the DOI it resolved to, its title key and first author. Each is a parse of the address, the
     /// DOI or the title, so a caller that keeps them per paper (`paperListingFacts(for:)`) hands
     /// them in rather than having every pass over the library parse every paper again.
     struct PaperVersionFacts: Sendable, Equatable {
@@ -1020,9 +1113,13 @@ extension StudioViewModel {
         let ownDOI: String?
         /// The published DOI a preprint resolved to, trimmed and normalized; nil when it has none.
         let publishedDOI: String?
-        /// `normalizedPaperTitle(title)`; nil while the title still needs resolving
+        /// `paperVersionTitleKey(title)`; nil while the title still needs resolving
         /// (`titleNeedsResolution`) or when it folds to nothing.
         let titleKey: String?
+        /// The words of `titleKey`, for `paperTitlesNearlyMatch`; empty when it is nil.
+        let titleWords: Set<String>
+        /// `paperFirstAuthorKey(author)`.
+        let firstAuthor: String?
 
         init(_ paper: StudioArticle) {
             kind = StudioViewModel.paperVersionKind(of: paper)
@@ -1034,10 +1131,13 @@ extension StudioViewModel {
             }
             if StudioViewModel.titleNeedsResolution(paper.title, domain: paper.domain, url: paper.url) {
                 titleKey = nil
+                titleWords = []
             } else {
-                let key = StudioViewModel.normalizedPaperTitle(paper.title)
-                titleKey = key.isEmpty ? nil : key
+                let words = StudioViewModel.paperVersionTitleWords(paper.title)
+                titleKey = words.isEmpty ? nil : words.joined(separator: " ")
+                titleWords = Set(words)
             }
+            firstAuthor = StudioViewModel.paperFirstAuthorKey(paper.author)
         }
     }
 
@@ -1053,8 +1153,11 @@ extension StudioViewModel {
         hasUsablePDF: (StudioArticle) -> Bool,
         versionFacts: (StudioArticle) -> PaperVersionFacts = { PaperVersionFacts($0) }
     ) -> Set<String> {
+        struct AuthorKey: Hashable { let library: String?; let author: String }
         var doisByLibrary: [String?: Set<String>] = [:]
         var titlesByLibrary: [String?: Set<String>] = [:]
+        // The near-match is pairwise, so it only compares within one library's first author.
+        var journalWordsByAuthor: [AuthorKey: [Set<String>]] = [:]
         var preprints: [(paper: StudioArticle, facts: PaperVersionFacts)] = []
         for paper in articles where paper.sourceType == .paper {
             let facts = versionFacts(paper)
@@ -1068,6 +1171,10 @@ extension StudioViewModel {
             }
             if facts.kind == .journal, let titleKey = facts.titleKey {
                 titlesByLibrary[paper.teamID, default: []].insert(titleKey)
+                if let author = facts.firstAuthor {
+                    journalWordsByAuthor[AuthorKey(library: paper.teamID, author: author), default: []]
+                        .append(facts.titleWords)
+                }
             }
         }
         guard !preprints.isEmpty, !doisByLibrary.isEmpty || !titlesByLibrary.isEmpty else { return [] }
@@ -1077,7 +1184,11 @@ extension StudioViewModel {
                 return preprint.id
             }
             guard let titleKey = facts.titleKey else { return nil }
-            return titlesByLibrary[preprint.teamID]?.contains(titleKey) == true ? preprint.id : nil
+            if titlesByLibrary[preprint.teamID]?.contains(titleKey) == true { return preprint.id }
+            guard let author = facts.firstAuthor,
+                  let journals = journalWordsByAuthor[AuthorKey(library: preprint.teamID, author: author)]
+            else { return nil }
+            return journals.contains { paperTitlesNearlyMatch(facts.titleWords, $0) } ? preprint.id : nil
         })
     }
 

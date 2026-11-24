@@ -317,6 +317,89 @@ struct PreprintPublishedIdentityTests {
         #expect(StudioViewModel.supersededPreprintIDs(in: [preprint], hasUsablePDF: { _ in true }).isEmpty)
     }
 
+    @Test("A journal's British spelling of the preprint's title still links the versions")
+    func britishSpellingLinksVersions() {
+        // The Evo 2 preprint and its Nature version: the preprint never learned its published DOI,
+        // and Nature spells "modelling".
+        let preprint = makePaper(
+            url: "Papers/10.1101_2025.02.18.638918.pdf",
+            title: "Genome modeling and design across all domains of life with Evo 2",
+            author: "Garyk Brixi; Matthew G. Durrant; Jerome Ku; Michael Poli",
+            journal: "bioRxiv", doi: "10.1101/2025.02.18.638918"
+        )
+        let published = makePaper(
+            url: "https://www.nature.com/articles/s41586-026-10176-5",
+            title: "Genome modelling and design across all domains of life with Evo 2",
+            author: "Garyk Brixi; Matthew G. Durrant; Jerome Ku; Mohsen Naghipourfar",
+            journal: "Nature", doi: "10.1038/s41586-026-10176-5"
+        )
+
+        #expect(StudioViewModel.publishedVersion(of: preprint, in: [preprint, published])?.id == published.id)
+        #expect(StudioViewModel.supersededPreprintIDs(in: [preprint, published], hasUsablePDF: { _ in true }) == [preprint.id])
+        #expect(StudioViewModel.firstPaperIdentityDuplicateGroup(in: [preprint, published]) == nil)
+    }
+
+    @Test("A lightly reworded title links the versions only under the same first author")
+    func rewordedTitleNeedsTheFirstAuthor() {
+        let preprint = makePaper(
+            url: "https://www.biorxiv.org/content/10.1101/2025.01.02.631000v1",
+            title: "PeptiVerse: a unified platform for therapeutic peptide property prediction",
+            author: "Ada Lovelace; Charles Babbage",
+            journal: "bioRxiv", doi: "10.1101/2025.01.02.631000"
+        )
+        let published = makePaper(
+            url: "https://www.nature.com/articles/s41586-025-09429-6",
+            title: "PeptiVerse is a unified platform for therapeutic peptide property prediction",
+            author: "Lovelace, Ada; Babbage, Charles",
+            journal: "Nature", doi: "10.1038/s41586-025-09429-6"
+        )
+        var otherAuthor = published
+        otherAuthor.author = "Grace Hopper"
+
+        #expect(StudioViewModel.publishedVersion(of: preprint, in: [preprint, published])?.id == published.id)
+        #expect(StudioViewModel.supersededPreprintIDs(in: [preprint, published], hasUsablePDF: { _ in true }) == [preprint.id])
+        #expect(StudioViewModel.publishedVersion(of: preprint, in: [preprint, otherAuthor]) == nil)
+        #expect(StudioViewModel.supersededPreprintIDs(in: [preprint, otherAuthor], hasUsablePDF: { _ in true }).isEmpty)
+    }
+
+    @Test("A different paper by the same first author is not a version")
+    func sameAuthorDifferentPaper() {
+        let preprint = makePaper(
+            url: "https://www.biorxiv.org/content/10.1101/2025.01.02.631000v1",
+            title: "Genome modeling and design across all domains of life with Evo 2",
+            author: "Garyk Brixi", journal: "bioRxiv", doi: "10.1101/2025.01.02.631000"
+        )
+        let other = makePaper(
+            url: "https://www.nature.com/articles/s41586-099",
+            title: "Protein language models design functional enzymes across domains of life",
+            author: "Garyk Brixi", journal: "Nature", doi: "10.1038/s41586-099"
+        )
+
+        #expect(StudioViewModel.publishedVersion(of: preprint, in: [preprint, other]) == nil)
+        #expect(StudioViewModel.supersededPreprintIDs(in: [preprint, other], hasUsablePDF: { _ in true }).isEmpty)
+    }
+
+    @Test("Spelling and punctuation fold out of a version's title key")
+    func versionTitleKeyFolds() {
+        #expect(StudioViewModel.paperVersionTitleKey("Modelling tumour behaviour: a catalogue.")
+            == StudioViewModel.paperVersionTitleKey("Modeling tumor behavior — a catalog"))
+        #expect(StudioViewModel.paperVersionTitleKey("Single-cell analysis of haemoglobin in foetal centres")
+            == StudioViewModel.paperVersionTitleKey("Single cell analysis of hemoglobin in fetal centers"))
+        #expect(StudioViewModel.paperVersionTitleKey("Optimisation of organised data")
+            == StudioViewModel.paperVersionTitleKey("Optimization of organized data"))
+        #expect(StudioViewModel.paperVersionTitleKey("Cell") != StudioViewModel.paperVersionTitleKey("Cells"))
+    }
+
+    @Test("A first author's surname, whatever the list's format")
+    func firstAuthorKey() {
+        #expect(StudioViewModel.paperFirstAuthorKey("Garyk Brixi; Matthew G. Durrant") == "brixi")
+        #expect(StudioViewModel.paperFirstAuthorKey("Brixi, Garyk; Durrant, Matthew") == "brixi")
+        #expect(StudioViewModel.paperFirstAuthorKey("Brixi GA, Durrant MG, Ku J") == "brixi")
+        #expect(StudioViewModel.paperFirstAuthorKey("Christopher Ré") == "re")
+        #expect(StudioViewModel.paperFirstAuthorKey("  ") == nil)
+        #expect(StudioViewModel.paperFirstAuthorKey(nil) == nil)
+    }
+
     @Test("A journal version in another library is not this preprint's")
     func versionsStayInTheirLibrary() {
         var preprint = makePaper(
