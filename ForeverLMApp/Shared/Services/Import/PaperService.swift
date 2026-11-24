@@ -1547,7 +1547,15 @@ enum PaperService {
 
     /// Try all available metadata sources for a paper, in order of specificity.
     /// Returns the first successful result.
-    static func fetchPaperMetadata(url: String, title: String, doi: String?) async -> CrossrefMetadata? {
+    static func fetchPaperMetadata(url: String, title: String, doi storedDOI: String?) async -> CrossrefMetadata? {
+        // An Elsevier link carries a PII, not a DOI; Crossref maps one to the
+        // other, which is the only bibliography a paywalled ScienceDirect
+        // paper has (its page is a Cloudflare wall).
+        var doi = storedDOI
+        if doi == nil, let pii = elsevierPII(from: url) {
+            doi = await lookupDOIByElsevierPII(pii)
+        }
+
         // 1. Crossref by DOI (most authoritative for published papers)
         if let doi {
             if let meta = await fetchCrossrefMetadata(doi: doi) { return meta }
@@ -2440,7 +2448,7 @@ enum PaperService {
         doi storedDOI: String? = nil
     ) async -> [OpenAccessAlternativeResult] {
         let currentURL = canonicalAlternativeURL(url)
-        let doi = openAccessLookupDOI(url: url, storedDOI: storedDOI)
+        let doi = await resolvedOpenAccessLookupDOI(url: url, storedDOI: storedDOI)
         var results: [OpenAccessAlternativeResult] = []
         var seen = Set([currentURL])
 
@@ -2540,6 +2548,60 @@ enum PaperService {
             return normalized
         }
         return extractDOI(from: url)
+    }
+
+    /// The DOI the open-access lookups key on, asking Crossref for an Elsevier
+    /// URL whose address carries only a PII. A ScienceDirect or Cell link
+    /// names no DOI, and a paywalled one never yields its page or PDF either,
+    /// so without this every index (Europe PMC, Unpaywall, OpenAlex) went
+    /// unasked: a Neuron paper free in PMC stayed a paywalled row titled
+    /// "www.sciencedirect.com" (2026-11-24).
+    static func resolvedOpenAccessLookupDOI(url: String, storedDOI: String?) async -> String? {
+        if let doi = openAccessLookupDOI(url: url, storedDOI: storedDOI) { return doi }
+        guard let pii = elsevierPII(from: url) else { return nil }
+        return await lookupDOIByElsevierPII(pii)
+    }
+
+    /// The PII of a ScienceDirect or Cell Press article URL, in the form
+    /// Crossref files it under `alternative-id`: `S0896627326007737`, never
+    /// Cell's printed `S0896-6273(26)00773-7` (Crossref matches neither that
+    /// nor a lowercase `s`).
+    static func elsevierPII(from urlString: String) -> String? {
+        var raw = ScienceDirectService.pii(from: urlString)
+        if raw == nil,
+           let components = URLComponents(string: urlString),
+           let host = components.host?.lowercased(),
+           host == "cell.com" || host.hasSuffix(".cell.com") {
+            raw = StudioViewModel.cellPressPII(from: components)
+        }
+        guard let raw else { return nil }
+        let pii = String(raw.uppercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) })
+        guard pii.count >= 10, pii.first == "S", pii.dropFirst().allSatisfy({ $0.isNumber || $0 == "X" }) else {
+            return nil
+        }
+        return pii
+    }
+
+    /// Crossref's DOI for an Elsevier PII, or nil when Crossref has none or
+    /// lists more than one work under it.
+    static func lookupDOIByElsevierPII(_ pii: String) async -> String? {
+        guard let url = makeQueryURL("https://api.crossref.org/works", queryItems: [
+            URLQueryItem(name: "filter", value: "alternative-id:\(pii)"),
+            URLQueryItem(name: "rows", value: "2"),
+            URLQueryItem(name: "select", value: "DOI"),
+        ]) else { return nil }
+        let json: [String: Any]?
+        do {
+            json = try await fetchJSONObject(from: url, userAgent: "ForeverLM/1.0 (mailto:flashcards@foreverlm.app)")
+        } catch {
+            logger.error("lookupDOIByElsevierPII: transport failure for PII \(pii, privacy: .public): \(String(describing: error), privacy: .public)")
+            return nil
+        }
+        guard let message = json?["message"] as? [String: Any],
+              let items = message["items"] as? [[String: Any]],
+              items.count == 1,
+              let doi = items[0]["DOI"] as? String else { return nil }
+        return normalizeExtractedDOI(doi)
     }
 
     private static func isBiorxivOrMedrxivDOI(_ doi: String) -> Bool {
