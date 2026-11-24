@@ -1214,10 +1214,12 @@ struct GettingStartedGuide: View {
                         }
                     }
                 }
-                VStack(spacing: 10) {
-                    primaryAction("Relaunch \(ForeverLMRuntimeIdentity.displayName)") { FullDiskAccess.relaunch() }
-                    pageNote("Once it is turned on, relaunch. macOS applies the access only when the app starts, and Setup comes back here.")
-                }
+                // What System Settings looks like, then what to do there (product
+                // owner, 2026-11-23). macOS offers Quit & Reopen once the switch
+                // is on, and the learner takes it: Setup has no relaunch button of
+                // its own, and after the reopen it carries on from the next step.
+                FullDiskAccessPicture(appName: ForeverLMRuntimeIdentity.displayName)
+                pageNote("Click +, choose \(ForeverLMRuntimeIdentity.displayName) and turn it on. When macOS asks, click Quit & Reopen.")
                 secondaryAction("Open System Settings again") { FullDiskAccess.openSettings() }
             }
         }
@@ -1257,6 +1259,12 @@ struct GettingStartedGuide: View {
                 assetIcon: "OpenRouterIcon",
                 title: "Connect OpenRouter"
             )
+            // Product owner, 2026-11-23: say that OpenRouter means any model.
+            Text("OpenRouter lets you easily use any AI model you want.")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             if let own = account.ownKey {
                 Label("Connected · key ending in \(own.suffix)", systemImage: "checkmark.circle.fill")
                     .font(.headline)
