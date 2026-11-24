@@ -1102,6 +1102,11 @@ struct ReviewSlashCommandPopup: View {
     /// The `@` popup's tabs and what it says while there is nothing to pick;
     /// nil for a `/` command.
     var mentionHeader: ReviewMentionPopupHeader? = nil
+    /// The height there is above the composer before the pane's top edge; nil
+    /// when it is not measured yet. The list opens upward, so on Home, where
+    /// the composer sits mid-pane, eight `/source` rows ran past the pane's
+    /// top and were cut off under the tab strip.
+    var maxHeight: CGFloat? = nil
     let onSelect: (ReviewSlashSuggestion) -> Void
 
     /// Group headings name the kinds where a list mixes them: under All, and
@@ -1109,6 +1114,40 @@ struct ReviewSlashCommandPopup: View {
     private var showsGroupHeadings: Bool {
         guard let mentionHeader else { return false }
         return mentionHeader.tab == .all || mentionHeader.tab == .pages
+    }
+
+    /// The rows drawn: all of them when they fit, else as many as fit, slid
+    /// along so the selected row is always among them (the arrow keys walk
+    /// the whole list; the window follows).
+    private var visibleRange: Range<Int> {
+        Self.visibleRange(
+            count: suggestions.count,
+            selectedIndex: selectedIndex,
+            capacity: rowCapacity
+        )
+    }
+
+    /// How many rows fit in `maxHeight`, at the row heights this popup draws
+    /// (a title over an attribution, or one line), after its own padding,
+    /// the `@` tabs and status line, and room for group headings.
+    private var rowCapacity: Int? {
+        guard let maxHeight else { return nil }
+        let rowHeight: CGFloat = suggestions.contains(where: \.isLibraryRow) ? 42 : 30
+        var chrome: CGFloat = 8
+        if mentionHeader != nil { chrome += 30 + (mentionHeader?.statusLine == nil ? 0 : 30) }
+        if showsGroupHeadings { chrome += 24 * 2 }
+        return Int(((maxHeight - chrome) / rowHeight).rounded(.down))
+    }
+
+    /// The window of `count` rows that holds `selectedIndex`, at most
+    /// `capacity` long (never under three: a cramped pane still offers a
+    /// choice and lets the popup reach past the top rather than show none).
+    static func visibleRange(count: Int, selectedIndex: Int, capacity: Int?) -> Range<Int> {
+        guard let capacity, count > max(capacity, 3) else { return 0..<count }
+        let size = max(capacity, 3)
+        let selected = min(max(selectedIndex, 0), count - 1)
+        let start = min(max(0, selected - size + 1), count - size)
+        return start..<(start + size)
     }
 
     var body: some View {
@@ -1119,9 +1158,10 @@ struct ReviewSlashCommandPopup: View {
                     .padding(.top, 2)
                     .padding(.bottom, 4)
             }
-            ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
+            let range = visibleRange
+            ForEach(Array(suggestions.enumerated())[range], id: \.element.id) { index, suggestion in
                 if showsGroupHeadings, let group = suggestion.mentionGroupTitle,
-                   index == 0 || suggestions[index - 1].mentionGroupTitle != group {
+                   index == range.lowerBound || suggestions[index - 1].mentionGroupTitle != group {
                     Text(group)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)

@@ -1505,6 +1505,13 @@ struct ReviewSlashSuggestionsOverlay: View {
     /// Where the popup and the composer are, read by the click monitor. A
     /// reference type, so measuring them never re-renders this view.
     @State private var frames = SlashPopupFrames()
+    /// The height between the composer's top and the pane's, which the popup
+    /// may fill (`ReviewSlashCommandPopup.maxHeight`).
+    @State private var roomAbove: CGFloat?
+
+    /// What sits above a pane's content in the window: the tab strip's band.
+    /// The popup stops under it, where the pane clips.
+    private static let paneTopInset: CGFloat = 56
 
     /// The `@` query being typed, as a value `task(id:)` can key on.
     private var mentionQuery: String? {
@@ -1552,12 +1559,17 @@ struct ReviewSlashSuggestionsOverlay: View {
             // The composer's own frame, for the outside-click test.
             Color.clear
                 .allowsHitTesting(false)
-                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frames.composer = $0 }
+                .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
+                    frames.composer = frame
+                    let room = (frame.minY - 8 - Self.paneTopInset).rounded()
+                    if roomAbove != room { roomAbove = room }
+                }
             if !suggestions.isEmpty || mentionHeader != nil {
                 ReviewSlashCommandPopup(
                     suggestions: suggestions,
                     selectedIndex: composer.slashSelectionIndex,
                     mentionHeader: mentionHeader,
+                    maxHeight: roomAbove,
                     onSelect: onSelect
                 )
                 .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frames.popup = $0 }

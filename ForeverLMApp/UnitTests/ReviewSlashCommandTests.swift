@@ -966,3 +966,20 @@ struct SourcePickerPaperAttributionTests {
         #expect(StudioViewModel.sourcePickerPaperAttribution(author: nil, journal: nil, year: nil) == "")
     }
 }
+
+@Suite("Slash popup fits above the composer")
+struct SlashPopupVisibleRangeTests {
+    @Test("All rows show when they fit or nothing was measured")
+    func allRowsWhenTheyFit() {
+        #expect(ReviewSlashCommandPopup.visibleRange(count: 8, selectedIndex: 0, capacity: nil) == 0..<8)
+        #expect(ReviewSlashCommandPopup.visibleRange(count: 3, selectedIndex: 2, capacity: 3) == 0..<3)
+    }
+
+    @Test("A cramped pane shows a window that follows the selection, never under three rows")
+    func windowFollowsSelection() {
+        #expect(ReviewSlashCommandPopup.visibleRange(count: 8, selectedIndex: 0, capacity: 3) == 0..<3)
+        #expect(ReviewSlashCommandPopup.visibleRange(count: 8, selectedIndex: 4, capacity: 3) == 2..<5)
+        #expect(ReviewSlashCommandPopup.visibleRange(count: 8, selectedIndex: 7, capacity: 3) == 5..<8)
+        #expect(ReviewSlashCommandPopup.visibleRange(count: 8, selectedIndex: 1, capacity: 0) == 0..<3)
+    }
+}
