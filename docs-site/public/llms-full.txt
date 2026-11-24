@@ -6861,6 +6861,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.3 (build 321) — 2026-11-24
+
+**Highlights:**
+- **`/source` shows each paper's journal and year,** so a preprint and its published version read apart.
+
+- **`/source` tells two versions of a paper apart.** A paper's row reads like a citation, "Brixi et al. · bioRxiv 2025" beside "Brixi et al. · Nature 2026", where the whole author list filled the line and hid the journal and year.
+- **A preprint knows its journal version** even when the titles differ in spelling ("modeling" and "modelling") or a few words: Reader ⋯ ▸ Versions offers the published paper.
+- **Tabs are bigger, like a browser's tab strip:** taller, with larger titles, and the × sits where the icon was.
+- **Day quizzes from an assistant draw on that day's chats** as well as its sources.
+
 ## 1.0.2 (build 320) — 2026-11-24
 
 **Highlights:**
