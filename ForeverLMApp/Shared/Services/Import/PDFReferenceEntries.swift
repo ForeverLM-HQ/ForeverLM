@@ -981,9 +981,12 @@ actor PDFReferenceEntries {
     /// Shorter than any reference or affiliation line.
     static let minimumLength = 8
 
-    /// A reference entry is a few lines; anything longer ran into something
-    /// that is not the list.
-    static let maximumLength = 900
+    /// A reference entry is a few lines; anything far longer ran into something
+    /// that is not the list. A book's note is a paragraph or two, and the card
+    /// scrolls: at 900 it cut Transformer's note 2 (1,300 characters, ended
+    /// where note 3 starts) short with "…" (product owner, 2026-11-23: "this one
+    /// also seems cut off").
+    static let maximumLength = 4000
 
     struct Line {
         let text: String
