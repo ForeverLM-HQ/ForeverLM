@@ -6,8 +6,8 @@ import SwiftUI
 /// Cards waiting to be gone through stay off the bar (product owner,
 /// 2026-10-12, of the glyph and its count over a paper: "not sure i like this
 /// brain icon in the top bar of a source i'm reading … app should be super
-/// clean like the chatgpt app"); the ⋯ menu's **Cards to Check (N)**
-/// (`CardsMenuItems`) opens them, and Make Cards is there too.
+/// clean like the chatgpt app"); they wait in To Check, and the ⋯ menu's
+/// Write Card (`CardsMenuItems`) writes one.
 struct CardsToolbarButton: View {
     let article: StudioArticle
 
@@ -39,9 +39,10 @@ struct CardsToolbarButton: View {
     }
 }
 
-/// The source's card items, for the Reader's ⋯ menu and the sidebar's
-/// context menu: **Write Card**, **Cards to Check (N)** while drafts wait,
-/// and **Stop Making Cards** while they are being drafted.
+/// The source's card item, for the Reader's ⋯ menu: **Write Card**, or
+/// **Stop Making Cards** while they are being drafted. Drafts waiting to be
+/// checked are reached from To Check, not from here (the ⋯ was cut down,
+/// 2026-11-24).
 struct CardsMenuItems: View {
     let article: StudioArticle
     let windowState: StudioWindowState
@@ -64,14 +65,6 @@ struct CardsMenuItems: View {
                     Label("Write Card", systemImage: MemoryReviewSession.sidebarIcon)
                 }
                 .help("Write this source's card beside it")
-            }
-            let toCheck = vm.memoryCardsToCheck(sourceID: article.id)
-            if toCheck > 0 {
-                Button {
-                    vm.openCardsToCheckBesideReader(sourceID: article.id, in: windowState)
-                } label: {
-                    Label("Cards to Check (\(toCheck))", systemImage: "checklist")
-                }
             }
         }
     }

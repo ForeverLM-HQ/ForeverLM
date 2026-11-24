@@ -7,7 +7,7 @@ import SwiftUI
 
 /// Voice mode on the Mac: the same conversation as the iPhone's
 /// (`RealtimeVoiceController`, OpenAI Realtime on ForeverLM's own credits),
-/// started from the Reader's ⋯ (Talk About It, Quiz Me Out Loud) and shown in a
+/// started from the Reader's ⋯ (Talk About It) and shown in a
 /// small floating panel that stays above the Reader, the way ChatGPT's Mac
 /// voice window does. Closing the panel ends the conversation; what was said is
 /// saved as a voice chat on the source, filed in the window's notebook, so it is
@@ -506,7 +506,8 @@ enum MacRealtimeVoiceError: LocalizedError {
     }
 }
 
-/// The Reader ⋯'s voice commands, beside Listen.
+/// The Reader ⋯'s voice command, beside Listen: one Talk About It (product
+/// owner, 2026-11-24, simplifying the ⋯). Asked to, the talk quizzes too.
 struct RealtimeVoiceMenuItems: View {
     let article: StudioArticle
     let notebookID: String?
@@ -518,11 +519,6 @@ struct RealtimeVoiceMenuItems: View {
             MacRealtimeVoice.start(article: article, notebookID: notebookID, opening: .talk, bookCoverPath: bookCoverPath)
         } label: {
             Label("Talk About It", systemImage: "waveform")
-        }
-        Button {
-            MacRealtimeVoice.start(article: article, notebookID: notebookID, opening: .quiz, bookCoverPath: bookCoverPath)
-        } label: {
-            Label("Quiz Me Out Loud", systemImage: "questionmark.bubble")
         }
     }
 

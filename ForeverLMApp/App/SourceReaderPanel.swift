@@ -624,8 +624,9 @@ struct SourceReaderPanel: View {
         }
     }
 
-    /// The overflow menu's shortcut-bearing commands, mounted invisibly so
-    /// ⌘F and the zoom keys keep working while the menu is closed. A SwiftUI
+    /// The Reader's shortcut-bearing commands, mounted invisibly so ⌘F, Full
+    /// Screen and the zoom keys work while the ⋯ menu is closed (Find and Full
+    /// Screen are no longer listed in it). A SwiftUI
     /// `Menu` registered these itself; an `NSHostingMenu` is built per press
     /// and holds nothing between presses.
     private func readerKeyEquivalents(for article: StudioArticle) -> some View {
@@ -864,12 +865,14 @@ struct SourceReaderPanel: View {
         }
     }
 
-    /// The ⋯'s items, grouped (Quiet chrome, docs/ui-design.md:
-    /// some thirty commands are not one flat list). The most used stay at the
-    /// top level, then what this kind of source has of its own; Make ▸, View ▸
-    /// and Open & Share ▸ hold the rest; filing, read state and the rare end
-    /// it. Every command keeps its name, and the shortcuts are answered by
-    /// `readerKeyEquivalents`, wherever the item sits.
+    /// The ⋯'s items, kept short (product owner, 2026-11-24: "wayyy too much
+    /// complexity here; simplify this"). The most used stay at the top level,
+    /// then what this kind of source has of its own; Make ▸, View ▸, Open &
+    /// Share ▸ and Notebooks & Canvas ▸ hold the rest; read state and the rare
+    /// end it. Commands with a key or a button of their own are not listed:
+    /// Find (⌘F) and Full Screen (⇧⌘↩) are answered by `readerKeyEquivalents`,
+    /// Go to Page (⌥⌘G) by the toolbar's hidden button, Rotate Page (⌘R, ⌘L)
+    /// by the page itself and its right-click menu.
     private func readerOverflowMenuItems(for article: StudioArticle) -> some View {
         let isSavedSource = !isDisplayingExternalPage
         return Group {
@@ -891,43 +894,6 @@ struct SourceReaderPanel: View {
                 } label: {
                     Label("Contents…", systemImage: "list.bullet")
                 }
-            }
-
-            if isSavedSource, bookNavigationBridge.pageNavigation != nil {
-                Button {
-                    isGoToPagePresented = true
-                } label: {
-                    Label("Go to Page…", systemImage: "number")
-                }
-                // Listed here for the hint; the toolbar's hidden button is
-                // what answers the keys.
-                .keyboardShortcut(ReaderGoToPage.shortcutKey, modifiers: ReaderGoToPage.shortcutModifiers)
-            }
-
-            if isSavedSource, bookNavigationBridge.canTurnPage {
-                ReaderRotatePageMenuItems(bridge: bookNavigationBridge)
-            }
-
-            Button {
-                findState.show()
-            } label: {
-                Label("Find in Reader", systemImage: "magnifyingglass")
-            }
-            .keyboardShortcut("f", modifiers: .command)
-
-            if paneGroupID != nil {
-                let isFullScreen = paneIsFullScreen
-                Button {
-                    toggleReaderFullScreen()
-                } label: {
-                    Label(
-                        isFullScreen ? "Exit Full Screen" : "Full Screen",
-                        systemImage: isFullScreen
-                            ? "arrow.down.right.and.arrow.up.left"
-                            : "arrow.up.left.and.arrow.down.right"
-                    )
-                }
-                .keyboardShortcut(.return, modifiers: [.command, .shift])
             }
 
             if let pageURL = addableLibraryPageURL(for: article) {
@@ -1004,10 +970,14 @@ struct SourceReaderPanel: View {
 
             if isSavedSource {
                 Divider()
-                ReaderNotebookMembershipButton(article: article, windowState: windowState)
-                KnowledgeMapAddToCanvasMenu(refs: ["source:\(article.id)"])
-                SourceNotebooksMenuSection(rowID: vm.canonicalSourceID(article.id), windowState: windowState)
-                KnowledgeMapOnCanvasesSection(ref: "source:\(article.id)", windowState: windowState)
+                Menu {
+                    ReaderNotebookMembershipButton(article: article, windowState: windowState)
+                    KnowledgeMapAddToCanvasMenu(refs: ["source:\(article.id)"])
+                    SourceNotebooksMenuSection(rowID: vm.canonicalSourceID(article.id), windowState: windowState)
+                    KnowledgeMapOnCanvasesSection(ref: "source:\(article.id)", windowState: windowState)
+                } label: {
+                    Label("Notebooks & Canvas", systemImage: "folder")
+                }
             }
 
             if isSavedSource && article.cachedSupportsReadTracking {
@@ -1071,16 +1041,6 @@ struct SourceReaderPanel: View {
                     Label("Download PDF", systemImage: "arrow.down.doc")
                 }
                 .help("Download the article's PDF from this page and attach it")
-            }
-
-            if isSavedSource, article.sourceType == .article {
-                Divider()
-                ArticleReadingViewMenuItems(article: article)
-            }
-
-            if isSavedSource, article.sourceType == .paper, article.isPDF || article.cachedHasRemotePDFURL {
-                Divider()
-                PaperReadingViewMenuItems(article: article)
             }
 
             if isSavedSource && isNarrating(article) {
@@ -1176,6 +1136,16 @@ struct SourceReaderPanel: View {
                 Label("Original Page Colors", systemImage: "circle.lefthalf.filled")
             }
             .help("Show this page as it was published instead of darkening it")
+        }
+
+        if showsPanels, article.sourceType == .article {
+            Divider()
+            ArticleReadingViewMenuItems(article: article)
+        }
+
+        if showsPanels, article.sourceType == .paper, article.isPDF || article.cachedHasRemotePDFURL {
+            Divider()
+            PaperReadingViewMenuItems(article: article)
         }
     }
 

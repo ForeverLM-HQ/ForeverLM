@@ -605,8 +605,8 @@ struct SourceReaderStableNavigation: View {
 
             if pageNavigation != nil {
                 // The keyboard route to Go to Page. The button itself draws
-                // nothing; the command is listed, with this shortcut, in the
-                // reader's overflow menu.
+                // nothing, and the ⋯ menu no longer lists it: this shortcut
+                // is the command's one way in.
                 Button("Go to Page…") {
                     isGoToPagePresented.wrappedValue = true
                 }
@@ -628,8 +628,8 @@ struct SourceReaderStableNavigation: View {
     }
 }
 
-/// The Go to Page command: its shortcut, shared by the hidden toolbar button
-/// that fires it and the overflow menu item that lists it.
+/// The Go to Page command: its shortcut, answered by the hidden toolbar button
+/// that fires it.
 enum ReaderGoToPage {
     static let shortcutKey: KeyEquivalent = "g"
     static let shortcutModifiers: EventModifiers = [.command, .option]
