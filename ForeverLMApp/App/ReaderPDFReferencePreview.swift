@@ -76,6 +76,15 @@ final class ReaderPDFReferencePreview {
     /// What Crossref said an entry without a DOI names — a DOI address, or
     /// nil for nothing it could vouch for — so hovering it again asks nobody.
     private var identified: [String: String?] = [:]
+    /// Links laid over the bracketed citations a PDF prints but does not link, and the
+    /// paper each names its stored entries from (`linkPrintedCitations`).
+    private var printedCitations: [ObjectIdentifier: PrintedCitation] = [:]
+    private var printedLinks: [(page: PDFPage, annotation: PDFAnnotation)] = []
+    private var printedLinkedPages: Set<Int> = []
+    /// Each paper's stored reference list, read once a document.
+    private var printedIndexes: [String: PaperReferenceIndex] = [:]
+    private var printedLoading: Set<String> = []
+    private var visiblePagesObserver: NSObjectProtocol?
 
     /// Created in the PDF coordinator's stored-property initialiser, which is
     /// not on any actor; everything it does afterwards is.
@@ -89,6 +98,14 @@ final class ReaderPDFReferencePreview {
         pdfView.linkClicked = { [weak self] annotation in
             MainActor.assumeIsolated { self?.linkClick(annotation) ?? false }
         }
+        visiblePagesObserver = NotificationCenter.default.addObserver(
+            forName: .PDFViewVisiblePagesChanged,
+            object: pdfView,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.linkPrintedCitations() }
+        }
+        linkPrintedCitations()
     }
 
     func detach() {
@@ -97,6 +114,9 @@ final class ReaderPDFReferencePreview {
         hovered = nil
         pendingShow?.cancel()
         close()
+        if let visiblePagesObserver { NotificationCenter.default.removeObserver(visiblePagesObserver) }
+        visiblePagesObserver = nil
+        clearPrintedCitations()
         pdfView = nil
     }
 
@@ -106,6 +126,8 @@ final class ReaderPDFReferencePreview {
         close()
         entriesDocument = nil
         entriesByFile = [:]
+        clearPrintedCitations()
+        linkPrintedCitations()
     }
 
     // MARK: Showing and closing
@@ -126,6 +148,14 @@ final class ReaderPDFReferencePreview {
         // On the way to a pinned card the pointer may cross other citations.
         guard !pinned else { return }
         close()
+        if let printed = printedCitations[ObjectIdentifier(annotation)] {
+            pendingShow = Task { [weak self] in
+                try? await Task.sleep(for: Self.hoverDelay)
+                guard !Task.isCancelled, let self, self.hovered === annotation else { return }
+                self.show(printed, for: annotation)
+            }
+            return
+        }
         guard let pdfView, let document = pdfView.document, let page = annotation.page else { return }
         let pageIndex = document.index(for: page)
         guard pageIndex != NSNotFound, let source = source(ofPage: pageIndex, in: document) else { return }
@@ -144,6 +174,19 @@ final class ReaderPDFReferencePreview {
     /// a link with nothing to show goes to where it lands. A web link is
     /// left to PDFKit.
     private func linkClick(_ annotation: PDFAnnotation) -> Bool {
+        if let printed = printedCitations[ObjectIdentifier(annotation)] {
+            hovered = annotation
+            pendingShow?.cancel()
+            pendingShow = nil
+            if annotation === shownFor {
+                pin()
+            } else {
+                close()
+                show(printed, for: annotation)
+                pin()
+            }
+            return true
+        }
         guard annotation.url == nil, !(annotation.action is PDFActionURL),
               annotation.destination != nil || annotation.action is PDFActionGoTo else { return false }
         hovered = annotation
@@ -294,11 +337,16 @@ final class ReaderPDFReferencePreview {
     }
 
 
-    private func show(_ cited: [PDFReferenceEntries.CitedEntry], firstPage: Int, for annotation: PDFAnnotation) {
+    private func show(
+        _ cited: [PDFReferenceEntries.CitedEntry],
+        firstPage: Int,
+        sourceID: String? = nil,
+        for annotation: PDFAnnotation
+    ) {
         guard !cited.isEmpty, let pdfView, let page = annotation.page, pdfView.window != nil else { return }
         let anchor = pdfView.convert(annotation.bounds, from: page)
         guard pdfView.visibleRect.intersects(anchor) else { return }
-        let items = cited.map { makeItem($0, firstPage: firstPage, in: pdfView.document) }
+        let items = cited.map { makeItem($0, firstPage: firstPage, sourceID: sourceID, in: pdfView.document) }
         let card = ReaderReferenceCard(items: items)
         card.activate = { [weak self] item in self?.activate(item) }
         card.highlight = { [weak self] item, range, color in self?.highlight(range, of: item, color: color) }
@@ -350,6 +398,114 @@ final class ReaderPDFReferencePreview {
         }
     }
 
+    // MARK: Citations the PDF prints but does not link
+
+    /// A bracketed citation the PDF prints without a link, and the entries of the paper's
+    /// stored reference list it names.
+    private struct PrintedCitation {
+        let sourceID: String
+        let references: [PaperReference]
+    }
+
+    static let printedCitationUserName = "foreverlm-printed-citation"
+
+    /// Lays a link over each bracketed citation ("[26]", "[3, 5–7]") on the pages in view that
+    /// the PDF itself does not link, when the paper's stored reference list has every entry it
+    /// names: an older paper's PDF (BioEssays 2011, many preprints) carries no
+    /// links at all, and its citations otherwise did nothing (product owner, 2026-11-24). The
+    /// links live on the in-memory pages, like the figure mentions' (`ReaderFigureMentionLinks`),
+    /// and are never written to the file; the card shows the stored entries, read at ingest.
+    /// Called again whenever the reader configures the card, since the pages' sources and the
+    /// library arrive after `attach`.
+    func linkPrintedCitations() {
+        guard let pdfView, let document = pdfView.document, let sourceIDOfPage else { return }
+        for page in pdfView.visiblePages {
+            let index = document.index(for: page)
+            guard index != NSNotFound, !printedLinkedPages.contains(index),
+                  let sourceID = sourceIDOfPage(index) else { continue }
+            guard let references = printedIndexes[sourceID] else {
+                loadPrintedIndex(sourceID)
+                continue
+            }
+            printedLinkedPages.insert(index)
+            linkPrintedCitations(on: page, sourceID: sourceID, index: references)
+        }
+    }
+
+    private func loadPrintedIndex(_ sourceID: String) {
+        guard !printedLoading.contains(sourceID), let library else { return }
+        printedLoading.insert(sourceID)
+        Task { [weak self, weak library] in
+            guard let library else { return }
+            let index = await library.paperReferenceIndex(forSource: sourceID)
+            // Not when the document changed while the list was read.
+            guard let self, self.printedLoading.contains(sourceID) else { return }
+            self.printedLoading.remove(sourceID)
+            self.printedIndexes[sourceID] = index
+            self.linkPrintedCitations()
+        }
+    }
+
+    private func linkPrintedCitations(on page: PDFPage, sourceID: String, index: PaperReferenceIndex) {
+        guard Self.listsInCitationOrder(index), let text = page.string, !text.isEmpty else { return }
+        let ownLinks = page.annotations.filter {
+            ($0.type ?? "").lowercased().contains("link") && $0.userName != Self.printedCitationUserName
+        }
+        for citation in ReferenceCitation.printed(in: text) {
+            let references = citation.numbers.compactMap { index.reference(forNumber: $0) }
+            guard references.count == citation.numbers.count,
+                  let selection = page.selection(for: citation.range) else { continue }
+            let lines = selection.selectionsByLine().map { $0.bounds(for: page) }
+                .filter { !$0.isNull && $0.width > 0 && $0.height > 0 }
+            // A citation the publisher linked keeps its own link and card.
+            guard !lines.isEmpty, !lines.contains(where: { line in
+                ownLinks.contains { $0.bounds.insetBy(dx: -1, dy: -1).intersects(line) }
+            }) else { continue }
+            let printed = PrintedCitation(sourceID: sourceID, references: references)
+            for bounds in lines {
+                let annotation = PDFAnnotation(bounds: bounds, forType: .link, withProperties: nil)
+                annotation.userName = Self.printedCitationUserName
+                let border = PDFBorder()
+                border.lineWidth = 0
+                annotation.border = border
+                annotation.shouldPrint = false
+                page.addAnnotation(annotation)
+                printedLinks.append((page, annotation))
+                printedCitations[ObjectIdentifier(annotation)] = printed
+            }
+        }
+    }
+
+    /// Whether "[26]" is the list's 26th entry. A numbered list is; so is one stored in print
+    /// order that prints no numbers, its entries labelled by author and year (MDPI, EMBO
+    /// Reports), when that order is not the alphabet's: an author-year paper's list is
+    /// alphabetical, and a bracket in its text names no entry by place.
+    nonisolated static func listsInCitationOrder(_ index: PaperReferenceIndex) -> Bool {
+        let references = index.references
+        guard !references.isEmpty else { return false }
+        if references.allSatisfy({ $0.label == String($0.ordinal) }) { return true }
+        guard references.count >= 5 else { return false }
+        let labels = references.map { $0.label.lowercased() }
+        let inOrder = zip(labels, labels.dropFirst()).filter { $0 <= $1 }.count
+        return Double(inOrder) < Double(labels.count - 1) * 0.8
+    }
+
+    private func clearPrintedCitations() {
+        for (page, annotation) in printedLinks { page.removeAnnotation(annotation) }
+        printedLinks = []
+        printedCitations = [:]
+        printedLinkedPages = []
+        printedIndexes = [:]
+        printedLoading = []
+    }
+
+    private func show(_ printed: PrintedCitation, for annotation: PDFAnnotation) {
+        let cited = printed.references.map {
+            PDFReferenceEntries.CitedEntry(number: $0.ordinal, text: $0.text, pieces: [])
+        }
+        show(cited, firstPage: 0, sourceID: printed.sourceID, for: annotation)
+    }
+
     // MARK: The entry's words
 
     /// One entry of the card: its words, where on the file's pages they are
@@ -357,9 +513,10 @@ final class ReaderPDFReferencePreview {
     private func makeItem(
         _ cited: PDFReferenceEntries.CitedEntry,
         firstPage: Int,
+        sourceID ownSourceID: String? = nil,
         in document: PDFDocument?
     ) -> ReaderReferenceEntryItem {
-        let sourceID = cited.pieces.first.flatMap { sourceIDOfPage?(firstPage + $0.pageIndex) }
+        let sourceID = ownSourceID ?? cited.pieces.first.flatMap { sourceIDOfPage?(firstPage + $0.pageIndex) }
         let item = ReaderReferenceEntryItem(
             number: cited.number,
             text: cited.text,

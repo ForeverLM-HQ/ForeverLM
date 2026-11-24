@@ -32,7 +32,9 @@ enum PaperReferenceParser {
     /// split at every entry: a lone author's entry ("Gould SJ (1981)"), the entry after a book's
     /// (which ends on its publisher, not a page), a line of authors the PDF reads with no
     /// spaces, and a title no longer cut from its authors where the line ends on the year.
-    static let version = 4
+    /// 5 (2026-11-24): a list numbered in full-width brackets ("［1］", "［ 18 ］") is read; an
+    /// SSRN preprint's 152 entries read as none.
+    static let version = 5
 
     struct Entry: Equatable, Sendable {
         /// The citation number of a numbered list; the position of an author-year one.
@@ -143,7 +145,7 @@ enum PaperReferenceParser {
 
     private enum NumberStyle: CaseIterable {
         case dot       // "12. Smith J, ..."
-        case bracket   // "[12] Smith J, ..."
+        case bracket   // "[12] Smith J, ...", "［12］ Smith J, ..."
         case paren     // "(12) Smith J, ..."
         case bare      // "12 Smith J, ..."
     }
@@ -151,7 +153,8 @@ enum PaperReferenceParser {
     private static let startExpressions: [NumberStyle: NSRegularExpression] = {
         let patterns: [NumberStyle: String] = [
             .dot: #"^(\d{1,3})\.(?:\s+|(?=\p{Lu})|$)(.*)$"#,
-            .bracket: #"^\[(\d{1,3})\]\s*(.*)$"#,
+            // Full-width brackets too, spaced or not: "［1］", "［ 18 ］" (an SSRN preprint).
+            .bracket: #"^[\[\x{FF3B}]\s*(\d{1,3})\s*[\]\x{FF3D}]\s*(.*)$"#,
             .paren: #"^\((\d{1,3})\)\s*(.*)$"#,
             .bare: #"^(\d{1,3})\s+(?=\p{Lu})(.*)$"#,
         ]

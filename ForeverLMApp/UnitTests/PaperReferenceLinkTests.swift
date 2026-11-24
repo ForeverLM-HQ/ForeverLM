@@ -48,6 +48,23 @@ struct PaperReferenceParserTests {
         """
     }
 
+    @Test("A list numbered in full-width brackets, spaced or not, is read")
+    func fullWidthBrackets() {
+        let text = """
+        Reference:
+        \u{FF3B}1\u{FF3D}Maegawa S, Lu Y, Tahara T, et al. Caloric restriction delays age-related methylation drift.
+        Nat Commun. 2017 Sep 14;8(1):539. doi: 10.1038/s41467-017-00607-3.
+        \u{FF3B}2\u{FF3D} Ocampo A, Reddy P, Martinez-Redondo P, et al. In Vivo Amelioration of Age-
+        Associated Hallmarks by Partial Reprogramming. Cell. 2016 Dec 15;167(7):1719-1733.e12.
+        \u{FF3B} 3 \u{FF3D} Frenk S, Houseley J. Gene expression hallmarks of cellular ageing.
+        Biogerontology. 2018 Dec;19(6):547-566. doi: 10.1007/s10522-018-9750-z.
+        """
+        let entries = PaperReferenceParser.entries(inPaperText: text)
+        #expect(entries.map(\.ordinal) == [1, 2, 3])
+        #expect(entries[0].text.hasPrefix("Maegawa S, Lu Y"))
+        #expect(entries[2].text.hasPrefix("Frenk S, Houseley J."))
+    }
+
     @Test("A numbered list is read entry by entry, hyphens closed, running lines left out")
     func numbered() {
         let entries = PaperReferenceParser.entries(inPaperText: numberedPaper())

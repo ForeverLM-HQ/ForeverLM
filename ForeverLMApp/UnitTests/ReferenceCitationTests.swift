@@ -329,3 +329,44 @@ struct RangeCitationEntriesTests {
         return Paper(data: data as Data, links: links)
     }
 }
+
+@Suite("Citations a PDF prints but does not link")
+struct PrintedReferenceCitationTests {
+    @Test("A bracketed citation is found with every number it names, a range read whole")
+    func bracketsFound() {
+        let text = "slows down by an order of magnitude [26]\nand rises [3, 5–7]; see also [1,2]."
+        #expect(ReferenceCitation.printed(in: text).map(\.numbers) == [[26], [3, 5, 6, 7], [1, 2]])
+        let first = ReferenceCitation.printed(in: text)[0].range
+        #expect((text as NSString).substring(with: first) == "[26]")
+    }
+
+    @Test("A bracket that reads no citation numbers is not a citation")
+    func notCitations() {
+        #expect(ReferenceCitation.printed(in: "[Ca2+] rose, [0] held, [12–8] ran backwards, [abc]").isEmpty)
+    }
+
+    @Test("Full-width brackets, and a space inside the brackets, still make a citation")
+    func fullWidth() {
+        #expect(ReferenceCitation.printed(in: "drift \u{FF3B}12\u{FF3D}. Then [ 5 ] again").map(\.numbers) == [[12], [5]])
+        #expect(ReferenceCitation.printed(in: "Reference:\n\u{FF3B}1\u{FF3D}Maegawa S, Lu Y").isEmpty)
+    }
+
+    @Test("An entry of a bracketed reference list is not a citation of it; a citation wrapped to a new line is")
+    func listEntriesLeftOut() {
+        #expect(ReferenceCitation.printed(in: "References\n[12] Smith J. 2001. A title.").isEmpty)
+        #expect(ReferenceCitation.printed(in: "tunnelling\n[26] and free-radical leak").map(\.numbers) == [[26]])
+    }
+
+    @Test("A numbered list, or one in citation order, is read by place; an alphabetical author-year list is not")
+    func listOrder() {
+        func index(_ labels: [String]) -> PaperReferenceIndex {
+            PaperReferenceIndex(sourceID: "s", references: labels.enumerated().map {
+                PaperReference(sourceID: "s", ordinal: $0.offset + 1, label: $0.element, text: $0.element)
+            })
+        }
+        #expect(ReaderPDFReferencePreview.listsInCitationOrder(index(["1", "2", "3"])))
+        #expect(ReaderPDFReferencePreview.listsInCitationOrder(index(["Jacobi 2015", "Lee 2003", "Buck 2016", "Adams 2001", "Zhou 2008", "Chen 2010"])))
+        #expect(!ReaderPDFReferencePreview.listsInCitationOrder(index(["Adams 2001", "Buck 2016", "Chen 2010", "Jacobi 2015", "Lee 2003", "Zhou 2008"])))
+        #expect(!ReaderPDFReferencePreview.listsInCitationOrder(index([])))
+    }
+}

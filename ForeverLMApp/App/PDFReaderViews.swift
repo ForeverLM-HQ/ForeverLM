@@ -1521,6 +1521,7 @@ struct PDFKitInlineView: NSViewRepresentable {
         preview.openSource = opensCitedSource ?? { [weak vm] sourceID in
             Task { await vm?.revealSourceInReader(sourceID) }
         }
+        preview.linkPrintedCitations()
     }
 
     static func dismantleNSView(_ nsView: PDFView, coordinator: Coordinator) {

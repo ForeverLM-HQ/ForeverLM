@@ -74,6 +74,53 @@ enum ReferenceCitation {
     }
 }
 
+// MARK: - Citations a PDF prints but does not link
+
+extension ReferenceCitation {
+    /// A bracketed citation as a page's text prints it: "[26]", "[3, 5–7]", "［26］".
+    struct Printed: Equatable, Sendable {
+        /// The brackets and what is between them, in the page's text.
+        let range: NSRange
+        let numbers: [Int]
+    }
+
+    /// The bracketed citations by number in a page's text, for a PDF that links none of them
+    /// (product owner, 2026-11-24, on a 2011 BioEssays paper whose "[26]" did nothing: "for all
+    /// papers, if there's these kind of footnotes, we should do that post-processing so that
+    /// those become clickable"). A bracket that opens a line and is followed by a capital is an
+    /// entry of a bracketed reference list, not a citation of it, and is left out; so is a
+    /// bracket that reads no citation numbers ("[Ca2+]", "[0, 1]").
+    static func printed(in text: String) -> [Printed] {
+        let ns = text as NSString
+        var found: [Printed] = []
+        for match in printedPattern.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            let inner = ns.substring(with: match.range(at: 1))
+            guard let numbers = numbers(in: inner), !numbers.isEmpty else { continue }
+            if opensListEntry(match.range, in: ns) { continue }
+            found.append(Printed(range: match.range, numbers: numbers))
+        }
+        return found
+    }
+
+    private static let printedPattern = try! NSRegularExpression(
+        pattern: "[\\[\\uFF3B]\\s?(\\d{1,3}(?:[\\s\\u00A0\\u2009]*[,;\\-\\u2010-\\u2014\\u2212][\\s\\u00A0\\u2009]*\\d{1,3})*)\\s?[\\]\\uFF3D]"
+    )
+
+    /// "[12] Smith J, …" at the start of a line: where an entry of the list begins.
+    private static func opensListEntry(_ range: NSRange, in text: NSString) -> Bool {
+        var before = range.location - 1
+        while before >= 0, let scalar = Unicode.Scalar(text.character(at: before)), scalar == " " || scalar == "\t" {
+            before -= 1
+        }
+        let atLineStart = before < 0 || [0x0A, 0x0D, 0x2028, 0x2029].contains(text.character(at: before))
+        guard atLineStart else { return false }
+        var after = NSMaxRange(range)
+        while after < text.length, text.character(at: after) == 0x20 { after += 1 }
+        guard after < text.length, let next = Unicode.Scalar(text.character(at: after)) else { return true }
+        return next.properties.isUppercase
+    }
+}
+
 // MARK: - Reading a citation off the page
 
 extension PDFReferenceEntries {
