@@ -1170,8 +1170,8 @@ struct GettingStartedGuide: View {
     /// only when a Podcasts or Reading List scan is found blocked. macOS never
     /// lists ForeverLM there on its own, and applies the grant only at launch,
     /// so the step is two pages with one thing to do on each: open System
-    /// Settings, then add the app and relaunch. Setup comes back to it after
-    /// the relaunch. It cannot be skipped (product owner, 2026-11-20).
+    /// Settings, then add the app and take macOS's Quit & Reopen. Setup comes back after
+    /// the reopen. It cannot be skipped (product owner, 2026-11-20).
     private var fullDiskAccessStep: some View {
         VStack(spacing: 24) {
             stepHeading(
@@ -1943,6 +1943,154 @@ struct SetupStepHeading: View {
                     .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// System Settings' Full Disk Access list and the prompt macOS shows once the
+/// app is turned on, numbered in the order the learner does them. Drawn rather
+/// than captured: a capture carries the account name and app list of whoever
+/// took it, and a drawing follows light and dark mode.
+private struct FullDiskAccessPicture: View {
+    let appName: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            settingsPane
+            Image(systemName: "arrow.right")
+                .font(.headline)
+                .foregroundStyle(.tertiary)
+            quitPrompt
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("In System Settings, click plus, choose \(appName) and turn it on, then click Quit and Reopen.")
+    }
+
+    private var settingsPane: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                    Image(systemName: "chevron.right")
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                Text("Full Disk Access")
+                    .font(.callout.weight(.semibold))
+            }
+            VStack(spacing: 0) {
+                placeholderRow(width: 78, isOn: true)
+                Divider().padding(.leading, 34)
+                placeholderRow(width: 56, isOn: false)
+                Divider().padding(.leading, 34)
+                HStack(spacing: 8) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 20, height: 20)
+                    Text(appName)
+                        .font(.caption.weight(.medium))
+                    Spacer(minLength: 8)
+                    step(2)
+                    toggle(isOn: true)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.accentColor.opacity(0.1))
+                Divider()
+                HStack(spacing: 10) {
+                    Image(systemName: "plus")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 20, height: 20)
+                        .overlay(Circle().strokeBorder(Color.accentColor, lineWidth: 1.5))
+                    step(1)
+                    Image(systemName: "minus")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+            }
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.primary.opacity(0.08)))
+        }
+        .padding(12)
+        .frame(width: 260)
+        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.primary.opacity(0.1)))
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 3)
+    }
+
+    private var quitPrompt: some View {
+        VStack(spacing: 10) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 36, height: 36)
+            Text("“\(appName)” will not have full disk access until it is quit.")
+                .font(.caption.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    Text("Quit & Reopen")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    step(3)
+                }
+                Text("Later")
+                    .font(.caption)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                    .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .padding(.trailing, 24)
+            }
+        }
+        .padding(14)
+        .frame(width: 200)
+        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.primary.opacity(0.1)))
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+    }
+
+    /// Another app's row, kept nameless.
+    private func placeholderRow(width: CGFloat, isOn: Bool) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.primary.opacity(0.12))
+                .frame(width: 20, height: 20)
+            Capsule()
+                .fill(Color.primary.opacity(0.12))
+                .frame(width: width, height: 7)
+            Spacer()
+            toggle(isOn: isOn)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+    }
+
+    private func toggle(isOn: Bool) -> some View {
+        Capsule()
+            .fill(isOn ? Color.accentColor : Color.primary.opacity(0.15))
+            .frame(width: 26, height: 15)
+            .overlay(alignment: isOn ? .trailing : .leading) {
+                Circle()
+                    .fill(.white)
+                    .padding(1.5)
+                    .shadow(color: .black.opacity(0.15), radius: 1, y: 0.5)
+            }
+    }
+
+    private func step(_ number: Int) -> some View {
+        Text("\(number)")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 16, height: 16)
+            .background(Circle().fill(.orange))
     }
 }
 
