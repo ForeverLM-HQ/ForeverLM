@@ -27,10 +27,27 @@ struct StudioCenterTabButton: View {
     /// The pointer is over the tab's × slot, which its own click surface reports
     /// (`StudioCenterTabDragHandleView.onCloseHoverChange`).
     @State private var closeHovering = false
-    @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = StudioCenterTabButton.textSize
 
     /// The tab's ×.
     private static let closeSize: CGFloat = 14
+
+    /// A browser's tab, not a toolbar chip: taller, with a 13pt title and
+    /// room around it (product owner, 2026-11-24, of a browser's tab strip:
+    /// "design the tabs to be a bit bigger like this"). The band is 54pt
+    /// (58pt windowed), so a 32pt tab still leaves it air above and below.
+    static let height: CGFloat = 32
+    /// The title's base size, before Dynamic Type scales it.
+    static let textSize: CGFloat = 13
+    static let horizontalPadding: CGFloat = 12
+    static let iconSpacing: CGFloat = 6
+    static let cornerRadius: CGFloat = 9
+
+    /// What a tab adds to its title: its icon (about the text's size), the
+    /// gap after it and its padding on both sides.
+    static func chromeWidth(textSize: CGFloat) -> CGFloat {
+        textSize + iconSpacing + 2 * horizontalPadding
+    }
 
     /// Match the visual label's fixed metrics and give the representable an
     /// explicit non-zero frame. Letting an intrinsic-size-less NSView take its
@@ -47,7 +64,7 @@ struct StudioCenterTabButton: View {
     /// way sometimes the X to close the tab is on the left and sometimes it's
     /// on the right"; picked left, on hover).
     private var tabWidth: CGFloat {
-        min(fullTextWidth, titleCap) + tabTextSize + 24
+        min(fullTextWidth, titleCap) + Self.chromeWidth(textSize: tabTextSize)
     }
 
     /// The tab is under the pointer, so its × stands where its icon was.
@@ -85,9 +102,9 @@ struct StudioCenterTabButton: View {
                 onRename: onRename,
                 onCloseHoverChange: { closeHovering = $0 }
             )
-            .frame(width: tabWidth, height: 26)
+            .frame(width: tabWidth, height: Self.height)
 
-            HStack(spacing: 5) {
+            HStack(spacing: Self.iconSpacing) {
                 Image(systemName: systemImage)
                     .font(.system(size: max(10, tabTextSize - 1), weight: .medium))
                     .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
@@ -116,10 +133,13 @@ struct StudioCenterTabButton: View {
                         }
                     }
             }
-                .padding(.leading, 9)
-                .padding(.trailing, 9)
-                .frame(width: tabWidth, height: 26, alignment: .leading)
-                .background(StudioSelectionBackground(isSelected: isActive, isHovered: hovering))
+                .padding(.horizontal, Self.horizontalPadding)
+                .frame(width: tabWidth, height: Self.height, alignment: .leading)
+                .background(StudioSelectionBackground(
+                    isSelected: isActive,
+                    isHovered: hovering,
+                    cornerRadius: Self.cornerRadius
+                ))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
@@ -130,7 +150,7 @@ struct StudioCenterTabButton: View {
             // doesn't actually close them"). One surface decides, the way a
             // terminal tab's × does.
             Image(systemName: "xmark")
-                .zoomedSystemFont(size: 8.5, weight: .semibold)
+                .zoomedSystemFont(size: 9.5, weight: .semibold)
                 .foregroundStyle(closeHovering ? Color.primary : Color.secondary)
                 .frame(width: Self.closeSize, height: Self.closeSize)
                 .background {
@@ -139,13 +159,14 @@ struct StudioCenterTabButton: View {
                         .padding(-2)
                 }
                 .opacity(closeTakesIconPlace ? 1 : 0)
-                .padding(.leading, 8)
-                .frame(width: tabWidth, height: 26, alignment: .leading)
+                // Centred on the icon it stands in for.
+                .padding(.leading, Self.horizontalPadding - 1)
+                .frame(width: tabWidth, height: Self.height, alignment: .leading)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-        .frame(width: tabWidth, height: 26)
-        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .frame(width: tabWidth, height: Self.height)
+        .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
         .onHover { hovering = $0 }
         .help(isActive ? title : "Show \(title); drag to the side to view side by side")
         .accessibilityAddTraits(isActive ? .isSelected : [])

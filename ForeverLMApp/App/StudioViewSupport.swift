@@ -693,7 +693,7 @@ enum StudioCenterTabStripFit {
     /// icon's place, so it keeps no room for one).
     static func tabsChrome(count: Int, textSize: CGFloat) -> CGFloat {
         guard count > 0 else { return 0 }
-        return CGFloat(count) * (textSize + 24 + 2)
+        return CGFloat(count) * (StudioCenterTabButton.chromeWidth(textSize: textSize) + 2)
     }
 
     /// What the strip spends besides its tabs: its two edges, + and the split
@@ -737,7 +737,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     @Environment(\.studioPanelTrailingOverflow) private var outerTrailingOverflow
     /// The tabs' text size (`StudioCenterTabButton`), to fit a strip by.
-    @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = StudioCenterTabButton.textSize
 
     let onSessionDropAtEdge: (ReviewSessionTransfer, Bool) -> Void
     /// The chat store of a chat place in a pane, whose chats the strip draws
@@ -1442,7 +1442,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     private var dropIndicatorCapsule: some View {
         Capsule()
             .fill(Color.accentColor)
-            .frame(width: 3, height: 22)
+            .frame(width: 3, height: StudioCenterTabButton.height - 4)
             .shadow(color: Color.accentColor.opacity(0.35), radius: 3, x: 0, y: 0)
     }
 

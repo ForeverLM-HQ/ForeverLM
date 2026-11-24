@@ -144,7 +144,7 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
     private var closeTrackingArea: NSTrackingArea?
     /// Every tab's × stands at its leading edge, in its icon's place
     /// (`StudioCenterTabButton`).
-    private static let closeSlotWidth: CGFloat = 26
+    private static let closeSlotWidth: CGFloat = StudioCenterTabButton.horizontalPadding + 18
 
     override var acceptsFirstResponder: Bool { true }
 
