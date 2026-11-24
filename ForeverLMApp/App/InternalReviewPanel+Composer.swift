@@ -980,10 +980,14 @@ extension InternalReviewPanelContent {
                 Image(systemName: readerSelectionChipIcon(for: selection))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.accentColor)
-                Text(readerSelectionPreview(for: selection))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                if readerSelectionIsPlainPassage(selection) {
+                    ReaderSelectionAnnotationButton(quote: readerSelectionFullQuote(for: selection))
+                } else {
+                    Text(readerSelectionPreview(for: selection))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
                 Button {
                     pendingReaderSelection = nil
                 } label: {
@@ -1000,6 +1004,22 @@ extension InternalReviewPanelContent {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(readerSelectionChipKindLabel(for: selection) + readerSelectionPreview(for: selection))
         }
+    }
+
+    /// A passage picked in the Reader shows as "1 annotation", not as its words;
+    /// a click opens the quote. Review, side-question and picture hand-offs
+    /// keep their own preview line.
+    private func readerSelectionIsPlainPassage(_ selection: ReaderSelectionExplanationRequest) -> Bool {
+        selection.reviewHandoff == nil
+            && selection.sideQuestionHandoff == nil
+            && !selection.isPictureOnly
+            && !readerSelectionFullQuote(for: selection).isEmpty
+    }
+
+    private func readerSelectionFullQuote(for selection: ReaderSelectionExplanationRequest) -> String {
+        selection.selectedText
+            .foldingTeXForPreview()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func readerSelectionChipIcon(for selection: ReaderSelectionExplanationRequest) -> String {
@@ -1112,5 +1132,36 @@ extension InternalReviewPanelContent {
         if dictation.isRecording { return "Stop dictation and send" }
         if dictation.isTranscribing { return "Transcribing…" }
         return "Dictate answer"
+    }
+}
+
+/// The composer's "1 annotation" chip label: a click shows the selected
+/// passage in a popover.
+private struct ReaderSelectionAnnotationButton: View {
+    let quote: String
+    @State private var showsQuote = false
+
+    var body: some View {
+        Button {
+            showsQuote.toggle()
+        } label: {
+            Text("1 annotation")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.hoverWash(opacity: 0.12))
+        .help("Show the selected passage")
+        .popover(isPresented: $showsQuote, arrowEdge: .top) {
+            ScrollView {
+                Text(quote)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+            }
+            .frame(width: 380)
+            .frame(maxHeight: 320)
+            .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
