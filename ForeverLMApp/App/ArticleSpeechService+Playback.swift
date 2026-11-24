@@ -41,6 +41,7 @@ extension ArticleSpeechService {
         prefetchTasks.values.forEach { $0.cancel() }
         prefetchTasks = [:]
         audioChunks = []
+        clearNarrationSections()
         audioChunkIndex = 0
         syncedChunkURLs = []
         completedSyncedChunks = []
@@ -253,6 +254,20 @@ extension ArticleSpeechService {
             guard let self, !Task.isCancelled, epoch == self.playbackEpoch else { return }
             self.syncedChunkURLs = urls
             self.audioChunkIndex = 0
+
+            // "Listen from Here" outranks the saved position.
+            if let spot = self.takePendingStartSpot(), spot.chunkIndex < urls.count {
+                let url = urls[spot.chunkIndex]
+                let duration = await Task.detached(priority: .userInitiated) {
+                    Self.audioDuration(at: url)
+                }.value ?? 0
+                guard !Task.isCancelled, epoch == self.playbackEpoch else { return }
+                self.pendingResumeGlobalTime = nil
+                if duration > 0 { self.chunkDurations[spot.chunkIndex] = duration }
+                self.loadAllChunkDurations()
+                await self.jumpToChunk(spot.chunkIndex, offset: spot.offset(inChunkOfDuration: duration))
+                return
+            }
 
             if let resumeTime = self.pendingResumeGlobalTime,
                resumeTime >= Self.minimumResumeInterval {

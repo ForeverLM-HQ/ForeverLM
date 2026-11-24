@@ -266,10 +266,13 @@ extension ArticleSpeechService {
             // the current provider would chunk the source differently.
             audioChunks = preparation.manifestChunkTexts ?? preparation.chunks
             beginSyncedPlayback(manifest: manifest)
+            loadNarrationSections(for: article)
             return
         }
 
         audioChunks = preparation.chunks
+        // Made live, the narration's later parts are not here to start from.
+        pendingStartPassage = nil
         guard !audioChunks.isEmpty else {
             stop()
             nowPlayingTitle = nil
@@ -298,6 +301,7 @@ extension ArticleSpeechService {
             )
         }
         prefetchAllAudioChunks(generationID: generationID)
+        loadNarrationSections(for: article)
 
         startPlaybackTask { [weak self] in
             if await self?.applyPendingResumeIfNeeded() == true { return }

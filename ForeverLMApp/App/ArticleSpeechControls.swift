@@ -881,6 +881,9 @@ struct ArticleSpeechToolbarProgress: View {
         HStack(spacing: 8) {
             if speech.canSeek && !speech.isGeneratingAudio {
                 ArticleSpeechPlaybackScrubber(speech: speech)
+                if !speech.narrationSections.isEmpty {
+                    ArticleSpeechSectionsMenu(speech: speech)
+                }
             }
             // No "Generating audio" line while a narration plays: it is made
             // first (`SourceNarrationState`) and played once it is there.
@@ -901,6 +904,41 @@ struct ArticleSpeechToolbarProgress: View {
                     .lineLimit(1)
             }
         }
+    }
+}
+
+/// A paper's sections, each a place in its narration: choosing one plays from
+/// there. The one playing now is ticked.
+struct ArticleSpeechSectionsMenu: View {
+    @ObservedObject var speech: ArticleSpeechService
+
+    var body: some View {
+        let current = speech.currentNarrationSectionID
+        Menu {
+            ForEach(speech.narrationSections) { section in
+                Button {
+                    speech.play(section: section)
+                } label: {
+                    if section.id == current {
+                        Label(title(for: section), systemImage: "checkmark")
+                    } else {
+                        Text(title(for: section))
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "list.bullet")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Go to a section")
+        .accessibilityLabel("Sections")
+    }
+
+    private func title(for section: NarrationSection) -> String {
+        guard let time = speech.narrationTime(of: section.spot) else { return section.title }
+        return "\(section.title)  \(YouTubeTranscriptTime.display(time))"
     }
 }
 

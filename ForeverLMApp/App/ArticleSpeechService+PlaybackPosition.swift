@@ -22,6 +22,7 @@ extension ArticleSpeechService {
         prefetchTasks.values.forEach { $0.cancel() }
         prefetchTasks = [:]
         audioChunks = []
+        clearNarrationSections()
         audioChunkIndex = 0
         syncedChunkURLs = []
         completedSyncedChunks = []

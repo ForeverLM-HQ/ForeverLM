@@ -1857,6 +1857,12 @@ final class FindablePDFView: PDFView {
     /// Turns single pages (⌘R, ⌘L and the page's context menu); nil for a
     /// document whose turns nobody remembers.
     var pageTurner: PDFPageRotationController?
+    /// "Listen from Here" for a page: the action that plays the page's
+    /// source from a passage, or nil where its source cannot be listened to.
+    var listenFromHere: (@MainActor (PDFPage) -> (@MainActor (String) -> Void)?)?
+    /// The open menu's "Listen from Here" target, held because menu items hold
+    /// theirs weakly and AppKit sends the action after the menu closes.
+    private var listenMenuTarget: MenuActionTarget?
     /// Whether the pointer is in the foot of the view, where the reader's page
     /// pill shows itself; called only when the answer changes.
     var pointerNearFootChanged: ((Bool) -> Void)?
@@ -1911,15 +1917,38 @@ final class FindablePDFView: PDFView {
         pointerNearFootChanged?(near)
     }
 
-    /// PDFKit's own menu, with Rotate Page Right and Left for the page under
-    /// the pointer.
+    /// PDFKit's own menu, with Listen from Here for the line under the
+    /// pointer (or the selection), and Rotate Page Right and Left for its page.
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event)
-        guard let pageTurner else { return menu }
-        let result = menu ?? NSMenu()
         let point = convert(event.locationInWindow, from: nil)
-        pageTurner.addMenuItems(to: result, page: page(for: point, nearest: false))
-        return result
+        let page = page(for: point, nearest: false)
+        var result = menu
+        if let page, let action = listenFromHere?(page) {
+            let pagePoint = convert(point, to: page)
+            // A right-click on the selection starts at the selection; anywhere
+            // else, at the line under the pointer.
+            let selection = currentSelection.flatMap { selection -> PDFSelection? in
+                guard !(selection.string ?? "").isEmpty, selection.pages.contains(page) else { return nil }
+                return selection.bounds(for: page).insetBy(dx: -4, dy: -4).contains(pagePoint) ? selection : nil
+            }
+            if let passage = PDFListenPassage.passage(at: pagePoint, on: page, selection: selection) {
+                let item = NSMenuItem(title: "Listen from Here", action: #selector(MenuActionTarget.fire), keyEquivalent: "")
+                item.image = NSImage(systemSymbolName: "speaker.wave.2", accessibilityDescription: nil)
+                // The menu sends its action on the main thread.
+                let target = MenuActionTarget { MainActor.assumeIsolated { action(passage) } }
+                listenMenuTarget = target
+                item.target = target
+                let built = result ?? NSMenu()
+                built.insertItem(item, at: 0)
+                if built.items.count > 1 { built.insertItem(.separator(), at: 1) }
+                result = built
+            }
+        }
+        guard let pageTurner else { return result }
+        let built = result ?? NSMenu()
+        pageTurner.addMenuItems(to: built, page: page)
+        return built
     }
 
     /// The keys are this view's only while it, or the document view PDFKit

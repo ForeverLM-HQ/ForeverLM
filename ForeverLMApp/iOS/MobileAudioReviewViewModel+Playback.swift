@@ -152,6 +152,8 @@ extension MobileAudioReviewViewModel {
             activeVoiceSourceID = item.id
             activeVoiceSourceTitle = item.title
             duration = composition.duration
+            narrationChunkStarts = composition.chunkStarts
+            loadNarrationSections(for: item)
             currentTime = resumeTime
             lastPlaybackPositionSaveAt = nil
             if !tookOverInStep {
@@ -248,6 +250,7 @@ extension MobileAudioReviewViewModel {
             openingPlaybackRanDry = false
         }
         currentItem = nil
+        clearNarrationSections()
         sleepTimer = nil
         bookContinuationOffer = nil
         pendingAutomaticBookContinuation = nil
@@ -637,6 +640,8 @@ extension MobileAudioReviewViewModel {
             activeVoiceSourceID = item.id
             activeVoiceSourceTitle = item.title
             duration = composition.duration
+            narrationChunkStarts = composition.chunkStarts
+            loadNarrationSections(for: item)
             currentTime = resumeTime
             lastPlaybackPositionSaveAt = nil
             player.replaceCurrentItem(with: playerItem)
@@ -728,6 +733,8 @@ extension MobileAudioReviewViewModel {
             installOpeningEndObserver(for: playerItem)
             currentItem = item
             duration = composition.duration
+            narrationChunkStarts = composition.chunkStarts
+            loadNarrationSections(for: item)
             currentTime = resumeTime
             if !tookOverInStep {
                 player.replaceCurrentItem(with: playerItem)
@@ -841,7 +848,7 @@ extension MobileAudioReviewViewModel {
 
     nonisolated func audioComposition(
         for urls: [URL]
-    ) async throws -> (asset: AVMutableComposition, duration: TimeInterval) {
+    ) async throws -> (asset: AVMutableComposition, duration: TimeInterval, chunkStarts: [TimeInterval]) {
         let composition = AVMutableComposition()
         guard let compositionTrack = composition.addMutableTrack(
             withMediaType: .audio,
@@ -851,7 +858,9 @@ extension MobileAudioReviewViewModel {
         }
 
         var cursor = CMTime.zero
+        var chunkStarts: [TimeInterval] = []
         for url in urls {
+            chunkStarts.append(cursor.seconds.isFinite ? cursor.seconds : 0)
             let asset = AVURLAsset(url: url)
             let duration = try await asset.load(.duration)
             let tracks = try await asset.loadTracks(withMediaType: .audio)
@@ -866,8 +875,102 @@ extension MobileAudioReviewViewModel {
             cursor = cursor + duration
         }
 
-        return (composition, cursor.seconds.isFinite ? cursor.seconds : 0)
+        let total = cursor.seconds.isFinite ? cursor.seconds : 0
+        return (composition, total, chunkStarts + [total])
     }
+
+    // MARK: Going to a part of the narration
+
+    /// Reads the paper's headings from its PDF and finds each in the playing
+    /// narration's text. Once per source and narration length: the whole
+    /// narration taking over from its opening finds the sections the opening
+    /// did not reach.
+    func loadNarrationSections(for item: MobileAudioItem) {
+        let chunks = item.manifest.chunks.sorted { $0.index < $1.index }
+        let texts = chunks.compactMap(\.text)
+        if let key = narrationSectionsKey, key.sourceID == item.id, key.chunkCount == chunks.count { return }
+        clearNarrationSections()
+        narrationSectionsKey = (item.id, chunks.count)
+        guard item.manifest.sourceType == "paper",
+              !texts.isEmpty, texts.count == chunks.count else { return }
+        let sourceID = item.id
+        narrationSectionsTask = Task { [weak self] in
+            guard let file = try? await MobileSourceFileStore.shared.fetchPDF(sourceID: sourceID),
+                  !Task.isCancelled else { return }
+            let sections = await Task.detached(priority: .utility) { () -> [NarrationSection] in
+                guard let document = try? file.document() else { return [] }
+                return NarrationSectionResolver.sections(
+                    from: PaperPDFSections.candidates(in: document),
+                    in: texts
+                )
+            }.value
+            guard let self, !Task.isCancelled, self.currentItem?.id == sourceID else { return }
+            // One section is no table of contents.
+            self.narrationSections = sections.count >= 2 ? sections : []
+        }
+    }
+
+    func clearNarrationSections() {
+        narrationSectionsTask?.cancel()
+        narrationSectionsTask = nil
+        narrationSectionsKey = nil
+        if !narrationSections.isEmpty { narrationSections = [] }
+    }
+
+    /// The second `spot` falls on in the playing composition; nil when its
+    /// chunk is not in it (an opening still waiting for the rest).
+    func narrationTime(of spot: NarrationSpot) -> TimeInterval? {
+        guard spot.chunkIndex >= 0, spot.chunkIndex + 1 < narrationChunkStarts.count else { return nil }
+        let start = narrationChunkStarts[spot.chunkIndex]
+        let end = narrationChunkStarts[spot.chunkIndex + 1]
+        return start + spot.offset(inChunkOfDuration: end - start)
+    }
+
+    /// The section playing now.
+    var currentNarrationSectionID: Int? {
+        narrationSections.last { section in
+            (narrationTime(of: section.spot) ?? .infinity) <= currentTime + 0.5
+        }?.id
+    }
+
+    /// Plays from `spot`; false when that part is not in the player yet.
+    @discardableResult
+    func playNarration(from spot: NarrationSpot) -> Bool {
+        guard currentItem != nil, let time = narrationTime(of: spot) else { return false }
+        seek(to: min(max(time, 0), duration))
+        persistPlaybackPosition(force: true)
+        if !isPlaying { togglePlayback() }
+        return true
+    }
+
+    /// "Listen from Here" in the reader: plays the source's narration from
+    /// the passage, starting the narration first when another source (or none)
+    /// is playing. A source with no narration yet starts making one, as Listen
+    /// does, and plays from its beginning.
+    func listen(fromPassage passage: String, sourceID: String) async {
+        if currentItem?.id == sourceID {
+            let texts = currentItem?.manifest.chunks.sorted { $0.index < $1.index }.compactMap(\.text) ?? []
+            if let spot = NarrationPassageLocator.spot(of: passage, in: texts), playNarration(from: spot) { return }
+            errorMessage = Self.passageNotNarratedMessage
+            return
+        }
+        guard let item = itemForSourceID(sourceID) else {
+            await toggleTextToSpeech(sourceID: sourceID)
+            return
+        }
+        let texts = item.manifest.chunks.sorted { $0.index < $1.index }.compactMap(\.text)
+        let spot = NarrationPassageLocator.spot(of: passage, in: texts)
+        await play(item)
+        guard currentItem?.id == sourceID else { return }
+        if let spot {
+            playNarration(from: spot)
+        } else {
+            errorMessage = Self.passageNotNarratedMessage
+        }
+    }
+
+    static let passageNotNarratedMessage =
+        "That part is not in the narration. Figure captions, tables and references are not read aloud."
 
     private func seek(to seconds: TimeInterval) {
         let target = CMTime(seconds: seconds, preferredTimescale: 600)

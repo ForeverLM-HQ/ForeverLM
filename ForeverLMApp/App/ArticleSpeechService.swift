@@ -335,6 +335,17 @@ final class ArticleSpeechService: NSObject, ObservableObject {
     var sleepTimerEndsAt: Date?
     var hasStartedPlayback = false
     var highestReadyChunkIndex = -1
+    /// The playing narration's sections, for the Listen bar's Sections menu:
+    /// a paper's headings, read from its PDF and found in the narration
+    /// (`NarrationSectionResolver`). Empty for anything else.
+    @Published var narrationSections: [NarrationSection] = []
+    var narrationSectionsTask: Task<Void, Never>?
+    /// The playing narration's chunk texts, normalized once for "Listen from
+    /// Here" lookups.
+    var narrationTextIndexCache: (chunks: [String], index: NarrationTextIndex)?
+    /// Where "Listen from Here" asked a source's narration to start, used in
+    /// place of the saved position when that source's playback begins.
+    var pendingStartPassage: (sourceID: String, passage: String)?
 
     /// Set while a stored snapshot is being copied into the published
     /// properties, so their `didSet` observers neither write the same value

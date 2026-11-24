@@ -25,6 +25,17 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     @Published var isPlaying = false
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
+    /// Where each chunk of the playing narration starts in its composition,
+    /// with the composition's end last: what turns a place in the narration's
+    /// text into a second.
+    var narrationChunkStarts: [TimeInterval] = []
+    /// The playing paper's sections, for the player's Sections menu
+    /// (`NarrationSectionResolver`); empty for anything else.
+    @Published var narrationSections: [NarrationSection] = []
+    /// The source and chunk count `narrationSections` was found for: an
+    /// opening holds fewer chunks than the whole narration that replaces it.
+    var narrationSectionsKey: (sourceID: String, chunkCount: Int)?
+    var narrationSectionsTask: Task<Void, Never>?
     @Published var speed: Float
     @Published var isSiriVoiceSessionActive = false
     @Published var isSourceChatActive = false

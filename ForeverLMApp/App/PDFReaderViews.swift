@@ -1423,6 +1423,7 @@ struct PDFKitInlineView: NSViewRepresentable {
         pdfView.resetZoomAction = resetZoomAction
         pdfView.cursorForAnnotation = Coordinator.cursorForAnnotation
         pdfView.pageTurner = pageTurns
+        pdfView.listenFromHere = context.coordinator.listenFromHere(vm: vm)
         pdfView.pointerNearFootChanged = pointerNearFootChanged
         pageTurns?.pdfView = pdfView
         // Before the document, so every page PDFKit lays out asks for one.
@@ -1909,6 +1910,23 @@ struct PDFKitInlineView: NSViewRepresentable {
         /// the whole document is.
         private func sections(in document: PDFDocument) -> [PDFDocumentSection] {
             parent.sections ?? [PDFDocumentSection(sourceID: parent.sourceID, pageRange: 0..<document.pageCount)]
+        }
+
+        /// "Listen from Here" for a page: plays the narration of the source
+        /// the page belongs to (a book's chapter, or the paper) from a passage.
+        @MainActor
+        func listenFromHere(vm: StudioViewModel) -> @MainActor (PDFPage) -> (@MainActor (String) -> Void)? {
+            { [weak self, weak vm] page in
+                guard let self, let vm, let document = page.document else { return nil }
+                let index = document.index(for: page)
+                guard index >= 0,
+                      let section = self.sections(in: document).first(where: { $0.pageRange.contains(index) }),
+                      let article = vm.articlesById[section.sourceID],
+                      ArticleSpeechContent.canAttemptRead(article) else { return nil }
+                return { passage in
+                    ArticleSpeechService.shared.listen(fromPassage: passage, article: article)
+                }
+            }
         }
 
         /// The document's sections as the view's document stands when asked.

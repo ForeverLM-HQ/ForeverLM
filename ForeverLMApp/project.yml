@@ -596,6 +596,8 @@ targets:
       - iOS/MobileComposerDictation.swift
       - Shared/Models/SyncedArticleAudio.swift
       - Shared/Models/SyncedArticleAudioSatellites.swift
+      # Going to a part of a narration: a paper's sections, Listen from Here.
+      - Shared/Models/NarrationNavigation.swift
       - Shared/Models/SourceHighlight.swift
       - Shared/Models/PaperNarrationFilter.swift
       - Shared/Models/PaperFigure.swift

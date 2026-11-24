@@ -210,6 +210,7 @@ extension MobileAudioReviewViewModel {
             backgroundOpeningPlaybackOwnerSourceID = nil
         }
         currentItem = nil
+        clearNarrationSections()
         currentTime = 0
         duration = 0
         lastPlaybackPositionSaveAt = nil

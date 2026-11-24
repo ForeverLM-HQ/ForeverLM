@@ -212,6 +212,9 @@ struct MobileSourceReaderView: View {
                 },
                 onCreateHighlight: { openHighlight(selection: $0) },
                 onOpenHighlight: { openHighlight(id: $0) },
+                onListenFromHere: { passage in
+                    Task { await audio.listen(fromPassage: passage, sourceID: source.id) }
+                },
                 find: find,
                 chrome: chrome,
                 onOpenCitedSource: { citedDestination = MobileCitedSourceDestination(source: $0) }
@@ -228,6 +231,9 @@ struct MobileSourceReaderView: View {
                 onUnavailable: { chapterPDFUnavailable = true },
                 onCreateHighlight: { openHighlight(selection: $0) },
                 onOpenHighlight: { openHighlight(id: $0) },
+                onListenFromHere: { passage in
+                    Task { await audio.listen(fromPassage: passage, sourceID: source.id) }
+                },
                 find: find,
                 chrome: chrome,
                 onOpenCitedSource: { citedDestination = MobileCitedSourceDestination(source: $0) }

@@ -18,6 +18,9 @@ struct MobileSourcePDFView: View {
     var onNoPDF: (() -> Void)?
     var onCreateHighlight: ((MobileReaderHighlightSelection) -> Void)?
     var onOpenHighlight: ((String) -> Void)?
+    /// "Listen from Here" on a selection: plays the source's narration from
+    /// the passage that starts there.
+    var onListenFromHere: ((String) -> Void)? = nil
     /// The reader's find bar, when it has one; the PDF view is its performer
     /// while the document is on screen. See `MobileReaderFind.swift`.
     var find: MobileReaderFindState? = nil
@@ -50,7 +53,8 @@ struct MobileSourcePDFView: View {
                     chrome: chrome,
                     referenceCards: referenceCards,
                     onCreateHighlight: onCreateHighlight,
-                    onOpenHighlight: onOpenHighlight
+                    onOpenHighlight: onOpenHighlight,
+                    onListenFromHere: onListenFromHere
                 )
                     // A popover at the citation on iPad; a sheet on iPhone.
                     .popover(
@@ -129,6 +133,7 @@ struct MobileSourcePDFView: View {
 final class MobileHighlightPDFView: PDFView {
     var onCreateHighlight: ((MobileReaderHighlightSelection) -> Void)?
     var onOpenHighlight: ((String) -> Void)?
+    var onListenFromHere: ((String) -> Void)?
     /// A tap on a link inside the document — a citation, a figure — for the
     /// reference card; true when it was taken, so PDFKit does not also jump.
     var onTapInternalLink: ((PDFAnnotation) -> Bool)?
@@ -157,7 +162,14 @@ final class MobileHighlightPDFView: PDFView {
         let action = UIAction(title: "Highlight", image: UIImage(systemName: "highlighter")) { [weak self] _ in
             self?.captureSelection()
         }
-        builder.insertChild(UIMenu(title: "", options: .displayInline, children: [action]), atStartOfMenu: .root)
+        var actions = [action]
+        if let onListenFromHere,
+           let passage = PDFListenPassage.passage(at: nil, on: nil, selection: currentSelection) {
+            actions.append(UIAction(title: "Listen from Here", image: UIImage(systemName: "speaker.wave.2")) { _ in
+                onListenFromHere(passage)
+            })
+        }
+        builder.insertChild(UIMenu(title: "", options: .displayInline, children: actions), atStartOfMenu: .root)
     }
 
     private func captureSelection() {
@@ -275,6 +287,7 @@ private struct MobilePDFKitView: UIViewRepresentable {
     let referenceCards: MobileReaderReferenceCards
     let onCreateHighlight: ((MobileReaderHighlightSelection) -> Void)?
     let onOpenHighlight: ((String) -> Void)?
+    let onListenFromHere: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -291,6 +304,7 @@ private struct MobilePDFKitView: UIViewRepresentable {
     func updateUIView(_ view: MobileHighlightPDFView, context: Context) {
         view.onCreateHighlight = onCreateHighlight
         view.onOpenHighlight = onOpenHighlight
+        view.onListenFromHere = onListenFromHere
         // Not a published property, so installing it here invalidates nothing.
         if let find, let performer = context.coordinator.findPerformer, find.performer !== performer {
             find.performer = performer

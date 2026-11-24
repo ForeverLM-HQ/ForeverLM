@@ -572,6 +572,9 @@ struct MobileFullScreenPlaybackView: View {
                     HStack(spacing: MobileDesign.Spacing.medium) {
                         speedControl
                         sleepTimerControl
+                        if !vm.narrationSections.isEmpty {
+                            sectionsControl
+                        }
                     }
                     .padding(.top, MobileDesign.Spacing.xxLarge)
 
@@ -748,6 +751,33 @@ struct MobileFullScreenPlaybackView: View {
                 .background(.thinMaterial, in: Capsule())
         }
         .accessibilityLabel("Playback speed")
+    }
+
+    /// A paper's sections: choosing one plays from there. The one playing now
+    /// is ticked.
+    private var sectionsControl: some View {
+        let current = vm.currentNarrationSectionID
+        return Menu {
+            ForEach(vm.narrationSections) { section in
+                Button {
+                    vm.playNarration(from: section.spot)
+                } label: {
+                    let time = vm.narrationTime(of: section.spot).map { "  " + MobileAudioReviewViewModel.formatTime($0) } ?? ""
+                    if section.id == current {
+                        Label(section.title + time, systemImage: "checkmark")
+                    } else {
+                        Text(section.title + time)
+                    }
+                }
+                .disabled(vm.narrationTime(of: section.spot) == nil)
+            }
+        } label: {
+            Image(systemName: "list.bullet")
+                .font(.subheadline.weight(.semibold))
+                .frame(minWidth: 64, minHeight: MobileDesign.Metrics.minimumTouchTarget)
+                .background(.thinMaterial, in: Capsule())
+        }
+        .accessibilityLabel("Sections")
     }
 
     /// The sleep timer: a moon while none is set, the time left once one is.
