@@ -838,9 +838,11 @@ extension InternalReviewPanelContent {
     }
 
     /// What is open beside the chat and has no other place in the tray.
+    /// Reads the chip lists directly, never `composerContextChips`: that
+    /// getter asks `contextPillCount`, which asks this, and going through it
+    /// recursed until the stack overflowed at launch (build 325).
     private var openBesideChatCount: Int {
-        let chips = composerContextChips
-        return chips.onScreen.count + (chips.card == nil ? 0 : 1) + chips.open.count
+        onScreenChipSources.count + (onScreenCardChipCard == nil ? 0 : 1) + openItemChipItems.count
     }
 
     /// The pill's one number: what the chat has read in, plus what is open
