@@ -56,8 +56,10 @@ struct MCPAppSettingsToolsTests {
         let dedicated = try #require(read["dedicated_tools"] as? [[String: String]])
         for row in dedicated {
             for field in ["read", "write"] {
-                for tool in (row[field] ?? "").split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
-                    #expect(names.contains(tool), "\(row["pane"] ?? "?") points at \(tool), which is not a tool")
+                for entry in (row[field] ?? "").split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+                    // A row may name the argument too, as "open_settings (billing)".
+                    let tool = entry.split(separator: " ", maxSplits: 1).first.map(String.init) ?? entry
+                    #expect(names.contains(tool), "\(row["pane"] ?? "?") points at \(entry), which is not a tool")
                 }
             }
         }
