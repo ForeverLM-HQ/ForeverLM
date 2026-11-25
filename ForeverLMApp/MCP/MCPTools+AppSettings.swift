@@ -600,7 +600,7 @@ extension MCPDataStore {
                 id: "activity.layout",
                 pane: "Activity (the pane's ⋯ › View)",
                 title: "View",
-                detail: "How the Activity pane draws the log; the Day pane is the calendar alone and has no views. by_source: the day's log, one row per source, chat or Doc, its sittings as bars along the hours the log covers, glances counted in the totals line only. history: every day's time spent, newest first, a month at a time.",
+                detail: "How the Activity pane draws the log; the Day pane is the calendar alone and has no views. by_source: the day's log, one row per source, chat or Doc, its sittings as bars along the hours the log covers, glances counted in the totals line only. history: every day's time spent, newest first, a month at a time. app_log: what the app reported this session (a PDF attached, metadata saved, a model's refusal), newest first; these never go to the Notifications bell.",
                 reach: .thisMac,
                 kind: .choice,
                 preferenceKeys: [DayActivityLayout.storageKey],

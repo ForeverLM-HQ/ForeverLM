@@ -802,8 +802,8 @@ extension StudioViewModel {
 
     /// A plain "it landed" for something the learner just added: the source
     /// now sits in the Library (or the notebook), which is its own record, so
-    /// the bell keeps none. A partial failure ("Added to Library, but not
-    /// to …") is not one of these and still waits in the bell.
+    /// the App Log keeps none. A partial failure ("Added to Library, but not
+    /// to …") is not one of these and is logged.
     nonisolated static func isLibraryAddConfirmation(_ message: String) -> Bool {
         let exact: Set<String> = [
             "Added to Library", "Added to your library", "Added to the team library",
@@ -819,23 +819,22 @@ extension StudioViewModel {
         return message.hasSuffix("\u{201D}") && quotedPrefixes.contains { message.hasPrefix($0) }
     }
 
-    /// Recent notices the bell has not shown yet.
+    /// App Log lines the Activity pane has not shown yet.
     var unreadNoticeCount: Int { recentNotices.lazy.filter { !$0.isRead }.count }
 
-    /// Marks every Recent notice read, as the bell closing or Mark All as
-    /// Read does.
+    /// Marks every App Log line read, as leaving the App Log does.
     func markNoticesRead() {
         guard recentNotices.contains(where: { !$0.isRead }) else { return }
         for index in recentNotices.indices { recentNotices[index].isRead = true }
     }
 
-    /// Empties the bell's Recent list.
+    /// Empties the Activity pane's App Log.
     func clearNotices() {
         recentNotices.removeAll()
         dismissToast()
     }
 
-    /// Runs a Recent notice's Undo from the bell. It is offered once: the
+    /// Runs an App Log line's Undo. It is offered once: the
     /// button goes as it is pressed, and the current toast with it if it is
     /// that notice's, so the undo's own report ("Unhid <title>") replaces it.
     func undoNotice(_ id: UUID) async {
@@ -846,8 +845,8 @@ extension StudioViewModel {
         await undo()
     }
 
-    /// Runs a Recent notice's second offer ("Open here") for the window
-    /// whose bell was pressed.
+    /// Runs an App Log line's second offer ("Open here") for the window
+    /// whose Activity pane it was pressed in.
     func runNoticeAction(_ id: UUID, in window: StudioWindowState?) async {
         guard let index = recentNotices.firstIndex(where: { $0.id == id }),
               let action = recentNotices[index].action else { return }

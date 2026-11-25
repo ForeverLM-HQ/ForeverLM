@@ -2171,10 +2171,11 @@ struct StudioToastAction {
     }
 }
 
-/// One message `showToast` reported, kept in the Notifications bell's Recent
-/// list rather than popped up over the window (product owner, 2026-11-24: "I
+/// One message `showToast` reported, kept in the Activity pane's App Log
+/// rather than popped up over the window (product owner, 2026-11-24: "I
 /// don't think we should have these things pop up in the middle of the
-/// screen"). It keeps its Undo and its second offer until used, so a notice
+/// screen"), and never under the bell (2026-11-25: "should never be under
+/// notifications"). It keeps its Undo and its second offer until used, so a notice
 /// read a minute later can still be taken back.
 struct StudioNotice: Identifiable {
     let id = UUID()

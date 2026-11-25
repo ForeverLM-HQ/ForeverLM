@@ -174,7 +174,7 @@ struct MCPAppSettingsToolsTests {
         let read = try payload(try await store.getAppSettings(pane: nil, settingID: "activity.layout"))
         let rows = try #require(read["settings"] as? [[String: Any]])
         #expect(rows.first?["value"] as? String == "by_source")
-        #expect((rows.first?["options"] as? [[String: Any]])?.compactMap { $0["value"] as? String } == ["by_source", "history"])
+        #expect((rows.first?["options"] as? [[String: Any]])?.compactMap { $0["value"] as? String } == ["by_source", "history", "app_log"])
 
         let row = try payload(try await store.setAppSetting(settingID: "activity.layout", value: "history"))
         #expect(row["value"] as? String == "history")

@@ -1962,11 +1962,11 @@ class StudioViewModel {
     /// window instead"). Nil for a plain notice. Cleared with the message.
     var toastAction: StudioToastAction?
 
-    /// Every message `showToast` reported, newest first, for the bell's
-    /// Recent list. Nothing draws `toastMessage` any more; it stays as the
+    /// Every message `showToast` reported, newest first, for the Activity
+    /// pane's App Log. Nothing draws `toastMessage` any more; it stays as the
     /// latest message for the code and tests that read it.
     var recentNotices: [StudioNotice] = []
-    /// How many Recent notices the bell keeps.
+    /// How many lines the App Log keeps.
     static let recentNoticeLimit = 30
 
     /// Deferred destructive removals. The newest notice is rendered with an

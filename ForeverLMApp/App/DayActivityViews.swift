@@ -221,8 +221,8 @@ struct ActivityLogPane: View {
     /// 2026-10-06: "make the app more slick; kind of like the chatgpt app").
     private var toolbar: some View {
         HStack(spacing: 6) {
-            if layout == .history {
-                Text(DayActivityLayout.history.title)
+            if layout != .bySource {
+                Text(layout.title)
                     .zoomedSystemFont(size: 13, weight: .semibold)
                     .lineLimit(1)
                     .textSelection(.disabled)
@@ -267,7 +267,11 @@ struct ActivityLogPane: View {
         }
     }
 
+    @ViewBuilder
     private var moreMenuItems: some View {
+        if layout == .appLog, !vm.recentNotices.isEmpty {
+            Button("Clear App Log") { vm.clearNotices() }
+        }
         Section("View") {
             ForEach(DayActivityLayout.allCases) { option in
                 Button {
@@ -299,6 +303,9 @@ struct ActivityLogPane: View {
     private var content: some View {
         if layout == .history {
             ActivityHistoryListView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if layout == .appLog {
+            AppLogListView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let message = model.lastLoadErrorMessage {
             ContentUnavailableView {
@@ -373,6 +380,119 @@ struct ActivityLogPane: View {
             case .offTrack:
                 break
             }
+        }
+    }
+}
+
+// MARK: - App Log
+
+/// The Activity pane's App Log: every notice the app reported this session
+/// ("PDF attached", "Hid <title>", a model's refusal), newest first, each
+/// keeping its Undo or Open here until used. It used to sit under the bell's
+/// Recent; what the app did is activity, not a notification (product owner,
+/// 2026-11-25). Lines show a dot until the log has been seen.
+private struct AppLogListView: View {
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState
+
+    var body: some View {
+        let notices = vm.recentNotices
+        if notices.isEmpty {
+            ContentUnavailableView {
+                Label("Nothing logged yet", systemImage: "list.bullet.rectangle")
+            } description: {
+                Text("What the app reports while it works, like a PDF attached or metadata saved, is listed here.")
+            }
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(notices) { notice in
+                        AppLogRow(
+                            notice: notice,
+                            undo: notice.undo == nil ? nil : { Task { await vm.undoNotice(notice.id) } },
+                            action: notice.action.map { action in
+                                (action.title, { Task { await vm.runNoticeAction(notice.id, in: windowState) } })
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+            }
+            .accessibilityIdentifier("studio.activity.appLog")
+            .onDisappear { vm.markNoticesRead() }
+        }
+    }
+}
+
+/// One App Log line: its message, selectable, how long ago, its
+/// Undo or Open here while it still offers one, and a copy button — a
+/// provider's refusal is often worth pasting into a note or a bug report.
+private struct AppLogRow: View {
+    let notice: StudioNotice
+    let undo: (() -> Void)?
+    let action: (title: String, run: () -> Void)?
+
+    @State private var copied = false
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Group {
+                if !notice.isRead {
+                    RailUnreadDot()
+                }
+            }
+            .frame(width: 14)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(notice.message)
+                    .zoomedSystemFont(size: 12.5)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Text(notice.date, format: .relative(presentation: .named))
+                        .zoomedSystemFont(size: 11)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                    if let undo {
+                        Button("Undo", action: undo)
+                            .zoomedSystemFont(size: 11, weight: .semibold)
+                            .buttonStyle(.hoverWash(tint: Color.accentColor))
+                            .accessibilityIdentifier("studio.activity.appLog.undo")
+                    }
+                    if let action {
+                        Button(action.title, action: action.run)
+                            .zoomedSystemFont(size: 11, weight: .semibold)
+                            .buttonStyle(.hoverWash(tint: Color.accentColor))
+                            .accessibilityIdentifier("studio.activity.appLog.action")
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            Button(action: copy) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .zoomedSystemFont(size: 10, weight: .semibold)
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(copied ? Color.green : Color.secondary)
+            }
+            .buttonStyle(.hoverWash(in: Circle(), inset: 0, opacity: 0.12))
+            .opacity(hovering || copied ? 1 : 0)
+            .help("Copy this message")
+            .accessibilityLabel("Copy message")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(notice.message, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
         }
     }
 }
@@ -587,6 +707,10 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
     case bySource
     /// Every day's time spent, newest first, a month at a time.
     case history
+    /// What the app reported while it worked ("PDF attached", "Metadata
+    /// saved", a model's refusal), newest first. Activity, never a
+    /// notification (product owner, 2026-11-25).
+    case appLog
 
     static let storageKey = Prefs.Planner.activityPaneLayout.name
 
@@ -596,6 +720,7 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
         switch self {
         case .bySource: "By Source"
         case .history: "History"
+        case .appLog: "App Log"
         }
     }
 
@@ -605,6 +730,7 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
         switch self {
         case .bySource: "by_source"
         case .history: "history"
+        case .appLog: "app_log"
         }
     }
 
