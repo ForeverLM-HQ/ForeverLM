@@ -348,19 +348,21 @@ struct ReviewChatSavedCardsView: View {
         let target = cards[page].toCheck != nil ? cards[page] : cards.first { $0.toCheck != nil }
         return HStack(spacing: 12) {
             Spacer(minLength: 8)
-            Button(waiting.count == 1 ? "Keep" : "Keep All") { keep(waiting) }
-                .font(.callout)
-                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .accentColor))
-                .disabled(isKeeping)
-                .help(waiting.count == 1 ? "Keep the card still to check" : "Keep the \(waiting.count) cards still to check")
-                .accessibilityIdentifier("chat.savedCards.keepAll")
-            // The Space's dark pill, as every primary action outside a
-            // sheet (docs/ui-design.md).
-            SpaceDarkPillButton(title: "Check Cards", systemImage: nil, image: nil) {
+            Button("Check Cards") {
                 if let target { open(target) }
             }
+            .font(.callout)
+            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .accentColor))
             .help("Open To Check beside the chat, at this card")
             .accessibilityIdentifier("chat.savedCards.check")
+            // Keep is the usual answer, so it is the Space's dark pill, as
+            // every primary action outside a sheet (docs/ui-design.md).
+            SpaceDarkPillButton(title: waiting.count == 1 ? "Keep" : "Keep All", systemImage: nil, image: nil) {
+                keep(waiting)
+            }
+            .disabled(isKeeping)
+            .help(waiting.count == 1 ? "Keep the card still to check" : "Keep the \(waiting.count) cards still to check")
+            .accessibilityIdentifier("chat.savedCards.keepAll")
         }
     }
 
