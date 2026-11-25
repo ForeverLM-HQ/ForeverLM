@@ -462,6 +462,17 @@ struct ForeverLMAppShortcuts: AppShortcutsProvider {
         )
 
         AppShortcut(
+            intent: StartMyMorningIntent(),
+            phrases: [
+                "Start my morning in \(.applicationName)",
+                "Start my morning with \(.applicationName)",
+                "Explain something to \(.applicationName)"
+            ],
+            shortTitle: "Start My Morning",
+            systemImageName: "person.bubble"
+        )
+
+        AppShortcut(
             intent: ScheduleSourceIntent(),
             phrases: [
                 "Schedule \(\.$source) in \(.applicationName)"
@@ -508,16 +519,6 @@ struct ForeverLMAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Ask About Source",
             systemImageName: "text.bubble"
-        )
-
-        AppShortcut(
-            intent: FindSourcesIntent(),
-            phrases: [
-                "Find sources in \(.applicationName)",
-                "Search sources in \(.applicationName)"
-            ],
-            shortTitle: "Find Sources",
-            systemImageName: "magnifyingglass"
         )
 
         AppShortcut(
