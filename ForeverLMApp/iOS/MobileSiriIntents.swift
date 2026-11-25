@@ -13,6 +13,9 @@ struct MobileSiriCommand: Codable, Equatable {
         /// Memory Check by Voice: today's cards, then today's review, out loud
         /// (`MobileRealtimeVoice.startMemoryCheck`).
         case voiceMemoryCheck
+        /// This morning's explanation, out loud
+        /// (`MobileRealtimeVoice.startMorningExplanation`).
+        case voiceMorningExplanation
         case askAboutSource
         case pausePlayback
         case resumePlayback
@@ -47,6 +50,10 @@ struct MobileSiriCommand: Codable, Equatable {
 
     static func voiceMemoryCheck() -> MobileSiriCommand {
         MobileSiriCommand(action: .voiceMemoryCheck)
+    }
+
+    static func voiceMorningExplanation() -> MobileSiriCommand {
+        MobileSiriCommand(action: .voiceMorningExplanation)
     }
 
     static func askAboutSource(_ source: SourceEntity, question: String? = nil) -> MobileSiriCommand {
@@ -204,6 +211,20 @@ struct StartMemoryCheckByVoiceIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         MobileSiriCommandCenter.shared.enqueue(.voiceMemoryCheck())
         return .result(dialog: "Starting your memory check.")
+    }
+}
+
+/// This morning's explanation out loud (docs/morning-routine-design.md):
+/// one source ForeverLM picks, explained from memory, the Feynman Technique.
+/// A Shortcuts action; Siri's phrases are full (ten App Shortcuts).
+struct StartMyMorningIntent: AppIntent {
+    static var title: LocalizedStringResource = "Start My Morning"
+    static var description = IntentDescription("Explain one thing you read recently out loud, from memory, the Feynman Technique; ForeverLM asks about the gaps. Then today's cards.")
+    static var openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        MobileSiriCommandCenter.shared.enqueue(.voiceMorningExplanation())
+        return .result(dialog: "Starting your morning.")
     }
 }
 

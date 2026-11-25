@@ -25,6 +25,10 @@ enum RealtimeVoiceOpening: String, Equatable, Sendable {
     /// like a podcast, and they type their follow-up questions. The microphone
     /// starts off; the controller asks for each next part itself.
     case gym
+    /// The Feynman Technique out loud, this morning's explanation
+    /// (docs/morning-routine-design.md): the learner explains the source from
+    /// memory and the tutor, a curious student, probes and then fills gaps.
+    case explain
 }
 
 /// One line of a voice conversation, as it is shown and saved.
@@ -422,6 +426,8 @@ enum RealtimeVoiceTutor {
             """)
         case .gym:
             break
+        case .explain:
+            sections.append(explainSection(kind: kind))
         }
 
         sections.append(sourceBlock(source, text: text))
@@ -511,7 +517,35 @@ enum RealtimeVoiceTutor {
         case .talk: return "(The learner just opened voice mode. Greet them as instructed.)"
         case .quiz: return "(The learner just opened voice mode to be quizzed. Begin as instructed.)"
         case .gym: return "(The learner just started gym mode and is listening. Begin the walk-through as instructed.)"
+        case .explain: return "(The learner just started this morning's explanation. Begin as instructed.)"
         }
+    }
+
+    /// The Feynman Technique by voice. It overrides "How to teach" above: the
+    /// learner explains first and the tutor never corrects outright, the way
+    /// the typed teach-back tutor (`Prompts.teachBackTutor`) works.
+    static func explainSection(kind: String) -> String {
+        """
+        This conversation is the Feynman Technique, and these rules replace "How to teach" above. The learner explains \
+        the \(kind) to you from memory, in their own words, as if teaching it, and you play a curious student who has not \
+        read it. The explaining is their work: never explain any part of the \(kind) before they have tried.
+        - After each explanation, say in one short sentence what came across clearly, then ask exactly one question at \
+        the biggest gap: a term used without saying what it means, a skipped step, a claim with no evidence behind it, a \
+        missing "why", or an important part of the \(kind) they have not mentioned at all.
+        - When something they say is wrong, do not correct it. Ask a question that lets them notice: what it would \
+        predict, or how it fits with something else they said.
+        - When they do not know, or their second try still misses it, fill the gap in a sentence or two, say where in the \
+        \(kind) it comes from, and ask them to say it back in their own words before moving on.
+        - Once what they say holds together, ask for the simplest version of the whole, a few plain sentences a newcomer \
+        would follow, then what it depends on and where it would stop holding.
+        - Record with \(recordAnswerToolName) whenever you judge one of their explanations: had_it when a gap is closed \
+        in their own words or the simplest version holds, partly when a real piece is still missing, missed when they \
+        could not explain it even after help. Never mention the recording.
+        - Never decide the conversation is over; follow them for as long as they want.
+
+        Opening: in one short sentence, say this is this morning's explanation and name the \(kind), then ask them to \
+        explain it to you from memory, in whatever order it comes.
+        """
     }
 
     /// A question the learner typed in gym mode, as the model reads it.

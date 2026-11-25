@@ -74,6 +74,9 @@ struct MobileChatRecord: Sendable {
         let answeredAt: Date?
         let sourceRefs: [String]
         let knowledgeNote: String?
+        /// The exchange's `grading` (private chat kinds only): an explanation's
+        /// operation and verdict (`MorningPickRule.explanationGrading`).
+        var grading: (operation: String, verdict: String)? = nil
     }
 
     let id: String
@@ -563,6 +566,9 @@ extension MobileWrite {
         if privateKind, let score = exchange.score { patch.changes["score"] = .value(.number(score)) }
         if !exchange.sourceRefs.isEmpty { patch.changes["sourceRefs"] = .value(.array(exchange.sourceRefs.map(SyncJSON.string))) }
         if let note = exchange.knowledgeNote, !note.isEmpty { patch.changes["knowledgeNote"] = .value(.string(note)) }
+        if privateKind, let grading = exchange.grading {
+            patch.changes["grading"] = .value(.object(["operation": .string(grading.operation), "questionVerdict": .string(grading.verdict)]))
+        }
         if let answeredAt = exchange.answeredAt { patch.changes["answeredAt"] = .value(SyncJSON(SyncTime.milliseconds(answeredAt))) }
         if let model, !model.id.isEmpty { patch.changes["model"] = .value(.object(["provider": .string(model.provider), "id": .string(model.id)])) }
         if let person { patch.changes["author"] = .value(person.value) }

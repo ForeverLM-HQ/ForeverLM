@@ -21,6 +21,7 @@ extension RealtimeVoiceController {
                 case .talk: return "waveform"
                 case .quiz: return "questionmark.bubble"
                 case .gym: return "figure.strengthtraining.traditional"
+                case .explain: return "person.bubble"
                 }
             }(),
             contextItems: context.map { [$0] } ?? [],

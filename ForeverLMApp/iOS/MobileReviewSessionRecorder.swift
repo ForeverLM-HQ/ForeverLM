@@ -12,6 +12,9 @@ struct MobileReviewRecordedExchange {
     let evaluation: String?
     let score: Double?
     let answeredAt: Date
+    /// An explanation's grading, for a voice Feynman Technique's graded
+    /// turns (`RealtimeVoiceOpening.explain`).
+    var grading: (operation: String, verdict: String)? = nil
 }
 
 struct MobileReviewResult {
@@ -70,7 +73,8 @@ extension MobileReviewResult {
                 MobileChatRecord.Exchange(
                     id: MobileReviewSessionRecorder.exchangeID(sessionID: sessionID, sequence: index + 1), seq: index + 1,
                     question: exchange.question, userAnswer: exchange.userAnswer, evaluation: exchange.evaluation, score: exchange.score,
-                    answeredAt: exchange.answeredAt, sourceRefs: sourceIDs, knowledgeNote: knowledgeNote
+                    answeredAt: exchange.answeredAt, sourceRefs: sourceIDs, knowledgeNote: knowledgeNote,
+                    grading: exchange.grading
                 )
             }
         )

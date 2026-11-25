@@ -27,6 +27,9 @@ final class MobileMemoryReviewScheduler: ObservableObject {
     /// out loud, so the check starts from the Lock Screen with nothing else
     /// to tap.
     nonisolated static let reviewByVoiceAction = "com.foreverlm.mobile.memory-review.voice"
+    /// Marks a reminder that names this morning's explanation: its tap
+    /// starts the explanation by voice.
+    nonisolated static let morningKey = "morning"
 
     /// What this phone last did about the day's review, for Settings.
     @Published private(set) var lastAttemptDay: String?
@@ -227,8 +230,17 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Time for today's quiz"
-        content.body = "Tap to go through today's cards, or do them by voice."
+        // The morning starts with an explanation when the learner has it on
+        // and there is something to explain (docs/morning-routine-design.md):
+        // the reminder names it, and a tap explains it out loud.
+        if let title = await MobileMorningPick.reminderTitle() {
+            content.title = "This morning"
+            content.body = "Explain \(title) out loud, then today's cards."
+            content.userInfo = [morningKey: true]
+        } else {
+            content.title = "Time for today's quiz"
+            content.body = "Tap to go through today's cards, or do them by voice."
+        }
         content.sound = .default
         content.categoryIdentifier = notificationCategory
         var components = DateComponents()
@@ -272,6 +284,14 @@ final class MobileMemoryReviewNotificationDelegate: NSObject, UNUserNotification
                 MobileSiriCommandCenter.shared.enqueue(.voiceMemoryCheck())
             }
         case UNNotificationDefaultActionIdentifier:
+            // The morning's reminder explains its pick out loud; queued like
+            // Siri's command, so the shell runs it once it is up.
+            if response.notification.request.content.userInfo[MobileMemoryReviewScheduler.morningKey] as? Bool == true {
+                await MainActor.run {
+                    MobileSiriCommandCenter.shared.enqueue(.voiceMorningExplanation())
+                }
+                return
+            }
             // Held for the shell rather than posted: a tap that launched the app
             // arrives before the shell is on screen to hear it.
             await MainActor.run {
@@ -282,3 +302,60 @@ final class MobileMemoryReviewNotificationDelegate: NSObject, UNUserNotification
         }
     }
 }
+
+/// This morning's explanation on the iPhone (docs/morning-routine-design.md):
+/// the Mac's rule (`MorningPickRule`) over what the phone holds. The weekly
+/// connection needs the Mac's embeddings, so the phone never pairs sources,
+/// and Pick something else is the Mac's; by voice the learner just says so.
+@MainActor
+enum MobileMorningPick {
+    /// The phone's queue, best first, of sources it can open.
+    static func queue(now: Date = Date()) async -> [MorningPick] {
+        let catalog = MobileCloudSourceCatalog.shared
+        _ = try? await catalog.loadSources()
+        let calendar = Calendar.current
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now)) else { return [] }
+        let sources = MobileAudioReviewViewModel.shared.sourcesByID
+        func eligible(_ id: String) -> Bool { sources[id] != nil }
+
+        var inputs = MorningPickRule.Inputs()
+        inputs.recent = await catalog.currentMemoryReviewCandidates(now: now, minimumConfidence: .substantial)
+            .filter { $0.consumedAt >= yesterday || ($0.engagement.chatDiscussedAt ?? .distantPast) >= yesterday }
+            .sorted {
+                $0.engagement.engagedSeconds != $1.engagement.engagedSeconds
+                    ? $0.engagement.engagedSeconds > $1.engagement.engagedSeconds
+                    : $0.sourceID < $1.sourceID
+            }
+            .map(\.sourceID)
+            .filter(eligible)
+        inputs.explainedAt = ((try? await MobileCloudSourceCatalog.sessionProjection()?.explainedSourceDates()) ?? [:])
+            .filter { eligible($0.key) }
+        let deal = await MobileCardReviewSession.Backend.live().deal(.today(.allNotebooks), .today, now)
+        let dueSources = Set(deal.cards.filter { !$0.isNew }.compactMap(\.sourceID)).filter(eligible)
+        inputs.due = dueSources.map { MorningPickRule.DueSource(sourceID: $0, daysOverdue: 0) }
+        return MorningPickRule.queue(inputs).filter { $0.sourceIDs.count == 1 }
+    }
+
+    /// Whether the switch is on (`Prefs.Memory.morningExplanation`, the
+    /// account's row) and nothing has been explained today.
+    static func waits(now: Date = Date()) async -> Bool {
+        let on = (try? await MobileModelPreferenceStore.shared.valueOrDefault(for: Prefs.Memory.morningExplanation)) ?? true
+        guard on else { return false }
+        let explained = (try? await MobileCloudSourceCatalog.sessionProjection()?.explainedSourceDates()) ?? [:]
+        return !MorningPickRule.explainedToday(explained, now: now)
+    }
+
+    /// The source this morning's explanation is on, when the morning starts
+    /// with one; nil otherwise.
+    static func source(now: Date = Date()) async -> MobileCloudSource? {
+        guard await waits(now: now) else { return nil }
+        let sources = MobileAudioReviewViewModel.shared.sourcesByID
+        return await queue(now: now).lazy.compactMap { $0.sourceIDs.first.flatMap { sources[$0] } }.first
+    }
+
+    /// The reminder's name for it.
+    static func reminderTitle(now: Date = Date()) async -> String? {
+        await source(now: now).map { "\u{201C}\($0.title)\u{201D}" }
+    }
+}
+

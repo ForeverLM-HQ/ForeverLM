@@ -66,6 +66,30 @@ struct MobileIndexColumn {
         MobileIndexColumn(name: name, sqlType: "TEXT") { .text($0.fields[field]?[key]?.stringValue) }
     }
 
+    /// An Exchange's score when its `grading` marks an explanation (`MorningPickRule.isExplanation`):
+    /// a teach-back's, typed on the Mac or spoken on the phone. NULL for every other exchange.
+    static func explanationScore(_ name: String) -> MobileIndexColumn {
+        MobileIndexColumn(name: name, sqlType: "REAL") { envelope in
+            let grading = envelope.fields["grading"]?.objectValue
+            let coverage = grading?["ideaCoverage"]?.arrayValue ?? []
+            guard MorningPickRule.isExplanation(
+                operation: grading?["operation"]?.stringValue,
+                verdict: grading?["questionVerdict"]?.stringValue,
+                hasIdeaCoverage: !coverage.isEmpty
+            ) else { return .null }
+            return .real(envelope.fields["score"]?.numberValue)
+        }
+    }
+
+    /// An array of strings, as JSON text (`Exchange.sourceRefs`); NULL when empty or absent.
+    static func stringArray(_ name: String, _ field: String) -> MobileIndexColumn {
+        MobileIndexColumn(name: name, sqlType: "TEXT") { envelope in
+            let strings = (envelope.fields[field]?.arrayValue ?? []).compactMap(\.stringValue)
+            guard !strings.isEmpty else { return .null }
+            return .text(String(decoding: SyncJSON.array(strings.map { .string($0) }).serialized(), as: UTF8.self))
+        }
+    }
+
     /// Whether a string field holds more than whitespace (`Exchange.userAnswer`): 1 or 0.
     static func nonEmpty(_ name: String, _ field: String) -> MobileIndexColumn {
         MobileIndexColumn(name: name, sqlType: "INTEGER NOT NULL DEFAULT 0") { envelope in
@@ -183,7 +207,9 @@ final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchec
     /// (spec revision 9). 5: the Schedule's Placements, the member's Highlights, and each ActivityLog's
     /// sources, which the Schedule folds into activity days. 6: a PDF book chapter's run of
     /// its book's pages (`meta.pageStart`, `meta.pageCount`), since its url no longer ends in `.pdf`.
-    static let indexVersion: Int64 = 6
+    /// 7: an Exchange's explanation score and its sources (`explained_score`, `source_refs_json`), which
+    /// the morning's pick reads (docs/morning-routine-design.md).
+    static let indexVersion: Int64 = 7
     static let fileName = "ForeverLMReplica.sqlite"
     /// Records indexed again per transaction when the index is rebuilt.
     static let rebuildBatch = 500
@@ -236,6 +262,7 @@ final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchec
         MobileIndexTable("m_exchanges", .exchange, [
             .text("chat_id", "chatID"), .integer("seq", "seq"), .integer("created_at", "createdAt"),
             .nonEmpty("has_answer", "userAnswer"),
+            .explanationScore("explained_score"), .stringArray("source_refs_json", "sourceRefs"),
         ], indexes: [
             "CREATE INDEX IF NOT EXISTS idx_m_exchanges_chat ON m_exchanges(zone_key, chat_id, seq, created_at, id)",
         ]),

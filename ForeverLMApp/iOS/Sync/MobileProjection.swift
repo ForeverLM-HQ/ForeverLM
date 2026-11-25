@@ -452,6 +452,25 @@ final class MobileProjection: @unchecked Sendable {
 
     /// One page of a chat's exchanges in display order (seq, createdAt, id; §3.5.14), decoded: the
     /// only payloads a chat screen reads.
+    /// When each source was last explained so that it held (the morning's pick,
+    /// docs/morning-routine-design.md): the exchanges whose grading marks an
+    /// explanation with at least `MorningPickRule.explainedScore`, by their sources.
+    func explainedSourceDates() async throws -> [String: Date] {
+        try await replica.read { replica in
+            var latest: [String: Date] = [:]
+            try replica.connection.query(
+                "SELECT source_refs_json, created_at FROM m_exchanges WHERE explained_score >= ?",
+                [.real(MorningPickRule.explainedScore)]
+            ) { row in
+                guard let json = row.text(0), let data = json.data(using: .utf8),
+                      let ids = try? JSONDecoder().decode([String].self, from: data) else { return }
+                let at = SyncTime.date(milliseconds: row.integer(1) ?? 0)
+                for id in ids where (latest[id] ?? .distantPast) < at { latest[id] = at }
+            }
+            return latest
+        }
+    }
+
     func exchanges(ofChat chatID: String, zoneKey: String, page: Page = .first()) async throws -> [SyncEnvelope] {
         let statement = Self.exchangesStatement(ofChat: chatID, zoneKey: zoneKey, page: page)
         return try await replica.read { replica in

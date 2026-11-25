@@ -139,6 +139,12 @@ extension MobileAudioReviewViewModel {
             // Today's cards, then today's review, out loud. A conversation
             // already on (the assistant in CarPlay) keeps going.
             await MobileRealtimeVoice.startMemoryCheck()
+        case .voiceMorningExplanation:
+            // This morning's pick explained out loud; with nothing to
+            // explain, today's cards.
+            if !(await MobileRealtimeVoice.startMorningExplanation()) {
+                pendingDeepLink = .review
+            }
         case .pausePlayback:
             if speech.isSpeaking {
                 speech.stop(owner: .voiceTab)

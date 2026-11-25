@@ -180,6 +180,17 @@ enum MobileRealtimeVoice {
         }
     }
 
+    /// This morning's explanation (docs/morning-routine-design.md): the
+    /// Feynman Technique out loud on the morning's pick, saved as a voice chat
+    /// whose graded turns mark the source explained. False, and nothing
+    /// started, when there is nothing to explain this morning.
+    @discardableResult
+    static func startMorningExplanation() async -> Bool {
+        guard let source = await MobileMorningPick.source() else { return false }
+        await start(source: source, notebook: nil, opening: .explain)
+        return true
+    }
+
     /// The running Memory Check's tools, which save its last turn when it ends.
     static var memoryCheck: MobileRealtimeMemoryCheck.Toolbox?
 
@@ -233,6 +244,7 @@ enum MobileRealtimeVoice {
         // The assistant's chat is called by what the learner first asked; a
         // card review is called a card review.
         let isAssistant = finished.source == nil && finished.title == RealtimeVoiceAssistant.title
+        let isExplanation = finished.source != nil && controller.opening == .explain
         let topic = finished.source?.title
             ?? (isAssistant
                 ? RealtimeVoiceExchange.assistantChatTitle(firstQuestion: exchanges.first { !$0.answer.isEmpty }?.answer)
@@ -264,7 +276,12 @@ enum MobileRealtimeVoice {
                     userAnswer: exchange.answer,
                     evaluation: evaluation.isEmpty ? nil : evaluation,
                     score: exchange.score,
-                    answeredAt: exchange.answeredAt
+                    answeredAt: exchange.answeredAt,
+                    // A graded turn of the Feynman Technique by voice is an
+                    // explanation the morning's pick reads, on both devices.
+                    grading: isExplanation && exchange.score != nil
+                        ? MorningPickRule.explanationGrading(sourceCount: finished.sourceIDs.count)
+                        : nil
                 )
             },
             gaps: [],

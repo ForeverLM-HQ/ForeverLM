@@ -83,3 +83,103 @@ enum DailyReviewPreparationTiming {
         return formatter.string(from: date)
     }
 }
+
+// MARK: - The morning's pick
+//
+// docs/morning-routine-design.md, "What gets surfaced": one source to
+// explain each morning, chosen by query over records the app already keeps,
+// never by a model. The first rule with a candidate wins; the rest are the
+// queue Pick something else walks.
+
+struct MorningPick: Equatable, Sendable {
+    enum Reason: String, Sendable {
+        /// Taken in since yesterday, never explained.
+        case yesterday
+        /// Its cards are due, and it was never explained.
+        case keptNotExplained
+        /// Explained once, its cards now overdue.
+        case explainedDry
+        /// The weekly connection: yesterday's source and an older one
+        /// already explained, to be tied together.
+        case connection
+    }
+
+    /// One source, or two for a connection (yesterday's first).
+    let sourceIDs: [String]
+    let reason: Reason
+}
+
+enum MorningPickRule {
+    /// The least score of an explanation's exchange that counts as explained:
+    /// held is 1, partial 0.5 (the Mac's `TeachBack.Verdict`, the voice
+    /// tutor's had_it and partly).
+    static let explainedScore = 0.75
+
+    /// The `grading` an explanation's exchange carries (operation explain,
+    /// or connect for two sources; verdict sound; no idea coverage), as the
+    /// Mac writes it and the phone's voice explanation sends it.
+    static func explanationGrading(sourceCount: Int) -> (operation: String, verdict: String) {
+        (sourceCount > 1 ? "connect" : "explain", "sound")
+    }
+
+    /// Whether an exchange's grading marks an explanation the pick reads.
+    static func isExplanation(operation: String?, verdict: String?, hasIdeaCoverage: Bool) -> Bool {
+        (operation == "explain" || operation == "connect") && verdict == "sound" && !hasIdeaCoverage
+    }
+
+    /// A source of today's due cards: how many whole days its most overdue
+    /// card is past due (0 = due today).
+    struct DueSource: Equatable, Sendable {
+        let sourceID: String
+        let daysOverdue: Int
+    }
+
+    struct Inputs: Equatable, Sendable {
+        /// Taken in to at least `substantial` since yesterday's start, most
+        /// engaged first.
+        var recent: [String] = []
+        /// Sources of today's due (not new) cards.
+        var due: [DueSource] = []
+        /// When each source was last explained so that it held.
+        var explainedAt: [String: Date] = [:]
+        /// Skipped with Pick something else, not to be picked yet.
+        var skipped: Set<String> = []
+        /// The weekly connection's older half for `recent`'s first unexplained
+        /// source, when this is the connection morning and one was found.
+        var connectionPartner: String? = nil
+    }
+
+    /// Every candidate, best first, each source at most once as a single pick.
+    static func queue(_ inputs: Inputs) -> [MorningPick] {
+        var picks: [MorningPick] = []
+        var used = Set<String>()
+        func add(_ sourceID: String, _ reason: MorningPick.Reason) {
+            guard !inputs.skipped.contains(sourceID), used.insert(sourceID).inserted else { return }
+            picks.append(MorningPick(sourceIDs: [sourceID], reason: reason))
+        }
+        let yesterday = inputs.recent.filter { inputs.explainedAt[$0] == nil && !inputs.skipped.contains($0) }
+        if let first = yesterday.first, let partner = inputs.connectionPartner,
+           partner != first, inputs.explainedAt[partner] != nil, !inputs.skipped.contains(partner) {
+            picks.append(MorningPick(sourceIDs: [first, partner], reason: .connection))
+        }
+        yesterday.forEach { add($0, .yesterday) }
+        let driest = inputs.due.sorted {
+            $0.daysOverdue != $1.daysOverdue ? $0.daysOverdue > $1.daysOverdue : $0.sourceID < $1.sourceID
+        }
+        driest.filter { inputs.explainedAt[$0.sourceID] == nil }.forEach { add($0.sourceID, .keptNotExplained) }
+        driest.filter { inputs.explainedAt[$0.sourceID] != nil && $0.daysOverdue >= 1 }.forEach { add($0.sourceID, .explainedDry) }
+        return picks
+    }
+
+    /// The weekly connection's morning: the first morning of the learner's
+    /// week by the calendar.
+    static func isConnectionMorning(_ now: Date, calendar: Calendar = .current) -> Bool {
+        calendar.component(.weekday, from: now) == calendar.firstWeekday
+    }
+
+    /// Whether a source explained at `at` counts for today's morning.
+    static func explainedToday(_ explainedAt: [String: Date], now: Date, calendar: Calendar = .current) -> Bool {
+        let start = calendar.startOfDay(for: now)
+        return explainedAt.values.contains { $0 >= start }
+    }
+}

@@ -294,6 +294,31 @@ struct MobileRecordWriterTests {
         #expect(exchange.fields["seq"] == SyncJSON(1))
     }
 
+    @Test("A voice Feynman Technique's graded turn carries an explanation's grading, and the phone reads its source as explained only when it held")
+    func voiceExplanationIsExplained() async throws {
+        let replica = try await Fixture.replica()
+        let writer = Fixture.writer(replica)
+        func chat(_ id: String, source: String, score: Double) -> MobileChatRecord {
+            MobileChatRecord(
+                id: id, kind: .voice, notebookID: nil, title: "Cristae", startedAt: Date(timeIntervalSince1970: 1_759_400_000),
+                endedAt: Date(timeIntervalSince1970: 1_759_400_600), summary: nil, overallScore: score, sourceIDs: [source],
+                modelProvider: "OpenAI", modelID: "realtime",
+                exchanges: [MobileChatRecord.Exchange(
+                    id: "\(id)-ex-1", seq: 1, question: "Explain it", userAnswer: "It goes like this", evaluation: "Good",
+                    score: score, answeredAt: Date(timeIntervalSince1970: 1_759_400_100), sourceRefs: [source], knowledgeNote: nil,
+                    grading: MorningPickRule.explanationGrading(sourceCount: 1)
+                )]
+            )
+        }
+        try await writer.recordChat(chat("ios-live-held", source: "held-source", score: 1))
+        try await writer.recordChat(chat("ios-live-partly", source: "partly-source", score: 0.5))
+        let exchange = try #require(try await Fixture.held(replica, .exchange, "ios-live-held-ex-1", in: Fixture.library))
+        #expect(exchange.fields["grading"]?["operation"] == .string("explain"))
+        #expect(exchange.fields["grading"]?["questionVerdict"] == .string("sound"))
+        let explained = try await MobileProjection(replica: replica).explainedSourceDates()
+        #expect(Set(explained.keys) == ["held-source"])
+    }
+
     @Test("A review recorded on the phone is written review and stays in Library when its notebook moves into a space")
     func reviewStaysInLibrary() async throws {
         let replica = try await Fixture.replica()

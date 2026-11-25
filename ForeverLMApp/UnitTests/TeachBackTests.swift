@@ -254,4 +254,26 @@ struct TeachBackTests {
         #expect(TeachBack.isMorningSessionID(id))
         #expect(!TeachBack.isMorningSessionID(TeachBack.sessionID()))
     }
+
+    @Test("An explanation's grading is what both devices read as explained; a memory review grade is not")
+    func explanationGradingIsShared() {
+        #expect(MorningPickRule.explanationGrading(sourceCount: 1) == ("explain", "sound"))
+        #expect(MorningPickRule.explanationGrading(sourceCount: 2).operation == "connect")
+        #expect(MorningPickRule.isExplanation(operation: "explain", verdict: "sound", hasIdeaCoverage: false))
+        #expect(!MorningPickRule.isExplanation(operation: "explain", verdict: "sound", hasIdeaCoverage: true), "a memory review's own grade")
+        #expect(!MorningPickRule.isExplanation(operation: "recall", verdict: "sound", hasIdeaCoverage: false))
+        #expect(TeachBack.explainedScore == MorningPickRule.explainedScore)
+    }
+
+    @Test("The voice Feynman Technique asks the learner to explain first and records each judged explanation")
+    func voiceExplainInstructions() {
+        let source = RealtimeVoiceSource(id: "s1", title: "Cristae remodeling", sourceType: "paper", byline: nil, text: "The paper's text.", reviewGuide: nil)
+        let text = RealtimeVoiceTutor.instructions(for: source, opening: .explain)
+        #expect(text.contains("Feynman Technique"))
+        #expect(text.contains("never explain any part"))
+        #expect(text.contains(RealtimeVoiceTutor.recordAnswerToolName))
+        #expect(text.contains("this morning's explanation"))
+        #expect(RealtimeVoiceTutor.kickoffMessage(for: .explain).contains("morning"))
+    }
 }
+
