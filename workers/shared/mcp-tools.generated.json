@@ -66,7 +66,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Put existing library sources on a timebound Goal — the app's drop of sources onto a Goal's row on the Goals tab. They join the Goal's approved pool at once (no discovery, no approval step), and a Goal tagged to a Notebook hands them on to that Notebook's pool too. Sources already on the Goal are skipped. Find ids with search_sources_semantic or list_sources; file new material with add_source first. A Notebook is refused — add_notebook_sources takes those. To place the sources on days, follow with assign_sources_to_day.",
+    "description" : "Put existing library sources on a timebound Goal — the app's drop of sources onto a Goal's row in Plan. They join the Goal's approved pool at once (no discovery, no approval step), and a Goal tagged to a Notebook hands them on to that Notebook's pool too. Sources already on the Goal are skipped. Find ids with search_sources_semantic or list_sources; file new material with add_source first. A Notebook is refused — add_notebook_sources takes those. To place the sources on days, follow with assign_sources_to_day.",
     "inputSchema" : {
       "properties" : {
         "goal_id" : {
@@ -630,7 +630,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Tidy or align cards already on the learner's Canvas, as Tidy Up and Align in its right-click menu do. arrangement lays the cards out as a row (left to right), a column (top to bottom) or a grid (about half again as wide as tall), taking them in reading order of where they sit now, each by its own width and height, 30 apart, with the selection's top left staying where it is. align then moves every card to the selection's left, center (the middle of its width), right, top, middle (the middle of its height) or bottom, by its own size; with both, the arrangement comes first. A region that held a card grows to hold it where it lands. Pass arrangement, align or both, and at least two cards that are on the Canvas; a card in a locked region is not moved: a call naming one is refused whole (unlock the region with update_canvas_region first). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns how many cards moved and the cards as they now are, each with its rect.",
+    "description" : "Tidy or align cards already on the learner's Canvas, as Tidy Up and Align in its right-click menu do. arrangement lays the cards out as a row (left to right), a column (top to bottom) or a grid (about half again as wide as tall), taking them in reading order of where they sit now, each by its own width and height, 30 apart, with the selection's top left staying where it is. align then moves every card to the selection's left, center (the middle of its width), right, top, middle (the middle of its height) or bottom, by its own size; with both, the arrangement comes first. A region that held a card grows to hold it where it lands. Pass arrangement, align or both, and at least two cards that are on the Canvas; a card in a locked region is not moved: a call naming one is refused whole (unlock the region with canvas_region (action update) first). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns how many cards moved and the cards as they now are, each with its rect.",
     "inputSchema" : {
       "properties" : {
         "align" : {
@@ -884,12 +884,16 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "The Library page of the ForeverLM view an assistant shows inside its own window (Claude, Codex, ChatGPT); for that view, not for model use. Lists the visible library newest first as the Mac's Library does: a book or course once, under its own title, author and cover, rather than chapter by chapter, and every row with a small thumbnail as a JPEG data URL. Hidden sources remain readable and are returned separately for the view's Hidden Items fold. Answers JSON: total and items for visible rows, hidden_total and hidden_items for hidden rows. Each item has kind (source, book or course), id (the chapter a book opens at, for open_in_app with kind source), type, title, byline, words, added, is_hidden and thumbnail; grouped items also have group_id and source_ids. To read the library yourself, use filter_sources.",
+    "description" : "The Library page of the ForeverLM view an assistant shows inside its own window (Claude, Codex, ChatGPT); for that view, not for model use. Lists the visible library newest first as the Mac's Library does: a book or course once, under its own title, author and cover, rather than chapter by chapter, and every row with a small thumbnail as a JPEG data URL. notebook_id gives that view the same rich rows for one Notebook's own sources. Hidden sources remain readable and are returned separately for the view's Hidden Items fold. Answers JSON: total and items for visible rows, hidden_total and hidden_items for hidden rows. Each item has kind (source, book or course), id (the chapter a book opens at, for open_in_app with kind source), type, title, byline, words, added, is_hidden and thumbnail; grouped items also have group_id and source_ids. To read the library yourself, use filter_sources.",
     "inputSchema" : {
       "properties" : {
         "limit" : {
           "description" : "Rows to return, books counted once (default 40, maximum 400).",
           "type" : "integer"
+        },
+        "notebook_id" : {
+          "description" : "Optional Notebook ID from list_notebooks. Restricts the app view to that Notebook's own approved sources.",
+          "type" : "string"
         },
         "source_type" : {
           "description" : "Optional. One family of sources.",
@@ -1219,6 +1223,170 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "Draw, change or delete an arrow on the learner's Canvas. action draw draws one between two cards (from and to), with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none), color (#RRGGBB) and a stance (supports draws it green, contradicts red, unless it has a color of its own). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (canvas_region, action update, with layout tree lays a region of such cards out as a mind map). It returns the arrow's edge_id. action update changes an arrow named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to): relabel it (label; an empty label clears it), set its route, dashed, heads or color (an empty string gives it the usual one), put it on a side of an argument (stance; an empty string takes it off), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. action delete deletes the arrow named by its edge_id or by its ends; the cards stay. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
+    "inputSchema" : {
+      "properties" : {
+        "action" : {
+          "description" : "draw, update or delete.",
+          "enum" : [
+            "draw",
+            "update",
+            "delete"
+          ],
+          "type" : "string"
+        },
+        "color" : {
+          "description" : "The arrow's color as #RRGGBB; on update an empty string gives it the usual one.",
+          "type" : "string"
+        },
+        "dashed" : {
+          "description" : "Draw the line dashed (true) or solid (false).",
+          "type" : "boolean"
+        },
+        "edge_id" : {
+          "description" : "For update and delete: the arrow's edge_id, instead of from and to.",
+          "type" : "string"
+        },
+        "from" : {
+          "description" : "Where the arrow starts: a card by item_id, or a region as region:<region_id>.",
+          "type" : "string"
+        },
+        "heads" : {
+          "description" : "Where the arrowheads are: at the end (the default), at both ends or nowhere.",
+          "enum" : [
+            "end",
+            "both",
+            "none"
+          ],
+          "type" : "string"
+        },
+        "label" : {
+          "description" : "A few words on the arrow; on update an empty label clears it.",
+          "type" : "string"
+        },
+        "route" : {
+          "description" : "How the arrow runs: a gentle curve (the default), a straight line or an elbow.",
+          "enum" : [
+            "curve",
+            "straight",
+            "elbow"
+          ],
+          "type" : "string"
+        },
+        "stance" : {
+          "description" : "supports (drawn green) or contradicts (red); on update an empty string takes the stance off.",
+          "type" : "string"
+        },
+        "to" : {
+          "description" : "Where the arrow points to: a card by item_id, or a region as region:<region_id>.",
+          "type" : "string"
+        },
+        "tree" : {
+          "description" : "Make it a mind-map branch from the parent (from) to the child (to) (true), or a plain arrow again (false).",
+          "type" : "boolean"
+        }
+      },
+      "required" : [
+        "action"
+      ],
+      "type" : "object"
+    },
+    "name" : "canvas_arrow",
+    "readOnlyHint" : false
+  },
+  {
+    "description" : "Draw, change or delete a region on the learner's Canvas. action create draws one: around item_ids (cards all on the Canvas keep their places and the region is drawn around them; otherwise they are set down together inside it), or empty in free space in the middle of what the learner is looking at; it needs a name. With notebook_id it is that notebook's frame: named by the notebook, drawing the notebook's ticked sources and Docs that are not placed anywhere, and folding into the notebook and its takeaways when zoomed out; a notebook whose frame is on the Canvas already is not framed twice (the answer names that frame). It opens the Canvas beside the chat, flies to the region and returns its region_id. action update changes the region named by region, as its inspector and its handle do: rename it (name; a notebook's frame takes its notebook's name, so rename the notebook with update_notebook), recolour it, move it (x, y: its top left, carrying the cards inside it), resize it (w, h), link it to a notebook as its frame (notebook_id; an empty string unlinks it), fold it up (collapsed true: it draws as its name and the count of its cards, which stay placed where they are but are not drawn, and arrows to them wait; false opens it again), lock it (locked true: its cards cannot be dragged, nor it moved or resized by hand, until it is unlocked; a locked region refuses the changes to its geometry and layout below unless the same call unlocks it), set its layout (layout tree: a mind map, its cards laid out once from the tree edges among them (canvas_arrow with tree) and then kept a tree by the Canvas; free: its cards stay where they are), fit it to what it holds (fit_to_content true: its cards and the regions inside it, with room for its name, never below 200 by 120) or grow it to hold cards (grow_to_hold: item_ids on the Canvas, with 24 to spare; it never shrinks). Positions are in the Canvas's own units, as get_knowledge_map gives each region's rect; a card is 240 by 120. It returns the region as it now is. action delete deletes the region named by region. Its cards stay where they are unless take_cards_off is true, which takes them off the Canvas too and deletes the regions inside it, in the same edit; a notebook's frame going takes nothing out of the notebook. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
+    "inputSchema" : {
+      "properties" : {
+        "action" : {
+          "description" : "create, update or delete.",
+          "enum" : [
+            "create",
+            "update",
+            "delete"
+          ],
+          "type" : "string"
+        },
+        "collapsed" : {
+          "description" : "update: fold the region up (true) or open it again (false).",
+          "type" : "boolean"
+        },
+        "color" : {
+          "description" : "The region's tint as #RRGGBB. The Canvas's own: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780. Omit for the next one.",
+          "type" : "string"
+        },
+        "fit_to_content" : {
+          "description" : "update: fit the region to its cards and the regions inside it.",
+          "type" : "boolean"
+        },
+        "grow_to_hold" : {
+          "description" : "update: grow the region to hold these cards (item_ids on the Canvas) whole, with 24 to spare.",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "h" : {
+          "description" : "update: its new height.",
+          "type" : "number"
+        },
+        "item_ids" : {
+          "description" : "create: the cards to draw it around or set down inside it. Cards by item_id as get_knowledge_map gives them: source:<source_id>, doc:<doc_id> (a Doc, site, animation, audio overview or reading), idea:<idea_id>, canvas:<canvas_id> (a shortcut to another canvas), chat:<session_id> (a chat) or picture:<image_id> (an image from list_images). A bare source, Doc or Idea id is accepted too.",
+          "items" : {
+            "type" : "string"
+          },
+          "type" : "array"
+        },
+        "layout" : {
+          "description" : "update: tree, a mind map, laid out once from the tree edges among its cards; free, its cards stay where they are.",
+          "enum" : [
+            "free",
+            "tree"
+          ],
+          "type" : "string"
+        },
+        "locked" : {
+          "description" : "Lock the region (true) or unlock it (false). On create it defaults to false.",
+          "type" : "boolean"
+        },
+        "name" : {
+          "description" : "create: the region's name, required unless notebook_id is given. update: its new name.",
+          "type" : "string"
+        },
+        "notebook_id" : {
+          "description" : "Make the region this Notebook's frame (a Notebook id from list_notebooks); on update, an empty string unlinks it.",
+          "type" : "string"
+        },
+        "region" : {
+          "description" : "For update and delete: a region's name (as get_knowledge_map lists it; a notebook's frame by its notebook's name) or its region_id.",
+          "type" : "string"
+        },
+        "take_cards_off" : {
+          "description" : "delete: take the cards inside it off the Canvas and delete the regions inside it as well. Defaults to false.",
+          "type" : "boolean"
+        },
+        "w" : {
+          "description" : "update: its new width.",
+          "type" : "number"
+        },
+        "x" : {
+          "description" : "update: its new left edge.",
+          "type" : "number"
+        },
+        "y" : {
+          "description" : "update: its new top edge.",
+          "type" : "number"
+        }
+      },
+      "required" : [
+        "action"
+      ],
+      "type" : "object"
+    },
+    "name" : "canvas_region",
+    "readOnlyHint" : false
+  },
+  {
     "description" : "Delete an article's reading view, so the Reader shows the original page and the list of hidden pieces is gone. Make a new one with make_article_reading_view.",
     "inputSchema" : {
       "properties" : {
@@ -1441,42 +1609,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Draw a region on the learner's Canvas: around item_ids (cards all on the Canvas keep their places and the region is drawn around them; otherwise they are set down together inside it), or empty in free space in the middle of what the learner is looking at. With notebook_id it is that notebook's frame: named by the notebook, drawing the notebook's ticked sources and Docs that are not placed anywhere, and folding into the notebook and its takeaways when zoomed out; a notebook whose frame is on the Canvas already is not framed twice (the answer names that frame). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Opens the Canvas beside the chat and flies to the region. Returns its region_id.",
-    "inputSchema" : {
-      "properties" : {
-        "color" : {
-          "description" : "The region's tint as #RRGGBB. The Canvas's own: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780. Omit for the next one.",
-          "type" : "string"
-        },
-        "item_ids" : {
-          "description" : "Cards by item_id as get_knowledge_map gives them: source:<source_id>, doc:<doc_id> (a Doc, site, animation, audio overview or reading), idea:<idea_id>, canvas:<canvas_id> (a shortcut to another canvas), chat:<session_id> (a chat) or picture:<image_id> (an image from list_images). A bare source, Doc or Idea id is accepted too.",
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
-        },
-        "locked" : {
-          "description" : "Lock the region: its cards cannot be dragged, nor it moved or resized by hand, until it is unlocked (update_canvas_region). Defaults to false.",
-          "type" : "boolean"
-        },
-        "name" : {
-          "description" : "The region's name. Required unless notebook_id is given; a notebook's frame takes the notebook's name.",
-          "type" : "string"
-        },
-        "notebook_id" : {
-          "description" : "Make the region this Notebook's frame (a Notebook id from list_notebooks).",
-          "type" : "string"
-        }
-      },
-      "required" : [
-
-      ],
-      "type" : "object"
-    },
-    "name" : "create_canvas_region",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Create a new empty course with a stable ID. Call list_courses first; this tool refuses a duplicate normalized display title. Pass notebook_id to make a Notebook follow it: the sources its lectures gain join that Notebook. The course itself lives in no Notebook.",
     "inputSchema" : {
       "properties" : {
@@ -1618,7 +1750,7 @@
     "inputSchema" : {
       "properties" : {
         "artifact_id" : {
-          "description" : "Optional id of the Doc, Site or animation this Goal is for — the deliverable itself, e.g. the site behind 'Make a site of the rare mitochondrial diseases' (from list_docs, list_animations or a save_site result). The Goals tab opens it from the row. Refused when no record has the id.",
+          "description" : "Optional id of the Doc, Site or animation this Goal is for — the deliverable itself, e.g. the site behind 'Make a site of the rare mitochondrial diseases' (from list_docs, list_animations or a save_site result). Plan opens it from the Goal row. Refused when no record has the id.",
           "type" : "string"
         },
         "daily_target" : {
@@ -1777,7 +1909,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Create an open question on a Notebook: a research gap the learner is chasing, with no deadline. It is NOT a Goal and never appears in the Goals tab. When the learner says \"goal\" in any form (\"set up a goal\", \"add this to my goals\", \"my goal is to understand X\"), use create_learning_goal instead — and if they named no deadline, propose one and confirm it rather than filing the goal here as a question. Questions also accumulate automatically from end_review_session after reviews.",
+    "description" : "Create an open question on a Notebook: a research gap the learner is chasing, with no deadline. It is NOT a Goal and never appears in Plan. When the learner says \"goal\" in any form (\"set up a goal\", \"add this to my goals\", \"my goal is to understand X\"), use create_learning_goal instead — and if they named no deadline, propose one and confirm it rather than filing the goal here as a question. Questions also accumulate automatically from end_review_session after reviews.",
     "inputSchema" : {
       "properties" : {
         "notebook_id" : {
@@ -1961,11 +2093,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Make a list in the learner's Space on their word (\"make a list of my goals for the thesis\"): kind goals or ideas, named as they say, filed in one of their spaces when they name one (space_id from list_spaces), and holding item_ids when given, each moved out of any list it was in. To put a new goal or idea in it, make the goal (create_learning_goal) or the idea (create_idea) first, then pass its id here or to update_space_list. Returns the list.",
+    "description" : "Make a list of Ideas in the learner's Space on their word, named as they say, filed in one of their spaces when they name one (space_id from list_spaces), and holding item_ids when given, each moved out of any list it was in. To put a new Idea in it, make the Idea with create_idea first, then pass its id here or to update_space_list. Goals belong to Plan and cannot be put in a Space list. Returns the list.",
     "inputSchema" : {
       "properties" : {
         "item_ids" : {
-          "description" : "Goal IDs from list_goals for a goals list, or Idea IDs from list_ideas for an ideas list.",
+          "description" : "Idea IDs from list_ideas.",
           "items" : {
             "type" : "string"
           },
@@ -2236,52 +2368,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Delete an arrow from the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by the cards at its ends (from and to). The cards stay. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
-    "inputSchema" : {
-      "properties" : {
-        "edge_id" : {
-          "description" : "The arrow's edge_id.",
-          "type" : "string"
-        },
-        "from" : {
-          "description" : "Instead of edge_id: where the arrow starts, a card by item_id or a region as region:<region_id>.",
-          "type" : "string"
-        },
-        "to" : {
-          "description" : "Instead of edge_id: where the arrow points to, a card by item_id or a region as region:<region_id>.",
-          "type" : "string"
-        }
-      },
-      "required" : [
-
-      ],
-      "type" : "object"
-    },
-    "name" : "delete_canvas_arrow",
-    "readOnlyHint" : false
-  },
-  {
-    "description" : "Delete a region from the learner's Canvas. Its cards stay where they are unless take_cards_off is true, which takes them off the Canvas too and deletes the regions inside it, in the same edit; a notebook's frame going takes nothing out of the notebook. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
-    "inputSchema" : {
-      "properties" : {
-        "region" : {
-          "description" : "A region's name (as get_knowledge_map lists it; a notebook's frame by its notebook's name) or its region_id.",
-          "type" : "string"
-        },
-        "take_cards_off" : {
-          "description" : "Take the cards inside it off the Canvas and delete the regions inside it as well. Defaults to false.",
-          "type" : "boolean"
-        }
-      },
-      "required" : [
-        "region"
-      ],
-      "type" : "object"
-    },
-    "name" : "delete_canvas_region",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Delete a course collection while preserving its sources as ungrouped library items. This removes the course's metadata, lectures, and material relationships. Requires the exact stable course_id from list_courses and cannot be undone — confirm with the user first.",
     "inputSchema" : {
       "properties" : {
@@ -2426,7 +2512,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Permanently delete one timebound Goal — the app's Delete on a row of the Goals tab. The Goal's record, its source pool and its Schedule tags go; the sources stay in the library, and a chat started from the Goal stays in Chats with the link cleared. Refused for a Notebook (delete_notebook takes those, with their Goals). Not undoable; to put a Goal away and keep it, use update_learning_goal with status archived instead. Confirm with the learner first.",
+    "description" : "Permanently delete one timebound Goal — the app's Delete on its row in Plan. The Goal's record, its source pool and its Schedule tags go; the sources stay in the library, and a chat started from the Goal stays in Chats with the link cleared. Refused for a Notebook (delete_notebook takes those, with their Goals). Not undoable; to put a Goal away and keep it, use update_learning_goal with status archived instead. Confirm with the learner first.",
     "inputSchema" : {
       "properties" : {
         "goal_id" : {
@@ -2754,70 +2840,6 @@
       "type" : "object"
     },
     "name" : "draft_cards",
-    "readOnlyHint" : false
-  },
-  {
-    "description" : "Draw an arrow between two cards on the learner's Canvas, with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none), color (#RRGGBB) and a stance (supports draws it green, contradicts red, unless it has a color of its own). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (update_canvas_region with layout tree lays a region of such cards out as a mind map). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the arrow's edge_id.",
-    "inputSchema" : {
-      "properties" : {
-        "color" : {
-          "description" : "The arrow's color as #RRGGBB.",
-          "type" : "string"
-        },
-        "dashed" : {
-          "description" : "Draw the line dashed.",
-          "type" : "boolean"
-        },
-        "from" : {
-          "description" : "Where the arrow starts: a card by item_id, or a region as region:<region_id>.",
-          "type" : "string"
-        },
-        "heads" : {
-          "description" : "Where the arrowheads are: at the end (the default), at both ends or nowhere.",
-          "enum" : [
-            "end",
-            "both",
-            "none"
-          ],
-          "type" : "string"
-        },
-        "label" : {
-          "description" : "A few words on the arrow. Optional.",
-          "type" : "string"
-        },
-        "route" : {
-          "description" : "How the arrow runs: a gentle curve (the default), a straight line or an elbow.",
-          "enum" : [
-            "curve",
-            "straight",
-            "elbow"
-          ],
-          "type" : "string"
-        },
-        "stance" : {
-          "description" : "Which side of an argument the arrow is on: supports (drawn green) or contradicts (red).",
-          "enum" : [
-            "supports",
-            "contradicts"
-          ],
-          "type" : "string"
-        },
-        "to" : {
-          "description" : "Where the arrow points to: a card by item_id, or a region as region:<region_id>.",
-          "type" : "string"
-        },
-        "tree" : {
-          "description" : "Make it a mind-map branch from the parent (from) to the child (to).",
-          "type" : "boolean"
-        }
-      },
-      "required" : [
-        "from",
-        "to"
-      ],
-      "type" : "object"
-    },
-    "name" : "draw_canvas_arrow",
     "readOnlyHint" : false
   },
   {
@@ -4133,7 +4155,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and AI Usage (the key), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No subscription is sold. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, comped or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key). This is account state, the same on every device.",
+    "description" : "Read the ForeverLM account behind Settings › API Keys, freshly fetched from the account server as the pane does when it opens. ForeverLM is free: there is no plan, price, trial or lock, and nothing to pay for. AI runs on the learner's own OpenRouter API key, which pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in and a summary of the learner's own router key (details in get_own_router_key). This is account state, the same on every device.",
     "inputSchema" : {
       "properties" : {
 
@@ -4767,7 +4789,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read AI Usage › API keys: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
+    "description" : "Read Settings › API Keys: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider, and without a key no AI feature runs. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
     "inputSchema" : {
       "properties" : {
 
@@ -5711,7 +5733,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Check the learner's Canvas for layout faults, before telling them a layout is done: cards drawn over one another (overlap), a card whose middle is in a region but whose edge crosses the region's (card_outside_region), an arrow that runs across a card it does not join (arrow_over_card; a default arrow is judged by the curve the Canvas draws, which bends round the cards in its way, and a straight or elbow arrow, or one drawn into a brace with others, by the straight line between the middles of its ends) and a region that holds no card and no region (empty_region; a notebook's frame is never empty). A card in a region folded up is not drawn and is not checked. Changes nothing. Each issue has its kind, a one-line message, the cards it is about (item_ids) and the region_id or edge_id; get_knowledge_map gives each card's rect, and a fault can be mended with arrange_on_canvas, update_canvas_card, update_canvas_region (fit_to_content, grow_to_hold) or place_on_canvas. Call it after build_canvas or any layout you made, then screenshot_canvas to look at it.",
+    "description" : "Check the learner's Canvas for layout faults, before telling them a layout is done: cards drawn over one another (overlap), a card whose middle is in a region but whose edge crosses the region's (card_outside_region), an arrow that runs across a card it does not join (arrow_over_card; a default arrow is judged by the curve the Canvas draws, which bends round the cards in its way, and a straight or elbow arrow, or one drawn into a brace with others, by the straight line between the middles of its ends) and a region that holds no card and no region (empty_region; a notebook's frame is never empty). A card in a region folded up is not drawn and is not checked. Changes nothing. Each issue has its kind, a one-line message, the cards it is about (item_ids) and the region_id or edge_id; get_knowledge_map gives each card's rect, and a fault can be mended with arrange_on_canvas, update_canvas_card, canvas_region (action update) (fit_to_content, grow_to_hold) or place_on_canvas. Call it after build_canvas or any layout you made, then screenshot_canvas to look at it.",
     "inputSchema" : {
       "properties" : {
         "limit" : {
@@ -6130,7 +6152,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "List the learner's timebound Goals (deadline, days remaining, approved/completed source counts, review status, and the Doc, Site or animation each is for, as `artifact`). Omit notebook_id to list every Goal, tagged to a Notebook or standing alone; pass it to scope to one Notebook. Notebooks themselves are listed with list_notebooks.",
+    "description" : "List the learner's timebound Goals as shown in Plan: each has its deadline, quarter plan (`plan.doc_id` and `plan.title`), days remaining, approved/completed source counts, review status, and the Doc, Site or animation it is for as `artifact`. A Goal's deadline determines its quarter; there is no separate Goals list in a Space. Omit notebook_id to list every Goal, tagged to a Notebook or standing alone; pass it to scope to one Notebook. Notebooks themselves are listed with list_notebooks.",
     "inputSchema" : {
       "properties" : {
         "include_completed" : {
@@ -6712,7 +6734,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "List the learner's lists in their Space: lists of goals and lists of ideas, items beside their pages and canvases, each filed in at most one of their spaces. Returns each list's list_id, kind (goals or ideas), name, created_at, the space it is in (space_id and name) if any, whether it is pinned, whether it is in Trash, and what it holds: for a goals list each goal's goal_id, title, deadline and status; for an ideas list each idea's idea_id, title and whether it is open. A goal or an idea is in one list at most and stays listed by list_goals or list_ideas whatever list it is in. Pass include_trash to list the lists in Trash too.",
+    "description" : "List the learner's lists of Ideas in their Space, beside their pages and canvases, each filed in at most one of their spaces. Returns each list's list_id, kind (ideas), name, created_at, the space it is in (space_id and name) if any, whether it is pinned, whether it is in Trash, and the ideas it holds. An Idea is in one list at most and stays listed by list_ideas whatever list it is in. Goals belong to Plan and never appear in Space lists. Pass include_trash to list the lists in Trash too.",
     "inputSchema" : {
       "properties" : {
         "include_trash" : {
@@ -7146,11 +7168,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
+    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
     "inputSchema" : {
       "properties" : {
         "pane" : {
-          "description" : "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity; plugins and a plugin's id open the Plugins place.",
+          "description" : "The pane to show. Omit for Chat, where Settings opens; api_keys is signing in and the OpenRouter and OpenAI keys; ai_usage is spending and activity; plugins and a plugin's id open the Plugins place.",
           "enum" : [
             "general",
             "chat",
@@ -7158,7 +7180,7 @@
             "images",
             "videos",
             "background",
-            "billing",
+            "api_keys",
             "ai_usage",
             "data_privacy",
             "team_general",
@@ -8000,7 +8022,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Put the learner's Goals in an order — the drag of a row in the Goals tab. goal_ids may be a subset: the listed Goals are placed first in the given order, and every other open Goal follows in the order it already reads (placed Goals, then the rest by deadline), so reordering three never scrambles the rest. Pass an empty list to forget every placement and read by deadline again. The order drives the Goals tab and list_goals. Each id must name an open timebound Goal (from list_goals); a Notebook, a finished Goal or an unknown id is refused and nothing changes. Confirm the order with the learner before calling this.",
+    "description" : "Put the learner's Goals in an order — the drag of a Goal row in Plan. goal_ids may be a subset: the listed Goals are placed first in the given order, and every other open Goal follows in the order it already reads (placed Goals, then the rest by deadline), so reordering three never scrambles the rest. Pass an empty list to forget every placement and read by deadline again. The order drives Plan and list_goals. Each id must name an open timebound Goal (from list_goals); a Notebook, a finished Goal or an unknown id is refused and nothing changes. Confirm the order with the learner before calling this.",
     "inputSchema" : {
       "properties" : {
         "goal_ids" : {
@@ -10546,11 +10568,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Store, replace, or remove the learner's own OpenRouter key — AI Usage › API keys, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
+    "description" : "Store, replace, or remove the learner's own OpenRouter key — Settings › API Keys, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
     "inputSchema" : {
       "properties" : {
         "clear" : {
-          "description" : "true removes the stored key; the AI features it was paying for stop until a key is stored again, apart from any leftover balance, which pays until it runs out.",
+          "description" : "true removes the stored key; the AI features it was paying for stop until a key is stored again.",
           "type" : "boolean"
         },
         "key" : {
@@ -11572,69 +11594,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change an arrow on the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to: cards, or regions as region:<region_id>): relabel it (label; an empty label clears it), set its route (curve, straight or elbow), dashed, heads (end, both or none) or color (#RRGGBB; an empty string gives it the usual one), put it on a side of an argument (stance: supports draws it green, contradicts red, an empty string takes it off), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
-    "inputSchema" : {
-      "properties" : {
-        "color" : {
-          "description" : "The arrow's color as #RRGGBB, or an empty string for the usual one.",
-          "type" : "string"
-        },
-        "dashed" : {
-          "description" : "Draw the line dashed (true) or solid (false).",
-          "type" : "boolean"
-        },
-        "edge_id" : {
-          "description" : "The arrow's edge_id.",
-          "type" : "string"
-        },
-        "from" : {
-          "description" : "Instead of edge_id: where the arrow starts, a card by item_id or a region as region:<region_id>.",
-          "type" : "string"
-        },
-        "heads" : {
-          "description" : "Where the arrowheads are.",
-          "enum" : [
-            "end",
-            "both",
-            "none"
-          ],
-          "type" : "string"
-        },
-        "label" : {
-          "description" : "The arrow's new label.",
-          "type" : "string"
-        },
-        "route" : {
-          "description" : "How the arrow runs.",
-          "enum" : [
-            "curve",
-            "straight",
-            "elbow"
-          ],
-          "type" : "string"
-        },
-        "stance" : {
-          "description" : "supports (drawn green) or contradicts (red), or an empty string to take the stance off.",
-          "type" : "string"
-        },
-        "to" : {
-          "description" : "Instead of edge_id: where the arrow points to, a card by item_id or a region as region:<region_id>.",
-          "type" : "string"
-        },
-        "tree" : {
-          "description" : "Make it a mind-map branch (true), or a plain arrow again (false).",
-          "type" : "boolean"
-        }
-      },
-      "required" : [
-
-      ],
-      "type" : "object"
-    },
-    "name" : "update_canvas_arrow",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Change how cards already on the learner's Canvas look, as their right-click menu and handles do: tint them (color), fold them to their title line (folded true; false opens them), give them a width or height of their own (w from 160 to 720 and h from 56 to 2000, in the Canvas's own units; a card is 240 by 120 unless its kind says otherwise), or give them back the size their kind has (fit_to_content true: the width and height they were given are cleared). Beyond the look: show a source as a page of its PDF (page, one-based, drawn as the card with its title and authors under it, as a paper placed for the first time is; 0 shows the usual card again; a page past the PDF's end is its last; sources only), write the learner's words about why a card is on this canvas under it (annotation, at most 600 characters, an empty string takes it off; any card but an Idea, whose own note holds its words, so change an Idea's with update_idea), draw an Idea as plain words with no sticky note (plain true; false brings the note back; Ideas only) and mark a question, an Idea whose title ends with ?, answered or open again (answered; questions only). One call changes every card named; a region that holds a card made wider or taller than it is grows to hold it. Cards not on the Canvas are listed and left alone (place_on_canvas sets them down first). get_knowledge_map gives each card's rect and what it has been given. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the cards as they now are.",
     "inputSchema" : {
       "properties" : {
@@ -11690,78 +11649,6 @@
       "type" : "object"
     },
     "name" : "update_canvas_card",
-    "readOnlyHint" : false
-  },
-  {
-    "description" : "Change a region on the learner's Canvas, as its inspector and its handle do: rename it (name; a notebook's frame takes its notebook's name, so rename the notebook with update_notebook), recolour it, move it (x, y: its top left, carrying the cards inside it), resize it (w, h), link it to a notebook as its frame (notebook_id; an empty string unlinks it), fold it up (collapsed true: it draws as its name and the count of its cards, which stay placed where they are but are not drawn, and arrows to them wait; false opens it again), lock it (locked true: its cards cannot be dragged, nor it moved or resized by hand, until it is unlocked; a locked region refuses the changes to its geometry and layout below unless the same call unlocks it), set its layout (layout tree: a mind map, its cards laid out once from the tree edges among them (draw_canvas_arrow with tree) and then kept a tree by the Canvas; free: its cards stay where they are), fit it to what it holds (fit_to_content true: its cards and the regions inside it, with room for its name, never below 200 by 120) or grow it to hold cards (grow_to_hold: item_ids on the Canvas, with 24 to spare; it never shrinks). Positions are in the Canvas's own units, as get_knowledge_map gives each region's rect; a card is 240 by 120. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the region as it now is.",
-    "inputSchema" : {
-      "properties" : {
-        "collapsed" : {
-          "description" : "Fold the region up (true) or open it again (false).",
-          "type" : "boolean"
-        },
-        "color" : {
-          "description" : "The region's tint as #RRGGBB. The Canvas's own: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780. Omit for the next one.",
-          "type" : "string"
-        },
-        "fit_to_content" : {
-          "description" : "Fit the region to its cards and the regions inside it.",
-          "type" : "boolean"
-        },
-        "grow_to_hold" : {
-          "description" : "Grow the region to hold these cards (item_ids on the Canvas) whole, with 24 to spare.",
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
-        },
-        "h" : {
-          "description" : "Its new height.",
-          "type" : "number"
-        },
-        "layout" : {
-          "description" : "tree: a mind map, laid out once from the tree edges among its cards; free: its cards stay where they are.",
-          "enum" : [
-            "free",
-            "tree"
-          ],
-          "type" : "string"
-        },
-        "locked" : {
-          "description" : "Lock the region (true) or unlock it (false).",
-          "type" : "boolean"
-        },
-        "name" : {
-          "description" : "Its new name.",
-          "type" : "string"
-        },
-        "notebook_id" : {
-          "description" : "Make it this Notebook's frame (a Notebook id from list_notebooks), or an empty string to unlink it.",
-          "type" : "string"
-        },
-        "region" : {
-          "description" : "A region's name (as get_knowledge_map lists it; a notebook's frame by its notebook's name) or its region_id.",
-          "type" : "string"
-        },
-        "w" : {
-          "description" : "Its new width.",
-          "type" : "number"
-        },
-        "x" : {
-          "description" : "Its new left edge.",
-          "type" : "number"
-        },
-        "y" : {
-          "description" : "Its new top edge.",
-          "type" : "number"
-        }
-      },
-      "required" : [
-        "region"
-      ],
-      "type" : "object"
-    },
-    "name" : "update_canvas_region",
     "readOnlyHint" : false
   },
   {
@@ -12079,7 +11966,7 @@
     "inputSchema" : {
       "properties" : {
         "artifact_id" : {
-          "description" : "The Doc, Site or animation this Goal is for, by id (from list_docs, list_animations or a save_site result): the Goals tab opens it from the row. Pass an empty string to unlink. Refused when no record has the id.",
+          "description" : "The Doc, Site or animation this Goal is for, by id (from list_docs, list_animations or a save_site result): Plan opens it from the Goal row. Pass an empty string to unlink. Refused when no record has the id.",
           "type" : "string"
         },
         "daily_target" : {

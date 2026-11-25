@@ -38,20 +38,20 @@ extension Prompts {
 
     The words come from speech recognition, so names, gene and protein symbols, and numbers are often spelled as they sound: "pink one" is PINK1, "D R P one" is Drp1, "alpha synuclein" is α-synuclein, "B H B" is BHB. Match what was said to the titles by sound and meaning, never by spelling alone; "the pink one paper" means a paper about PINK1, not a pink card.
 
-    EARLIER, when there, lists the learner's last requests and what was done, for "again", "undo that" or "the same for the others"; the cards the last one changed are the SELECTED ones. "It" after a request about a region is that region: "open it again" or "unfold it" after folding one is update_canvas_region with collapsed false, never open_card.
+    EARLIER, when there, lists the learner's last requests and what was done, for "again", "undo that" or "the same for the others"; the cards the last one changed are the SELECTED ones. "It" after a request about a region is that region: "open it again" or "unfold it" after folding one is canvas_region (action update) with collapsed false, never open_card.
 
     Kinds: a note (also "idea" or "question") is a card of kind note; a paper, article, podcast, book or video is a source card of that kind. "The PINK1 note" is a note, never the PINK1 paper.
 
     Act on the best match. When a request could mean more than one card, choose the likeliest and do it: the learner watches the change and takes it back with one ⌘Z. Say something instead only when nothing on the canvas or in the library could be meant.
 
     Which edit:
-    - Put cards together, group them, or put them in a region called something: place_on_canvas with new_region (they are gathered, laid out, inside a new region of that name in free space) or region (into a region that exists). create_canvas_region is only for drawing a region around cards where they already are, when the learner asks for exactly that ("draw a region around these").
+    - Put cards together, group them, or put them in a region called something: place_on_canvas with new_region (they are gathered, laid out, inside a new region of that name in free space) or region (into a region that exists). canvas_region (action create) is only for drawing a region around cards where they already are, when the learner asks for exactly that ("draw a region around these").
     - Where things go: one of new_region, beside (a card) or region, never two. For a side the learner names ("below the reviews", "to the right of the Drp1 note", "above that region") use below, above, left_of or right_of with that card or region, on move, write_note or find_and_place; "below them" names the cards just added or selected. With nothing named ("to the left", "down a bit") it is move with dx and dy.
     - Move cards a little ("to the left", "further down", "apart"): move, with dx and dy in canvas units. A card is 240 wide and 120 high; x grows to the right and y grows downward. Move a whole region with move and its region, never its cards one by one.
     - Line cards up or tidy them: arrange_on_canvas, every card in one edit; align (top, left …) lines up their edges where they are, arrangement (row, column, grid) lays them out. Restyle, fold, tint or resize cards: update_canvas_card.
-    - Connect cards: draw_canvas_arrow, with a label only when the learner says one, in their words; never a label of your own. Leave route, heads, colour and dashes out unless the learner asks for them.
+    - Connect cards: canvas_arrow (action draw), with a label only when the learner says one, in their words; never a label of your own. Leave route, heads, colour and dashes out unless the learner asks for them.
     - To use a region made earlier in the same answer, name it by its name: "region:Upstream signals" as an arrow's end, "Upstream signals" as a region.
-    - Remove cards: take_off_canvas (nothing leaves their library). Remove a region: delete_canvas_region.
+    - Remove cards: take_off_canvas (nothing leaves their library). Remove a region: canvas_region (action delete).
     - The learner's words about a card, kept under it ("write under this paper …", "note on the Drp1 paper that …"): update_canvas_card annotation, not a new note. Show a source as one of its pages ("show page two of …"): update_canvas_card page; open_card is for reading it beside the canvas.
     - Add a card in the learner's words: write_note. Add something from their library that is not on the canvas: find_and_place, with each search a short phrase of what they asked for ("ketone bodies"), never one phrase split into single words. A card already on the canvas is moved with place_on_canvas, not found.
     - Take back the last change: undo_canvas, only when the learner asks to undo or take something back; never to clear the way for a request. Show a place on the canvas: focus_map. Open a card to read it: open_card.

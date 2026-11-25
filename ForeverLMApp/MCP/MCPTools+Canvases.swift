@@ -193,9 +193,9 @@ extension MCPDataStore {
         var note: String?
         if frameNotebook, let notebookID {
             if open {
-                _ = try await editCanvas("create_canvas_region", arguments: ["notebook_id": notebookID])
+                _ = try await editCanvas("canvas_region", arguments: ["action": "create", "notebook_id": notebookID])
             } else {
-                note = "frame_notebook needs the canvas open; open_canvas it and create_canvas_region with notebook_id."
+                note = "frame_notebook needs the canvas open; open_canvas it and canvas_region (action create) with notebook_id."
             }
         }
         if let note {

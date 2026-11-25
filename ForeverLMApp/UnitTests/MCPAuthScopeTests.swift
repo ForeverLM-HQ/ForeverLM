@@ -101,8 +101,7 @@ struct MCPAuthScopeTests {
         #expect(MCPToolRegistry.storeGateExemptToolNames == [
             "get_knowledge_map", "apply_map_lens", "clear_map_lens", "focus_map",
             "place_on_canvas", "take_off_canvas",
-            "create_canvas_region", "update_canvas_region", "delete_canvas_region",
-            "draw_canvas_arrow", "update_canvas_arrow", "delete_canvas_arrow",
+            "canvas_region", "canvas_arrow",
             "undo_canvas", "keep_map_lens", "set_canvas_display",
             "update_canvas_card", "arrange_on_canvas", "lint_canvas", "screenshot_canvas",
             "list_canvases", "create_canvas", "open_canvas", "update_canvas", "delete_canvas",

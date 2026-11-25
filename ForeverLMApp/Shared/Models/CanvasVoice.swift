@@ -565,7 +565,7 @@ enum CanvasVoice {
     /// An edit (its ids already resolved) brought back to what the learner
     /// asked for where a model, now and then, writes otherwise (measured in
     /// whole spoken sessions):
-    /// - "put these in a region called Fission" written as create_canvas_region
+    /// - "put these in a region called Fission" written as canvas_region create
     ///   draws a frame round cards wherever they lie, one region ending up
     ///   inside another; unless the learner said "around", the cards are
     ///   gathered into the new region (place_on_canvas new_region).
@@ -619,7 +619,7 @@ enum CanvasVoice {
             let dy = (edit.arguments["dy"] as? NSNumber)?.doubleValue ?? 0
             if dx == 0, dy == 0 { return nil }
         }
-        if edit.tool == "create_canvas_region",
+        if edit.tool == "canvas_region", edit.arguments["action"] as? String == "create",
            let cards = edit.arguments["item_ids"] as? [String], !cards.isEmpty,
            !["x", "y", "w", "h"].contains(where: { edit.arguments[$0] != nil }),
            said.range(of: "around", options: .caseInsensitive) == nil,

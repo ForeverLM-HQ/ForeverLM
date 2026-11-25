@@ -661,8 +661,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         // preference store, never the cached connection.
         "get_knowledge_map", "apply_map_lens", "clear_map_lens", "focus_map",
         "place_on_canvas", "take_off_canvas",
-        "create_canvas_region", "update_canvas_region", "delete_canvas_region",
-        "draw_canvas_arrow", "update_canvas_arrow", "delete_canvas_arrow",
+        "canvas_region", "canvas_arrow",
         "undo_canvas", "keep_map_lens", "set_canvas_display",
         // The parity build's tools act on the same view model: a card's look,
         // Tidy Up and Align, a check of the layout, a picture of it (MCPTools+CanvasParity.swift).
@@ -838,9 +837,6 @@ final class MCPToolRegistry: @unchecked Sendable {
     }
 
     private static let destructiveToolNames: Set<String> = [
-        // A region or an arrow gone from the learner's Canvas.
-        "delete_canvas_region",
-        "delete_canvas_arrow",
         "delete_image",
         // A forgotten note is gone, and its line with it.
         "forget_working_note",

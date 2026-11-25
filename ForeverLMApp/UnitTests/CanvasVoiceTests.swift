@@ -209,16 +209,16 @@ struct CanvasVoiceTests {
     func meant() throws {
         typealias E = CanvasVoice.Edit
         let gather = try #require(CanvasVoice.meant(
-            E(tool: "create_canvas_region", arguments: ["name": "Fission", "item_ids": ["source:a", "source:b"]]),
+            E(tool: "canvas_region", arguments: ["action": "create", "name": "Fission", "item_ids": ["source:a", "source:b"]]),
             said: "put the fission papers in a region called Fission", regionNames: []
         ))
         #expect(gather.tool == "place_on_canvas" && gather.arguments["new_region"] as? String == "Fission")
         #expect(gather.arguments["item_ids"] as? [String] == ["source:a", "source:b"])
         let around = try #require(CanvasVoice.meant(
-            E(tool: "create_canvas_region", arguments: ["name": "Open questions", "item_ids": ["idea:q"]]),
+            E(tool: "canvas_region", arguments: ["action": "create", "name": "Open questions", "item_ids": ["idea:q"]]),
             said: "draw a region called open questions around my question", regionNames: []
         ))
-        #expect(around.tool == "create_canvas_region", "around: the frame is drawn where the cards are")
+        #expect(around.tool == "canvas_region", "around: the frame is drawn where the cards are")
         let existing = try #require(CanvasVoice.meant(
             E(tool: "write_note", arguments: ["text": "fission first", "new_region": "fission"]),
             said: "write a note in fission", regionNames: ["Mitophagy", "Fission"]

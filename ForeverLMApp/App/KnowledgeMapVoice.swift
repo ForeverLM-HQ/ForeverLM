@@ -707,12 +707,18 @@ final class KnowledgeMapVoice {
             return "Placing \(some)…"
         case "move": return a["region"] != nil && cards == 0 ? "Moving a region…" : "Moving \(some)…"
         case "write_note": return "Writing \(quoted("text") ?? "a note")…"
-        case "create_canvas_region": return "Drawing \(quoted("name") ?? "a region")…"
-        case "update_canvas_region": return "Changing a region…"
-        case "delete_canvas_region": return "Deleting a region…"
-        case "draw_canvas_arrow": return "Drawing an arrow…"
-        case "update_canvas_arrow": return "Changing an arrow…"
-        case "delete_canvas_arrow": return "Deleting an arrow…"
+        case "canvas_region":
+            switch a["action"] as? String {
+            case "create": return "Drawing \(quoted("name") ?? "a region")…"
+            case "delete": return "Deleting a region…"
+            default: return "Changing a region…"
+            }
+        case "canvas_arrow":
+            switch a["action"] as? String {
+            case "draw": return "Drawing an arrow…"
+            case "delete": return "Deleting an arrow…"
+            default: return "Changing an arrow…"
+            }
         case "take_off_canvas": return "Taking \(some) off…"
         case "update_canvas_card": return "Changing \(some)…"
         case "arrange_on_canvas": return "Arranging \(some)…"
@@ -812,7 +818,7 @@ final class KnowledgeMapVoice {
             return "Placed \(Self.naming(refs, map: map))"
         case _ where Self.canvasTools.contains(edit.tool):
             var arguments = arguments
-            if edit.tool.hasSuffix("_canvas_arrow") {
+            if edit.tool == "canvas_arrow" {
                 // An arrow's end written as a bare region name (one made
                 // earlier in the same answer, which the listing could not
                 // give an id) is that region.
@@ -824,12 +830,14 @@ final class KnowledgeMapVoice {
                     arguments[key] = "region:\(id)"
                 }
             }
-            if edit.tool == "draw_canvas_arrow", let from = arguments["from"] as? String, let to = arguments["to"] as? String {
+            if edit.tool == "canvas_arrow", arguments["action"] as? String == "draw",
+               let from = arguments["from"] as? String, let to = arguments["to"] as? String {
                 guard arrowsDrawn.insert(from + "\u{1}" + to).inserted else {
                     // Drawn already in this answer: the second says how it should be.
                     var again = arguments
+                    again["action"] = "update"
                     again["label"] = arguments["label"] as? String ?? ""
-                    _ = try await MCPDataStore.editCanvas("update_canvas_arrow", arguments: again)
+                    _ = try await MCPDataStore.editCanvas("canvas_arrow", arguments: again)
                     return nil
                 }
             }
@@ -859,7 +867,7 @@ final class KnowledgeMapVoice {
                 let spot = KnowledgeMapArranging.nearestFreeOrigin(
                     size: (region.w, region.h), near: .init(x: wanted.x + region.w / 2, y: wanted.y + region.h / 2), occupied: others
                 )
-                _ = try await MCPDataStore.editCanvas("update_canvas_region", arguments: ["region": id, "x": spot.x, "y": spot.y])
+                _ = try await MCPDataStore.editCanvas("canvas_region", arguments: ["action": "update", "region": id, "x": spot.x, "y": spot.y])
                 return "Moved “\(Self.short(region.name.isEmpty ? "Untitled region" : region.name))”"
             }
             let placed = Self.movable(arguments["item_ids"] as? [String] ?? [], map: map)
@@ -877,8 +885,8 @@ final class KnowledgeMapVoice {
             guard let id = map.layout.regions[bare] != nil ? bare : byName?.key, let region = map.layout.regions[id] else {
                 throw MCPError.invalidInput("No region “\(named)” on the canvas.")
             }
-            _ = try await MCPDataStore.editCanvas("update_canvas_region", arguments: [
-                "region": id, "x": (region.x + dx).rounded(), "y": (region.y + dy).rounded(),
+            _ = try await MCPDataStore.editCanvas("canvas_region", arguments: [
+                "action": "update", "region": id, "x": (region.x + dx).rounded(), "y": (region.y + dy).rounded(),
             ])
             return "Moved “\(Self.short(region.name.isEmpty ? "Untitled region" : region.name))”"
         }
@@ -1139,12 +1147,8 @@ final class KnowledgeMapVoice {
     static let toolLines: [(name: String, use: String)] = [
         ("place_on_canvas", "Set cards down, or move cards already placed: into a region, beside a card, or together inside a new region (new_region), else in the middle of the view."),
         ("take_off_canvas", "Take cards off the canvas; they stay in the library."),
-        ("create_canvas_region", "Draw a region of that name around cards where they are (all placed), or around cards set down together inside it."),
-        ("update_canvas_region", "Rename, recolour, move (x, y: its top left, carrying its cards), resize, fold (collapsed), lock or fit a region."),
-        ("delete_canvas_region", "Delete a region; its cards stay unless take_cards_off."),
-        ("draw_canvas_arrow", "Draw an arrow from one card (or region:r1) to another."),
-        ("update_canvas_arrow", "Change the arrow between two ends: its label, look or stance."),
-        ("delete_canvas_arrow", "Delete the arrow between two ends."),
+        ("canvas_region", "action create: draw a region of that name around cards where they are (all placed), or around cards set down together inside it. update: rename, recolour, move (x, y: its top left, carrying its cards), resize, fold (collapsed), lock or fit the region named by region. delete: delete it; its cards stay unless take_cards_off."),
+        ("canvas_arrow", "action draw: an arrow from one card (or region:r1) to another. update: change the arrow between two ends, its label, look or stance. delete: delete the arrow between two ends."),
         ("update_canvas_card", "Tint, fold, resize, annotate or restyle cards on the canvas."),
         ("arrange_on_canvas", "Lay at least two placed cards out as a row, a column or a grid, and/or align them."),
         ("undo_canvas", "Take back the last change (redo: true puts it back)."),
@@ -1253,8 +1257,10 @@ final class KnowledgeMapVoice {
             if let region = arguments["new_region"] as? String { return "Grouped \(named) as “\(short(region))”" }
             return "Placed \(named)"
         case "take_off_canvas": return "Took \(named) off"
-        case "create_canvas_region": return "Drew “\(short(arguments["name"] as? String ?? "a region"))”"
-        case "update_canvas_region":
+        case "canvas_region" where arguments["action"] as? String == "create":
+            return "Drew “\(short(arguments["name"] as? String ?? "a region"))”"
+        case "canvas_region" where arguments["action"] as? String == "delete": return "Deleted a region"
+        case "canvas_region":
             // Which region, and what became of it: the capsule says so, and so
             // does EARLIER, where "open it again" needs to know what "it" was.
             let region = "“\(short(regionName(arguments["region"], map: map)))”"
@@ -1267,10 +1273,12 @@ final class KnowledgeMapVoice {
                 return "Resized \(region)"
             }
             return "Changed \(region)"
-        case "delete_canvas_region": return "Deleted a region"
-        case "draw_canvas_arrow": return "Drew an arrow"
-        case "update_canvas_arrow": return "Changed an arrow"
-        case "delete_canvas_arrow": return "Deleted an arrow"
+        case "canvas_arrow":
+            switch arguments["action"] as? String {
+            case "draw": return "Drew an arrow"
+            case "delete": return "Deleted an arrow"
+            default: return "Changed an arrow"
+            }
         case "update_canvas_card":
             // What became of the cards, as the bar and EARLIER say it.
             if let folded = arguments["folded"] as? Bool { return (folded ? "Folded " : "Unfolded ") + named }

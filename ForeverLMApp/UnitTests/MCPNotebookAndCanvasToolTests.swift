@@ -125,44 +125,42 @@ struct MCPCanvasParityContractTests {
         #expect(shot.contains("showing on the Mac"), "it says it needs the Canvas on screen")
     }
 
-    @Test("place_on_canvas takes a look for the cards it sets down, and create_canvas_region a lock")
+    @Test("place_on_canvas takes a look for the cards it sets down, and canvas_region a lock")
     func placeAndCreate() throws {
         let place = try properties("place_on_canvas")
         for field in ["color", "folded", "w", "h"] { #expect(place[field] != nil, "place_on_canvas lacks \(field)") }
-        #expect(try property("create_canvas_region", "locked")["type"] as? String == "boolean")
+        #expect(try property("canvas_region", "locked")["type"] as? String == "boolean")
         #expect(try tool("place_on_canvas").inputSchema["required"] as? [String] == ["item_ids"])
         // The new kinds are named where cards are.
-        for name in ["place_on_canvas", "take_off_canvas", "create_canvas_region", "focus_map", "apply_map_lens"] {
+        for name in ["place_on_canvas", "take_off_canvas", "canvas_region", "focus_map", "apply_map_lens"] {
             let text = String(describing: try tool(name).inputSchema)
             #expect(text.contains("canvas:<canvas_id>") && text.contains("chat:<session_id>") && text.contains("picture:<image_id>"), "\(name)")
         }
     }
 
-    @Test("update_canvas_region takes a lock, a layout, a fit and a grow")
+    @Test("canvas_region creates, updates and deletes, and an update takes a lock, a layout, a fit and a grow")
     func regionFields() throws {
-        let region = try properties("update_canvas_region")
+        let region = try properties("canvas_region")
+        #expect((region["action"] as? [String: Any])?["enum"] as? [String] == ["create", "update", "delete"])
+        #expect(region["take_cards_off"] != nil && region["item_ids"] != nil)
         #expect(region["locked"] != nil && region["fit_to_content"] != nil)
         #expect((region["layout"] as? [String: Any])?["enum"] as? [String] == ["free", "tree"])
         #expect((region["grow_to_hold"] as? [String: Any])?["type"] as? String == "array")
-        #expect(try tool("update_canvas_region").inputSchema["required"] as? [String] == ["region"])
-        let description = try tool("update_canvas_region").description
+        #expect(try tool("canvas_region").inputSchema["required"] as? [String] == ["action"])
+        let description = try tool("canvas_region").description
         #expect(description.contains("locked") && description.contains("mind map") && description.contains("200 by 120"))
     }
 
-    @Test("Arrows take a route, dashes, heads, a colour and a branch, and end at regions; update_canvas_arrow no longer needs a label")
+    @Test("Arrows take a route, dashes, heads, a colour and a branch, and end at regions; an update needs no label")
     func arrowFields() throws {
-        for name in ["draw_canvas_arrow", "update_canvas_arrow"] {
-            let arrow = try properties(name)
-            #expect((arrow["route"] as? [String: Any])?["enum"] as? [String] == ["curve", "straight", "elbow"], "\(name)")
-            #expect((arrow["heads"] as? [String: Any])?["enum"] as? [String] == ["end", "both", "none"], "\(name)")
-            for field in ["dashed", "color", "tree", "label"] { #expect(arrow[field] != nil, "\(name) lacks \(field)") }
-        }
-        #expect(try tool("draw_canvas_arrow").inputSchema["required"] as? [String] == ["from", "to"])
-        #expect(try tool("update_canvas_arrow").inputSchema["required"] as? [String] == [], "a style change needs no label")
-        for name in ["draw_canvas_arrow", "update_canvas_arrow", "delete_canvas_arrow"] {
-            #expect(String(describing: try tool(name).inputSchema).contains("region:<region_id>"), "\(name) names region ends")
-        }
-        #expect(try tool("draw_canvas_arrow").description.contains("survives its cards leaving"))
+        let arrow = try properties("canvas_arrow")
+        #expect((arrow["action"] as? [String: Any])?["enum"] as? [String] == ["draw", "update", "delete"])
+        #expect((arrow["route"] as? [String: Any])?["enum"] as? [String] == ["curve", "straight", "elbow"])
+        #expect((arrow["heads"] as? [String: Any])?["enum"] as? [String] == ["end", "both", "none"])
+        for field in ["dashed", "color", "tree", "label", "edge_id"] { #expect(arrow[field] != nil, "canvas_arrow lacks \(field)") }
+        #expect(try tool("canvas_arrow").inputSchema["required"] as? [String] == ["action"], "a style change needs no label")
+        #expect(String(describing: try tool("canvas_arrow").inputSchema).contains("region:<region_id>"), "it names region ends")
+        #expect(try tool("canvas_arrow").description.contains("survives its cards leaving"))
     }
 
     @Test("build_canvas takes mind maps as trees, arrows with a look, and the new kinds by item_id")

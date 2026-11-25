@@ -207,7 +207,7 @@ struct BetaFeaturesCanvasGateTests {
             .union(MCPToolRegistry.canvasAskToolNames)
             .union(MCPToolRegistry.canvasMemoryToolNames)
             .union(MCPToolRegistry.atlasToolNames)
-        #expect(canvasTools.count == 27 + 1 + 4 + 3, "the 27 before build_canvas, build_canvas, the parity build's four (update_canvas_card, arrange_on_canvas, lint_canvas, screenshot_canvas) and the three that list, keep and restore a canvas's versions")
+        #expect(canvasTools.count == 23 + 1 + 4 + 3, "the 23 before build_canvas (canvas_region and canvas_arrow replaced six region and arrow tools), build_canvas, the parity build's four (update_canvas_card, arrange_on_canvas, lint_canvas, screenshot_canvas) and the three that list, keep and restore a canvas's versions")
         #expect(canvasTools.isSubset(of: names))
         #expect(canvasTools.contains("build_canvas"))
         #expect(MCPToolRegistry.canvasVersionToolNames.isSubset(of: canvasTools))

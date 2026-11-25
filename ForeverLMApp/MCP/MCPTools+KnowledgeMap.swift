@@ -219,241 +219,50 @@ extension MCPToolRegistry {
                 ] as [String: Any]
             ),
             MCPToolDef(
-                name: "create_canvas_region",
-                description: "Draw a region on the learner's Canvas: around item_ids (cards all on the Canvas keep their places and the region is drawn around them; otherwise they are set down together inside it), or empty in free space in the middle of what the learner is looking at. With notebook_id it is that notebook's frame: named by the notebook, drawing the notebook's ticked sources and Docs that are not placed anywhere, and folding into the notebook and its takeaways when zoomed out; a notebook whose frame is on the Canvas already is not framed twice (the answer names that frame). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Opens the Canvas beside the chat and flies to the region. Returns its region_id.",
+                name: "canvas_region",
+                description: "Draw, change or delete a region on the learner's Canvas. action create draws one: around item_ids (cards all on the Canvas keep their places and the region is drawn around them; otherwise they are set down together inside it), or empty in free space in the middle of what the learner is looking at; it needs a name. With notebook_id it is that notebook's frame: named by the notebook, drawing the notebook's ticked sources and Docs that are not placed anywhere, and folding into the notebook and its takeaways when zoomed out; a notebook whose frame is on the Canvas already is not framed twice (the answer names that frame). It opens the Canvas beside the chat, flies to the region and returns its region_id. action update changes the region named by region, as its inspector and its handle do: rename it (name; a notebook's frame takes its notebook's name, so rename the notebook with update_notebook), recolour it, move it (x, y: its top left, carrying the cards inside it), resize it (w, h), link it to a notebook as its frame (notebook_id; an empty string unlinks it), fold it up (collapsed true: it draws as its name and the count of its cards, which stay placed where they are but are not drawn, and arrows to them wait; false opens it again), lock it (locked true: its cards cannot be dragged, nor it moved or resized by hand, until it is unlocked; a locked region refuses the changes to its geometry and layout below unless the same call unlocks it), set its layout (layout tree: a mind map, its cards laid out once from the tree edges among them (canvas_arrow with tree) and then kept a tree by the Canvas; free: its cards stay where they are), fit it to what it holds (fit_to_content true: its cards and the regions inside it, with room for its name, never below 200 by 120) or grow it to hold cards (grow_to_hold: item_ids on the Canvas, with 24 to spare; it never shrinks). Positions are in the Canvas's own units, as get_knowledge_map gives each region's rect; a card is 240 by 120. It returns the region as it now is. action delete deletes the region named by region. Its cards stay where they are unless take_cards_off is true, which takes them off the Canvas too and deletes the regions inside it, in the same edit; a notebook's frame going takes nothing out of the notebook. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "name": [
-                            "type": "string",
-                            "description": "The region's name. Required unless notebook_id is given; a notebook's frame takes the notebook's name.",
-                        ],
-                        "item_ids": [
-                            "type": "array",
-                            "items": [
-                                "type": "string",
-                            ],
-                            "description": "Cards by item_id as get_knowledge_map gives them: source:<source_id>, doc:<doc_id> (a Doc, site, animation, audio overview or reading), idea:<idea_id>, canvas:<canvas_id> (a shortcut to another canvas), chat:<session_id> (a chat) or picture:<image_id> (an image from list_images). A bare source, Doc or Idea id is accepted too.",
-                        ] as [String: Any],
-                        "notebook_id": [
-                            "type": "string",
-                            "description": "Make the region this Notebook's frame (a Notebook id from list_notebooks).",
-                        ],
-                        "color": [
-                            "type": "string",
-                            "description": "The region's tint as #RRGGBB. The Canvas's own: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780. Omit for the next one.",
-                        ],
-                        "locked": [
-                            "type": "boolean",
-                            "description": "Lock the region: its cards cannot be dragged, nor it moved or resized by hand, until it is unlocked (update_canvas_region). Defaults to false.",
-                        ],
+                        "action": ["type": "string", "enum": ["create", "update", "delete"], "description": "create, update or delete."] as [String: Any],
+                        "region": ["type": "string", "description": "For update and delete: a region's name (as get_knowledge_map lists it; a notebook's frame by its notebook's name) or its region_id."] as [String: Any],
+                        "name": ["type": "string", "description": "create: the region's name, required unless notebook_id is given. update: its new name."] as [String: Any],
+                        "item_ids": ["type": "array", "items": ["type": "string"], "description": "create: the cards to draw it around or set down inside it. Cards by item_id as get_knowledge_map gives them: source:<source_id>, doc:<doc_id> (a Doc, site, animation, audio overview or reading), idea:<idea_id>, canvas:<canvas_id> (a shortcut to another canvas), chat:<session_id> (a chat) or picture:<image_id> (an image from list_images). A bare source, Doc or Idea id is accepted too."] as [String: Any],
+                        "notebook_id": ["type": "string", "description": "Make the region this Notebook's frame (a Notebook id from list_notebooks); on update, an empty string unlinks it."] as [String: Any],
+                        "color": ["type": "string", "description": "The region's tint as #RRGGBB. The Canvas's own: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780. Omit for the next one."] as [String: Any],
+                        "locked": ["type": "boolean", "description": "Lock the region (true) or unlock it (false). On create it defaults to false."] as [String: Any],
+                        "x": ["type": "number", "description": "update: its new left edge."] as [String: Any],
+                        "y": ["type": "number", "description": "update: its new top edge."] as [String: Any],
+                        "w": ["type": "number", "description": "update: its new width."] as [String: Any],
+                        "h": ["type": "number", "description": "update: its new height."] as [String: Any],
+                        "collapsed": ["type": "boolean", "description": "update: fold the region up (true) or open it again (false)."] as [String: Any],
+                        "layout": ["type": "string", "enum": ["free", "tree"], "description": "update: tree, a mind map, laid out once from the tree edges among its cards; free, its cards stay where they are."] as [String: Any],
+                        "fit_to_content": ["type": "boolean", "description": "update: fit the region to its cards and the regions inside it."] as [String: Any],
+                        "grow_to_hold": ["type": "array", "items": ["type": "string"], "description": "update: grow the region to hold these cards (item_ids on the Canvas) whole, with 24 to spare."] as [String: Any],
+                        "take_cards_off": ["type": "boolean", "description": "delete: take the cards inside it off the Canvas and delete the regions inside it as well. Defaults to false."] as [String: Any],
                     ] as [String: Any],
-                    "required": [] as [String],
+                    "required": ["action"],
                 ] as [String: Any]
             ),
             MCPToolDef(
-                name: "update_canvas_region",
-                description: "Change a region on the learner's Canvas, as its inspector and its handle do: rename it (name; a notebook's frame takes its notebook's name, so rename the notebook with update_notebook), recolour it, move it (x, y: its top left, carrying the cards inside it), resize it (w, h), link it to a notebook as its frame (notebook_id; an empty string unlinks it), fold it up (collapsed true: it draws as its name and the count of its cards, which stay placed where they are but are not drawn, and arrows to them wait; false opens it again), lock it (locked true: its cards cannot be dragged, nor it moved or resized by hand, until it is unlocked; a locked region refuses the changes to its geometry and layout below unless the same call unlocks it), set its layout (layout tree: a mind map, its cards laid out once from the tree edges among them (draw_canvas_arrow with tree) and then kept a tree by the Canvas; free: its cards stay where they are), fit it to what it holds (fit_to_content true: its cards and the regions inside it, with room for its name, never below 200 by 120) or grow it to hold cards (grow_to_hold: item_ids on the Canvas, with 24 to spare; it never shrinks). Positions are in the Canvas's own units, as get_knowledge_map gives each region's rect; a card is 240 by 120. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the region as it now is.",
+                name: "canvas_arrow",
+                description: "Draw, change or delete an arrow on the learner's Canvas. action draw draws one between two cards (from and to), with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none), color (#RRGGBB) and a stance (supports draws it green, contradicts red, unless it has a color of its own). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (canvas_region, action update, with layout tree lays a region of such cards out as a mind map). It returns the arrow's edge_id. action update changes an arrow named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to): relabel it (label; an empty label clears it), set its route, dashed, heads or color (an empty string gives it the usual one), put it on a side of an argument (stance; an empty string takes it off), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. action delete deletes the arrow named by its edge_id or by its ends; the cards stay. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "region": [
-                            "type": "string",
-                            "description": "A region's name (as get_knowledge_map lists it; a notebook's frame by its notebook's name) or its region_id.",
-                        ],
-                        "name": [
-                            "type": "string",
-                            "description": "Its new name.",
-                        ],
-                        "color": [
-                            "type": "string",
-                            "description": "The region's tint as #RRGGBB. The Canvas's own: #7F77DD, #1D9E75, #D85A30, #D4537E, #BA7517, #378ADD, #639922, #888780. Omit for the next one.",
-                        ],
-                        "x": [
-                            "type": "number",
-                            "description": "Its new left edge.",
-                        ],
-                        "y": [
-                            "type": "number",
-                            "description": "Its new top edge.",
-                        ],
-                        "w": [
-                            "type": "number",
-                            "description": "Its new width.",
-                        ],
-                        "h": [
-                            "type": "number",
-                            "description": "Its new height.",
-                        ],
-                        "notebook_id": [
-                            "type": "string",
-                            "description": "Make it this Notebook's frame (a Notebook id from list_notebooks), or an empty string to unlink it.",
-                        ],
-                        "collapsed": [
-                            "type": "boolean",
-                            "description": "Fold the region up (true) or open it again (false).",
-                        ],
-                        "locked": [
-                            "type": "boolean",
-                            "description": "Lock the region (true) or unlock it (false).",
-                        ],
-                        "layout": [
-                            "type": "string",
-                            "enum": ["free", "tree"],
-                            "description": "tree: a mind map, laid out once from the tree edges among its cards; free: its cards stay where they are.",
-                        ],
-                        "fit_to_content": [
-                            "type": "boolean",
-                            "description": "Fit the region to its cards and the regions inside it.",
-                        ],
-                        "grow_to_hold": [
-                            "type": "array",
-                            "items": ["type": "string"],
-                            "description": "Grow the region to hold these cards (item_ids on the Canvas) whole, with 24 to spare.",
-                        ] as [String: Any],
+                        "action": ["type": "string", "enum": ["draw", "update", "delete"], "description": "draw, update or delete."] as [String: Any],
+                        "edge_id": ["type": "string", "description": "For update and delete: the arrow's edge_id, instead of from and to."] as [String: Any],
+                        "from": ["type": "string", "description": "Where the arrow starts: a card by item_id, or a region as region:<region_id>."] as [String: Any],
+                        "to": ["type": "string", "description": "Where the arrow points to: a card by item_id, or a region as region:<region_id>."] as [String: Any],
+                        "label": ["type": "string", "description": "A few words on the arrow; on update an empty label clears it."] as [String: Any],
+                        "route": ["type": "string", "enum": ["curve", "straight", "elbow"], "description": "How the arrow runs: a gentle curve (the default), a straight line or an elbow."] as [String: Any],
+                        "dashed": ["type": "boolean", "description": "Draw the line dashed (true) or solid (false)."] as [String: Any],
+                        "heads": ["type": "string", "enum": ["end", "both", "none"], "description": "Where the arrowheads are: at the end (the default), at both ends or nowhere."] as [String: Any],
+                        "color": ["type": "string", "description": "The arrow's color as #RRGGBB; on update an empty string gives it the usual one."] as [String: Any],
+                        "tree": ["type": "boolean", "description": "Make it a mind-map branch from the parent (from) to the child (to) (true), or a plain arrow again (false)."] as [String: Any],
+                        "stance": ["type": "string", "description": "supports (drawn green) or contradicts (red); on update an empty string takes the stance off."] as [String: Any],
                     ] as [String: Any],
-                    "required": ["region"],
-                ] as [String: Any]
-            ),
-            MCPToolDef(
-                name: "delete_canvas_region",
-                description: "Delete a region from the learner's Canvas. Its cards stay where they are unless take_cards_off is true, which takes them off the Canvas too and deletes the regions inside it, in the same edit; a notebook's frame going takes nothing out of the notebook. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "region": [
-                            "type": "string",
-                            "description": "A region's name (as get_knowledge_map lists it; a notebook's frame by its notebook's name) or its region_id.",
-                        ],
-                        "take_cards_off": [
-                            "type": "boolean",
-                            "description": "Take the cards inside it off the Canvas and delete the regions inside it as well. Defaults to false.",
-                        ],
-                    ] as [String: Any],
-                    "required": ["region"],
-                ] as [String: Any]
-            ),
-            MCPToolDef(
-                name: "draw_canvas_arrow",
-                description: "Draw an arrow between two cards on the learner's Canvas, with a short label for how one leads to the other (supports, contradicts, explains, causes, measures, extends, example of, or the learner's own words). Both cards must be on the Canvas (place_on_canvas first); an arrow already drawn between them gets the label and what else is given. An end may be a region instead of a card (region:<region_id>, or region:<name>): an arrow to a region survives its cards leaving and goes with the region; a card is not joined to the region that holds it, nor a region to one around or inside it. Give the arrow a look: route (curve, the default; straight; or elbow), dashed, heads (end, the default; both; or none), color (#RRGGBB) and a stance (supports draws it green, contradicts red, unless it has a color of its own). With tree true it is a mind-map branch, parent to child, drawn as a branch and not an arrow: a branch joins two cards, a card has one parent, and a tree has no loop (update_canvas_region with layout tree lays a region of such cards out as a mind map). Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back. Returns the arrow's edge_id.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "from": [
-                            "type": "string",
-                            "description": "Where the arrow starts: a card by item_id, or a region as region:<region_id>.",
-                        ],
-                        "to": [
-                            "type": "string",
-                            "description": "Where the arrow points to: a card by item_id, or a region as region:<region_id>.",
-                        ],
-                        "label": [
-                            "type": "string",
-                            "description": "A few words on the arrow. Optional.",
-                        ],
-                        "route": [
-                            "type": "string",
-                            "enum": ["curve", "straight", "elbow"],
-                            "description": "How the arrow runs: a gentle curve (the default), a straight line or an elbow.",
-                        ],
-                        "dashed": [
-                            "type": "boolean",
-                            "description": "Draw the line dashed.",
-                        ],
-                        "heads": [
-                            "type": "string",
-                            "enum": ["end", "both", "none"],
-                            "description": "Where the arrowheads are: at the end (the default), at both ends or nowhere.",
-                        ],
-                        "color": [
-                            "type": "string",
-                            "description": "The arrow's color as #RRGGBB.",
-                        ],
-                        "tree": [
-                            "type": "boolean",
-                            "description": "Make it a mind-map branch from the parent (from) to the child (to).",
-                        ],
-                        "stance": [
-                            "type": "string",
-                            "enum": ["supports", "contradicts"],
-                            "description": "Which side of an argument the arrow is on: supports (drawn green) or contradicts (red).",
-                        ],
-                    ] as [String: Any],
-                    "required": ["from", "to"],
-                ] as [String: Any]
-            ),
-            MCPToolDef(
-                name: "update_canvas_arrow",
-                description: "Change an arrow on the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by its ends (from and to: cards, or regions as region:<region_id>): relabel it (label; an empty label clears it), set its route (curve, straight or elbow), dashed, heads (end, both or none) or color (#RRGGBB; an empty string gives it the usual one), put it on a side of an argument (stance: supports draws it green, contradicts red, an empty string takes it off), or turn it into a mind-map branch or back into an arrow (tree). Pass only what changes. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "edge_id": [
-                            "type": "string",
-                            "description": "The arrow's edge_id.",
-                        ],
-                        "from": [
-                            "type": "string",
-                            "description": "Instead of edge_id: where the arrow starts, a card by item_id or a region as region:<region_id>.",
-                        ],
-                        "to": [
-                            "type": "string",
-                            "description": "Instead of edge_id: where the arrow points to, a card by item_id or a region as region:<region_id>.",
-                        ],
-                        "label": [
-                            "type": "string",
-                            "description": "The arrow's new label.",
-                        ],
-                        "route": [
-                            "type": "string",
-                            "enum": ["curve", "straight", "elbow"],
-                            "description": "How the arrow runs.",
-                        ],
-                        "dashed": [
-                            "type": "boolean",
-                            "description": "Draw the line dashed (true) or solid (false).",
-                        ],
-                        "heads": [
-                            "type": "string",
-                            "enum": ["end", "both", "none"],
-                            "description": "Where the arrowheads are.",
-                        ],
-                        "color": [
-                            "type": "string",
-                            "description": "The arrow's color as #RRGGBB, or an empty string for the usual one.",
-                        ],
-                        "tree": [
-                            "type": "boolean",
-                            "description": "Make it a mind-map branch (true), or a plain arrow again (false).",
-                        ],
-                        "stance": [
-                            "type": "string",
-                            "description": "supports (drawn green) or contradicts (red), or an empty string to take the stance off.",
-                        ],
-                    ] as [String: Any],
-                    "required": [] as [String],
-                ] as [String: Any]
-            ),
-            MCPToolDef(
-                name: "delete_canvas_arrow",
-                description: "Delete an arrow from the learner's Canvas, named by its edge_id (get_knowledge_map lists it under arrows) or by the cards at its ends (from and to). The cards stay. Only on the learner's word: the Canvas is where they think, so never arrange it on your own initiative; to suggest an arrangement, show a lens (apply_map_lens) or ask_canvas. Each call is one edit of theirs, which Undo (⌘Z, or undo_canvas) takes back.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "edge_id": [
-                            "type": "string",
-                            "description": "The arrow's edge_id.",
-                        ],
-                        "from": [
-                            "type": "string",
-                            "description": "Instead of edge_id: where the arrow starts, a card by item_id or a region as region:<region_id>.",
-                        ],
-                        "to": [
-                            "type": "string",
-                            "description": "Instead of edge_id: where the arrow points to, a card by item_id or a region as region:<region_id>.",
-                        ],
-                    ] as [String: Any],
-                    "required": [] as [String],
+                    "required": ["action"],
                 ] as [String: Any]
             ),
             MCPToolDef(
@@ -638,8 +447,7 @@ extension MCPToolRegistry {
     /// keeping a lens and the display switches.
     static let canvasEditToolNames: Set<String> = [
         "place_on_canvas", "take_off_canvas",
-        "create_canvas_region", "update_canvas_region", "delete_canvas_region",
-        "draw_canvas_arrow", "update_canvas_arrow", "delete_canvas_arrow",
+        "canvas_region", "canvas_arrow",
         "undo_canvas", "keep_map_lens", "set_canvas_display",
         "build_canvas",
         // A canvas's named versions: kept, and put back as one edit that
@@ -820,7 +628,7 @@ extension MCPDataStore {
                 var entry: [String: Any] = [
                     "region_id": id,
                     "name": region.name.isEmpty ? "Untitled region" : region.name,
-                    // Where it is, for update_canvas_region: a card is 240 by 120.
+                    // Where it is, for canvas_region (action update): a card is 240 by 120.
                     "rect": ["x": region.x, "y": region.y, "w": region.w, "h": region.h],
                 ]
                 // A notebook's frame: named by the notebook, and drawing its
@@ -1468,25 +1276,30 @@ extension MCPDataStore {
             if !unknown.isEmpty { result["not_in_library"] = Array(unknown.prefix(50)) }
             return result
 
-        case "create_canvas_region":
-            return try createCanvasRegion(arguments, map: map, notebook: notebookLookup)
+        case "canvas_region":
+            switch arguments["action"] as? String {
+            case "create":
+                return try createCanvasRegion(arguments, map: map, notebook: notebookLookup)
+            case "update":
+                return try updateCanvasRegion(arguments, map: map, notebook: notebookLookup)
+            case "delete":
+                let id = try regionID(arguments["region"], in: map)
+                let entry = regionEntry(id, in: map)
+                let takeOff = arguments["take_cards_off"] as? Bool ?? false
+                let cards = takeOff ? map.refsInRegion(id) : []
+                map.deleteRegion(id, takingCardsOff: takeOff)
+                return ["deleted": entry, "cards_taken_off": cards.count]
+            default:
+                throw MCPError.invalidInput("canvas_region needs action create, update or delete.")
+            }
 
-        case "update_canvas_region":
-            return try updateCanvasRegion(arguments, map: map, notebook: notebookLookup)
-
-        case "delete_canvas_region":
-            let id = try regionID(arguments["region"], in: map)
-            let entry = regionEntry(id, in: map)
-            let takeOff = arguments["take_cards_off"] as? Bool ?? false
-            let cards = takeOff ? map.refsInRegion(id) : []
-            map.deleteRegion(id, takingCardsOff: takeOff)
-            return ["deleted": entry, "cards_taken_off": cards.count]
-
-        case "draw_canvas_arrow":
-            return try drawCanvasArrow(arguments, map: map)
-
-        case "update_canvas_arrow", "delete_canvas_arrow":
-            return try changeCanvasArrow(arguments, map: map, deleting: name == "delete_canvas_arrow")
+        case "canvas_arrow":
+            switch arguments["action"] as? String {
+            case "draw": return try drawCanvasArrow(arguments, map: map)
+            case "update": return try changeCanvasArrow(arguments, map: map, deleting: false)
+            case "delete": return try changeCanvasArrow(arguments, map: map, deleting: true)
+            default: throw MCPError.invalidInput("canvas_arrow needs action draw, update or delete.")
+            }
 
         case "update_canvas_card":
             return try updateCanvasCard(arguments, map: map)

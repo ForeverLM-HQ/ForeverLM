@@ -77,7 +77,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "arrange_on_canvas",
-                description: "Tidy or align cards already on the learner's Canvas, as Tidy Up and Align in its right-click menu do. arrangement lays the cards out as a row (left to right), a column (top to bottom) or a grid (about half again as wide as tall), taking them in reading order of where they sit now, each by its own width and height, 30 apart, with the selection's top left staying where it is. align then moves every card to the selection's left, center (the middle of its width), right, top, middle (the middle of its height) or bottom, by its own size; with both, the arrangement comes first. A region that held a card grows to hold it where it lands. Pass arrangement, align or both, and at least two cards that are on the Canvas; a card in a locked region is not moved: a call naming one is refused whole (unlock the region with update_canvas_region first). \(onTheirWord) Returns how many cards moved and the cards as they now are, each with its rect.",
+                description: "Tidy or align cards already on the learner's Canvas, as Tidy Up and Align in its right-click menu do. arrangement lays the cards out as a row (left to right), a column (top to bottom) or a grid (about half again as wide as tall), taking them in reading order of where they sit now, each by its own width and height, 30 apart, with the selection's top left staying where it is. align then moves every card to the selection's left, center (the middle of its width), right, top, middle (the middle of its height) or bottom, by its own size; with both, the arrangement comes first. A region that held a card grows to hold it where it lands. Pass arrangement, align or both, and at least two cards that are on the Canvas; a card in a locked region is not moved: a call naming one is refused whole (unlock the region with canvas_region (action update) first). \(onTheirWord) Returns how many cards moved and the cards as they now are, each with its rect.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -98,7 +98,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "lint_canvas",
-                description: "Check the learner's Canvas for layout faults, before telling them a layout is done: cards drawn over one another (overlap), a card whose middle is in a region but whose edge crosses the region's (card_outside_region), an arrow that runs across a card it does not join (arrow_over_card; a default arrow is judged by the curve the Canvas draws, which bends round the cards in its way, and a straight or elbow arrow, or one drawn into a brace with others, by the straight line between the middles of its ends) and a region that holds no card and no region (empty_region; a notebook's frame is never empty). A card in a region folded up is not drawn and is not checked. Changes nothing. Each issue has its kind, a one-line message, the cards it is about (item_ids) and the region_id or edge_id; get_knowledge_map gives each card's rect, and a fault can be mended with arrange_on_canvas, update_canvas_card, update_canvas_region (fit_to_content, grow_to_hold) or place_on_canvas. Call it after build_canvas or any layout you made, then screenshot_canvas to look at it.",
+                description: "Check the learner's Canvas for layout faults, before telling them a layout is done: cards drawn over one another (overlap), a card whose middle is in a region but whose edge crosses the region's (card_outside_region), an arrow that runs across a card it does not join (arrow_over_card; a default arrow is judged by the curve the Canvas draws, which bends round the cards in its way, and a straight or elbow arrow, or one drawn into a brace with others, by the straight line between the middles of its ends) and a region that holds no card and no region (empty_region; a notebook's frame is never empty). A card in a region folded up is not drawn and is not checked. Changes nothing. Each issue has its kind, a one-line message, the cards it is about (item_ids) and the region_id or edge_id; get_knowledge_map gives each card's rect, and a fault can be mended with arrange_on_canvas, update_canvas_card, canvas_region (action update) (fit_to_content, grow_to_hold) or place_on_canvas. Call it after build_canvas or any layout you made, then screenshot_canvas to look at it.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -547,7 +547,7 @@ extension MCPDataStore {
         case "region":
             let id = try Self.regionID(arguments["region"], in: map)
             if map.layout.regions[id]?.isLocked == true {
-                throw MCPError.invalidInput("That region is locked: it would have to grow to hold the cards. Unlock it first (update_canvas_region with locked false).")
+                throw MCPError.invalidInput("That region is locked: it would have to grow to hold the cards. Unlock it first (canvas_region (action update) with locked false).")
             }
             map.place(refs, inRegion: id, style: style, annotations: annotations)
             regionID = id
@@ -585,7 +585,7 @@ extension MCPDataStore {
     @MainActor
     static func lockedRefusal(_ refs: [String], in map: KnowledgeMapModel) -> MCPError {
         let names = refs.prefix(5).map { "“\(map.title(of: $0))”" }.joined(separator: ", ")
-        return .invalidInput("\(names) \(refs.count == 1 ? "is" : "are") in a locked region, which keeps its cards where they are; unlock it first (update_canvas_region with locked false).")
+        return .invalidInput("\(names) \(refs.count == 1 ? "is" : "are") in a locked region, which keeps its cards where they are; unlock it first (canvas_region (action update) with locked false).")
     }
 
     // MARK: Regions
@@ -609,7 +609,7 @@ extension MCPDataStore {
         }
         let given = (arguments["name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let title = notebook?.title ?? given
-        guard !title.isEmpty else { throw MCPError.invalidInput("create_canvas_region needs a name, or a notebook_id to frame.") }
+        guard !title.isEmpty else { throw MCPError.invalidInput("A new region needs a name, or a notebook_id to frame.") }
         let color = try regionColor(arguments["color"])
         let locked = arguments["locked"] as? Bool ?? false
         let (refs, unknown) = cardRefs(arguments["item_ids"] as? [String] ?? [], in: map)
@@ -716,7 +716,7 @@ extension MCPDataStore {
         return arrowEntry(edgeID, in: map)
     }
 
-    /// update_canvas_arrow and delete_canvas_arrow: an arrow by its edge_id or by its two ends.
+    /// canvas_arrow's update and delete: an arrow by its edge_id or by its two ends.
     @MainActor
     static func changeCanvasArrow(_ arguments: [String: Any], map: KnowledgeMapModel, deleting: Bool) throws -> [String: Any] {
         let edgeID: String
@@ -743,7 +743,7 @@ extension MCPDataStore {
         let tree = arguments["tree"] as? Bool
         let stance = try edgeStance(arguments["stance"])
         guard label != nil || route != nil || dashed != nil || heads != nil || color != nil || tree != nil || stance != nil else {
-            throw MCPError.invalidInput("update_canvas_arrow needs label, route, dashed, heads, color, tree or stance.")
+            throw MCPError.invalidInput("Updating an arrow needs label, route, dashed, heads, color, tree or stance.")
         }
         if tree == true, let edge = map.layout.edges[edgeID], !edge.isTree,
            let reason = map.edgeRefusal(from: edge.from, to: edge.to, tree: true, replacing: edgeID) {

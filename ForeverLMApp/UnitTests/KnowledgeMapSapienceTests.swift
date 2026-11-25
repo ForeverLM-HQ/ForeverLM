@@ -742,22 +742,21 @@ struct KnowledgeMapSapienceMCPTests {
         let arrowItems = try #require((build["arrows"] as? [String: Any])?["items"] as? [String: Any])
         #expect(((arrowItems["properties"] as? [String: Any])?["stance"] as? [String: Any])?["enum"] as? [String] == ["supports", "contradicts"])
         #expect(try tool("build_canvas").inputSchema["required"] as? [String] == [])
-        #expect(((try properties("draw_canvas_arrow"))["stance"] as? [String: Any])?["enum"] as? [String] == ["supports", "contradicts"])
-        #expect(((try properties("update_canvas_arrow"))["stance"] as? [String: Any])?["type"] as? String == "string")
-        #expect(try tool("update_canvas_arrow").inputSchema["required"] as? [String] == [])
+        #expect(((try properties("canvas_arrow"))["stance"] as? [String: Any])?["type"] as? String == "string")
+        #expect(try tool("canvas_arrow").inputSchema["required"] as? [String] == ["action"])
 
         let reading = try tool("get_knowledge_map").description
         for word in ["page", "pages", "annotation", "plain", "question", "answered", "stance"] { #expect(reading.contains(word), "\(word)") }
-        for name in ["update_canvas_card", "place_on_canvas", "build_canvas", "draw_canvas_arrow", "update_canvas_arrow"] {
+        for name in ["update_canvas_card", "place_on_canvas", "build_canvas", "canvas_arrow"] {
             #expect(MCPToolRegistry.canvasEditToolNames.contains(name), "\(name)")
             #expect(try tool(name).description.contains("Undo"), "\(name)")
         }
-        for name in ["update_canvas_card", "place_on_canvas", "draw_canvas_arrow", "update_canvas_arrow"] {
+        for name in ["update_canvas_card", "place_on_canvas", "canvas_arrow"] {
             #expect(MCPToolRegistry.storeGateExemptToolNames.contains(name), "\(name)")
         }
         // An annotation that is cleared with an empty string reaches the tool as sent.
         #expect(MCPToolRegistry.normalizedArguments(toolName: "update_canvas_card", arguments: ["annotation": ""])["annotation"] as? String == "")
-        #expect(MCPToolRegistry.normalizedArguments(toolName: "update_canvas_arrow", arguments: ["stance": ""])["stance"] as? String == "")
+        #expect(MCPToolRegistry.normalizedArguments(toolName: "canvas_arrow", arguments: ["action": "update", "stance": ""])["stance"] as? String == "")
     }
 }
 

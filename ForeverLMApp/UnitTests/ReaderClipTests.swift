@@ -319,7 +319,7 @@ struct CanvasPageCardTests {
         let item = try #require(pdf["items"] as? [String: Any])
         let fields = try #require(item["properties"] as? [String: Any])
         #expect(Set(fields.keys) == ["source_id", "pages", "show", "collapsed", "color"])
-        let update = try tool("update_canvas_region")
+        let update = try tool("canvas_region")
         let updateProperties = try #require(update.inputSchema["properties"] as? [String: Any])
         #expect(updateProperties["collapsed"] != nil)
         #expect(try tool("get_knowledge_map").description.contains("page:<source_id>:<n>"))

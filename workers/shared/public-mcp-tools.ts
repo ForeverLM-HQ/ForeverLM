@@ -134,9 +134,6 @@ const openWorld = new Set([
 const destructive = new Set([
   // The list of pieces an article's reading view hides, gone from the Mac.
   "clear_article_reading_view",
-  // A region or an arrow gone from the learner's Canvas.
-  "delete_canvas_region",
-  "delete_canvas_arrow",
   // A canvas in Trash gone forever, with all that was placed on it, on every
   // device.
   "delete_canvas",
@@ -222,6 +219,11 @@ const destructive = new Set([
   // membership or a connection, in a way calling it again does not undo.
   // Writing levels for changed text replaces the stale ones; recording a quiz
   // answer again overwrites its grade.
+  // Adopting a page discards its live link and replaces ForeverLM's copy with
+  // an owned published page. Declining a share request closes it for every
+  // member. OpenAI's 1.0.6 review caught both as hard-to-reverse changes.
+  "adopt_page",
+  "decline_share_request",
   "get_source_levels",
   "record_course_quiz_result",
   "cancel_source_audio_generation",
@@ -339,10 +341,10 @@ const GATEWAY_OWNED_TOOLS: ToolDefinition[] = [
     },
     _meta: {
       ui: {
-        resourceUri: "ui://foreverlm/home-v3.html",
+        resourceUri: "ui://foreverlm/home-v4.html",
         visibility: ["app"],
       },
-      "openai/outputTemplate": "ui://foreverlm/home-v3.html",
+      "openai/outputTemplate": "ui://foreverlm/home-v4.html",
       "openai/ui": {
         entrypoints: [{ type: "global" }],
       },
@@ -462,12 +464,8 @@ export const SETTINGS_PARITY_TOOL_NAMES: readonly string[] = [
 export const CANVAS_EDIT_TOOL_NAMES: readonly string[] = [
   "place_on_canvas",
   "take_off_canvas",
-  "create_canvas_region",
-  "update_canvas_region",
-  "delete_canvas_region",
-  "draw_canvas_arrow",
-  "update_canvas_arrow",
-  "delete_canvas_arrow",
+  "canvas_region",
+  "canvas_arrow",
   "undo_canvas",
   "keep_map_lens",
   "set_canvas_display",
