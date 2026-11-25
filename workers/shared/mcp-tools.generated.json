@@ -1858,7 +1858,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Add a task to a Notebook's board. In a team Notebook the task is the team's and can be assigned to a member by user_record_name (or \"me\"); every member sees it. In a personal Notebook it is the learner's own and takes no assignee. Refused when the Notebook's team is read-only for this account.",
+    "description" : "Add a to-do. With no notebook_id it goes on the learner's Board (Space > Board, columns To do, In progress, Done): use that for \"add this to my board\", \"put it on my to-do list\". With a notebook_id it goes on that Notebook's tasks. In a team Notebook the task is the team's and can be assigned to a member by user_record_name (or \"me\"); every member sees it. In a personal Notebook it is the learner's own and takes no assignee. Refused when the Notebook's team is read-only for this account.",
     "inputSchema" : {
       "properties" : {
         "assignee_record_name" : {
@@ -1874,7 +1874,7 @@
           "type" : "string"
         },
         "notebook_id" : {
-          "description" : "Notebook ID from list_notebooks.",
+          "description" : "Optional Notebook ID from list_notebooks. Leave it out for the learner's Board.",
           "type" : "string"
         },
         "notes" : {
@@ -1900,7 +1900,6 @@
         }
       },
       "required" : [
-        "notebook_id",
         "title"
       ],
       "type" : "object"

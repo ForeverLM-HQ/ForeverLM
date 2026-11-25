@@ -103,7 +103,7 @@ struct MCPTeamsToolsTests {
             #expect(tool.description.contains(SharingRightsAffirmation.assistantQuestion), "\(tool.name) does not give the question to ask")
         }
         let create = try #require(byName["create_notebook_task"])
-        #expect(create.inputSchema["required"] as? [String] == ["notebook_id", "title"])
+        #expect(create.inputSchema["required"] as? [String] == ["title"])
         let status = (create.inputSchema["properties"] as? [String: Any])?["status"] as? [String: Any]
         #expect(status?["enum"] as? [String] == NotebookTaskStatus.allCases.map(\.rawValue))
     }

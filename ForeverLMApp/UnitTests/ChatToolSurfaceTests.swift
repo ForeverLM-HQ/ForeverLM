@@ -37,6 +37,14 @@ struct ChatToolSurfaceTests {
         #expect(study.isDisjoint(with: ["get_day_plan", "add_time_block", "revise_day_plan"]))
     }
 
+    @Test("A study chat asked to put a reading on the board can add the to-do")
+    func studyChatsReachTheBoard() {
+        // 2026-11-25: a book's chat found the chapter and answered that it
+        // could not add a to-do to the board.
+        #expect(ReviewSessionManager.studySurfaceToolNames.contains("create_notebook_task"))
+        #expect(!ReviewSessionManager.chatExcludedToolNames.contains("create_notebook_task"))
+    }
+
     @Test("Every chat can put what it names on the learner's screen")
     func everyChatCanOpenThings() {
         // 2026-10-11: asked to open a notebook, a chat said it had and nothing

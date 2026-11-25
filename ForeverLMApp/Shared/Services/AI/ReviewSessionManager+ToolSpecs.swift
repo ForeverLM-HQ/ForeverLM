@@ -143,6 +143,11 @@ extension ReviewSessionManager {
         // only: administering existing tasks belongs to the Tasks pane and the
         // agent chat, and every tool listed here is paid for on every study turn.
         "create_scheduled_task",
+        // "Add reading this chapter to my board" is said in the chat about the
+        // book (product owner, 2026-11-25). Without it a reading chat found the
+        // chapter and answered that it could not add a to-do. With no
+        // notebook_id the task lands on the learner's Board.
+        "create_notebook_task",
         // "Plan my day and schedule those papers" is said in the chat about the
         // papers. A study chat that has create_scheduled_task and no day tool
         // makes one-off scheduled tasks, tells the learner the papers are

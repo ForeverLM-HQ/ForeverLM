@@ -627,10 +627,19 @@ extension MCPDataStore {
         docID: String?
     ) async throws -> String {
         let store = try knowledgeStore()
-        let notebook = try resolveMCPNotebookGoal(notebookID: notebookID, store: store)
         let trimmedTitle = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else {
             throw MCPError.invalidInput("A task needs a title.")
+        }
+        // No Notebook named means the learner's own Board, made on first use
+        // (product owner, 2026-11-25: a chat asked to put a reading on the
+        // board answered that it could not add a to-do).
+        let namedNotebook = notebookID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let notebook: LearningGoalRecord
+        if namedNotebook.isEmpty {
+            notebook = try await notebookFileStorage.ensureBoardNotebook()
+        } else {
+            notebook = try resolveMCPNotebookGoal(notebookID: namedNotebook, store: store)
         }
         let team = try await teamContext(for: notebook)
         if let team, !team.team.canEdit {

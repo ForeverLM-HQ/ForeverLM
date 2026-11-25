@@ -255,11 +255,11 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "create_notebook_task",
-                description: "Add a task to a Notebook's board. In a team Notebook the task is the team's and can be assigned to a member by user_record_name (or \"me\"); every member sees it. In a personal Notebook it is the learner's own and takes no assignee. Refused when the Notebook's team is read-only for this account.",
+                description: "Add a to-do. With no notebook_id it goes on the learner's Board (Space > Board, columns To do, In progress, Done): use that for \"add this to my board\", \"put it on my to-do list\". With a notebook_id it goes on that Notebook's tasks. In a team Notebook the task is the team's and can be assigned to a member by user_record_name (or \"me\"); every member sees it. In a personal Notebook it is the learner's own and takes no assignee. Refused when the Notebook's team is read-only for this account.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "notebook_id": ["type": "string", "description": "Notebook ID from list_notebooks."],
+                        "notebook_id": ["type": "string", "description": "Optional Notebook ID from list_notebooks. Leave it out for the learner's Board."],
                         "title": ["type": "string", "description": "What is to be done."],
                         "notes": ["type": "string", "description": "Optional detail."],
                         "status": ["type": "string", "enum": ["todo", "doing", "done"], "description": "Defaults to todo."],
@@ -268,7 +268,7 @@ extension MCPToolRegistry {
                         "source_id": ["type": "string", "description": "Optional source the task is about."],
                         "doc_id": ["type": "string", "description": "Optional Doc the task is about."],
                     ],
-                    "required": ["notebook_id", "title"],
+                    "required": ["title"],
                 ]
             ),
             MCPToolDef(
