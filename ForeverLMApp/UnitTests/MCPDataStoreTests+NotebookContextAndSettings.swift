@@ -745,11 +745,11 @@ extension MCPDataStoreTests {
         #expect(explainer.audioAutomationKind == SourceAudioAutomation.explainerKind)
     }
 
-    /// Settings › API Keys over MCP. The reader is pinned against
+    /// AI Usage › API keys over MCP. The reader is pinned against
     /// a test-only key so the developer's Keychain never decides the outcome,
     /// and every refused write is one that throws before `ManagedAI.setOwnKey`
     /// runs — a real write here would store a key in the iCloud Keychain.
-    @Test("get_own_router_key and set_own_router_key are Settings › API Keys")
+    @Test("get_own_router_key and set_own_router_key are AI Usage › API keys")
     func ownRouterKeyToolsDriveTheAIUsagePane() throws {
         let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
@@ -759,15 +759,14 @@ extension MCPDataStoreTests {
             try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
         }
 
-        // No key: nothing pays (ForeverLM pays for no AI), and the reader
-        // still names the router and where to get a key for it.
+        // No key: only leftover balance can pay, and the reader still names
+        // the router and where to get a key for it.
         ManagedAI.ownKeyOverrideForTesting = .some(nil)
         let none = try payload(try store.getOwnRouterKey())
         #expect(none["configured"] as? Bool == false)
         #expect(none["router"] is NSNull)
-        #expect((none["billed_to"] as? String)?.hasPrefix("nobody") == true)
+        #expect((none["billed_to"] as? String)?.hasPrefix("leftover ForeverLM balance") == true)
         #expect((none["billed_to"] as? String)?.contains("the learner's own OpenRouter key") == true)
-        #expect(none["own_key_allowed"] == nil, "the key runs for every account; nothing gates it")
         let routers = try #require(none["routers"] as? [[String: Any]])
         #expect(routers.map { $0["id"] as? String } == ["openrouter"])
         #expect(routers.allSatisfy { ($0["keys_url"] as? String)?.hasPrefix("https://") == true })
@@ -790,7 +789,7 @@ extension MCPDataStoreTests {
         #expect(stored["router_label"] as? String == "OpenRouter")
         #expect(stored["key_suffix"] as? String == "ABCD")
         #expect(stored["key_pays_for"] as? String == "text, voices, speech-to-text, images and video")
-        #expect(stored["billed_to"] as? String == "OpenRouter account")
+        #expect(stored["balance_still_pays_for"] as? String == "nothing while the key is stored")
 
         // Refused before anything is written: an unknown router, key beside
         // clear, a store with no key, and a paste that is not a key.

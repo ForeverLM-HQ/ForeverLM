@@ -12,7 +12,7 @@ Anki is the standard-bearer of spaced repetition: free, open source, fifteen-plu
 
 | | ForeverLM | Anki |
 |---|---|---|
-| **Price** | Free; AI on your own OpenRouter key at cost | Free on desktop and Android; AnkiMobile for iOS is $24.99 one-time |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free on desktop and Android; AnkiMobile for iOS is $24.99 one-time |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | No built-in AI; desktop-only community add-ons, bring-your-own-key |
 | **Platforms** | Native macOS app (macOS 14+) | Windows, macOS, Linux, iOS, Android, web review |
 | **Data storage** | Local SQLite + files in your private iCloud container | Local SQLite; free AnkiWeb sync or self-hosted sync |
@@ -25,7 +25,7 @@ Anki is the standard-bearer of spaced repetition: free, open source, fifteen-plu
 
 ## Pricing: neither one has to be a subscription
 
-This is one comparison where the funding models nearly agree: neither app has to bill you every month. Anki is free (or $24.99 once on iOS), and ForeverLM is free. AI is a separate bill you control: bring your own OpenRouter key and pay models at cost, or use free models and pay nothing.
+This is one comparison where the funding models nearly agree: neither app has to bill you every month. Anki is free (or $24.99 once on iOS). ForeverLM is 7 days free, then $19 once, with no subscription. AI is a separate bill you control: bring your own OpenRouter key and pay models at cost, or use free models and pay nothing.
 
 There are two ways to use AI, and you can mix them. Use the in-app Chat with any model you like on your own OpenRouter key, and OpenRouter bills you at its cost with nothing added by ForeverLM. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: your subscription covers the thinking, and ForeverLM charges nothing per request. Anki, of course, charges nothing to run at all, because it has no AI to bill you for.
 

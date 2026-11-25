@@ -34,7 +34,7 @@ enum DocPageAccess: Equatable, Sendable {
 
 enum DocPublishingError: LocalizedError, Equatable {
     /// No managed session on this Mac: publishing is an account feature, and
-    /// the account is the Sign in with Apple in Settings › API Keys.
+    /// the account is the Sign in with Apple in Settings › Billing.
     case signedOut
     /// The service refused or failed; `message` is its own wording.
     case server(status: Int, code: String, message: String)
@@ -43,7 +43,7 @@ enum DocPublishingError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .signedOut:
-            return "Sign in with Apple in Settings › API Keys to publish a page. Publishing is tied to your ForeverLM account so only you can update or take down the page."
+            return "Sign in with Apple in Settings › Billing to publish a page. Publishing is tied to your ForeverLM account so only you can update or take down the page."
         case .server(_, _, let message):
             return message
         case .malformedResponse:

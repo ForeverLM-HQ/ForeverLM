@@ -21,9 +21,9 @@ extension Notification.Name {
 }
 
 /// ForeverLM's account service (`workers/ai-proxy`, ai.foreverlm.com): Sign in
-/// with Apple and the Doc and Site publishing bearer. ForeverLM is free
-/// (product owner, 2026-11-24: nothing to pay, nothing locks), and it pays for
-/// no AI (2026-11-15): every AI request runs on the learner's own
+/// with Apple, the paid app's plan (the free days, payment, the lock), Stripe
+/// checkout, and the Doc and Site publishing bearer. ForeverLM pays for no AI
+/// (product owner, 2026-11-15): every AI request runs on the learner's own
 /// OpenRouter key (and, for voice, their own OpenAI key) and leaves the device
 /// for those providers directly, never through ForeverLM's server. The session
 /// token is the only ForeverLM credential, minted from Sign in with Apple.
@@ -156,6 +156,8 @@ enum ManagedAI {
     static func clearSession() {
         sessionToken = nil
         sessionExpiry = nil
+        // The plan belongs to the Apple ID; the next sign-in reports its own.
+        appAccess = nil
     }
 
     // MARK: - Your own router key
@@ -229,7 +231,7 @@ enum ManagedAI {
         /// Where the key lives and where it goes, shown wherever a key is
         /// entered. The product owner (2026-09-25): it has to be clear the key is not
         /// stored on ForeverLM's servers. True because `rewrite` sends it only
-        /// to `host`.
+        /// to `host` and the proxy gets `ownKeyHeldHeader` instead.
         var keyPrivacyNote: String {
             "Your key is saved only in your Keychain, which iCloud Keychain syncs end-to-end encrypted to your other devices, and it is sent only to \(label). ForeverLM's servers never receive or store it."
         }
@@ -251,6 +253,11 @@ enum ManagedAI {
     /// The proxy's own-key header. It is never set: the
     /// key goes to its router and nowhere else.
     static let ownKeyHeader = "X-ForeverLM-Own-Key"
+
+    /// What the proxy gets instead when a key is stored but may not run (a
+    /// locked account): only that the learner holds one, so it can answer
+    /// `app_locked` by name. Never the key.
+    static let ownKeyHeldHeader = "X-ForeverLM-Own-Key-Held"
 
     /// Provider credential headers a caller may have set. Cleared on both
     /// rails before the rail's own credential goes on: the app may have set an
@@ -277,7 +284,8 @@ enum ManagedAI {
         "X-ForeverLM-Platform",
         "X-ForeverLM-Build",
         "X-ForeverLM-Response-Cache",
-        ownKeyHeader
+        ownKeyHeader,
+        ownKeyHeldHeader
     ]
 
     /// Renames a transport failure that never reached a provider.
@@ -325,6 +333,10 @@ enum ManagedAI {
     /// The single statement of the rule: `rewrite` routes by it, and the
     /// OpenRouter body builder asks it whether to request the billed cost that
     /// the proxy would otherwise have resolved on the app's behalf.
+    /// The key leaves direct only while the account is unlocked
+    /// (`ManagedAI.ownKeyAllowed`). Otherwise the request
+    /// goes through the proxy, which answers `app_locked` instead of quietly
+    /// spending balance.
     /// OpenRouter's app attribution (openrouter.ai/docs/app-attribution):
     /// `HTTP-Referer` is what puts ForeverLM on its rankings and model pages,
     /// the title names it there, and the categories file it in the app
@@ -344,7 +356,11 @@ enum ManagedAI {
     }
 
     static func sendsOwnKeyDirect(toHost host: String?) -> Bool {
-        guard let host = host?.lowercased(), let own = ownKey else { return false }
+        var allowed = ownKeyAllowed
+        #if DEBUG
+        if let override = ownKeyAllowedOverrideForTesting { allowed = override }
+        #endif
+        guard allowed, let host = host?.lowercased(), let own = ownKey else { return false }
         return own.router.sendsDirect && own.router.host == host
     }
 
@@ -359,6 +375,11 @@ enum ManagedAI {
     /// the developer's own Keychain, so a routing test's outcome would follow
     /// whatever key the Dev app last stored. `.some(nil)` pins "no key".
     nonisolated(unsafe) static var ownKeyOverrideForTesting: OwnKey??
+
+    /// Pins whether the account lets the key run, for the same reason: the
+    /// stored access otherwise follows whatever account the Dev app last
+    /// signed in.
+    nonisolated(unsafe) static var ownKeyAllowedOverrideForTesting: Bool?
     #endif
 
     private static let ownKeyLock = AppLock()
@@ -674,12 +695,13 @@ enum ManagedAI {
         }
 
         // Everything else has nowhere to go. ForeverLM pays for no AI, so a
-        // request with no own key is pointed at a URL no session can load, and
-        // `namingUnreachableService` turns the resulting failure into the
-        // sentence that says what to do. It must never be left pointing at a
-        // provider unauthenticated, and an unknown host's URL, query included,
-        // is never kept: a lab's own API can carry its key as `?key=`.
-        request.url = noKeyURL
+        // request with no own key (or whose key may not run, a locked app) is
+        // pointed at a URL no session can load, and `namingUnreachableService`
+        // turns the resulting failure into the sentence that says what to do.
+        // It must never be left pointing at a provider unauthenticated, and an
+        // unknown host's URL, query included, is never kept: a lab's own API
+        // can carry its key as `?key=`.
+        request.url = host == "openrouter.ai" && ownKey != nil && !ownKeyAllowed ? appLockedURL : noKeyURL
         for header in providerCredentialHeaders {
             request.setValue(nil, forHTTPHeaderField: header)
         }
@@ -689,6 +711,7 @@ enum ManagedAI {
     /// Where a request with no route is pointed (`rewrite`). The scheme is one
     /// URLSession cannot load, so nothing leaves the device.
     static let noKeyURL = URL(string: "foreverlm-blocked://no-own-key")!
+    static let appLockedURL = URL(string: "foreverlm-blocked://app-locked")!
 
     /// The sentence for a request `rewrite` had no route for, or nil when the
     /// error is anything else.
@@ -697,6 +720,12 @@ enum ManagedAI {
         let url = urlError.failingURL
             ?? (urlError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String).flatMap { URL(string: $0) }
         guard url?.scheme == noKeyURL.scheme else { return nil }
+        if url?.host == appLockedURL.host {
+            return ServiceError(
+                code: "app_locked",
+                message: "ForeverLM is locked until it is paid for. Everything you have set up stays as it is."
+            )
+        }
         return ServiceError(
             code: "no_own_key",
             message: "AI runs on your own OpenRouter key. Add it in Settings, then try again."
@@ -784,10 +813,10 @@ enum ManagedAI {
 
     /// What `GET /v1/access` says that the app uses. ForeverLM pays for no
     /// AI, so there is no balance, spending limit or usage ledger (product
-    /// owner, 2026-11-15), and it is free, so there is no plan to read
-    /// (2026-11-24).
+    /// owner, 2026-11-15); the response also carries the plan, which
+    /// `fetchBalance` stores.
     struct Balance: Sendable {
-        /// An operator closed the account.
+        /// An operator closed the account (a Stripe dispute, say).
         let disabled: Bool
         /// An operator account: the only thing it unlocks is screen record mode.
         let isAdmin: Bool
@@ -799,8 +828,10 @@ enum ManagedAI {
         var errorDescription: String? { message }
 
         var isInvalidSession: Bool { code == "invalid_session" }
-        /// The proxy closed the account (an operator, or three metering
-        /// failures in a row). The balance's `disabled` is the
+        /// Checkout was asked for an account that has already paid.
+        var isAlreadyPaid: Bool { code == "already_paid" }
+        /// The proxy closed the account (an operator, a Stripe dispute, or
+        /// three metering failures in a row). The balance's `disabled` is the
         /// same flag, so a later balance read can say it no longer holds.
         var isAccountDisabled: Bool { code == "account_disabled" }
         /// The proxy's catch-all for a thrown failure (a D1 outage, Apple's
@@ -811,15 +842,26 @@ enum ManagedAI {
     }
 
     /// Exchanges an Apple identity token for a session token, creating the account
-    /// on first sign-in.
+    /// on first sign-in, and stores the plan the server reports with it.
     static func signIn(identityToken: String) async throws {
         struct Response: Decodable {
             let sessionToken: String
             let expiresAt: TimeInterval
+            /// The app plan. Optional so a build newer than the worker still signs in.
+            let access: AppAccess?
+            /// The paid app's fields the proxy also sends beside `access`:
+            /// `state` here is the new state (`access.state` keeps the old one).
+            let state: String?
+            let unlocked: Bool?
+            let freeUntil: String?
 
             enum CodingKeys: String, CodingKey {
                 case sessionToken = "session_token"
                 case expiresAt = "expires_at"
+                case access
+                case state
+                case unlocked
+                case freeUntil = "free_until"
             }
         }
 
@@ -827,10 +869,18 @@ enum ManagedAI {
         let response: Response = try await post("/v1/session", body: body, authenticated: false)
         sessionToken = response.sessionToken
         sessionExpiry = Date(timeIntervalSince1970: response.expiresAt)
+        storeAppAccess(
+            response.access,
+            topLevel: .init(
+                state: response.state,
+                unlocked: response.unlocked,
+                freeUntil: response.freeUntil
+            )
+        )
     }
 
     /// Loads the read-only account snapshot with a short bounded retry. Opening
-    /// Settings › API Keys commonly races a network handoff as the app becomes active; a
+    /// Billing commonly races a network handoff as the app becomes active; a
     /// single lost connection must not strand the screen until the next app
     /// activation. Authentication and schema failures still fail immediately.
     static func balance() async throws -> Balance {
@@ -893,16 +943,39 @@ enum ManagedAI {
         struct Response: Decodable {
             let disabled: Bool?
             let admin: Bool?
+            let access: AppAccess?
+            /// The paid app's fields the proxy also sends beside `access`:
+            /// `state` here is the new state (`access.state` keeps the old one).
+            let state: String?
+            let unlocked: Bool?
+            let freeUntil: String?
+
+            enum CodingKeys: String, CodingKey {
+                case disabled
+                case admin
+                case access
+                case state
+                case unlocked
+                case freeUntil = "free_until"
+            }
         }
 
         let response: Response = try await get(
             "/v1/access",
             headers: ["X-ForeverLM-Day-Start": dayStartHeaderValue()]
         )
+        storeAppAccess(
+            response.access,
+            topLevel: .init(
+                state: response.state,
+                unlocked: response.unlocked,
+                freeUntil: response.freeUntil
+            )
+        )
         return Balance(disabled: response.disabled ?? false, isAdmin: response.admin ?? false)
     }
 
-    /// Permanently removes the ForeverLM account. The private iCloud knowledge
+    /// Permanently removes the managed-AI account and its payment record. The private iCloud knowledge
     /// library is owned by the user's Apple account and is not sent here.
     static func deleteAccount(identityToken: String, authorizationCode: String) async throws {
         struct Response: Decodable {
@@ -964,7 +1037,8 @@ enum ManagedAI {
         return request
     }
 
-    private static func post<T: Decodable>(
+    /// Internal rather than private so ManagedAIAppAccess.swift can start plan checkout.
+    static func post<T: Decodable>(
         _ path: String,
         body: some Encodable,
         authenticated: Bool,
@@ -1015,13 +1089,17 @@ enum ManagedAI {
         return ServiceError(code: body.error.code, message: body.error.message)
     }
 
-    /// A request refused for want of an own key puts up the "add your
-    /// OpenRouter key" prompt (`managedAICreditsEmpty`).
+    /// An account the proxy says is locked: the plan it carries is what puts
+    /// the pay screen up, so it is read again.
     static func surfaceIfNeeded(_ error: ServiceError) {
-        guard error.code == "no_own_key" else { return }
-        Task { @MainActor in
-            NotificationCenter.default.post(name: .managedAICreditsEmpty, object: nil)
+        if error.code == "no_own_key" {
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .managedAICreditsEmpty, object: nil)
+            }
+            return
         }
+        guard error.code == "app_locked" else { return }
+        refreshAccess()
     }
 
     /// Whether AI work has nothing to run on: ForeverLM pays for none, so with
@@ -1029,9 +1107,36 @@ enum ManagedAI {
     /// one waits until a key is stored.
     static var creditsAreEmpty: Bool { !hasOwnKey }
 
+    /// Re-reads the plan after the proxy said the account is locked.
+    ///
+    /// Coalesced, because a refused batch fails many requests at once and they
+    /// would otherwise each fetch the account.
+    static func refreshAccess() {
+        guard isSignedIn else { return }
+        let alreadyRunning = accessRefreshLock.withLock {
+            let running = accessRefreshInFlight
+            if !running { accessRefreshInFlight = true }
+            return running
+        }
+        guard !alreadyRunning else { return }
+        Task.detached(priority: .utility) {
+            defer {
+                accessRefreshLock.withLock { accessRefreshInFlight = false }
+            }
+            // A failure here is not worth surfacing: the request that triggered
+            // it already reported the refusal.
+            _ = try? await balance()
+        }
+    }
+
+    private static let accessRefreshLock = AppLock()
+    nonisolated(unsafe) private static var accessRefreshInFlight = false
+
     private static func send<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        // The free days end on the proxy's clock, not this device's.
+        recordServerDate(http.value(forHTTPHeaderField: "Date"))
 
         guard (200...299).contains(http.statusCode) else {
             // The proxy always answers with {error:{code,message}}; surface both

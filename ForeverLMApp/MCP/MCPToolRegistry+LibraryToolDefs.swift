@@ -362,18 +362,18 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_own_router_key",
-                description: "Read Settings › API Keys: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider, and without a key no AI feature runs. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
+                description: "Read AI Usage › API keys: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
             ),
             MCPToolDef(
                 name: "set_own_router_key",
-                description: "Store, replace, or remove the learner's own OpenRouter key — Settings › API Keys, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
+                description: "Store, replace, or remove the learner's own OpenRouter key — AI Usage › API keys, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "router": ["type": "string", "enum": ManagedAI.OwnKeyRouter.allCases.map(\.rawValue), "description": "openrouter — the router the key belongs to."],
                         "key": ["type": "string", "description": "The API key to store. Omit when clearing."],
-                        "clear": ["type": "boolean", "description": "true removes the stored key; the AI features it was paying for stop until a key is stored again."],
+                        "clear": ["type": "boolean", "description": "true removes the stored key; the AI features it was paying for stop until a key is stored again, apart from any leftover balance, which pays until it runs out."],
                     ],
                     "required": ["router"],
                 ]

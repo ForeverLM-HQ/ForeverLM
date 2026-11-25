@@ -843,10 +843,12 @@ private struct MobileAccountDeletionAuthorizationView: View {
 }
 
 /// The phone's key screen (product owner, 2026-09-25): AI features run on the
-/// learner's own OpenRouter key, for every account (ForeverLM is free). The
-/// phone stores the key. The iPhone app sells nothing, and nothing on it names
-/// a price, a place to buy, or a link that leads to one (App Review
-/// 3.1.3(f)), so buying OpenRouter credits stays on the Mac.
+/// learner's own OpenRouter key, for every account (the app is free; only MCP
+/// is paid for, and the phone has none). The phone stores the key. The
+/// iPhone app is a free companion to the Mac app (product owner, 2026-10-10; App
+/// Review 3.1.3(f)): it sells nothing, and nothing on it names a price, a place
+/// to buy, or a link that leads to one, so Stripe's billing pages and buying
+/// OpenRouter credits stay on the Mac.
 private struct MobileCreditsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var isLoading = false

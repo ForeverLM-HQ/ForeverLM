@@ -62,8 +62,6 @@ struct WelcomeStory: View {
     static let yourAIIcon = "slider.horizontal.3"
     static let rememberIcon = "rectangle.stack"
     static let yourDataIcon = "lock.shield"
-    /// What ForeverLM costs, said once at the start.
-    static let priceLine = "ForeverLM is free."
 
     var startsAtEnd = false
     var onStart: () -> Void
@@ -357,8 +355,9 @@ struct WelcomeStory: View {
                     .padding(.leading, 50)
             }
             // What ForeverLM costs, said once at the start (product owner,
-            // 2026-10-10): nothing (2026-11-24: "you can make it fully free").
-            Text(Self.priceLine)
+            // 2026-10-10): free, MCP included; a price only
+            // while the account server sells one.
+            Text(EarlyUserDealOffer.welcomeLine(access: ManagedAI.appAccess))
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)

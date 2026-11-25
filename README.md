@@ -20,7 +20,7 @@
   <a href="https://foreverlm.com/releases/ForeverLM.dmg"><strong>Download for Mac</strong></a>
   &middot; <a href="https://foreverlm.com">Website</a>
   &middot; <a href="https://docs.foreverlm.com">Docs</a><br>
-  ForeverLM is free.
+  7 days free, then $19 once. No subscription.
 </p>
 
 <p align="center">
@@ -67,7 +67,8 @@ app and the gateway share. Release and App Store tooling, the website, and most
 of the Cloudflare Workers ForeverLM runs on are kept privately. The app talks
 to these hosted services:
 
-- `ai.foreverlm.com`, the account service: Sign in with Apple and publishing.
+- `ai.foreverlm.com`, the account service: Sign in with Apple, the trial and the
+  paid unlock, and publishing.
 - `plugin.foreverlm.com`, the remote MCP gateway, and the per-Mac MCP relay.
 - `app.foreverlm.com`, the setup pages for the Slack, GitHub, Linear and
   Notion connectors.

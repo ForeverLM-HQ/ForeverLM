@@ -1821,6 +1821,13 @@ struct MCPAccessContext: Sendable, Equatable {
     /// under, or the one the hosted gateway passes on. Display only — nothing
     /// authorizes on it — and nil when the caller never gave one.
     var assistantName: String? = nil
+    /// True for a request that reached this Mac on its own OAuth bearer
+    /// (a Build Your Own plugin, Read AI, any client given the tunnel's
+    /// address), not through the hosted gateway. Only these are checked
+    /// against the app lock here (`MCPProtocolHandler.appLockRefusal`); the
+    /// gateway checks its own, and in-app callers (`internalFullAccess`),
+    /// which sit behind the pay screen, never are.
+    var arrivedWithoutGateway = false
 
     /// The context in-app callers (Chat, ⌘K assistant bar) run under: the app
     /// process is the owner, so it is never scope-restricted. Remote MCP paths

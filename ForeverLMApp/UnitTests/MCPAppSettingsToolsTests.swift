@@ -248,11 +248,9 @@ struct MCPAppSettingsToolsTests {
         }
         let paneIDs = MCPDataStore.settingsPaneIDs.map { $0.id }
         #expect(Set(paneIDs).count == paneIDs.count)
-        // The keys and the AI spend are two places; ForeverLM is free, so
-        // there is no Billing pane to open (2026-11-24).
-        #expect(MCPDataStore.settingsPaneIDs.first { $0.id == "api_keys" }?.target == .pane(.aiKeys))
+        // The plan and the AI spend are two panes since 2026-09-28.
+        #expect(MCPDataStore.settingsPaneIDs.first { $0.id == "billing" }?.target == .pane(.aiBilling))
         #expect(MCPDataStore.settingsPaneIDs.first { $0.id == "ai_usage" }?.target == .pane(.aiUsage))
-        #expect(!paneIDs.contains("billing"))
         for row in MCPDataStore.settingsOnlyInTheWindow {
             #expect(paneIDs.contains(row["open_settings"] ?? ""), "\(row["control"] ?? "?") points at an unknown pane")
         }

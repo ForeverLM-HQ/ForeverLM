@@ -12,7 +12,7 @@ AnythingLLM, from Mintplex Labs, is an open-source (MIT) app for chatting with y
 
 | | ForeverLM | AnythingLLM |
 |---|---|---|
-| **Price** | Free; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Desktop app free (an optional Pro subscription lifts the daily limits on its system-wide dictation, highlight-to-ask and autocomplete); self-hosting free; hosted cloud $50/mo Basic, $99/mo Pro, Enterprise by quote |
+| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Desktop app free (an optional Pro subscription lifts the daily limits on its system-wide dictation, highlight-to-ask and autocomplete); self-hosting free; hosted cloud $50/mo Basic, $99/mo Pro, Enterprise by quote |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Mac, Windows and Linux desktop apps; Docker server; an Android app with on-device models |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Local folders on your machine, or your own server; no built-in sync between devices |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | 40+ providers (OpenRouter among them) plus fully local models: built in, Ollama or LM Studio |

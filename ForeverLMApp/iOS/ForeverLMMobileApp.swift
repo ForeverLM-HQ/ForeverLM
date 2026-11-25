@@ -81,9 +81,6 @@ struct ForeverLMMobileApp: App {
             .task {
                 await Task.detached(priority: .utility) {
                     KeychainService.purgeRetiredProviderData()
-                    // And the preference keys nothing reads: the paid app's
-                    // cached plan and clock (2026-11-24, ForeverLM is free).
-                    RetiredDefaultsCleanup.runAtLaunch()
                 }.value
             }
             .task {

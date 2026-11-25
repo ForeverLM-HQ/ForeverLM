@@ -17,7 +17,7 @@ extension Prefs {
         static let retiredFileVaultAdopted = DeviceKey<Bool?>("keychain.retiredProductFileVaultAdopted", reason: "one-shot adoption marker")
         static let retiredReminderNotificationsCleared = DeviceKey<Bool?>("retiredReminderNotificationsCleared.v1", reason: "one-shot cleanup marker")
         static let retiredQuestionCalibrationCleared = DeviceKey<Bool?>("retiredQuestionCalibrationCleared.v1", reason: "one-shot cleanup marker")
-        static let retiredDefaultsCleanupDone = DeviceKey<Any?>("retiredDefaultsCleanup.v2", coding: .any, reason: "one-shot cleanup marker: this device's preferences hold no retired keys")
+        static let retiredDefaultsCleanupDone = DeviceKey<Any?>("retiredDefaultsCleanup.v1", coding: .any, reason: "one-shot cleanup marker: this Mac's preferences hold no retired keys")
         static let retiredProviderDataPurged = DeviceKey<Bool?>("retiredProviderDataPurged.v1", reason: "one-shot cleanup marker")
         static let retiredGoogleCalendarGrantsPurged = DeviceKey<Bool?>("retiredGoogleCalendarGrantsPurged.v1", reason: "one-shot cleanup marker")
         /// One-shot markers and per-device bookkeeping. Resyncing one re-applies

@@ -4155,7 +4155,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the ForeverLM account behind Settings › API Keys, freshly fetched from the account server as the pane does when it opens. ForeverLM is free: there is no plan, price, trial or lock, and nothing to pay for. AI runs on the learner's own OpenRouter API key, which pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in and a summary of the learner's own router key (details in get_own_router_key). This is account state, the same on every device.",
+    "description" : "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and AI Usage (the key), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No subscription is sold. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, comped or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key). This is account state, the same on every device.",
     "inputSchema" : {
       "properties" : {
 
@@ -7168,11 +7168,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
+    "description" : "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
     "inputSchema" : {
       "properties" : {
         "pane" : {
-          "description" : "The pane to show. Omit for Chat, where Settings opens; api_keys is signing in and the OpenRouter and OpenAI keys; ai_usage is spending and activity; plugins and a plugin's id open the Plugins place.",
+          "description" : "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity; plugins and a plugin's id open the Plugins place.",
           "enum" : [
             "general",
             "chat",
@@ -10572,7 +10572,7 @@
     "inputSchema" : {
       "properties" : {
         "clear" : {
-          "description" : "true removes the stored key; the AI features it was paying for stop until a key is stored again.",
+          "description" : "true removes the stored key; the AI features it was paying for stop until a key is stored again, apart from any leftover balance, which pays until it runs out.",
           "type" : "boolean"
         },
         "key" : {

@@ -833,7 +833,7 @@ extension MCPDataStore {
         }
     }
 
-    /// Settings › API Keys, read. The payload never carries the
+    /// AI Usage › API keys, read. The payload never carries the
     /// key: a plugin learns which router bills the learner and the key's
     /// last four characters, which is what the pane shows too.
     func getOwnRouterKey() throws -> String {
@@ -853,6 +853,10 @@ extension MCPDataStore {
                     "key_pays_for": router.billedScope,
                 ] as [String: Any]
             },
+            // Bring your own key since 2026-09-25. The key runs AI features
+            // while the account is unlocked: the free days, or paid (the paid
+            // app of 2026-10-10).
+            "own_key_allowed": ManagedAI.ownKeyAllowed,
         ]
         if let own = ManagedAI.ownKey {
             payload["configured"] = true
@@ -861,19 +865,21 @@ extension MCPDataStore {
             payload["key_suffix"] = own.suffix
             payload["key_pays_for"] = own.router.billedScope
             payload["billed_to"] = "\(own.router.label) account"
+            // The key pays for every model.
+            payload["balance_still_pays_for"] = "nothing while the key is stored"
         } else {
             payload["configured"] = false
             payload["router"] = NSNull()
             payload["key_suffix"] = NSNull()
             payload["key_pays_for"] = NSNull()
-            // ForeverLM pays for no AI (2026-11-15): without a key nothing does.
-            payload["billed_to"] = "nobody: AI features wait for the learner's own OpenRouter key"
+            payload["billed_to"] = "leftover ForeverLM balance, while any is left; AI features otherwise need the learner's own OpenRouter key, which runs during the free days and once ForeverLM is paid for"
+            payload["balance_still_pays_for"] = "every AI request, while any is left"
         }
         if let changed { payload["changed"] = changed }
         return payload
     }
 
-    /// Settings › API Keys, written: what pasting a key into the
+    /// AI Usage › API keys, written: what pasting a key into the
     /// pane, or pressing Remove, does. The write goes through `ManagedAI`, so
     /// the Keychain, the in-memory routing snapshot, the "balance is empty"
     /// flag and the change notification all move together; the open AI Usage

@@ -177,9 +177,8 @@ extension Prefs {
         static let spacesDownloadAll = DeviceFamily<String, [String]?>(prefix: "ios.spaces.downloadAll.", reason: "iPhone-local: which spaces this phone downloads in full")
         /// `ios.search.wholeLibraryText.<environment>` — whether this phone's search covers the text of the whole library, per CloudKit environment.
         static let wholeLibraryText = DeviceFamily<String, Bool>(prefix: "ios.search.wholeLibraryText.", id: .string, default: false, coding: .bool, reason: "iPhone-local: whether this phone indexes the text of the whole library")
-        /// `freeDaysNotice.<notice>.<free days end>`: the paid app's free-days notices, retired with it
-        /// on 2026-11-24. Nothing reads them; `RetiredDefaultsCleanup` removes what a Mac still holds.
-        static let retiredFreeDaysNotice = DeviceFamily<String, Any?>.unread(prefix: "freeDaysNotice.", reason: "retired with the paid app; removed once at launch, never read")
+        /// `freeDaysNotice.<notice>.<free days end>` — that this Mac showed one free-days notice for one set of free days.
+        static let freeDaysNotice = DeviceFamily<String, Bool>(prefix: "freeDaysNotice.", id: .string, default: false, coding: .bool, reason: "a notice seen on one Mac is not owed to another")
 
         static let all: [AnyPreferenceFamily] = [
             workspaceViews.erased,
@@ -233,7 +232,7 @@ extension Prefs {
             notebookColumnFolded.erased,
             spacesDownloadAll.erased,
             wholeLibraryText.erased,
-            retiredFreeDaysNotice.erased,
+            freeDaysNotice.erased,
         ]
     }
 }

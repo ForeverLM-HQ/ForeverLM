@@ -188,6 +188,9 @@ enum KeychainService {
         case appleUserID = "apple_user_id"
         case appleUserName = "apple_user_name"
         case appleUserEmail = "apple_user_email"
+        case stripeAPIKey = "stripe_api_key"
+        case stripeMonthlyLink = "stripe_monthly_link"
+        case stripeYearlyLink = "stripe_yearly_link"
         /// The connected X accounts, as JSON (`XAccountBook`). Each account's
         /// tokens live in an account-scoped item (`x_account:<id>`). Not synced:
         /// X refresh tokens are single-use, so two Macs sharing one grant would
@@ -229,9 +232,9 @@ enum KeychainService {
         /// Local to this Mac: the token is device-scoped and cheap to re-mint,
         /// so it deliberately does not ride iCloud Keychain.
         ///
-        /// Carries no AI traffic: every AI request leaves on the learner's own
-        /// key. It is purely an identity credential (the launch gate, the
-        /// publishing bearer, the MCP connection).
+        /// Carries no AI traffic — every provider request goes through
+        /// the Cloudflare AI Gateway. It is purely an identity/billing
+        /// credential (launch gate, credits, Stripe portal).
         case managedAISessionToken = "managed_ai_session_token"
         case managedAISessionExpiry = "managed_ai_session_expiry"
     }
@@ -276,7 +279,7 @@ enum KeychainService {
     ///
     /// Credentials stay in the Keychain. Never add an `*_api_key`, `*_access_token`,
     /// `*_refresh_token`, `*_client_secret`, `*_token_expiry`, `mcp_*`,
-    /// `managed_ai_session_*` or `apple_user_*` key to this set. The
+    /// `managed_ai_session_*`, `apple_user_*` or `stripe_*` key to this set. The
     /// OAuth *client IDs* also stay put despite not being secret: they already ride
     /// iCloud Keychain paired with secrets that don't, and splitting a pair strands
     /// a synced ID next to an unsynced secret.

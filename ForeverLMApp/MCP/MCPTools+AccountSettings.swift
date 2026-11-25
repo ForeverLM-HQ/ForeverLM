@@ -10,10 +10,10 @@ import AppKit
 // limit. Each tool goes through the exact call the pane's own control makes,
 // so the window and a chat cannot accept different things.
 //
-// What stays in the window: signing in with Apple, and managing team members
-// (Apple's sharing sheet). Those are refused here with a pointer to
-// `open_settings`. ForeverLM is free and sells nothing, so there is nothing to
-// buy, add or top up.
+// What stays in the window: paying for ForeverLM (Stripe Checkout),
+// and managing team members (Apple's sharing sheet). Those are refused here
+// with a pointer to `open_settings`. Balance is not sold, so there is
+// nothing to add or top up.
 //
 // Gathered by `settingsParityToolDefs` / `executeSettingsParityTool` in
 // MCPTools+AppSettings.swift.
@@ -99,7 +99,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_billing_settings",
-                description: "Read the ForeverLM account behind Settings › API Keys, freshly fetched from the account server as the pane does when it opens. ForeverLM is free: there is no plan, price, trial or lock, and nothing to pay for. AI runs on the learner's own OpenRouter API key, which pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in and a summary of the learner's own router key (details in get_own_router_key). This is account state, the same on every device.",
+                description: "Read the ForeverLM account behind Settings › Billing (paying for ForeverLM) and AI Usage (the key), freshly fetched from the account server as those panes do when they open. ForeverLM is a paid app after 7 free days: they begin at the first sign-in, and then the app is paid once (the Early user deal), with no subscription; an account that has not paid by then is locked until it does, and nothing in it is deleted. No subscription is sold. AI is never part of the price: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, comped or locked; whether the account is unlocked, when the free days end, how many are left and how many an account gets; whether the own key may run AI) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key). This is account state, the same on every device.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
             ),
         ]
@@ -142,7 +142,7 @@ extension MCPDataStore {
                 removeFromCatalog: arguments["remove_from_catalog"]
             )
         case "get_billing_settings":
-            let payload = try await Self.accountSettingsPayload(refresh: true)
+            let payload = try await Self.billingSettingsPayload(refresh: true)
             return try jsonString(payload)
         default:
             return nil
@@ -512,20 +512,18 @@ extension MCPDataStore {
         }
     }
 
-    // MARK: - The account
+    // MARK: - Billing
 
-    /// Settings › API Keys' account state as data: whether the learner is
-    /// signed in and their own key. ForeverLM is free, so there is no plan to
-    /// report. `refresh` reads the account from the account server first, as
-    /// the pane does when it appears.
+    /// The Billing and AI Usage panes' account state as data. `refresh` re-reads the plan from the
+    /// account server first, as the pane does when it appears.
     @MainActor
-    static func accountSettingsPayload(refresh: Bool) async throws -> [String: Any] {
+    static func billingSettingsPayload(refresh: Bool) async throws -> [String: Any] {
         let account = try AppModelBridge.requireAccount()
         if refresh {
             await account.refresh()
         }
         var payload: [String: Any] = [
-            "settings_pane": "Settings › API Keys",
+            "settings_pane": "Settings › Billing for paying for ForeverLM; AI Usage for the key",
             "reach": "account",
             "signed_in": account.isSignedIn,
         ]
@@ -539,15 +537,46 @@ extension MCPDataStore {
         } else {
             payload["own_key"] = NSNull()
         }
-        payload["ai_billing"] = "Bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider."
+        payload["ai_billing"] = "Bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked: its free days, or once ForeverLM is paid for (own_key_allowed)."
+        // The paid app (product owner, 2026-10-10, 2026-10-11 and 2026-11-12): 30 days
+        // free, then the Early user deal, paid once, and nothing else on sale
+        // (`AppAccess.plansOnSale`). Prices and the count of free days are
+        // the account server's.
+        let prices = account.planPrices
+        let onSale = account.appAccess.map { $0.state == .free ? [] : $0.plansOnSale } ?? ManagedAI.AppAccess.paidAppPlans
+        payload["plans"] = onSale.map { plan -> [String: Any] in
+            switch plan {
+            case .once:
+                return [
+                    "id": plan.rawValue, "name": EarlyUserDealOffer.title,
+                    "price_usd": prices.onceCents.map { Double($0) / 100 } ?? NSNull(),
+                    "billed": "once, no subscription", "recommended": true,
+                ]
+            }
+        }
+        if let access = account.appAccess {
+            payload["plan"] = [
+                "state": access.state.rawValue,
+                "unlocked": access.unlocked,
+                "locked": account.isAppLocked,
+                "free_until": access.freeUntil.map { KnowledgeStore.iso8601Formatter.string(from: $0) } ?? NSNull(),
+                "free_days_left": account.freeDaysLeft.map { $0 as Any } ?? NSNull(),
+                "free_days_total": access.freeDaysTotal.map { $0 as Any } ?? NSNull(),
+                "own_key_allowed": account.ownKeyAllowed,
+            ] as [String: Any]
+        } else {
+            payload["plan"] = NSNull()
+        }
         payload["only_in_the_settings_window"] = [
-            "Sign in with Apple (open_settings api_keys).",
+            "Pay for ForeverLM through Stripe Checkout (the Early user deal, paid once; open_settings billing). Only the learner can complete a checkout.",
+            "Sign in with Apple (open_settings billing).",
         ]
         if let message = account.balanceErrorMessage ?? account.errorMessage {
             payload["error"] = message
         }
-        if !account.isSignedIn {
-            payload["message"] = "Not signed in to ForeverLM. Signing in is the learner's own step: open_settings api_keys."
+        guard account.isSignedIn else {
+            payload["message"] = "Not signed in to ForeverLM, so there is no plan to show. Signing in is the learner's own step: open_settings billing."
+            return payload
         }
         return payload
     }

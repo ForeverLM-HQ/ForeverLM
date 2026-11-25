@@ -284,8 +284,7 @@ struct ChatPluginSetupCard: View {
 extension ChatPluginRequest.SetupNeed {
     /// Where the button goes.
     enum Destination: Equatable {
-        /// Settings, at API Keys, where signing in is, when the Mac is not
-        /// signed in at all.
+        /// Settings, at the account page, when the Mac is not signed in at all.
         case settings(SettingsPane)
         /// The plugin's own page in the Plugins place.
         case plugin(PluginPage)
@@ -303,7 +302,7 @@ extension ChatPluginRequest.SetupNeed {
     }
 
     var destination: Destination {
-        kind == .signIn ? .settings(.aiKeys) : .plugin(plugin.pluginPage)
+        kind == .signIn ? .settings(.aiBilling) : .plugin(plugin.pluginPage)
     }
 
     var title: String {

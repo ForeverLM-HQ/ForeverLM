@@ -14,16 +14,15 @@ struct ReviewSlashCommandTests {
         #expect(!names.contains("billing"))
     }
 
-    /// The key is Settings › API Keys since 2026-11-14, and spend is AI Usage.
-    /// ForeverLM is free (2026-11-24): there is no Billing pane to name.
-    @Test("/settings sends the key to API Keys and spend to AI Usage")
-    func settingsCommandSplitsKeysFromUsage() {
-        #expect(ReviewSlashCommandParser.parseSettingsPane("keys") == .aiKeys)
-        #expect(ReviewSlashCommandParser.parseSettingsPane("Key") == .aiKeys)
+    /// Billing is the plan alone since 2026-09-28; usage, credits and the key
+    /// are AI Usage.
+    @Test("/settings sends the plan to Billing and spend to AI Usage")
+    func settingsCommandSplitsBillingFromUsage() {
+        #expect(ReviewSlashCommandParser.parseSettingsPane("billing") == .aiBilling)
+        #expect(ReviewSlashCommandParser.parseSettingsPane("subscription") == .aiBilling)
         #expect(ReviewSlashCommandParser.parseSettingsPane("Usage") == .aiUsage)
         #expect(ReviewSlashCommandParser.parseSettingsPane("credits") == .aiUsage)
-        #expect(ReviewSlashCommandParser.parseSettingsPane("billing") == nil)
-        #expect(ReviewSlashCommandParser.parseSettingsPane("plan") == nil)
+        #expect(ReviewSlashCommandParser.parseSettingsPane("key") == .aiUsage)
     }
 
     /// Plugins left Settings for a place of their own on 2026-10-13: /settings

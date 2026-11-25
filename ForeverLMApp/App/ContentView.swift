@@ -17,6 +17,15 @@ struct ContentView: View {
             && !UITestConfiguration.isUITesting
     }
 
+    /// The pay screen: signed in, and the free days are over with nothing paid
+    /// (`ManagedAIAccountModel.isAppLocked`). It comes after the account wall
+    /// and ahead of everything else.
+    private var presentsAppLock: Bool {
+        !presentsAccountWall && account.isAppLocked && !UITestConfiguration.isUITesting
+    }
+
+    private var hidesStudio: Bool { presentsAccountWall || presentsAppLock }
+
     var body: some View {
         ZStack {
             // Keep Studio's root identity stable while a stored Apple session is
@@ -24,9 +33,9 @@ struct ContentView: View {
             // made SwiftUI tear it down during an active update transaction; the
             // resulting release race repeatedly crashed in `destroy of StudioView`.
             StudioView()
-                .opacity(presentsAccountWall ? 0 : 1)
-                .allowsHitTesting(!presentsAccountWall)
-                .accessibilityHidden(presentsAccountWall)
+                .opacity(hidesStudio ? 0 : 1)
+                .allowsHitTesting(!hidesStudio)
+                .accessibilityHidden(hidesStudio)
                 .onAppear {
                     if UITestConfiguration.isUITesting {
                         // Force a deterministic Retina-sized window for release screenshots.
@@ -77,7 +86,7 @@ struct ContentView: View {
 
             if presentsAccountWall {
                 // Sign in with Apple is required to use ForeverLM. It also supplies the
-                // durable identity the MCP connection and publishing use.
+                // durable identity used for managed AI credits and the optional MCP unlock.
                 //
                 // A lapsed session keeps the wall up until the proxy answers, rather than
                 // opening the app on a grace window that may be covering a revoked token.
@@ -89,6 +98,10 @@ struct ContentView: View {
                 AppleAccountWall(
                     isCheckingSession: account.isLoadingStoredSession || account.isValidatingLapsedSession
                 )
+            } else if presentsAppLock {
+                // Studio stays mounted underneath, for the same reason as the
+                // wall above: paying brings it back exactly as it was.
+                AppLockWall()
             }
         }
         .task {

@@ -47,7 +47,7 @@ struct PluginsPlaceTests {
     @Test("open_settings takes the same ids, the plugins' opening the Plugins place")
     func openSettingsIDs() {
         #expect(MCPDataStore.settingsPaneIDs.map(\.id) == [
-            "general", "chat", "voice", "images", "videos", "background", "api_keys", "ai_usage", "data_privacy",
+            "general", "chat", "voice", "images", "videos", "background", "billing", "ai_usage", "data_privacy",
             "team_general", "team_members", "sources", "plugins", "mcp", "mcp_pairing", "x", "youtube",
             "google_drive", "apple_calendar", "slack", "linear", "github", "notion", "build_your_own_plugin",
         ], "the tool's enum is a published contract")
@@ -68,7 +68,7 @@ struct PluginsPlaceTests {
             #expect(connect.destination == .plugin(plugin.pluginPage))
             #expect(connect.body.contains("Plugins › \(plugin.title)"))
             #expect(!connect.body.contains("Settings"))
-            #expect(ChatPluginRequest.SetupNeed(plugin: plugin, kind: .signIn).destination == .settings(.aiKeys))
+            #expect(ChatPluginRequest.SetupNeed(plugin: plugin, kind: .signIn).destination == .settings(.aiBilling))
         }
         #expect(ChatPlugin.github.pluginPage == .github)
     }

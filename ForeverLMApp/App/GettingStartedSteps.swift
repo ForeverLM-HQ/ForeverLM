@@ -80,6 +80,18 @@ enum GettingStartedFlow {
     }
 }
 
+/// Setup's AI step (product owner, 2026-09-25): ForeverLM's AI features run on the
+/// learner's own OpenRouter key, billed by OpenRouter at cost, so the step
+/// asks for the key, and the key has to be one the account may run
+/// (`ownKeyAllowed`): any unlocked account, so a new learner in the free
+/// days needs only the key. ForeverLM pays for no AI (2026-11-15), so there is
+/// no other way to go on.
+enum GettingStartedAIPayment {
+    static func isReady(hasOwnKey: Bool, ownKeyAllowed: Bool) -> Bool {
+        hasOwnKey && ownKeyAllowed
+    }
+}
+
 enum GettingStartedStep: Int, CaseIterable, Identifiable {
     case podcasts
     case article

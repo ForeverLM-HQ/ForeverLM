@@ -392,8 +392,13 @@ enum MCPAuthorization {
 /// let anyone who extracts it from one app copy read any user's knowledge base
 /// through their hosted MCP URL.
 ///
-/// No entitlement check happens here: ForeverLM is free (product owner,
-/// 2026-11-24), so a valid token is the whole question.
+/// No entitlement check happens here; the gate is the app lock (product owner,
+/// 2026-10-10: the free days over and nothing paid). The hosted gateway
+/// refuses `tools/call` for a locked account on the account server's word. A
+/// call on this Mac's own bearer never passes the gateway, so it is marked
+/// `arrivedWithoutGateway` and `MCPProtocolHandler.appLockRefusal` refuses it
+/// the same way. While locked the tunnel itself does not run either
+/// (`MCPServerLauncher.startHostedTunnel`).
 func authorizeMCPRequest(_ request: HTTPRequest) async -> MCPAuthorization {
     // The public ChatGPT directory uses one universal OAuth endpoint. Its
     // gateway signs the exact request with this installation's tunnel token;
@@ -409,7 +414,8 @@ func authorizeMCPRequest(_ request: HTTPRequest) async -> MCPAuthorization {
     let token = String(auth.dropFirst(7))
 
     let oauthProvider = await MCPOAuthProvider.sharedProvider()
-    if let access = await oauthProvider.validateAccessToken(token) {
+    if var access = await oauthProvider.validateAccessToken(token) {
+        access.arrivedWithoutGateway = true
         return .authorized(access)
     }
 
