@@ -43,6 +43,11 @@ struct ChatToolSurfaceTests {
         // could not add a to-do to the board.
         #expect(ReviewSessionManager.studySurfaceToolNames.contains("create_notebook_task"))
         #expect(!ReviewSessionManager.chatExcludedToolNames.contains("create_notebook_task"))
+        // Being on the surface is not enough: the surface is over the deferral
+        // budget, so a tool outside the core set waits behind load_app_tools.
+        // A review chat that had it only that way still answered that it could
+        // not add the to-do (2026-11-25).
+        #expect(ReviewSessionManager.coreAppToolNames.contains("create_notebook_task"))
     }
 
     @Test("Every chat can put what it names on the learner's screen")

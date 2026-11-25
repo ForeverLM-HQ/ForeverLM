@@ -316,6 +316,12 @@ extension ReviewSessionManager {
         // Rename, pin, hide or move this chat into a Notebook: said aloud in a
         // chat, so it travels whole rather than behind a load step.
         "update_review_session",
+        // "Add this to my board" is said mid-chat. Every surface is over the
+        // deferral budget (a study chat's is ~134k characters), so a to-do tool
+        // left out of the core set waited behind load_app_tools and a review
+        // chat answered that it could not add the to-do (product owner,
+        // 2026-11-25, twice). With no notebook_id it lands on the Board.
+        "create_notebook_task",
         "list_docs", "read_doc", "create_doc", "edit_doc", "write_doc",
         "import_paper_from_url",
         "list_goals", "get_schedule", "get_today_sources",
