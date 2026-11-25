@@ -24,6 +24,11 @@ import UIKit
 // or could not be played, the assistant comes back by itself and says so
 // (`CarPlayVoiceScreen`).
 //
+// A paper's narration can show the figure it is reading (product owner,
+// 2026-11-25), as the voice-control state's picture, but only once the learner
+// turned on Show Figures in CarPlay and affirmed they will look only while
+// parked; it is off by default (`MobileNarrationFigure.mayShow`).
+//
 // Voice stays the way in, but a few things are a tap away (product owner,
 // 2026-11-23: "it should still be primarily voice based; but a few things
 // should be clickable; or like 'do flashcards'"). Papers, on the bar of both
@@ -40,6 +45,9 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     private var narrationTemplate: CPVoiceControlTemplate?
     /// The title of the narration on screen; nil while the conversation is.
     private var shownNarrationTitle: String?
+    /// The figure the narration's screen shows, when the learner allowed
+    /// figures in CarPlay (`MobileNarrationFigure.mayShow`).
+    private var shownNarrationFigureID: String?
     /// The Papers list and the paper picked from it, while on screen.
     private var papersTemplate: CPListTemplate?
     private var paperTemplate: CPListTemplate?
@@ -80,16 +88,26 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 self.voiceTemplate?.activateVoiceControlState(withIdentifier: identifier)
             }
 
-        narrationObserver = Publishers.CombineLatest4(realtime.$phase, audio.$voiceListen, audio.$isPlaying, audio.$currentItem)
-            .sink { [weak self] phase, listen, isPlaying, currentItem in
-                self?.show(CarPlayVoiceScreen.resolve(
-                    conversationIsIdle: phase == .idle,
-                    listen: listen,
-                    // Until the narration is the player's it is being made or
-                    // fetched: on its way, not paused.
-                    isPlaying: isPlaying || currentItem?.id != listen?.sourceID
-                ))
+        narrationObserver = Publishers.CombineLatest(
+            Publishers.CombineLatest4(realtime.$phase, audio.$voiceListen, audio.$isPlaying, audio.$currentItem),
+            audio.$narrationFigure
+        )
+            .sink { [weak self] state, figure in
+                let (phase, listen, isPlaying, currentItem) = state
+                self?.show(
+                    CarPlayVoiceScreen.resolve(
+                        conversationIsIdle: phase == .idle,
+                        listen: listen,
+                        // Until the narration is the player's it is being made or
+                        // fetched: on its way, not paused.
+                        isPlaying: isPlaying || currentItem?.id != listen?.sourceID
+                    ),
+                    figure: figure?.sourceID == listen?.sourceID ? figure : nil
+                )
             }
+        // The lock screen's artwork is CarPlay's too: it drops a figure the
+        // car may not show.
+        audio.updateNowPlayingInfo()
 
         if realtime.phase == .idle {
             startVoiceAgent()
@@ -118,6 +136,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         narrationObserver = nil
         narrationTemplate = nil
         shownNarrationTitle = nil
+        shownNarrationFigureID = nil
+        MobileAudioReviewViewModel.shared.updateNowPlayingInfo()
         // Do not trust the last rendered phase as the ownership authority. A
         // disconnect can arrive while async preflight is still suspended; End
         // must invalidate that pending start or it could arm the microphone
@@ -151,11 +171,12 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     // MARK: - Narration
 
     /// Puts the conversation or the narration on the car's screen.
-    private func show(_ screen: CarPlayVoiceScreen) {
+    private func show(_ screen: CarPlayVoiceScreen, figure: MobileNarrationFigure? = nil) {
         switch screen {
         case .conversation:
             guard shownNarrationTitle != nil else { return }
             shownNarrationTitle = nil
+            shownNarrationFigureID = nil
             narrationTemplate = nil
             // A fresh template: the one the narration replaced is not shown again.
             let template = makeVoiceTemplate()
@@ -168,10 +189,16 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 needsOwnKey: realtime.needsOwnKey
             ))
         case .narration(let title, let isPlaying):
-            if shownNarrationTitle != title || narrationTemplate == nil {
-                let template = makeNarrationTemplate(title: title)
+            // Read each time: the switch can change in Settings while the car
+            // is connected, and the next figure follows it.
+            let figure = MobileNarrationFigure.mayShow(inCar: true) ? figure : nil
+            if shownNarrationTitle != title || shownNarrationFigureID != figure?.id || narrationTemplate == nil {
+                // A voice-control state's picture is fixed when it is made,
+                // so a new figure is a new template.
+                let template = makeNarrationTemplate(title: title, figure: figure)
                 narrationTemplate = template
                 shownNarrationTitle = title
+                shownNarrationFigureID = figure?.id
                 interfaceController?.setRootTemplate(template, animated: false, completion: nil)
             }
             narrationTemplate?.activateVoiceControlState(withIdentifier: isPlaying ? "playing" : "paused")
@@ -184,19 +211,25 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         }
     }
 
-    /// The narration's own screen: its title and the mark of what it is doing.
-    private func makeNarrationTemplate(title: String) -> CPVoiceControlTemplate {
-        let titles = title.isEmpty ? nil : [title]
+    /// The narration's own screen: its title and the mark of what it is
+    /// doing, or, when the learner allowed figures in CarPlay, the figure the
+    /// narration is on with its label before the title.
+    private func makeNarrationTemplate(title: String, figure: MobileNarrationFigure? = nil) -> CPVoiceControlTemplate {
+        var titles: [String]? = title.isEmpty ? nil : [title]
+        let figureImage = figure.map { CarPlayFigureRenderer.image(for: $0.image) }
+        if let figure {
+            titles = title.isEmpty ? [figure.label] : ["\(figure.label) · \(title)", figure.label]
+        }
         let playing = CPVoiceControlState(
             identifier: "playing",
             titleVariants: titles,
-            image: UIImage(systemName: "speaker.wave.2.fill"),
+            image: figureImage ?? UIImage(systemName: "speaker.wave.2.fill"),
             repeats: false
         )
         let paused = CPVoiceControlState(
             identifier: "paused",
             titleVariants: titles,
-            image: UIImage(systemName: "pause.fill"),
+            image: figureImage ?? UIImage(systemName: "pause.fill"),
             repeats: false
         )
         let template = CPVoiceControlTemplate(voiceControlStates: [playing, paused])
@@ -540,6 +573,33 @@ enum CarPlayVoiceScreen: Equatable {
             return .backToAssistant(.init(sourceID: listen.sourceID, title: listen.title, outcome: .finished))
         case .failed(let reason):
             return .backToAssistant(.init(sourceID: listen.sourceID, title: listen.title, outcome: .failed(reason)))
+        }
+    }
+}
+
+/// A figure fitted to the picture a voice-control state may show: at most
+/// 150 by 150 points, on white as it is printed.
+private enum CarPlayFigureRenderer {
+    private static let canvas = CGSize(width: 150, height: 150)
+
+    static func image(for figure: UIImage) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        format.scale = 3
+        return UIGraphicsImageRenderer(size: canvas, format: format).image { _ in
+            let size = figure.size
+            guard size.width > 0, size.height > 0 else { return }
+            let scale = min(canvas.width / size.width, canvas.height / size.height)
+            let fitted = CGSize(width: size.width * scale, height: size.height * scale)
+            let rect = CGRect(
+                x: (canvas.width - fitted.width) / 2,
+                y: (canvas.height - fitted.height) / 2,
+                width: fitted.width,
+                height: fitted.height
+            )
+            UIColor.white.setFill()
+            UIBezierPath(roundedRect: rect, cornerRadius: 6).fill()
+            figure.draw(in: rect)
         }
     }
 }

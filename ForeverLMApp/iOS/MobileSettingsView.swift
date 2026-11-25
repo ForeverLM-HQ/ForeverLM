@@ -538,6 +538,10 @@ private struct MobileTextToSpeechSettingsControls: View {
     private var automaticallyContinuesBooks: Bool
     @AppStorage(Prefs.Mobile.hasAskedToAutomaticallyContinueBooks)
     private var hasChosenBookContinuation: Bool
+    @AppStorage(Prefs.Mobile.carPlayShowsFigures)
+    private var carPlayShowsFigures: Bool
+    /// Turning figures on in CarPlay waits on this confirmation.
+    @State private var isConfirmingCarPlayFigures = false
     @State private var preferenceSyncError: String?
     @State private var suppressedCostModelIDs: Set<String> = []
     /// The account did not take or give the model pick; shown under the
@@ -616,6 +620,16 @@ private struct MobileTextToSpeechSettingsControls: View {
                 .onChange(of: automaticallyContinuesBooks) { _, _ in
                     hasChosenBookContinuation = true
                 }
+
+            Toggle("Show figures in CarPlay", isOn: carPlayFiguresBinding)
+                .accessibilityHint("While a paper is read aloud, CarPlay shows the figure it is on. Off until you agree to look only while parked.")
+                .accessibilityIdentifier("settings.carPlayShowsFigures")
+                .alert("Show Figures in CarPlay?", isPresented: $isConfirmingCarPlayFigures) {
+                    Button("I Agree") { carPlayShowsFigures = true }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("While a paper is read aloud, the car's screen will show the figure the narration is on. Looking at a figure while driving is dangerous. Only look while parked or as a passenger, and keep your eyes on the road.")
+                }
         }
 
         if let preferenceSyncError {
@@ -661,6 +675,21 @@ private struct MobileTextToSpeechSettingsControls: View {
                 )
             }
         }
+    }
+
+    /// Off at once; on only through the confirmation, never straight from
+    /// the switch.
+    private var carPlayFiguresBinding: Binding<Bool> {
+        Binding(
+            get: { carPlayShowsFigures },
+            set: { isOn in
+                if isOn {
+                    isConfirmingCarPlayFigures = true
+                } else {
+                    carPlayShowsFigures = false
+                }
+            }
+        )
     }
 
     /// Reads OpenRouter's speech directory off the main actor (a fresh read

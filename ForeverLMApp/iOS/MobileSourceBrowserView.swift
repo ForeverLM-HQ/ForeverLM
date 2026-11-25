@@ -639,7 +639,11 @@ struct MobileFullScreenPlaybackView: View {
                     )
                 )
                 .shadow(color: Color.accentColor.opacity(0.22), radius: 30, y: 16)
-            if let localArtwork {
+            if let figure = vm.narrationFigure, figure.sourceID == displayedItem.id {
+                // The figure the narration is on, in place of the cover
+                // while the voice reads it.
+                figureArtwork(figure)
+            } else if let localArtwork {
                 // A page or a cover is portrait; fit it whole on the tile rather
                 // than cropping the title off, the way a cover sits on a shelf.
                 Image(uiImage: localArtwork)
@@ -666,7 +670,27 @@ struct MobileFullScreenPlaybackView: View {
         .aspectRatio(1, contentMode: .fit)
         .frame(maxWidth: 420)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .accessibilityHidden(true)
+        .animation(.easeInOut(duration: 0.35), value: vm.narrationFigure?.id)
+        .accessibilityHidden(vm.narrationFigure == nil)
+    }
+
+    /// A figure on white, as it is printed, with its label under it.
+    private func figureArtwork(_ figure: MobileNarrationFigure) -> some View {
+        VStack(spacing: MobileDesign.Spacing.small) {
+            Image(uiImage: figure.image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .padding(MobileDesign.Spacing.small)
+                .background(.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Text(figure.label)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .padding(MobileDesign.Spacing.large)
+        .transition(.opacity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(figure.label), the figure the narration is on")
     }
 
     private var waveformArtwork: some View {

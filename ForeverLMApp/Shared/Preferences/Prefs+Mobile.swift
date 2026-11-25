@@ -7,6 +7,7 @@ extension Prefs {
     /// The iPhone's own device-local keys.
     enum Mobile {
         static let automaticallyContinuesBooks = DeviceKey<Bool>("ios.listen.automaticallyContinuesBooks", default: false, reason: "iPhone-local: whether this phone plays the next chapter of a book")
+        static let carPlayShowsFigures = DeviceKey<Bool>("ios.listen.carPlayShowsFigures", default: false, reason: "iPhone-local: whether CarPlay shows a paper's figures during a narration; off until the learner affirms they will only look while parked")
         static let hasAskedToAutomaticallyContinueBooks = DeviceKey<Bool>("ios.listen.hasAskedToAutomaticallyContinueBooks", default: false, reason: "iPhone-local: one-shot marker that this phone asked about continuing books")
         static let hasOfferedVoiceChoice = DeviceKey<Bool>("ios.listen.hasOfferedVoiceChoice", default: false, reason: "iPhone-local: one-shot marker that this phone offered the choice of a voice before its first narration")
         static let playbackSpeed = DeviceKey<Float?>("ios.listen.playbackSpeed", reason: "iPhone-local: this phone's listening speed")
@@ -29,6 +30,7 @@ extension Prefs {
 
         static let all: [AnyPreferenceKey] = [
             automaticallyContinuesBooks.erased,
+            carPlayShowsFigures.erased,
             hasAskedToAutomaticallyContinueBooks.erased,
             hasOfferedVoiceChoice.erased,
             playbackSpeed.erased,

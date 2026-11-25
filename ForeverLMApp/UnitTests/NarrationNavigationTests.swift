@@ -99,4 +99,30 @@ struct NarrationNavigationTests {
         #expect(PaperPDFSections.joinedHeading(["Loss of match drives age-", "related diseases"]) == "Loss of match drives age-related diseases")
         #expect(PaperPDFSections.joinedHeading(["The origin of species", "and evolution of sexes"]) == "The origin of species and evolution of sexes")
     }
+
+    @Test("The figures a narration names are found in order, with panels, and supplementary ones left out")
+    func figureMentions() {
+        let chunks = [
+            "As Figure 2b shows, the rate falls. Fig. 3 agrees, unlike Supplementary Figure 4 or Figure S2.",
+            "Extended Data Fig. 1 is not it, but figure two is. Figures 12 close it.",
+        ]
+        let mentions = NarrationFigureLocator.mentions(in: chunks)
+        #expect(mentions.map(\.label) == ["Figure 2", "Figure 3", "Figure 2", "Figure 12"])
+        #expect(mentions.map(\.panel) == ["b", nil, nil, nil])
+        #expect(mentions.map(\.spot.chunkIndex) == [0, 0, 1, 1])
+        #expect(mentions[0].spot.fraction < mentions[1].spot.fraction)
+    }
+
+    @Test("A figure shows from when it is named until the narration has moved on")
+    func currentFigure() {
+        let mentions = [
+            NarrationFigureMention(label: "Figure 1", panel: nil, spot: NarrationSpot(chunkIndex: 0, fraction: 0)),
+            NarrationFigureMention(label: "Figure 2", panel: nil, spot: NarrationSpot(chunkIndex: 1, fraction: 0)),
+        ]
+        let time: (NarrationSpot) -> TimeInterval? = { Double($0.chunkIndex) * 100 }
+        #expect(NarrationFigureLocator.current(mentions, at: 10, time: time)?.label == "Figure 1")
+        #expect(NarrationFigureLocator.current(mentions, at: 90, time: time) == nil)
+        #expect(NarrationFigureLocator.current(mentions, at: 120, time: time)?.label == "Figure 2")
+        #expect(NarrationFigureLocator.current(mentions, at: 500, time: time) == nil)
+    }
 }

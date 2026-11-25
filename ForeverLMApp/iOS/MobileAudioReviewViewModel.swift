@@ -36,6 +36,16 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// opening holds fewer chunks than the whole narration that replaces it.
     var narrationSectionsKey: (sourceID: String, chunkCount: Int)?
     var narrationSectionsTask: Task<Void, Never>?
+    /// The figures the playing paper's narration names, each at its place
+    /// (`NarrationFigureLocator`); empty for anything else.
+    var narrationFigureMentions: [NarrationFigureMention] = []
+    /// The figure the narration is on now, drawn from the PDF: the Now
+    /// Playing screen and the lock screen show it, and CarPlay does once the
+    /// learner has allowed it (`Prefs.Mobile.carPlayShowsFigures`).
+    @Published var narrationFigure: MobileNarrationFigure?
+    /// The figure being drawn for `narrationFigure`, so a tick does not start it twice.
+    var narrationFigureLoadingKey: String?
+    var narrationFigureTask: Task<Void, Never>?
     @Published var speed: Float
     @Published var isSiriVoiceSessionActive = false
     @Published var isSourceChatActive = false

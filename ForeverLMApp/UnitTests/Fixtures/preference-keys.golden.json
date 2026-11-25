@@ -623,6 +623,12 @@
       "synced": false
     },
     {
+      "name": "ios.listen.carPlayShowsFigures",
+      "reason": "iPhone-local: whether CarPlay shows a paper's figures during a narration; off until the learner affirms they will only look while parked",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "ios.listen.hasAskedToAutomaticallyContinueBooks",
       "reason": "iPhone-local: one-shot marker that this phone asked about continuing books",
       "scope": "device",

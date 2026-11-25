@@ -2,7 +2,7 @@ import PDFKit
 import SwiftUI
 import UIKit
 
-private actor MobilePaperFigureRenderer {
+actor MobilePaperFigureRenderer {
     static let shared = MobilePaperFigureRenderer()
 
     /// The widest a crop is drawn, in pixels: sharp at full screen on a

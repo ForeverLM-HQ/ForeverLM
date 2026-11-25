@@ -891,6 +891,9 @@ extension MobileAudioReviewViewModel {
         if let key = narrationSectionsKey, key.sourceID == item.id, key.chunkCount == chunks.count { return }
         clearNarrationSections()
         narrationSectionsKey = (item.id, chunks.count)
+        if item.manifest.sourceType == "paper", texts.count == chunks.count {
+            narrationFigureMentions = NarrationFigureLocator.mentions(in: texts)
+        }
         guard item.manifest.sourceType == "paper",
               !texts.isEmpty, texts.count == chunks.count else { return }
         let sourceID = item.id
@@ -915,6 +918,60 @@ extension MobileAudioReviewViewModel {
         narrationSectionsTask = nil
         narrationSectionsKey = nil
         if !narrationSections.isEmpty { narrationSections = [] }
+        narrationFigureMentions = []
+        clearNarrationFigure()
+    }
+
+    // MARK: The figure the narration is on
+
+    /// Puts up the figure the narration names at this second, drawn from
+    /// the paper's PDF, and takes it down once the voice has moved on
+    /// (`NarrationFigureLocator.hold`). Called on every player tick and seek;
+    /// a figure already up or being drawn is left alone.
+    func updateNarrationFigure() {
+        guard let item = currentItem, !narrationFigureMentions.isEmpty,
+              let source = source(for: item.id), !source.paperFigures.isEmpty,
+              let mention = NarrationFigureLocator.current(
+                  narrationFigureMentions,
+                  at: currentTime,
+                  time: { self.narrationTime(of: $0) }
+              ),
+              let match = MobileWalkthroughDeck.figure(
+                  labelled: mention.label,
+                  panel: mention.panel,
+                  in: source.paperFigures
+              ) else {
+            clearNarrationFigure()
+            return
+        }
+        let key = "\(item.id):\(match.figure.id):\(mention.panel ?? "")"
+        guard narrationFigure?.id != key, narrationFigureLoadingKey != key else { return }
+        narrationFigureLoadingKey = key
+        narrationFigureTask?.cancel()
+        let label = PaperWalkthroughValidation.figurePanelLabel(match.figure.figureLabel, panel: mention.panel)
+        let sourceID = item.id
+        narrationFigureTask = Task { [weak self] in
+            guard let image = try? await MobilePaperFigureRenderer.shared.image(
+                for: match.figure,
+                panel: match.panel,
+                panelLabel: mention.panel,
+                sharesPageWithOtherFigures: match.sharesPage
+            ) else { return }
+            guard let self, !Task.isCancelled, self.narrationFigureLoadingKey == key,
+                  self.currentItem?.id == sourceID else { return }
+            self.narrationFigure = MobileNarrationFigure(id: key, sourceID: sourceID, label: label, image: image)
+            self.updateNowPlayingInfo()
+        }
+    }
+
+    func clearNarrationFigure() {
+        narrationFigureTask?.cancel()
+        narrationFigureTask = nil
+        narrationFigureLoadingKey = nil
+        if narrationFigure != nil {
+            narrationFigure = nil
+            updateNowPlayingInfo()
+        }
     }
 
     /// The second `spot` falls on in the playing composition; nil when its
@@ -976,6 +1033,7 @@ extension MobileAudioReviewViewModel {
         let target = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
         currentTime = seconds
+        updateNarrationFigure()
         updateNowPlayingInfo()
     }
 
@@ -1068,6 +1126,7 @@ extension MobileAudioReviewViewModel {
             Task { @MainActor in
                 guard let self else { return }
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
+                self.updateNarrationFigure()
                 self.installDeferredOpeningExtensionIfDue()
                 self.pauseForSleepTimerIfDue()
                 if self.isPlaying {
@@ -1292,7 +1351,13 @@ extension MobileAudioReviewViewModel {
         if let subtitle = currentItem.subtitle, !subtitle.isEmpty {
             info[MPMediaItemPropertyAlbumTitle] = subtitle
         }
-        if let nowPlayingArtwork, nowPlayingArtworkSourceID == currentItem.id {
+        if let figure = narrationFigure, figure.sourceID == currentItem.id,
+           MobileNarrationFigure.mayShow(inCar: MobileRealtimeVoice.isCarConnected) {
+            // The figure the voice is on, in place of the cover. CarPlay
+            // reads this artwork too, so with the car connected it is shown
+            // only once the learner allowed figures there.
+            info[MPMediaItemPropertyArtwork] = figure.artwork
+        } else if let nowPlayingArtwork, nowPlayingArtworkSourceID == currentItem.id {
             info[MPMediaItemPropertyArtwork] = nowPlayingArtwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info

@@ -577,3 +577,78 @@ enum PDFListenPassage {
         return trimmed.isEmpty ? nil : trimmed
     }
 }
+
+// MARK: - Figures the narration names
+
+/// A figure the narration names ("as Figure 2b shows"), at the place it says
+/// so. Listening shows that figure while the voice is on it.
+struct NarrationFigureMention: Equatable, Sendable {
+    /// "Figure 2": the label the paper's figure index uses.
+    var label: String
+    /// The panel letter when the narration names one ("Figure 2b").
+    var panel: String?
+    var spot: NarrationSpot
+}
+
+enum NarrationFigureLocator {
+    /// How long a figure stays up after the narration last named it. Long
+    /// enough for the sentences that read it; short enough that a figure
+    /// mentioned once does not sit over the next section.
+    static let hold: TimeInterval = 75
+
+    /// Every main figure the chunks name, in order. Supplementary and
+    /// Extended Data figures are left out: the paper's own figure index
+    /// holds only its main figures.
+    static func mentions(in chunks: [String]) -> [NarrationFigureMention] {
+        var found: [NarrationFigureMention] = []
+        for (chunkIndex, chunk) in chunks.enumerated() {
+            let text = chunk as NSString
+            guard text.length > 0 else { continue }
+            for match in pattern.matches(in: chunk, range: NSRange(location: 0, length: text.length)) {
+                let qualifierRange = match.range(at: 1)
+                if qualifierRange.location != NSNotFound { continue }
+                let numberText = text.substring(with: match.range(at: 2))
+                guard let number = Int(numberText) ?? spelledNumbers[numberText.lowercased()],
+                      number > 0 else { continue }
+                let panelRange = match.range(at: 3)
+                let panel = panelRange.location == NSNotFound ? nil : text.substring(with: panelRange).lowercased()
+                found.append(NarrationFigureMention(
+                    label: "Figure \(number)",
+                    panel: panel,
+                    spot: NarrationSpot(
+                        chunkIndex: chunkIndex,
+                        fraction: Double(match.range.location) / Double(text.length)
+                    )
+                ))
+            }
+        }
+        return found
+    }
+
+    /// The mention the listener is on at `now`, given when each is spoken:
+    /// the last one already said, while it is still within `hold`.
+    static func current(
+        _ mentions: [NarrationFigureMention],
+        at now: TimeInterval,
+        time: (NarrationSpot) -> TimeInterval?
+    ) -> NarrationFigureMention? {
+        mentions.last { mention in
+            guard let spoken = time(mention.spot) else { return false }
+            return spoken <= now + 0.25 && now - spoken <= hold
+        }
+    }
+
+    private static let spelledNumbers: [String: Int] = [
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+        "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    ]
+
+    /// Group 1: a qualifier that makes it not a main figure. Group 2: the
+    /// number, in digits or spelled out ("Figure S2", supplementary, has
+    /// neither). Group 3: a panel letter written against the number ("2b"),
+    /// never a following word.
+    private static let pattern = try! NSRegularExpression(
+        pattern: #"(?:\b(Supplementary|Supplemental|Extended\s+Data|Appendix)\s+)?\b(?:Figures?|Figs?\.?)\s*(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:([a-h])\b|\b)"#,
+        options: [.caseInsensitive]
+    )
+}

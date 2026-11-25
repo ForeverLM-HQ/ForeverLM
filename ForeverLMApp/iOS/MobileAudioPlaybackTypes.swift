@@ -1,6 +1,8 @@
 // The playback, book and sync status types the audio view model publishes.
 
 import Foundation
+import MediaPlayer
+import UIKit
 
 struct MobileSourceSyncDiagnostic: Equatable {
     let accountStatus: String
@@ -255,5 +257,34 @@ enum MobileAudioPlayerError: LocalizedError {
         case .missingAudioTrack(let fileName):
             return "The audio file \(fileName) does not contain a playable audio track."
         }
+    }
+}
+
+/// The paper figure a narration is on, drawn from its PDF (`updateNarrationFigure`).
+struct MobileNarrationFigure: Identifiable, Equatable {
+    let id: String
+    let sourceID: String
+    /// "Figure 2b".
+    let label: String
+    let image: UIImage
+    let artwork: MPMediaItemArtwork
+
+    init(id: String, sourceID: String, label: String, image: UIImage) {
+        self.id = id
+        self.sourceID = sourceID
+        self.label = label
+        self.image = image
+        artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+
+    /// Whether a figure may be put on a screen: always on the phone, and in
+    /// the car only once the learner turned on Show Figures in CarPlay and
+    /// affirmed they will look only while parked (product owner, 2026-11-25:
+    /// "disable it by default ... otherwise they do not get access to it in
+    /// carplay").
+    static func mayShow(inCar: Bool) -> Bool {
+        !inCar || Preferences.value(Prefs.Mobile.carPlayShowsFigures)
     }
 }
