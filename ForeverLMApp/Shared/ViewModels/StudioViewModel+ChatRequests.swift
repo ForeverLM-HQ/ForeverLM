@@ -283,9 +283,11 @@ extension StudioViewModel {
             for chatID in Set(activities.filter { $0.kind == .chat }.map(\.targetID)) where chatSources[chatID] == nil {
                 chatSources[chatID] = (try? await storage.chatDiscussedSourceIDs(sessionID: chatID)) ?? []
             }
+            let marks = await highlights(from: from, to: today)
             let ranked = TeachBack.recentEngagements(
                 activities: activities,
                 chatSources: chatSources,
+                highlightCounts: marks.mapValues(\.count),
                 isEligible: { id in articlesById[id].map(isSourceIncludedInKnowledge) ?? false },
                 title: { id in articlesById[id]?.title ?? "" }
             )
@@ -294,17 +296,54 @@ extension StudioViewModel {
                 TeachBack.RecentLine(
                     title: articlesById[entry.sourceID].map(recentTeachBackTitle(for:)) ?? entry.sourceID,
                     minutes: entry.minutes,
-                    chatTitles: entry.chatTitles
+                    chatTitles: entry.chatTitles,
+                    highlights: entry.highlights
                 )
             }
             return RecentTeachBackRequest(
                 sourceIDs: ranked.sources.map(\.sourceID),
                 lines: lines,
                 otherChats: ranked.otherChats,
-                sinceYesterday: sinceYesterday
+                sinceYesterday: sinceYesterday,
+                highlightBriefing: highlightBriefing(ranked.sources.map(\.sourceID), marks: marks)
             )
         }
         return nil
+    }
+
+    /// The passages marked on each day from `from` to `to` (`YYYY-MM-DD`,
+    /// both included), by source.
+    func highlights(from: String, to: String) async -> [String: [SourceHighlight]] {
+        var bySource: [String: [SourceHighlight]] = [:]
+        var day = from
+        var guardDays = 0
+        while guardDays < 31 {
+            for mark in (try? await storage.sourceHighlights(madeOn: day)) ?? [] {
+                bySource[mark.sourceID, default: []].append(mark)
+            }
+            guard day != to, let next = DayPlan.dateString(day, offsetBy: 1) else { break }
+            day = next
+            guardDays += 1
+        }
+        return bySource
+    }
+
+    /// The tutor's note of what the learner marked in `sourceIDs`
+    /// (`TeachBack.highlightBriefing`), in that order. Nil when nothing was.
+    func highlightBriefing(_ sourceIDs: [String], marks: [String: [SourceHighlight]]) -> String? {
+        TeachBack.highlightBriefing(sourceIDs.compactMap { id in
+            guard let found = marks[id], !found.isEmpty else { return nil }
+            let title = articlesById[id].map(recentTeachBackTitle(for:)) ?? id
+            return (title, found.map { ($0.quote, $0.note) })
+        })
+    }
+
+    /// The morning chat's note of the passages marked in its sources since
+    /// yesterday.
+    func teachBackHighlightBriefing(sourceIDs: [String], now: Date = Date()) async -> String? {
+        let today = DayPlan.dateString(for: now)
+        guard let yesterday = DayPlan.dateString(today, offsetBy: -1) else { return nil }
+        return highlightBriefing(sourceIDs, marks: await highlights(from: yesterday, to: today))
     }
 
     /// A source as the recent list names it: a book's chapter says which book.
@@ -332,7 +371,18 @@ extension StudioViewModel {
             return isSourceIncludedInKnowledge(article) && !TeachBack.isFrontOrBackMatter(article.title)
         }
         var inputs = MorningPickRule.Inputs()
-        inputs.recent = ((try? await storage.substantiallyConsumedSourceIDs(since: yesterday, now: now)) ?? []).filter(eligible)
+        // What was taken in since yesterday, the sources with passages marked
+        // in them first (most marks first): marking is the learner saying it
+        // mattered, and a source marked but read only briefly still counts.
+        let consumed = ((try? await storage.substantiallyConsumedSourceIDs(since: yesterday, now: now)) ?? []).filter(eligible)
+        let marked = await highlights(
+            from: DayPlan.dateString(for: yesterday, calendar: calendar),
+            to: DayPlan.dateString(for: now, calendar: calendar)
+        ).mapValues(\.count).filter { eligible($0.key) }
+        inputs.recent = (consumed + marked.keys.filter { !consumed.contains($0) }.sorted())
+            .enumerated()
+            .sorted { (marked[$0.element] ?? 0, -$0.offset) > (marked[$1.element] ?? 0, -$1.offset) }
+            .map(\.element)
         inputs.explainedAt = ((try? await storage.explainedSourceDates()) ?? [:]).filter { eligible($0.key) }
         if let snapshot = try? await memoryCardReviewSnapshot(scope: .allNotebooks, includesListings: false, includesToCheck: false, now: now) {
             var overdue: [String: Int] = [:]
@@ -444,6 +494,8 @@ struct RecentTeachBackRequest: Equatable {
     let lines: [TeachBack.RecentLine]
     let otherChats: [String]
     let sinceYesterday: Bool
+    /// The passages marked in the listed sources, for the tutor only.
+    var highlightBriefing: String? = nil
 }
 
 /// The morning routine's constants (docs/morning-routine-design.md).

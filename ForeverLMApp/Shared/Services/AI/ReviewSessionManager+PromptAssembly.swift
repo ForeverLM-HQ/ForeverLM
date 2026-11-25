@@ -72,6 +72,9 @@ extension ReviewSessionManager {
             stable = Prompts.reviewTutor
         case .teachBack:
             stable = Prompts.teachBackTutor + "\n\n" + TeachBack.recordingInstruction
+            if let id = sessionID, let briefing = teachBackBriefings[id] {
+                stable += "\n\n" + briefing
+            }
         case .study:
             stable = Prompts.studyChat
         case .summarize:

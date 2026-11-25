@@ -77,12 +77,20 @@ enum TeachBack {
     static let recentChatTitleLimit = 3
 
     /// One source the learner spent time with, from the day's log: minutes
-    /// read, heard or watched, plus the chats that discussed it.
+    /// read, heard or watched, the chats that discussed it, and the passages
+    /// they marked in it.
     struct RecentEngagement: Equatable, Sendable {
         var sourceID: String
         var minutes: Int
         var chatTitles: [String]
+        var highlights: Int = 0
     }
+
+    /// What one marked passage weighs in the ranking, in minutes: marking is
+    /// the learner saying "this matters", so a paper with forty marks outranks
+    /// one read as long with none (2026-11-25: "it should also take note of
+    /// the things i highlighted").
+    static let recentMinutesPerHighlight = 3
 
     /// What the learner actually worked on, from the Activity log
     /// (`DayActivity`) of the days asked for: minutes per source, and each
@@ -90,10 +98,13 @@ enum TeachBack {
     /// first, chat minutes included; a source with under
     /// `recentMinimumMinutes` and no chat is dropped, as are a book's front
     /// and back matter and pages read outside the library. `otherChats` are
-    /// the chats that discussed no listed source, by name.
+    /// the chats that discussed no listed source, by name. A passage marked
+    /// in a source (`highlightCounts`) lists it however short the reading,
+    /// and weighs `recentMinutesPerHighlight` in the order.
     static func recentEngagements(
         activities: [DayActivity],
         chatSources: [String: [String]],
+        highlightCounts: [String: Int] = [:],
         isEligible: (String) -> Bool,
         title: (String) -> String
     ) -> (sources: [RecentEngagement], otherChats: [String]) {
@@ -136,10 +147,13 @@ enum TeachBack {
             guard !id.hasPrefix("external-reader:"), isEligible(id) else { return false }
             return !isFrontOrBackMatter(title(id))
         }
+        func weight(_ entry: RecentEngagement) -> Int {
+            entry.minutes + entry.highlights * recentMinutesPerHighlight
+        }
         func same(_ a: String, _ b: String) -> Bool {
             a.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(b.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
         }
-        let candidates = Set(minutes.keys).union(chats.keys).filter(listable)
+        let candidates = Set(minutes.keys).union(chats.keys).union(highlightCounts.filter { $0.value > 0 }.keys).filter(listable)
         let ranked = candidates
             .map { id -> RecentEngagement in
                 // A chat named after the source says nothing the line does not.
@@ -151,11 +165,12 @@ enum TeachBack {
                 return RecentEngagement(
                     sourceID: id,
                     minutes: (minutes[id] ?? 0) + (chatMinutes[id] ?? 0),
-                    chatTitles: unique
+                    chatTitles: unique,
+                    highlights: highlightCounts[id] ?? 0
                 )
             }
-            .filter { $0.minutes >= recentMinimumMinutes || !$0.chatTitles.isEmpty }
-            .sorted { ($0.minutes, $0.sourceID) > ($1.minutes, $1.sourceID) }
+            .filter { $0.minutes >= recentMinimumMinutes || !$0.chatTitles.isEmpty || $0.highlights > 0 }
+            .sorted { (weight($0), $0.sourceID) > (weight($1), $1.sourceID) }
         let listed = Array(ranked.prefix(recentSourceLimit))
         let listedIDs = Set(listed.map(\.sourceID))
         let shown = listed.flatMap(\.chatTitles) + listed.map { title($0.sourceID) }
@@ -169,6 +184,41 @@ enum TeachBack {
         }
         return (listed, otherChats)
     }
+
+    /// The passages the learner marked in the sources a teach-back is about,
+    /// for the tutor and not shown: what they singled out is where an
+    /// explanation should reach, and where to probe first. Nil when none.
+    /// Each quote is cut at `highlightBriefingQuoteLimit` characters and the
+    /// whole at `highlightBriefingLimit` marks, the most marked source first.
+    static func highlightBriefing(_ marks: [(title: String, quotes: [(quote: String, note: String)])]) -> String? {
+        var budget = highlightBriefingLimit
+        var sections: [String] = []
+        for source in marks.sorted(by: { $0.quotes.count > $1.quotes.count }) where budget > 0 {
+            let lines = source.quotes.prefix(budget).compactMap { mark -> String? in
+                let quote = mark.quote
+                    .replacingOccurrences(of: "-\n", with: "")
+                    .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
+                guard !quote.isEmpty else { return nil }
+                let cut = quote.count > highlightBriefingQuoteLimit ? String(quote.prefix(highlightBriefingQuoteLimit)) + "…" : quote
+                let note = mark.note.trimmingCharacters(in: .whitespacesAndNewlines)
+                return "- “\(cut)”" + (note.isEmpty ? "" : " (their note: \(note))")
+            }
+            guard !lines.isEmpty else { continue }
+            budget -= lines.count
+            sections.append("“\(source.title)”:\n" + lines.joined(separator: "\n"))
+        }
+        guard !sections.isEmpty else { return nil }
+        return """
+        Passages the learner marked in these sources in the same days (not shown to them; never read them out as a list):
+
+        \(sections.joined(separator: "\n\n"))
+
+        They marked these because they mattered. Once they have explained what they remember, check that their explanation reaches these ideas, and ask first about a marked idea it left out or got wrong. Quote a short phrase of a passage only when helping after two misses.
+        """
+    }
+
+    static let highlightBriefingLimit = 40
+    static let highlightBriefingQuoteLimit = 300
 
     /// A book's pages that are not its content: the list never offers
     /// "Index" or "Copyright Page" to explain.
@@ -210,6 +260,7 @@ enum TeachBack {
         var title: String
         var minutes: Int
         var chatTitles: [String]
+        var highlights: Int = 0
     }
 
     /// The first message, written ahead as the notebook's is: what the
@@ -223,6 +274,7 @@ enum TeachBack {
             var text = "“\(line.title)”"
             var notes: [String] = []
             if line.minutes > 0 { notes.append(recentDuration(minutes: line.minutes)) }
+            if line.highlights > 0 { notes.append(line.highlights == 1 ? "1 passage marked" : "\(line.highlights) passages marked") }
             let chats = line.chatTitles.prefix(recentChatTitleLimit)
             if !chats.isEmpty {
                 let more = line.chatTitles.count - chats.count

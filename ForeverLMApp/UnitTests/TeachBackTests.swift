@@ -206,6 +206,47 @@ struct TeachBackTests {
         #expect(!TeachBack.isFrontOrBackMatter("Epilogue: From the deep"))
     }
 
+    @Test("Marked passages list a source and lift it: marking says it mattered")
+    func recentEngagementsWeighHighlights() {
+        func span(_ start: Int, _ end: Int, _ id: String) -> DayActivity {
+            DayActivity(dayPlanID: "2026-11-24", startMinute: start, endMinute: end, kind: .reading, targetID: id, title: "")
+        }
+        let result = TeachBack.recentEngagements(
+            activities: [span(0, 60, "long-unmarked"), span(100, 140, "shorter-marked"), span(200, 201, "glanced-marked")],
+            chatSources: [:],
+            highlightCounts: ["shorter-marked": 10, "glanced-marked": 1, "index": 3],
+            isEligible: { _ in true },
+            title: { $0 == "index" ? "Index" : $0 }
+        )
+        #expect(result.sources.map(\.sourceID) == ["shorter-marked", "long-unmarked", "glanced-marked"],
+                "40 min + 10 marks outranks 60 min; one mark lists a one-minute read; front matter stays out")
+        #expect(result.sources.first?.highlights == 10)
+
+        let opening = TeachBack.recentOpeningMessage(
+            lines: [.init(title: "Paper", minutes: 40, chatTitles: [], highlights: 10)],
+            sinceYesterday: true
+        )
+        #expect(opening.contains("“Paper” (40 min; 10 passages marked)"))
+    }
+
+    @Test("The tutor's note holds the marked passages, cleaned and capped, never shown")
+    func highlightBriefing() {
+        #expect(TeachBack.highlightBriefing([]) == nil)
+        #expect(TeachBack.highlightBriefing([("Empty", [(quote: "  ", note: "")])]) == nil)
+        let long = String(repeating: "a", count: 400)
+        let note = TeachBack.highlightBriefing([
+            ("Few", [(quote: "one", note: "")]),
+            ("Many", [(quote: "Free-\nradical signals\nemerge", note: "key"), (quote: long, note: "")]),
+        ])
+        let text = note ?? ""
+        #expect(text.contains("“Many”:\n- “Freeradical signals emerge” (their note: key)"), "line breaks inside a quote are joined")
+        #expect(text.range(of: "“Many”")!.lowerBound < text.range(of: "“Few”")!.lowerBound, "most marked source first")
+        #expect(text.contains(String(repeating: "a", count: TeachBack.highlightBriefingQuoteLimit) + "…"))
+        #expect(text.contains("ask first about a marked idea"))
+        let capped = TeachBack.highlightBriefing([("Lots", (0..<60).map { (quote: "mark \($0)", note: "") })]) ?? ""
+        #expect(capped.components(separatedBy: "\n- “").count - 1 == TeachBack.highlightBriefingLimit)
+    }
+
     // MARK: - The morning routine (docs/morning-routine-design.md)
 
     @Test("The morning's pick: yesterday's unexplained first, then kept sources by dryness, then explained ones gone dry")

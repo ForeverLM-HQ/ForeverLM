@@ -331,6 +331,10 @@ final class ReviewSessionManager {
     /// belongs to; written onto that reply's exchange by
     /// `persistAssistantResponse`, as a contour grade is.
     @ObservationIgnored var stagedTeachBackExplanation: TeachBack.Explanation?
+    /// The passages the learner marked, for a teach-back's tutor
+    /// (`TeachBack.highlightBriefing`), by chat id. Held for this run of the
+    /// app; a chat reopened after a relaunch goes on without them.
+    @ObservationIgnored var teachBackBriefings: [String: String] = [:]
     /// The cards this turn saved (`save_card_drafts`), waiting for the reply
     /// they belong to: `persistAssistantResponse` stores them at its head as
     /// one link line, so a reopened chat draws them where the turn drew them.
@@ -736,6 +740,7 @@ final class ReviewSessionManager {
     /// demand, opening with them named (`TeachBack.recentOpeningMessage`).
     /// Kept as a review, like the notebook's.
     func startRecentTeachBack(articles: [StudioArticle], request: RecentTeachBackRequest) async {
+        defer { if let id = sessionID, let briefing = request.highlightBriefing { teachBackBriefings[id] = briefing } }
         await startSession(
             topic: TeachBack.recentTopic(sourceTitles: request.lines.map(\.title)),
             articles: articles,
@@ -753,7 +758,8 @@ final class ReviewSessionManager {
     /// teach-back on the morning's pick, a library chat whose id marks it as
     /// the morning's (`TeachBack.morningSessionIDPrefix`), opening with the
     /// pick named and the ask already made.
-    func startMorningTeachBack(pick: MorningPick, articles: [StudioArticle], titles: [String]) async {
+    func startMorningTeachBack(pick: MorningPick, articles: [StudioArticle], titles: [String], highlightBriefing: String? = nil) async {
+        defer { if let id = sessionID, let highlightBriefing { teachBackBriefings[id] = highlightBriefing } }
         await startSession(
             topic: TeachBack.morningTopic(sourceTitles: titles),
             articles: articles,

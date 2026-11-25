@@ -391,10 +391,12 @@ extension InternalReviewPanelContent {
             pendingReaderSelection = nil
             guard await syncSynthesisToolContext() else { return }
             await vm.ensureContextSourceContentLoaded()
+            let briefing = await vm.teachBackHighlightBriefing(sourceIDs: pick.sourceIDs)
             await manager.startMorningTeachBack(
                 pick: pick,
                 articles: articles,
-                titles: articles.map(vm.displayTitle(for:))
+                titles: articles.map(vm.displayTitle(for:)),
+                highlightBriefing: briefing
             )
             await vm.loadReviewSessionLinks()
             return
