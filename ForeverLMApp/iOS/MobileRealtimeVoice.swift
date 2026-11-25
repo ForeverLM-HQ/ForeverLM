@@ -111,7 +111,9 @@ enum MobileRealtimeVoice {
     ) async {
         if setting == .phone, narration == nil, newVoice == nil,
            await offersVoiceChoice(then: { await startAssistant(setting: setting) }) { return }
-        await prepareToTalk(inCar: setting == .car)
+        // Saved as CarPlay's only when CarPlay is on: a drive started from
+        // Talk in the Car (a Tesla) is the phone's.
+        await prepareToTalk(inCar: setting == .car && isCarConnected)
         currentSource = nil
         currentNotebookID = nil
         await controller.start(

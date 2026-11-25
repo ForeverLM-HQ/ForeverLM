@@ -16,6 +16,9 @@ struct MobileSiriCommand: Codable, Equatable {
         /// This morning's explanation, out loud
         /// (`MobileRealtimeVoice.startMorningExplanation`).
         case voiceMorningExplanation
+        /// The assistant in its driving setting, for a car without CarPlay
+        /// (`TalkInTheCarIntent`).
+        case voiceCarAssistant
         case askAboutSource
         case pausePlayback
         case resumePlayback
@@ -54,6 +57,10 @@ struct MobileSiriCommand: Codable, Equatable {
 
     static func voiceMorningExplanation() -> MobileSiriCommand {
         MobileSiriCommand(action: .voiceMorningExplanation)
+    }
+
+    static func voiceCarAssistant() -> MobileSiriCommand {
+        MobileSiriCommand(action: .voiceCarAssistant)
     }
 
     static func askAboutSource(_ source: SourceEntity, question: String? = nil) -> MobileSiriCommand {
@@ -225,6 +232,24 @@ struct StartMyMorningIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         MobileSiriCommandCenter.shared.enqueue(.voiceMorningExplanation())
         return .result(dialog: "Starting your morning.")
+    }
+}
+
+/// CarPlay's connect-and-talk for a car without CarPlay, a Tesla above all:
+/// the phone plays through the car over Bluetooth and the car's microphone
+/// takes the learner's voice, but nothing on the car's screen can start
+/// ForeverLM. A Shortcuts personal automation ("When my car's Bluetooth
+/// connects, run Talk in the Car") starts the assistant in its driving setting
+/// instead: short spoken turns, nothing to look at. A Shortcuts action only;
+/// Siri's phrases are full (ten App Shortcuts).
+struct TalkInTheCarIntent: AppIntent {
+    static var title: LocalizedStringResource = "Talk in the Car"
+    static var description = IntentDescription("Start the ForeverLM voice assistant for driving, for a car without CarPlay such as a Tesla. Run it from a Shortcuts automation when your car's Bluetooth connects.")
+    static var openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        MobileSiriCommandCenter.shared.enqueue(.voiceCarAssistant())
+        return .result(dialog: "Starting ForeverLM for the drive.")
     }
 }
 

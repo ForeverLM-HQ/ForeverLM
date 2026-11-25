@@ -129,7 +129,7 @@ enum RealtimeVoiceAssistant {
         switch setting {
         case .car:
             parts.append("""
-            The learner is driving, talking through CarPlay. Keep every turn short and easy to follow by ear. Never ask \
+            The learner is driving, talking hands-free through the car (CarPlay or the car's Bluetooth). Keep every turn short and easy to follow by ear. Never ask \
             them to look at, read or tap anything; never spell things out. If they want something shown or saved for \
             later, say it will be in their chats on their phone and Mac.
             """)

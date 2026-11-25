@@ -139,6 +139,10 @@ extension MobileAudioReviewViewModel {
             // Today's cards, then today's review, out loud. A conversation
             // already on (the assistant in CarPlay) keeps going.
             await MobileRealtimeVoice.startMemoryCheck()
+        case .voiceCarAssistant:
+            // A car without CarPlay: the assistant as CarPlay starts it. A
+            // conversation already on keeps going.
+            await MobileRealtimeVoice.startAssistant(setting: .car)
         case .voiceMorningExplanation:
             // This morning's pick explained out loud; with nothing to
             // explain, today's cards.
