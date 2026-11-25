@@ -735,13 +735,17 @@ final class ReviewSessionManager {
     /// the strip: a library chat, no notebook, the sources as a catalog read on
     /// demand, opening with them named (`TeachBack.recentOpeningMessage`).
     /// Kept as a review, like the notebook's.
-    func startRecentTeachBack(articles: [StudioArticle], titles: [String], sinceYesterday: Bool) async {
+    func startRecentTeachBack(articles: [StudioArticle], request: RecentTeachBackRequest) async {
         await startSession(
-            topic: TeachBack.recentTopic(sourceTitles: titles),
+            topic: TeachBack.recentTopic(sourceTitles: request.lines.map(\.title)),
             articles: articles,
             mode: .review,
             fixedSessionID: TeachBack.sessionID(),
-            scriptedOpening: TeachBack.recentOpeningMessage(sourceTitles: titles, sinceYesterday: sinceYesterday)
+            scriptedOpening: TeachBack.recentOpeningMessage(
+                lines: request.lines,
+                otherChats: request.otherChats,
+                sinceYesterday: request.sinceYesterday
+            )
         )
     }
 

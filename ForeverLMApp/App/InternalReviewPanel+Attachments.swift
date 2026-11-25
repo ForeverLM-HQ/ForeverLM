@@ -420,11 +420,7 @@ extension InternalReviewPanelContent {
             pendingReaderSelection = nil
             guard await syncSynthesisToolContext() else { return }
             await vm.ensureContextSourceContentLoaded()
-            await manager.startRecentTeachBack(
-                articles: articles,
-                titles: articles.map(vm.displayTitle(for:)),
-                sinceYesterday: pending.sinceYesterday
-            )
+            await manager.startRecentTeachBack(articles: articles, request: pending)
             await vm.loadReviewSessionLinks()
             return
         }

@@ -139,37 +139,71 @@ struct TeachBackTests {
         #expect(!offered(notebook: "nb-1", opens: false), "a manager with no pane, as on the iPhone, cannot open a chat")
     }
 
-    @Test("A recent teach-back names what was read and asks for one explained from memory")
+    @Test("A recent teach-back lists what was worked on, with the time and the chats, and asks for one explained")
     func recentOpening() {
-        let one = TeachBack.recentOpeningMessage(sourceTitles: ["Cristae remodeling"], sinceYesterday: true)
-        #expect(one.contains("“Cristae remodeling”"))
+        let one = TeachBack.recentOpeningMessage(
+            lines: [.init(title: "Cristae remodeling", minutes: 40, chatTitles: [])],
+            sinceYesterday: true
+        )
+        #expect(one.contains("“Cristae remodeling” (40 min)"))
         #expect(one.contains("since yesterday"))
         #expect(TeachBack.recentTopic(sourceTitles: ["Cristae remodeling"]) == "Feynman Technique: Cristae remodeling")
 
-        let many = TeachBack.recentOpeningMessage(sourceTitles: ["A", "B"], sinceYesterday: false)
-        #expect(many.contains("- A\n- B"))
+        let many = TeachBack.recentOpeningMessage(
+            lines: [
+                .init(title: "Mitonuclear match", minutes: 257, chatTitles: ["Free radical leak", "Joint fitness", "Idea card", "Biomarker"]),
+                .init(title: "Urolithin A", minutes: 148, chatTitles: []),
+            ],
+            otherChats: ["mtDNA editing first"],
+            sinceYesterday: false
+        )
+        #expect(many.contains("- “Mitonuclear match” (4 h 17 min; you asked: Free radical leak; Joint fitness; Idea card; and 1 more)"))
+        #expect(many.contains("- “Urolithin A” (2 h 28 min)"))
+        #expect(many.contains("You also asked about: mtDNA editing first."))
         #expect(many.contains("this past week"))
         #expect(many.contains("Pick one"))
         #expect(TeachBack.recentTopic(sourceTitles: ["A", "B"]) == "Feynman Technique: recent reading")
     }
 
-    @Test("Recent sources are those read, heard or watched since the cutoff, newest first; chat alone does not count")
-    func recentlyConsumedSources() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let now = Date()
-        func source(_ title: String) throws -> String {
-            var article = StudioArticle(url: "https://example.com/\(title)", title: title)
-            article.normalizedURL = URLNormalizer.normalize(article.url)
-            try store.saveSource(article)
-            return article.id
+    @Test("The recent list ranks by time and chats, not by what was opened last")
+    func recentEngagementsRankByTime() {
+        // 2026-11-24's shape: four hours on one paper and chats about it in
+        // the day, then a book's front and back matter flicked through at
+        // night and a page opened outside the library.
+        func span(_ start: Int, _ end: Int, _ kind: DayActivityKind, _ id: String, _ title: String = "") -> DayActivity {
+            DayActivity(dayPlanID: "2026-11-24", startMinute: start, endMinute: end, kind: kind, targetID: id, title: title)
         }
-        let old = try source("old"), read = try source("read"), heard = try source("heard"), chatted = try source("chatted")
-        _ = try store.recordScheduledSourceActivity(sourceID: old, on: now.addingTimeInterval(-10 * 86_400), kind: .reading)
-        _ = try store.recordScheduledSourceActivity(sourceID: read, on: now.addingTimeInterval(-3_600), kind: .reading)
-        _ = try store.recordScheduledSourceActivity(sourceID: heard, on: now.addingTimeInterval(-60), kind: .listening)
-        _ = try store.recordScheduledSourceActivity(sourceID: chatted, on: now.addingTimeInterval(-30), kind: .chat)
-        let ids = try store.recentlyConsumedSourceIDs(since: now.addingTimeInterval(-2 * 86_400), limit: 8)
-        #expect(ids == [heard, read])
+        let activities = [
+            span(600, 857, .reading, "paper"),
+            span(700, 702, .chat, "chat-leak", "Free Radical Leak"),
+            span(710, 711, .chat, "chat-named", "mitonuclear match"),
+            span(712, 716, .chat, "chat-fitness", "Joint Fitness"),
+            span(720, 740, .chat, TeachBack.sessionID(), "Feynman Technique: Mitonuclear match"),
+            span(703, 704, .chat, "chat-none", "mtDNA Editing First"),
+            span(800, 803, .reading, "brief"),
+            span(900, 901, .reading, "chatted-briefly"),
+            span(905, 906, .chat, "chat-brief", "Clarifying Meaning"),
+            span(1350, 1352, .reading, "index"),
+            span(1352, 1353, .reading, "bibliography"),
+            span(1353, 1354, .reading, "external-reader:pubmed.ncbi.nlm.nih.gov/1"),
+            span(1355, 1425, .listening, "chapter"),
+            span(1360, 1361, .reading, "hidden"),
+        ]
+        let titles = ["paper": "Mitonuclear match", "brief": "Glanced at", "chatted-briefly": "Asked about",
+                      "index": "Index", "bibliography": "Bibliography", "chapter": "1 What is life?", "hidden": "Hidden"]
+        let result = TeachBack.recentEngagements(
+            activities: activities,
+            chatSources: ["chat-leak": ["paper"], "chat-named": ["paper"], "chat-fitness": ["paper"], "chat-none": [], "chat-brief": ["chatted-briefly"]],
+            isEligible: { $0 != "hidden" && !$0.hasPrefix("nope") },
+            title: { titles[$0] ?? "" }
+        )
+        #expect(result.sources.map(\.sourceID) == ["paper", "chapter", "chatted-briefly"])
+        #expect(result.sources.first?.minutes == 264, "chat time counts toward the source it discussed; a Feynman chat does not")
+        #expect(result.sources.first?.chatTitles == ["Joint Fitness", "Free Radical Leak"], "busiest chat first; one named after the source is left out")
+        #expect(result.otherChats == ["mtDNA Editing First"])
+        #expect(TeachBack.isFrontOrBackMatter("List of illustrations"))
+        #expect(TeachBack.isFrontOrBackMatter(" Copyright Page "))
+        #expect(!TeachBack.isFrontOrBackMatter("Epilogue: From the deep"))
     }
 
     // MARK: - The morning routine (docs/morning-routine-design.md)

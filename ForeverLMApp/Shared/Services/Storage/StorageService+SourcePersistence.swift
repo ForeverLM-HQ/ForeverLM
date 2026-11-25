@@ -111,12 +111,6 @@ extension StorageService {
         )
     }
 
-    /// The sources read, heard or watched since `since`, most recent first
-    /// (`KnowledgeStore.recentlyConsumedSourceIDs`).
-    func recentlyConsumedSourceIDs(since: Date, limit: Int) throws -> [String] {
-        try knowledgeStore().recentlyConsumedSourceIDs(since: since, limit: limit)
-    }
-
     func recentReviewSourceActivity(
         now: Date = Date(),
         sessionLimit: Int = 12,

@@ -267,25 +267,53 @@ extension StudioViewModel {
         }
     }
 
-    /// The sources a recent teach-back is about: those engaged since
-    /// yesterday's start, else since a week ago, still in the library and
-    /// not hidden. Nil when there are none.
+    /// The sources a recent teach-back is about, from the Activity log of
+    /// yesterday and today (else the past week): the time read, heard or
+    /// watched on each plus the chats that discussed it, most time first
+    /// (`TeachBack.recentEngagements`). Sources still in the library and not
+    /// hidden; a book's chapter is named with its book. Nil when there are none.
     func recentTeachBackRequest(now: Date = Date()) async -> RecentTeachBackRequest? {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
+        let today = DayPlan.dateString(for: now, calendar: calendar)
+        var chatSources: [String: [String]] = [:]
         for (days, sinceYesterday) in [(TeachBack.recentDays, true), (TeachBack.widerRecentDays, false)] {
-            guard let since = calendar.date(byAdding: .day, value: -(days - 1), to: today) else { continue }
-            let ids = (try? await storage.recentlyConsumedSourceIDs(since: since, limit: TeachBack.recentSourceLimit * 2)) ?? []
-            let sourceIDs = ids
-                .compactMap { articlesById[$0] }
-                .filter { isSourceIncludedInKnowledge($0) }
-                .prefix(TeachBack.recentSourceLimit)
-                .map(\.id)
-            if !sourceIDs.isEmpty {
-                return RecentTeachBackRequest(sourceIDs: Array(sourceIDs), sinceYesterday: sinceYesterday)
+            guard let from = DayPlan.dateString(today, offsetBy: -(days - 1), calendar: calendar) else { continue }
+            let plans = (try? await storage.loadDayPlans(from: from, to: today)) ?? []
+            let activities = plans.flatMap(\.activities)
+            for chatID in Set(activities.filter { $0.kind == .chat }.map(\.targetID)) where chatSources[chatID] == nil {
+                chatSources[chatID] = (try? await storage.chatDiscussedSourceIDs(sessionID: chatID)) ?? []
             }
+            let ranked = TeachBack.recentEngagements(
+                activities: activities,
+                chatSources: chatSources,
+                isEligible: { id in articlesById[id].map(isSourceIncludedInKnowledge) ?? false },
+                title: { id in articlesById[id]?.title ?? "" }
+            )
+            guard !ranked.sources.isEmpty else { continue }
+            let lines = ranked.sources.map { entry in
+                TeachBack.RecentLine(
+                    title: articlesById[entry.sourceID].map(recentTeachBackTitle(for:)) ?? entry.sourceID,
+                    minutes: entry.minutes,
+                    chatTitles: entry.chatTitles
+                )
+            }
+            return RecentTeachBackRequest(
+                sourceIDs: ranked.sources.map(\.sourceID),
+                lines: lines,
+                otherChats: ranked.otherChats,
+                sinceYesterday: sinceYesterday
+            )
         }
         return nil
+    }
+
+    /// A source as the recent list names it: a book's chapter says which book.
+    func recentTeachBackTitle(for article: StudioArticle) -> String {
+        let title = displayTitle(for: article)
+        guard article.sourceType == .book, let group = article.parentGroup else { return title }
+        let book = bookDisplayName(group).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !book.isEmpty, book != title else { return title }
+        return "\(title)” in “\(book)"
     }
 
     // MARK: - The morning routine (docs/morning-routine-design.md)
@@ -300,7 +328,8 @@ extension StudioViewModel {
         let today = calendar.startOfDay(for: now)
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return [] }
         func eligible(_ id: String) -> Bool {
-            articlesById[id].map(isSourceIncludedInKnowledge) ?? false
+            guard let article = articlesById[id] else { return false }
+            return isSourceIncludedInKnowledge(article) && !TeachBack.isFrontOrBackMatter(article.title)
         }
         var inputs = MorningPickRule.Inputs()
         inputs.recent = ((try? await storage.substantiallyConsumedSourceIDs(since: yesterday, now: now)) ?? []).filter(eligible)
@@ -411,6 +440,9 @@ extension StudioViewModel {
 /// past week.
 struct RecentTeachBackRequest: Equatable {
     let sourceIDs: [String]
+    /// The list as the opening shows it, in `sourceIDs` order.
+    let lines: [TeachBack.RecentLine]
+    let otherChats: [String]
     let sinceYesterday: Bool
 }
 
