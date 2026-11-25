@@ -195,7 +195,8 @@ extension KnowledgeStore {
             chat_session_id TEXT,
             references_json TEXT,
             publication_update TEXT,
-            publication_update_at REAL
+            publication_update_at REAL,
+            follow_up_at REAL
         )
         """, indexes: [
         """

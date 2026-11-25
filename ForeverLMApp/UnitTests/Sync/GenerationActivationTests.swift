@@ -369,4 +369,32 @@ struct GenerationActivationTests {
         #expect(try Schema154Fixture.count(store, skillObjects) == 0)
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources") == sources, "no library row is touched")
     }
+
+    // MARK: Schema 180: a mark's follow-up flag, apart from its color
+
+    @Test("Schema 180 adds follow_up_at and flags a 179 store's blue and pink marks as of when they were made")
+    func schema180FlagsOpenColors() throws {
+        let root = try Schema154Fixture.temporaryRoot("180-from-179")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Schema154Fixture.makeLibrary(at: root, version: nil)
+        do {
+            // A 179 store: no `follow_up_at`, one mark of each kind.
+            let store = try KnowledgeStore(storeDirectory: root)
+            try store.executeScript("""
+                ALTER TABLE source_highlights DROP COLUMN follow_up_at;
+                INSERT INTO source_highlights (highlight_id, source_id, page_index, quads_json, text, color, created_at, updated_at)
+                VALUES ('hl-blue', 's1', 0, '[]', 'Blue', 'blue', 10, 11),
+                       ('hl-pink', 's1', 0, '[]', 'Pink', 'pink', 20, 21),
+                       ('hl-yellow', 's1', 0, '[]', 'Yellow', 'yellow', 30, 31);
+                """)
+            try store.execForTesting("PRAGMA user_version = 179")
+        }
+        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('source_highlights') WHERE name = 'follow_up_at'") == 0)
+        let store = try KnowledgeStore(storeDirectory: root)
+        #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion))
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM source_highlights WHERE highlight_id = 'hl-blue' AND follow_up_at = 10") == 1)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM source_highlights WHERE highlight_id = 'hl-pink' AND follow_up_at = 20") == 1)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM source_highlights WHERE highlight_id = 'hl-yellow' AND follow_up_at IS NULL") == 1)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM source_highlights WHERE updated_at IN (11, 21, 31)") == 3, "the flag is no edit")
+    }
 }

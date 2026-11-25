@@ -39,12 +39,18 @@ extension KnowledgeStore {
     //
     // 179: the learner's chat skills are gone from the app (product owner, 2026-11-21: "remove skills
     // from the app"). `skills` and `idx_skills_name` are dropped, and a fresh store never makes them.
-    static let schemaVersion: Int32 = 179
+    //
+    // 180: a mark flagged to follow up, apart from its color (product owner, 2026-11-25: "the color
+    // shouldn't necessarily itself code for followup"). `source_highlights.follow_up_at` is added, and
+    // every blue or pink mark — the two colors that put a mark on the To Follow Up list until now — is
+    // flagged as of when it was made, so nothing on that list falls off it.
+    static let schemaVersion: Int32 = 180
     static let generation1RemovalSchemaVersion: Int32 = 175
     static let deadObjectsRemovalSchemaVersion: Int32 = 176
     static let boardListsSchemaVersion: Int32 = 177
     static let boardChatSchemaVersion: Int32 = 178
     static let skillsRemovalSchemaVersion: Int32 = 179
+    static let highlightFollowUpSchemaVersion: Int32 = 180
     /// The oldest store this build migrates: schema 174. An older store is
     /// refused (product owner, 2026-11: old versions are no longer supported).
     static let minimumMigratableSchemaVersion: Int32 = 174
@@ -154,6 +160,12 @@ extension KnowledgeStore {
             }
             if currentVersion < Self.skillsRemovalSchemaVersion {
                 try exec("DROP TABLE IF EXISTS skills")
+            }
+            if currentVersion < Self.highlightFollowUpSchemaVersion {
+                if try scalarInteger("SELECT COUNT(*) FROM pragma_table_info('source_highlights') WHERE name = 'follow_up_at'") == 0 {
+                    try exec("ALTER TABLE source_highlights ADD COLUMN follow_up_at REAL")
+                }
+                try exec("UPDATE source_highlights SET follow_up_at = created_at WHERE follow_up_at IS NULL AND color IN ('blue', 'pink')")
             }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls

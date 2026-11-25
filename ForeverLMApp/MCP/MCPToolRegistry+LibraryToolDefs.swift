@@ -153,12 +153,13 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "search_source_highlights",
-                description: "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks. Pass color to see one kind of mark across the whole library: blue marks are what the learner set aside to follow up, pink what they doubt.",
+                description: "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks. Pass follow_up true for what the learner flagged to follow up, across the whole library, whatever its color; pass color to see one kind of mark (pink is what they doubt).",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "query": ["type": "string", "description": "Optional text to match against the highlighted passage, the learner's note, or the mark's since-publication update."],
                         "color": ["type": "string", "description": "Optional marker color to keep: \(SourceHighlightColor.meaningGuide)."],
+                        "follow_up": ["type": "boolean", "description": "Optional: true keeps only the marks the learner flagged to follow up, false only the ones not flagged."],
                         "limit": ["type": "integer", "description": "Maximum highlights to return. Defaults to 50, capped at 200."],
                     ],
                     "required": [] as [String],
@@ -198,7 +199,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "update_source_highlight",
-                description: "Rewrite the note or the since-publication update, change the color, link the chat the update came from, or set the papers it cites on an existing highlight. Pass an empty note to turn it back into a bare highlight. The passage itself is not editable — mark a different passage with create_source_highlight instead.",
+                description: "Rewrite the note or the since-publication update, change the color, flag it to follow up or take the flag off, link the chat the update came from, or set the papers it cites on an existing highlight. Pass an empty note to turn it back into a bare highlight. The passage itself is not editable — mark a different passage with create_source_highlight instead.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -206,6 +207,7 @@ extension MCPToolRegistry {
                         "note": ["type": "string", "description": "New note text, in the learner's own words. An empty string clears the note and leaves a bare highlight."],
                         "publication_update": ["type": "string", "description": "What has been learned since the source was written, shaped as in create_source_highlight, replacing the update the mark has. An empty string clears it."],
                         "color": ["type": "string", "description": "New marker color, by what the mark means: \(SourceHighlightColor.meaningGuide)."],
+                        "follow_up": ["type": "boolean", "description": "true flags the mark to follow up (it joins the learner's To Follow Up list, whatever its color); false takes the flag off, which is the learner saying it is followed up. Only when the learner asks."],
                         "session_id": ["type": "string", "description": "The chat the note came from, by its id from import_review_chat or get_review_sessions (or a foreverlm://chat/<id> link); the reader opens it from the mark. An empty string unlinks it."],
                         "references": [
                             "type": "array",

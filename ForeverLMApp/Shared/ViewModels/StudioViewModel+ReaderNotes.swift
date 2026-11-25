@@ -451,6 +451,32 @@ extension StudioViewModel {
         }
     }
 
+    /// Flags a mark to follow up, or takes the flag off. The flag is the
+    /// mark's own, apart from its color: flagging puts it on the To Follow Up
+    /// list whatever color it is, and settling it leaves the color alone.
+    func setReaderHighlightFollowUp(
+        _ flagged: Bool,
+        highlightID: String,
+        sourceID: String
+    ) async {
+        guard var highlight = highlight(id: highlightID, sourceID: sourceID),
+              highlight.isFlaggedForFollowUp != flagged else { return }
+        highlight.followUpAt = flagged ? Date() : nil
+        highlight.updatedAt = Date()
+        applyLocally(highlight)
+        do {
+            try await storage.saveSourceHighlight(highlight)
+        } catch {
+            Self.readerNotesLogger.error(
+                "Failed to flag \(highlightID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            await reloadReaderHighlights(for: sourceID)
+            showToast(flagged ? "Could not flag that highlight" : "Could not take the flag off")
+            return
+        }
+        showToast(flagged ? "Flagged to follow up" : "Followed up")
+    }
+
     /// Inserts or replaces a highlight in the in-memory cache, keeping the
     /// oldest-first order storage reads back.
     func applyLocally(_ highlight: SourceHighlight) {

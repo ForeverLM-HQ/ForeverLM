@@ -264,6 +264,7 @@ struct ReaderHighlightCardView: View {
                 }
                 chatButton(for: highlight)
             }
+            followUpButton(for: highlight)
             removeButton(for: highlight)
         }
         .padding(.horizontal, 12)
@@ -369,6 +370,37 @@ struct ReaderHighlightCardView: View {
                 .accessibilityLabel(option.spokenName)
             }
         }
+    }
+
+    /// Flags the mark to follow up, or takes the flag off. A flag of its own,
+    /// apart from the color (product owner, 2026-11-25: "the color shouldn't
+    /// necessarily itself code for followup"): a flagged mark is on the To
+    /// Follow Up list whatever color it is, and filled in orange here, as Mail
+    /// fills a flagged message's.
+    private func followUpButton(for highlight: SourceHighlight) -> some View {
+        let flagged = highlight.isFlaggedForFollowUp
+        let help = flagged ? "Followed up: take the flag off" : "Flag to follow up"
+        return Button {
+            retirement?.cancel()
+            Task {
+                await vm.setReaderHighlightFollowUp(
+                    !flagged,
+                    highlightID: highlight.id,
+                    sourceID: card.sourceID
+                )
+            }
+        } label: {
+            Image(systemName: flagged ? "flag.fill" : "flag")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(flagged ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+                .frame(width: 24, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(inset: -1))
+        .help(help)
+        .accessibilityLabel(flagged ? "Flagged to follow up" : "Flag to follow up")
+        .accessibilityAddTraits(flagged ? .isSelected : [])
+        .accessibilityIdentifier("reader.highlightCard.followUp")
     }
 
     private func removeButton(for highlight: SourceHighlight) -> some View {

@@ -53,7 +53,8 @@ extension MCPToolRegistry {
             return try store.searchSourceHighlights(
                 query: arguments["query"] as? String,
                 limit: arguments["limit"] as? Int,
-                color: arguments["color"] as? String
+                color: arguments["color"] as? String,
+                followUp: arguments["follow_up"] as? Bool
             )
         case "create_source_highlight":
             return try store.createSourceHighlight(
@@ -75,7 +76,8 @@ extension MCPToolRegistry {
                 color: arguments["color"] as? String,
                 sessionID: arguments["session_id"] as? String,
                 references: arguments["references"],
-                publicationUpdate: arguments["publication_update"] as? String
+                publicationUpdate: arguments["publication_update"] as? String,
+                followUp: arguments["follow_up"] as? Bool
             )
         case "delete_source_highlight":
             return try store.deleteSourceHighlight(

@@ -413,7 +413,7 @@ struct MCPHighlightToolsTests {
         #expect(followUps["highlight_count"] as? Int == 2)
         #expect(followUps["color"] as? String == "blue")
         let rows = try #require(followUps["highlights"] as? [[String: Any]])
-        #expect(rows.allSatisfy { $0["color"] as? String == "blue" && $0["color_meaning"] as? String == "Follow up" })
+        #expect(rows.allSatisfy { $0["color"] as? String == "blue" && $0["color_meaning"] as? String == "Question" })
 
         let doubts = try json(try store.searchSourceHighlights(query: nil, limit: nil, color: "Pink"))
         #expect(doubts["highlight_count"] as? Int == 1)
@@ -430,6 +430,32 @@ struct MCPHighlightToolsTests {
         let all = try json(try store.searchSourceHighlights(query: nil, limit: nil))
         #expect(all["highlight_count"] as? Int == 4)
         #expect(throws: (any Error).self) { _ = try store.searchSourceHighlights(query: nil, limit: nil, color: "red") }
+    }
+
+    @Test("follow_up flags a mark apart from its color, and search lists what is flagged")
+    func followUpFlagIsApartFromColor() throws {
+        let (store, path) = try TestStores.mcp()
+        defer { cleanup(path) }
+        let sourceID = try seedArticle(in: store)
+        let created = try json(try store.createSourceHighlight(sourceID: sourceID, quote: "Spacing compounds that effect.", note: nil, color: "green"))
+        let highlight = try #require(created["highlight"] as? [String: Any])
+        let id = try #require(highlight["highlight_id"] as? String)
+        #expect(highlight["follow_up"] as? Bool == false)
+        _ = try store.createSourceHighlight(sourceID: sourceID, quote: "Retrieval practice beats rereading.", note: nil, color: "blue")
+
+        let flagged = try json(try store.updateSourceHighlight(highlightID: id, note: nil, color: nil, followUp: true))
+        let flaggedMark = try #require(flagged["highlight"] as? [String: Any])
+        #expect(flaggedMark["follow_up"] as? Bool == true)
+        #expect(flaggedMark["color"] as? String == "green", "the flag leaves the color alone")
+
+        let followUps = try json(try store.searchSourceHighlights(query: nil, limit: nil, followUp: true))
+        #expect(followUps["highlight_count"] as? Int == 1)
+        #expect((followUps["highlights"] as? [[String: Any]])?.first?["highlight_id"] as? String == id)
+        #expect((followUps["highlights"] as? [[String: Any]])?.first?["follow_up"] as? Bool == true)
+
+        _ = try store.updateSourceHighlight(highlightID: id, note: nil, color: nil, followUp: false)
+        let none = try json(try store.searchSourceHighlights(query: nil, limit: nil, followUp: true))
+        #expect(none["highlight_count"] as? Int == 0)
     }
 
     @Test("A LIKE metacharacter in the query matches itself")

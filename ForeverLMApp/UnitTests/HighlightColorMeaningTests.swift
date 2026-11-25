@@ -10,11 +10,11 @@ struct HighlightColorMeaningTests {
     @Test("Each of the five colors has its own one-to-three-word meaning, and the stored values are unchanged")
     func meanings() {
         #expect(SourceHighlightColor.allCases.map(\.rawValue) == ["yellow", "green", "blue", "pink", "purple"])
-        #expect(SourceHighlightColor.allCases.map(\.meaning) == ["Remember", "Key idea", "Follow up", "Doubt", "Connect"])
+        #expect(SourceHighlightColor.allCases.map(\.meaning) == ["Remember", "Key idea", "Question", "Doubt", "Connect"])
         #expect(Set(SourceHighlightColor.allCases.map(\.meaning)).count == SourceHighlightColor.allCases.count)
         #expect(SourceHighlightColor.allCases.allSatisfy { (1...3).contains($0.meaning.split(separator: " ").count) })
-        #expect(SourceHighlightColor.blue.spokenName == "Follow up, blue")
-        #expect(SourceHighlightColor.meaningGuide == "yellow (Remember), green (Key idea), blue (Follow up), pink (Doubt), purple (Connect)")
+        #expect(SourceHighlightColor.blue.spokenName == "Question, blue")
+        #expect(SourceHighlightColor.meaningGuide == "yellow (Remember), green (Key idea), blue (Question), pink (Doubt), purple (Connect)")
     }
 
     @Test("The MCP tools name the colors by meaning, and a mark's payload carries it beside the stored color")
@@ -45,8 +45,8 @@ struct HighlightColorMeaningTests {
     @Test("Blue and pink are the open marks; the tags and their guide name every color")
     func openItemsAndTags() {
         #expect(SourceHighlightColor.allCases.filter(\.isOpenItem) == [.blue, .pink])
-        #expect(SourceHighlightColor.allCases.map(\.promptTag) == ["[REMEMBER]", "[KEY IDEA]", "[FOLLOW UP]", "[DOUBT]", "[CONNECT]"])
-        #expect(SourceHighlightColor.promptTagGuide.contains("[FOLLOW UP] to follow up later"))
+        #expect(SourceHighlightColor.allCases.map(\.promptTag) == ["[REMEMBER]", "[KEY IDEA]", "[QUESTION]", "[DOUBT]", "[CONNECT]"])
+        #expect(SourceHighlightColor.promptTagGuide.contains("[QUESTION] a question the learner has"))
         #expect(SourceHighlightColor.promptTagGuide.contains("[DOUBT] doubted"))
     }
 
@@ -68,7 +68,7 @@ struct HighlightColorMeaningTests {
             mark("d", "Not convinced", color: .pink, at: 0),
         ])
         #expect(lines == [
-            "[FOLLOW UP] Check this later",
+            "[QUESTION] Check this later",
             "[DOUBT] Not convinced",
             "[KEY IDEA] Key claim — THEIR OWN NOTE: why",
             "[REMEMBER] Plain yellow",
@@ -80,13 +80,13 @@ struct HighlightColorMeaningTests {
         var marks = (0..<12).map { mark("n\($0)", "Settled \($0)", color: .green, at: TimeInterval(100 + $0)) }
         marks.append(mark("old", "Look into this", color: .blue, at: 0))
         let kept = SourceIdeaDrafting.highlightLines(marks).prefix(CohortSourceBrief.maxHighlights)
-        #expect(kept.first == "[FOLLOW UP] Look into this")
+        #expect(kept.first == "[QUESTION] Look into this")
     }
 
     @Test("A bare slide mark is still no highlight, tagged or not")
     func bareSlideMarkStaysOut() {
         let bare = ReaderClip.slideHighlight(sourceID: "talk", slide: 3, title: "Slide 3", pixelWidth: 16, pixelHeight: 9)
-        #expect(SourceIdeaDrafting.highlightLines([bare, mark("x", "Real", color: .blue)]) == ["[FOLLOW UP] Real"])
+        #expect(SourceIdeaDrafting.highlightLines([bare, mark("x", "Real", color: .blue)]) == ["[QUESTION] Real"])
     }
 
     @Test("Card seeds name the color's meaning once colors are used, and settled marks are offered before open ones")
@@ -104,7 +104,7 @@ struct HighlightColorMeaningTests {
             CardDraftingSeedKey.highlight("open"),
         ])
         #expect(seeds[0].text == "Highlighted [KEY IDEA]: \u{201C}Settled and noted\u{201D}\nTheir note: mine")
-        #expect(seeds.last?.text == "Highlighted [FOLLOW UP]: \u{201C}Unsettled claim\u{201D}")
+        #expect(seeds.last?.text == "Highlighted [QUESTION]: \u{201C}Unsettled claim\u{201D}")
 
         let untouched = CardDraftingSeed.highlights([mark("p", "Only yellow", color: .yellow)])
         #expect(untouched.first?.text == "Highlighted: \u{201C}Only yellow\u{201D}")
@@ -114,7 +114,7 @@ struct HighlightColorMeaningTests {
     func promptsExplainTheTags() {
         #expect(Prompts.sourceIdeaExtraction.contains(SourceHighlightColor.promptTagGuide))
         #expect(Prompts.cohortSessionPlanner.contains(SourceHighlightColor.promptTagGuide))
-        #expect(Prompts.cardDrafter.contains("[FOLLOW UP] or [DOUBT]"))
+        #expect(Prompts.cardDrafter.contains("[QUESTION] or [DOUBT]"))
         #expect(Prompts.mcpServerInstructions.contains("color \"blue\" or \"pink\""))
         #expect(Prompts.mcpServerInstructions.contains(SourceHighlightColor.meaningGuide))
     }

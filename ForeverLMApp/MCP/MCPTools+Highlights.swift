@@ -49,7 +49,7 @@ extension MCPDataStore {
             "highlights": highlights.map(highlightPayload),
             "guidance": highlights.isEmpty
                 ? "The learner has not marked anything in this source yet. create_source_highlight marks a passage; quote it verbatim from get_source_content."
-                : "A highlight's note is the learner's own words; an empty one is a bare mark they made while reading. A highlight's publication_update is what has been learned since the source was written, as research put it; update_source_highlight writes either, and research goes in publication_update, never in note. A highlight whose quote is empty and that carries pictures is a mark on a figure or image of the page. A highlight with a session_id carries the chat its note came from — often research into what has changed since the source was written; get_review_session_transcript reads it. A highlight's references are the papers its note cites; source_id marks the ones already in the library.",
+                : "A highlight's note is the learner's own words; an empty one is a bare mark they made while reading. A highlight's publication_update is what has been learned since the source was written, as research put it; update_source_highlight writes either, and research goes in publication_update, never in note. A highlight whose quote is empty and that carries pictures is a mark on a figure or image of the page. A highlight with a session_id carries the chat its note came from — often research into what has changed since the source was written; get_review_session_transcript reads it. A highlight's references are the papers its note cites; source_id marks the ones already in the library. follow_up true means the learner flagged the mark to follow up, whatever its color.",
         ] as [String: Any])
     }
 
@@ -58,9 +58,10 @@ extension MCPDataStore {
     ///
     /// This is the "what have I been noting lately" question, which no
     /// per-source tool can answer: the learner asking it does not yet know
-    /// which sources to look in. With `color` it is also "what did I set aside
-    /// to follow up" (blue) or "what do I doubt" (pink), across the library.
-    func searchSourceHighlights(query queryText: String?, limit: Int?, color: String? = nil) throws -> String {
+    /// which sources to look in. With `followUp` it is also "what did I flag
+    /// to follow up", and with `color` "what do I doubt" (pink), across the
+    /// library.
+    func searchSourceHighlights(query queryText: String?, limit: Int?, color: String? = nil, followUp: Bool? = nil) throws -> String {
         // `query` names this type's SQL helper, so the caller-facing label keeps
         // its name while the body uses the renamed parameter.
         let trimmedQuery = (queryText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -92,6 +93,9 @@ extension MCPDataStore {
             }
             params.append(colorFilter.rawValue)
         }
+        if let followUp {
+            conditions.append(followUp ? "h.follow_up_at IS NOT NULL" : "h.follow_up_at IS NULL")
+        }
         let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
         params.append(resolvedLimit + excludedSourceIDs.count)
 
@@ -100,7 +104,7 @@ extension MCPDataStore {
                 SELECT h.highlight_id, h.source_id, h.text, h.note, h.color,
                        h.created_at, h.updated_at, h.page_index, h.quads_json,
                        h.chat_session_id, h.references_json, h.publication_update,
-                       h.publication_update_at, sp.title, sp.source_type
+                       h.publication_update_at, h.follow_up_at, sp.title, sp.source_type
                 FROM source_highlights h
                 JOIN source_projection sp ON sp.id = h.source_id
                 \(whereClause)
@@ -122,6 +126,7 @@ extension MCPDataStore {
         return try jsonString([
             "query": trimmedQuery,
             "color": colorFilter?.rawValue ?? "",
+            "follow_up": followUp.map { $0 as Any } ?? NSNull(),
             "highlight_count": visible.count,
             "highlights": visible.map(searchHighlightPayload),
             "guidance": "Ordered newest first. Call get_source_content with a source_id to read the passage in context, or list_source_highlights to see everything the learner marked in that source.",
@@ -317,7 +322,8 @@ extension MCPDataStore {
         color: String?,
         sessionID: String? = nil,
         references rawReferences: Any? = nil,
-        publicationUpdate: String? = nil
+        publicationUpdate: String? = nil,
+        followUp: Bool? = nil
     ) throws -> String {
         let trimmedID = highlightID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedID.isEmpty else {
@@ -325,8 +331,8 @@ extension MCPDataStore {
         }
         let references = try validatedHighlightReferences(rawReferences)
         let update = try validatedHighlightUpdate(publicationUpdate)
-        guard note != nil || color != nil || sessionID != nil || references != nil || update != nil else {
-            throw MCPError.invalidInput("Pass note, publication_update, color, session_id or references. Nothing else about a highlight is editable.")
+        guard note != nil || color != nil || sessionID != nil || references != nil || update != nil || followUp != nil else {
+            throw MCPError.invalidInput("Pass note, publication_update, color, follow_up, session_id or references. Nothing else about a highlight is editable.")
         }
         let store = try knowledgeStore()
         guard var highlight = try store.sourceHighlight(id: trimmedID) else {
@@ -357,6 +363,9 @@ extension MCPDataStore {
         let now = Date()
         if let update {
             highlight.setPublicationUpdate(update, at: now)
+        }
+        if let followUp, followUp != highlight.isFlaggedForFollowUp {
+            highlight.followUpAt = followUp ? now : nil
         }
         highlight.updatedAt = now
         try store.saveSourceHighlight(highlight)
@@ -543,6 +552,7 @@ extension MCPDataStore {
             "note": highlight.note,
             "color": highlight.color.rawValue,
             "color_meaning": highlight.color.meaning,
+            "follow_up": highlight.isFlaggedForFollowUp,
             "created_at": KnowledgeStore.iso8601Formatter.string(from: highlight.createdAt),
             "updated_at": KnowledgeStore.iso8601Formatter.string(from: highlight.updatedAt),
         ]
@@ -592,6 +602,7 @@ extension MCPDataStore {
             "note": row["note"] as? String ?? "",
             "color": SourceHighlightColor(storedValue: row["color"] as? String).rawValue,
             "color_meaning": SourceHighlightColor(storedValue: row["color"] as? String).meaning,
+            "follow_up": row["follow_up_at"] != nil && !(row["follow_up_at"] is NSNull),
             "created_at": KnowledgeStore.iso8601Formatter.string(from: highlightDate(row["created_at"])),
             "updated_at": KnowledgeStore.iso8601Formatter.string(from: highlightDate(row["updated_at"])),
         ]

@@ -29,7 +29,7 @@ enum MobileHighlightLocator {
         return .object(locator)
     }
 
-    /// The cited references and the update, or null when the mark has neither.
+    /// The cited references, the update and the follow-up flag, or null when the mark has none of them.
     static func refs(_ highlight: SourceHighlight) -> SyncJSON {
         var refs: [String: SyncJSON] = [:]
         if !highlight.references.isEmpty, let references = json(highlight.references) { refs["references"] = references }
@@ -37,6 +37,7 @@ enum MobileHighlightLocator {
             refs["publicationUpdate"] = .string(highlight.publicationUpdate)
             if let at = highlight.publicationUpdateAt { refs["publicationUpdateAt"] = SyncJSON(SyncTime.milliseconds(at)) }
         }
+        if let at = highlight.followUpAt { refs["followUpAt"] = SyncJSON(SyncTime.milliseconds(at)) }
         return refs.isEmpty ? .null : .object(refs)
     }
 
@@ -63,6 +64,7 @@ enum MobileHighlightLocator {
             highlight.publicationUpdate = update
             highlight.publicationUpdateAt = refs?["publicationUpdateAt"]?.int64Value.map(SyncTime.date(milliseconds:))
         }
+        highlight.followUpAt = refs?["followUpAt"]?.int64Value.map(SyncTime.date(milliseconds:))
         return highlight
     }
 

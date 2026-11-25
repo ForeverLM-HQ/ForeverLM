@@ -2,15 +2,16 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-// The Library's Follow up list: the marks set aside to follow up (blue) or
-// doubt (pink), newest first, and how the list follows a color change.
+// The Library's Follow up list: the marks flagged to follow up, whatever
+// their color, newest first, and how the list follows a flag set or taken off.
 
 @Suite("Follow up list")
 struct FollowUpListTests {
     private func mark(
         _ id: String,
         source: String = "s1",
-        color: SourceHighlightColor,
+        color: SourceHighlightColor = .default,
+        flagged: Bool = true,
         at seconds: TimeInterval = 0,
         quote: String = "A passage"
     ) -> FollowUpMark {
@@ -18,24 +19,24 @@ struct FollowUpListTests {
             highlight: SourceHighlight(
                 id: id, sourceID: source, quote: quote, note: "", color: color,
                 anchor: ReaderTextAnchor(exact: quote), pdfAnchor: nil,
+                followUpAt: flagged ? Date(timeIntervalSince1970: seconds) : nil,
                 createdAt: Date(timeIntervalSince1970: seconds), updatedAt: Date(timeIntervalSince1970: seconds)
             ),
             sourceID: source
         )
     }
 
-    @Test("Only blue and pink marks are listed, newest first, ties in id order")
-    func openMarksNewestFirst() {
+    @Test("Only flagged marks are listed, whatever their color, newest first, ties in id order")
+    func flaggedMarksNewestFirst() {
         let listed = FollowUpList.open([
-            mark("old-blue", color: .blue, at: 1),
-            mark("yellow", color: .yellow, at: 5),
-            mark("green", color: .green, at: 6),
-            mark("purple", color: .purple, at: 7),
-            mark("new-pink", color: .pink, at: 9),
-            mark("b-tie", color: .blue, at: 3),
+            mark("old-yellow", color: .yellow, at: 1),
+            mark("unflagged-blue", color: .blue, flagged: false, at: 5),
+            mark("unflagged-pink", color: .pink, flagged: false, at: 6),
+            mark("new-green", color: .green, at: 9),
+            mark("b-tie", color: .purple, at: 3),
             mark("a-tie", color: .pink, at: 3),
         ], isPutAway: { _ in false })
-        #expect(listed.map(\.id) == ["new-pink", "a-tie", "b-tie", "old-blue"])
+        #expect(listed.map(\.id) == ["new-green", "a-tie", "b-tie", "old-yellow"])
     }
 
     @Test("A mark on a hidden or archived source leaves with it")
@@ -51,32 +52,41 @@ struct FollowUpListTests {
     func bareSlideMarkIsNotListed() {
         let slide = ReaderClip.slideHighlight(sourceID: "talk", slide: 3, title: "Slide 3", pixelWidth: 16, pixelHeight: 9)
         let bare = FollowUpMark(highlight: slide, sourceID: "talk")
-        var blue = slide
-        blue.color = .blue
-        let blueBare = FollowUpMark(highlight: blue, sourceID: "talk")
+        var flagged = slide
+        flagged.followUpAt = Date()
+        let flaggedBare = FollowUpMark(highlight: flagged, sourceID: "talk")
         #expect(bare.highlight.isBareSlideMark)
-        #expect(FollowUpList.open([blueBare], isPutAway: { _ in false }).isEmpty)
+        #expect(FollowUpList.open([flaggedBare], isPutAway: { _ in false }).isEmpty)
     }
 
-    @Test("Changing a mark's color adds it to the list, or takes it off")
-    func colorChangesMoveMarksInAndOut() {
-        var marks = [mark("a", color: .blue, at: 1)]
+    @Test("Flagging a mark adds it to the list, a color change leaves it, and taking the flag off takes it off")
+    func flagMovesMarksInAndOut() {
+        var marks = [mark("a", at: 1)]
 
-        // Yellow to blue: a new open mark joins.
-        var b = mark("b", color: .blue, at: 2).highlight
+        // Flagged: a new mark joins.
+        var b = mark("b", color: .yellow, at: 2).highlight
         marks = FollowUpList.applying(b, to: marks)
         #expect(Set(marks.map(\.id)) == ["a", "b"])
 
-        // Blue to pink: still open, replaced once, not duplicated.
+        // A color change keeps it on, replaced once, not duplicated.
         b.color = .pink
         marks = FollowUpList.applying(b, to: marks)
         #expect(marks.count == 2)
         #expect(marks.first { $0.id == "b" }?.highlight.color == .pink)
 
-        // Pink to yellow (Followed Up): it leaves.
-        b.color = .default
+        // Blue without the flag is not on the list.
+        var c = mark("c", color: .blue, flagged: false, at: 3).highlight
+        marks = FollowUpList.applying(c, to: marks)
+        #expect(Set(marks.map(\.id)) == ["a", "b"])
+        c.followUpAt = Date()
+        marks = FollowUpList.applying(c, to: marks)
+        #expect(Set(marks.map(\.id)) == ["a", "b", "c"])
+
+        // Followed Up: the flag comes off and it leaves, its color kept.
+        b.followUpAt = nil
         marks = FollowUpList.applying(b, to: marks)
-        #expect(marks.map(\.id) == ["a"])
+        #expect(Set(marks.map(\.id)) == ["a", "c"])
+        marks = FollowUpList.removing("c", from: marks)
 
         // Deleting a mark takes it off, and deleting an absent one changes nothing.
         #expect(FollowUpList.removing("a", from: marks).isEmpty)

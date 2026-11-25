@@ -1,8 +1,7 @@
 import Foundation
 
-/// A mark the learner set aside to come back to — blue (Follow up) or pink
-/// (Doubt), `SourceHighlightColor.isOpenItem` — with the library source it is
-/// on. `sourceID` is the source's id on this device, which a team copy's marks
+/// A mark the learner flagged to follow up (`SourceHighlight.followUpAt`,
+/// whatever its color) with the library source it is on. `sourceID` is the source's id on this device, which a team copy's marks
 /// (kept on the source's wire id) are mapped to.
 struct FollowUpMark: Identifiable, Equatable, Sendable {
     let highlight: SourceHighlight
@@ -31,7 +30,7 @@ enum FollowUpList {
     /// marks made in one import do not swap between redraws.
     static func open(_ marks: [FollowUpMark], isPutAway: (String) -> Bool) -> [FollowUpMark] {
         marks
-            .filter { $0.highlight.color.isOpenItem && !$0.highlight.isBareSlideMark && !isPutAway($0.sourceID) }
+            .filter { $0.highlight.isFlaggedForFollowUp && !$0.highlight.isBareSlideMark && !isPutAway($0.sourceID) }
             .sorted { lhs, rhs in
                 if lhs.highlight.createdAt != rhs.highlight.createdAt {
                     return lhs.highlight.createdAt > rhs.highlight.createdAt
@@ -40,12 +39,12 @@ enum FollowUpList {
             }
     }
 
-    /// `marks` with `highlight` brought up to date: a mark whose color is now
-    /// open is added or replaced, any other leaves the list. This is how the
-    /// list follows a color change made in the Reader without a new query.
+    /// `marks` with `highlight` brought up to date: a flagged mark is added or
+    /// replaced, any other leaves the list. This is how the list follows a
+    /// flag set or taken off in the Reader without a new query.
     static func applying(_ highlight: SourceHighlight, to marks: [FollowUpMark]) -> [FollowUpMark] {
         var result = marks.filter { $0.id != highlight.id }
-        if highlight.color.isOpenItem {
+        if highlight.isFlaggedForFollowUp {
             result.append(FollowUpMark(highlight: highlight, sourceID: highlight.sourceID))
         }
         return result

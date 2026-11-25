@@ -2023,7 +2023,7 @@
     "inputSchema" : {
       "properties" : {
         "color" : {
-          "description" : "Marker color, chosen by what the mark means to the learner: yellow (Remember), green (Key idea), blue (Follow up), pink (Doubt), purple (Connect). Defaults to yellow.",
+          "description" : "Marker color, chosen by what the mark means to the learner: yellow (Remember), green (Key idea), blue (Question), pink (Doubt), purple (Connect). Defaults to yellow.",
           "type" : "string"
         },
         "image_alt" : {
@@ -9757,12 +9757,16 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks. Pass color to see one kind of mark across the whole library: blue marks are what the learner set aside to follow up, pink what they doubt.",
+    "description" : "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks. Pass follow_up true for what the learner flagged to follow up, across the whole library, whatever its color; pass color to see one kind of mark (pink is what they doubt).",
     "inputSchema" : {
       "properties" : {
         "color" : {
-          "description" : "Optional marker color to keep: yellow (Remember), green (Key idea), blue (Follow up), pink (Doubt), purple (Connect).",
+          "description" : "Optional marker color to keep: yellow (Remember), green (Key idea), blue (Question), pink (Doubt), purple (Connect).",
           "type" : "string"
+        },
+        "follow_up" : {
+          "description" : "Optional: true keeps only the marks the learner flagged to follow up, false only the ones not flagged.",
+          "type" : "boolean"
         },
         "limit" : {
           "description" : "Maximum highlights to return. Defaults to 50, capped at 200.",
@@ -12471,12 +12475,16 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Rewrite the note or the since-publication update, change the color, link the chat the update came from, or set the papers it cites on an existing highlight. Pass an empty note to turn it back into a bare highlight. The passage itself is not editable — mark a different passage with create_source_highlight instead.",
+    "description" : "Rewrite the note or the since-publication update, change the color, flag it to follow up or take the flag off, link the chat the update came from, or set the papers it cites on an existing highlight. Pass an empty note to turn it back into a bare highlight. The passage itself is not editable — mark a different passage with create_source_highlight instead.",
     "inputSchema" : {
       "properties" : {
         "color" : {
-          "description" : "New marker color, by what the mark means: yellow (Remember), green (Key idea), blue (Follow up), pink (Doubt), purple (Connect).",
+          "description" : "New marker color, by what the mark means: yellow (Remember), green (Key idea), blue (Question), pink (Doubt), purple (Connect).",
           "type" : "string"
+        },
+        "follow_up" : {
+          "description" : "true flags the mark to follow up (it joins the learner's To Follow Up list, whatever its color); false takes the flag off, which is the learner saying it is followed up. Only when the learner asks.",
+          "type" : "boolean"
         },
         "highlight_id" : {
           "description" : "Highlight ID from list_source_highlights or search_source_highlights.",

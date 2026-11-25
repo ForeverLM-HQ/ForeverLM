@@ -18,7 +18,7 @@ extension KnowledgeStore {
         try queryBind("""
             SELECT highlight_id, source_id, page_index, quads_json, text, color,
                    note, created_at, updated_at, anchor_prefix, anchor_suffix, anchor_offset,
-                   chat_session_id, references_json, publication_update, publication_update_at
+                   chat_session_id, references_json, publication_update, publication_update_at, follow_up_at
             FROM source_highlights
             WHERE source_id IN (\(Array(repeating: "?", count: keys.count).joined(separator: ", ")))
             ORDER BY created_at, highlight_id
@@ -48,20 +48,19 @@ extension KnowledgeStore {
         return results
     }
 
-    /// Every mark in the library whose color says "come back to this" (blue,
-    /// pink: `SourceHighlightColor.isOpenItem`), newest first, each with the
-    /// id of the source it is on here. Under generation 2 a team copy's marks
+    /// Every mark in the library flagged to follow up
+    /// (`SourceHighlight.followUpAt`), newest first, each with the id of the
+    /// source it is on here. Under generation 2 a team copy's marks
     /// are kept on the source's wire id; they are mapped to the local source,
     /// and a mark whose source this Mac does not hold is left out.
     func openSourceHighlights() throws -> [FollowUpMark] {
-        let open = SourceHighlightColor.allCases.filter(\.isOpenItem).map { "'\($0.rawValue)'" }.joined(separator: ", ")
         var rows: [SourceHighlight] = []
         try queryBind("""
             SELECT highlight_id, source_id, page_index, quads_json, text, color,
                    note, created_at, updated_at, anchor_prefix, anchor_suffix, anchor_offset,
-                   chat_session_id, references_json, publication_update, publication_update_at
+                   chat_session_id, references_json, publication_update, publication_update_at, follow_up_at
             FROM source_highlights
-            WHERE color IN (\(open))
+            WHERE follow_up_at IS NOT NULL
             ORDER BY created_at DESC, highlight_id
         """, bind: { _ in }) { stmt in
             if let highlight = self.decodeSourceHighlight(stmt) { rows.append(highlight) }
@@ -92,7 +91,7 @@ extension KnowledgeStore {
             try queryBind("""
                 SELECT highlight_id, source_id, page_index, quads_json, text, color,
                        note, created_at, updated_at, anchor_prefix, anchor_suffix, anchor_offset,
-                       chat_session_id, references_json, publication_update, publication_update_at
+                       chat_session_id, references_json, publication_update, publication_update_at, follow_up_at
                 FROM source_highlights
                 WHERE source_id IN (\(placeholders))
                 ORDER BY created_at, highlight_id
@@ -193,8 +192,8 @@ extension KnowledgeStore {
             INSERT INTO source_highlights (
                 highlight_id, source_id, page_index, quads_json, text, color,
                 note, created_at, updated_at, anchor_prefix, anchor_suffix, anchor_offset,
-                chat_session_id, references_json, publication_update, publication_update_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                chat_session_id, references_json, publication_update, publication_update_at, follow_up_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(highlight_id) DO UPDATE SET
                 source_id = excluded.source_id,
                 page_index = excluded.page_index,
@@ -209,7 +208,8 @@ extension KnowledgeStore {
                 chat_session_id = excluded.chat_session_id,
                 references_json = excluded.references_json,
                 publication_update = excluded.publication_update,
-                publication_update_at = excluded.publication_update_at
+                publication_update_at = excluded.publication_update_at,
+                follow_up_at = excluded.follow_up_at
         """) { stmt in
             bind(stmt, 1, highlight.id)
             bind(stmt, 2, sourceKey)
@@ -228,6 +228,7 @@ extension KnowledgeStore {
             bind(stmt, 14, SourceHighlightReference.storedJSON(highlight.references))
             bind(stmt, 15, highlight.hasPublicationUpdate ? highlight.publicationUpdate : nil)
             bind(stmt, 16, highlight.hasPublicationUpdate ? highlight.publicationUpdateAt?.timeIntervalSince1970 : nil)
+            bind(stmt, 17, highlight.followUpAt?.timeIntervalSince1970)
         }
     }
 
@@ -253,7 +254,7 @@ extension KnowledgeStore {
         try queryBind("""
             SELECT highlight_id, source_id, page_index, quads_json, text, color,
                    note, created_at, updated_at, anchor_prefix, anchor_suffix, anchor_offset,
-                   chat_session_id, references_json, publication_update, publication_update_at
+                   chat_session_id, references_json, publication_update, publication_update_at, follow_up_at
             FROM source_highlights
             WHERE highlight_id = ?
             LIMIT 1
@@ -331,6 +332,9 @@ extension KnowledgeStore {
             publicationUpdateAt: sqlite3_column_type(stmt, 15) == SQLITE_NULL
                 ? nil
                 : Date(timeIntervalSince1970: sqlite3_column_double(stmt, 15)),
+            followUpAt: sqlite3_column_type(stmt, 16) == SQLITE_NULL
+                ? nil
+                : Date(timeIntervalSince1970: sqlite3_column_double(stmt, 16)),
             createdAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 7)),
             updatedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 8))
         )

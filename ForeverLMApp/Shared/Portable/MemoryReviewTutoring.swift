@@ -739,7 +739,7 @@ enum MemoryReviewTutoring {
                 SourceHighlightColor.allCases.contains { line.hasPrefix($0.promptTag) }
             }
             lines.append(carriesTags
-                ? "Their highlights (the tag says what the color means to them: \(SourceHighlightColor.promptTagGuide). Open a [FOLLOW UP] or [DOUBT] mark when the question allows: they set it aside to come back to):"
+                ? "Their highlights (the tag says what the color means to them: \(SourceHighlightColor.promptTagGuide). Open a [QUESTION] or [DOUBT] mark when the question allows: they set it aside to come back to):"
                 : "Their highlights:")
             for highlight in brief.highlights.prefix(CohortSourceBrief.maxHighlights) {
                 lines.append("- \(highlight)")

@@ -6,8 +6,8 @@ import SwiftUI
 private let followUpLogger = Logger(subsystem: "com.foreverlm.app", category: "FollowUp")
 
 extension StudioViewModel {
-    /// One source's open marks: set aside to follow up (blue) or doubt
-    /// (pink), newest first, by `FollowUpList`'s rule. What its Library row's
+    /// One source's marks flagged to follow up, newest first, by
+    /// `FollowUpList`'s rule. What its Library row's
     /// flag counts and lists. The row is the source's, so whether the source
     /// is put away is the list's business, not this.
     func followUpMarks(forSource sourceID: String) -> [FollowUpMark] {
@@ -16,8 +16,8 @@ extension StudioViewModel {
         return FollowUpList.open(marks) { _ in false }
     }
 
-    /// Reads every open mark from storage. The list is kept in step with
-    /// color changes made in the Reader afterwards (`applyLocally`); this
+    /// Reads every flagged mark from storage. The list is kept in step with
+    /// flags set in the Reader afterwards (`applyLocally`); this
     /// catches what arrived by sync or from an assistant since.
     func reloadFollowUpMarks() async {
         do {
@@ -36,12 +36,11 @@ extension StudioViewModel {
         openReaderHighlight(highlightID: mark.id, sourceID: mark.sourceID)
     }
 
-    /// Followed up: the mark is no longer open, so it goes back to the
-    /// default color (Remember) and leaves the list. The learner can pick any
-    /// other color from the row's menu.
+    /// Followed up: the flag comes off and the mark leaves the list. Its
+    /// color, which says what the passage is, stays as it was.
     func settleFollowUpMark(_ mark: FollowUpMark) async {
         await loadReaderHighlightsIfNeeded(for: mark.sourceID)
-        await setReaderNoteColor(.default, highlightID: mark.id, sourceID: mark.sourceID)
+        await setReaderHighlightFollowUp(false, highlightID: mark.id, sourceID: mark.sourceID)
     }
 
     func setFollowUpMarkColor(_ mark: FollowUpMark, to color: SourceHighlightColor) async {
@@ -50,8 +49,8 @@ extension StudioViewModel {
     }
 }
 
-/// A Library row's one trailer: "To follow up" when passages are set aside
-/// to follow up or doubt, in the row's grey ("Lists are monochrome",
+/// A Library row's one trailer: "To follow up" when passages are flagged
+/// to follow up, in the row's grey ("Lists are monochrome",
 /// docs/ui-design.md); nothing otherwise. A row never names its cards (product
 /// owner, 2026-11-22: "i don't want any cards to be linked here in the
 /// library"). A click opens the source's cards and, under them, the waiting
@@ -154,7 +153,7 @@ private struct SourceCardsPopover: View {
                 }
                 if !marks.isEmpty {
                     heading("To Follow Up")
-                    Text("Passages you marked to follow up or doubt while reading.")
+                    Text("Highlights you flagged to follow up while reading.")
                         .zoomedSystemFont(size: 11.5)
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 14)

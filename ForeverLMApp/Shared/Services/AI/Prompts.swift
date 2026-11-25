@@ -369,11 +369,13 @@ enum Prompts {
     Call list_source_highlights before reviewing, summarizing, or discussing a source they have already read: \
     what they marked is what they found important, and their notes are their own thinking about it.
     - A mark's color means something to the learner, and each mark carries it as color_meaning: \(SourceHighlightColor.meaningGuide). \
-    Blue (Follow up) and pink (Doubt) are things they set aside to come back to. When you list a source's \
-    marks, say which are still open and offer to take one up, rather than treating every mark as settled; \
-    when they ask what they need to follow up on, or what they doubt, call search_source_highlights \
-    with color "blue" or "pink" and group what comes back by source. Never change a mark's color on your \
-    own: moving a Follow up to another color is the learner saying it is done.
+    Apart from its color, a mark can be flagged to follow up (follow_up true): that, whatever the color, is \
+    what they set aside to come back to, and blue (Question) and pink (Doubt) are passages they have not \
+    settled. When you list a source's marks, say which are flagged or unsettled and offer to take one up, \
+    rather than treating every mark as settled; when they ask what they need to follow up on, call \
+    search_source_highlights with follow_up true, and for what they doubt with color "pink", and group \
+    what comes back by source. Never take a flag off or change a color on your own: taking the flag off \
+    is the learner saying it is followed up.
     - Use search_source_highlights when the source is not known yet — "what have I been noting lately", \
     or everything they have marked about a topic. Omit query for the most recent marks.
     - Mark a passage with create_source_highlight only when the learner asks you to highlight, note, or flag \
@@ -1963,7 +1965,7 @@ enum Prompts {
     highlights, and — when it exists — a document recording what they have previously \
     made of it, including anything they got wrong or left unresolved. A highlight may begin \
     with a tag for what its color means to the learner: \(SourceHighlightColor.promptTagGuide). \
-    A [FOLLOW UP] or [DOUBT] mark is something they set aside to come back to: when it names \
+    A [QUESTION] or [DOUBT] mark is something they set aside to come back to: when it names \
     an idea, give that idea a topic, or a place in one, and say in the `intent` that the \
     opening question should open it up. Passages in that \
     document marked as the learner's own edits are their correction of your earlier \
@@ -2046,7 +2048,7 @@ enum Prompts {
     When the learner's own highlights are supplied, an idea that overlaps a highlight matters more \
     to them; keep it even if you would otherwise cut it, and anchor it on the highlighted words. \
     A highlight may begin with a tag for what its color means to the learner: \(SourceHighlightColor.promptTagGuide). \
-    An idea on a [FOLLOW UP] or [DOUBT] highlight is one the learner has not settled: state what the \
+    An idea on a [QUESTION] or [DOUBT] highlight is one the learner has not settled: state what the \
     source itself says there, never a verdict of your own, and let its recall_note name what the source \
     leaves open or unsupported, so a review can return to it.
 
@@ -2107,7 +2109,7 @@ enum Prompts {
 
     Choose what to ask:
     - Draft from the seeds first, in the order given: a seed is something the learner or ForeverLM already chose about this source. One card a seed at most, named in "seed". Then draft from the text for what matters most in it: mechanisms, causal relationships, methods, major claims, quantitative results, definitions put to use, assumptions, limitations and trade-offs, before terminology, examples and trivia.
-    - A highlight tagged [FOLLOW UP] or [DOUBT] is something the learner has not settled and means to come back to, not a fact they have taken in. Draft a card from it only when the source's text answers it, and ask what the source says about it, never whether the learner agrees. When the text does not answer it, leave that seed unused; the learner will follow it up another way. Tagged [REMEMBER], [KEY IDEA] and [CONNECT] marks are settled: draft from them first.
+    - A highlight tagged [QUESTION] or [DOUBT] is something the learner has not settled and means to come back to, not a fact they have taken in. Draft a card from it only when the source's text answers it, and ask what the source says about it, never whether the learner agrees. When the text does not answer it, leave that seed unused; the learner will follow it up another way. Tagged [REMEMBER], [KEY IDEA] and [CONNECT] marks are settled: draft from them first.
     - When a focus is given, every card serves it.
     - \(sourceCardSetRule) When the source's cards already include its story card, write none again.
     - One idea a card, the story card aside. A question that needs two answers is two cards, or none.

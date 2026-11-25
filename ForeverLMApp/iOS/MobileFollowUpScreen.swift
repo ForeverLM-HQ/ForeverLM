@@ -1,11 +1,11 @@
 import SwiftUI
 
 /// The Follow up screen, the row under Home's To Read: every passage the
-/// learner set aside to follow up (blue) or doubt (pink), across the library,
+/// learner flagged to follow up, whatever its color, across the library,
 /// newest first under Today, Yesterday, This Week and Earlier. The rule is
 /// `FollowUpList`'s, the one the Mac's Library Follow up scope reads. A row
-/// opens the source in the Reader; a swipe, or Followed Up in its menu, puts
-/// the mark back to Remember, which takes it off the list.
+/// opens the source in the Reader; a swipe, or Followed Up in its menu, takes
+/// the flag off, which takes it off the list. The color stays as it was.
 struct MobileFollowUpScreen: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
 
@@ -34,7 +34,7 @@ struct MobileFollowUpScreen: View {
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                     if hasLoaded {
-                        Text("Mark a passage blue (Follow up) or pink (Doubt) while you read.")
+                        Text("Flag a highlight to follow up while you read on your Mac.")
                             .font(.footnote)
                             .foregroundStyle(.tertiary)
                             .multilineTextAlignment(.center)
@@ -48,8 +48,8 @@ struct MobileFollowUpScreen: View {
                     ForEach(Array(sections.enumerated()), id: \.offset) { _, group in
                         Section(group.section.title) {
                             ForEach(group.items) { mark in
-                                MobileFollowUpRow(mark: mark) { color in
-                                    Task { await setColor(color, for: mark) }
+                                MobileFollowUpRow(mark: mark) { changed in
+                                    Task { await save(changed) }
                                 }
                             }
                         }
@@ -81,11 +81,9 @@ struct MobileFollowUpScreen: View {
         }
     }
 
-    private func setColor(_ color: SourceHighlightColor, for mark: FollowUpMark) async {
-        guard let source = vm.sourcesByID[mark.sourceID] else { return }
-        var highlight = mark.highlight
-        guard highlight.color != color else { return }
-        highlight.color = color
+    private func save(_ changed: SourceHighlight) async {
+        guard let source = vm.sourcesByID[changed.sourceID] else { return }
+        var highlight = changed
         highlight.updatedAt = Date()
         do {
             try await MobileCloudMutationService.shared.saveSourceHighlight(highlight, source: source)
@@ -98,7 +96,8 @@ struct MobileFollowUpScreen: View {
 
 private struct MobileFollowUpRow: View {
     let mark: FollowUpMark
-    let setColor: (SourceHighlightColor) -> Void
+    /// Saves the mark as changed here.
+    let save: (SourceHighlight) -> Void
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
 
     private var highlight: SourceHighlight { mark.highlight }
@@ -136,18 +135,21 @@ private struct MobileFollowUpRow: View {
         .accessibilityIdentifier("followUp.row")
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
-                setColor(.default)
+                settle()
             } label: {
                 Label("Followed Up", systemImage: "checkmark.circle")
             }
             .tint(.accentColor)
         }
         .contextMenu {
-            Button("Followed Up", systemImage: "checkmark.circle") { setColor(.default) }
+            Button("Followed Up", systemImage: "checkmark.circle") { settle() }
             Menu("Color") {
                 ForEach(SourceHighlightColor.allCases, id: \.rawValue) { option in
                     Button {
-                        setColor(option)
+                        guard option != highlight.color else { return }
+                        var changed = highlight
+                        changed.color = option
+                        save(changed)
                     } label: {
                         if option == highlight.color {
                             Label(option.meaning, systemImage: "checkmark")
@@ -158,6 +160,13 @@ private struct MobileFollowUpRow: View {
                 }
             }
         }
+    }
+
+    /// Followed up: the flag comes off; the color stays.
+    private func settle() {
+        var changed = highlight
+        changed.followUpAt = nil
+        save(changed)
     }
 
     /// What the color says, where it came from, and when it was marked.

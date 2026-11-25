@@ -125,8 +125,7 @@ actor MobileCloudSourceCatalog {
         return replicaSnapshot?.highlights.filter { $0.sourceID == sourceID } ?? []
     }
 
-    /// Every mark the learner set aside to follow up or doubt (blue, pink),
-    /// across the library, as the Follow up screen reads them: the replica's
+    /// Every mark the learner flagged to follow up, across the library, as the Follow up screen reads them: the replica's
     /// highlights are already keyed by the source's id on this phone.
     func loadOpenSourceHighlights(forceRefresh: Bool = false) async throws -> [FollowUpMark] {
         _ = try await loadSources(forceRefresh: forceRefresh)
@@ -135,7 +134,7 @@ actor MobileCloudSourceCatalog {
 
     func currentOpenSourceHighlights() -> [FollowUpMark] {
         (replicaSnapshot?.highlights ?? [])
-            .filter { $0.color.isOpenItem }
+            .filter(\.isFlaggedForFollowUp)
             .map { FollowUpMark(highlight: $0, sourceID: $0.sourceID) }
     }
 

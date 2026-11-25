@@ -23,10 +23,12 @@ struct HighlightRow: Equatable, Sendable {
     var referencesJSON: String?
     var publicationUpdate: String?
     var publicationUpdateAt: Double?
+    var followUpAt: Double? = nil
 
     static let columns = [
         "source_id", "page_index", "quads_json", "text", "color", "note", "created_at", "updated_at", "anchor_prefix",
         "anchor_suffix", "anchor_offset", "chat_session_id", "references_json", "publication_update", "publication_update_at",
+        "follow_up_at",
     ]
 
     static func load(_ id: String, connection: SQLiteConnection) throws -> HighlightRow? {
@@ -37,7 +39,7 @@ struct HighlightRow: Equatable, Sendable {
                 text: values.text(3) ?? "", color: values.text(4) ?? SourceHighlightColor.default.rawValue, note: values.text(5),
                 createdAt: values.real(6) ?? 0, updatedAt: values.real(7) ?? 0, anchorPrefix: values.text(8), anchorSuffix: values.text(9),
                 anchorOffset: values.integer(10), chatSessionID: values.text(11), referencesJSON: values.text(12),
-                publicationUpdate: values.text(13), publicationUpdateAt: values.real(14)
+                publicationUpdate: values.text(13), publicationUpdateAt: values.real(14), followUpAt: values.real(15)
             )
         }
         return row
@@ -48,7 +50,7 @@ struct HighlightRow: Equatable, Sendable {
         let values: [SQLiteValue] = [
             .text(id), .text(sourceID), .integer(pageIndex), .text(geometryJSON), .text(text), .text(color), .text(note), .real(createdAt),
             .real(updatedAt), .text(anchorPrefix), .text(anchorSuffix), .integer(anchorOffset), .text(chatSessionID), .text(referencesJSON),
-            .text(publicationUpdate), .real(publicationUpdateAt),
+            .text(publicationUpdate), .real(publicationUpdateAt), .real(followUpAt),
         ]
         try connection.execute("""
             INSERT INTO source_highlights (highlight_id, \(Self.columns.joined(separator: ", ")))
@@ -65,7 +67,8 @@ struct HighlightRow: Equatable, Sendable {
 /// The locator is the one the web writes (`library-mutations-v2.js`): `{t: "pdf", page, quads}` for a
 /// PDF mark, with the Mac's quads as they are, else `{t: "text"}`; both carry the text anchor
 /// (`offset`, `len`, `quote`, `prefix`, `suffix`), and a mark on pictures its `images`. `refs` holds
-/// the cited references and the since-publication update (`publicationUpdateAt` in ms). `editedAt` is
+/// the cited references, the since-publication update (`publicationUpdateAt` in ms) and the follow-up flag
+/// (`followUpAt` in ms, absent when the mark is not flagged). `editedAt` is
 /// the row's `updated_at`.
 struct HighlightProjection: RecordProjection {
     var recordType: SyncRecordType { .highlight }
@@ -82,7 +85,7 @@ struct HighlightProjection: RecordProjection {
             "locator": Self.column("page_index", "quads_json", "text", "anchor_prefix", "anchor_suffix", "anchor_offset"),
             "text": Self.column("text"), "color": Self.column("color"), "note": Self.column("note"),
             "chatID": Self.column("chat_session_id"),
-            "refs": Self.column("references_json", "publication_update", "publication_update_at"),
+            "refs": Self.column("references_json", "publication_update", "publication_update_at", "follow_up_at"),
             "createdAt": Self.column("created_at"), "editedAt": Self.column("updated_at"),
         ]
     }
@@ -129,6 +132,7 @@ struct HighlightProjection: RecordProjection {
             refs["publicationUpdate"] = .string(update)
             if let at = row.publicationUpdateAt { refs["publicationUpdateAt"] = SyncJSON(milliseconds(unixSeconds: at)) }
         }
+        if let at = row.followUpAt { refs["followUpAt"] = SyncJSON(milliseconds(unixSeconds: at)) }
         return [
             "sourceID": .string(row.sourceID),
             "locator": .object(locator),
@@ -180,6 +184,7 @@ struct HighlightProjection: RecordProjection {
             let update = object["publicationUpdate"]?.stringValue ?? ""
             row.publicationUpdate = update.isEmpty ? nil : update
             row.publicationUpdateAt = update.isEmpty ? nil : object["publicationUpdateAt"]?.int64Value.map(Self.unixSeconds(milliseconds:))
+            row.followUpAt = object["followUpAt"]?.int64Value.map(Self.unixSeconds(milliseconds:))
         }
         if let created = fields["createdAt"]?.int64Value { row.createdAt = Self.unixSeconds(milliseconds: created) }
         if let edited = fields["editedAt"]?.int64Value { row.updatedAt = Self.unixSeconds(milliseconds: edited) }

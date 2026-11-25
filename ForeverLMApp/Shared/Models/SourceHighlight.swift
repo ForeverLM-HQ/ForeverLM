@@ -47,12 +47,19 @@ struct SourceHighlight: Identifiable, Equatable, Sendable {
     var publicationUpdate: String = ""
     /// When `publicationUpdate` was last written; nil when there is none.
     var publicationUpdateAt: Date? = nil
+    /// When the learner flagged the mark to follow up; nil when it is not
+    /// flagged. A flag of its own, apart from the color: any mark can wait to
+    /// be followed up, whatever its color says about the passage (product
+    /// owner, 2026-11-25). The To Follow Up list is every flagged mark.
+    var followUpAt: Date? = nil
     let createdAt: Date
     var updatedAt: Date
 
     var hasNote: Bool {
         !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    var isFlaggedForFollowUp: Bool { followUpAt != nil }
 
     var hasPublicationUpdate: Bool {
         !publicationUpdate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -128,7 +135,7 @@ struct SourceHighlight: Identifiable, Equatable, Sendable {
 extension SourceHighlight: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, sourceID, quote, note, color, anchor, pdfAnchor, imageAnchors, chatSessionID, references
-        case publicationUpdate, publicationUpdateAt, createdAt, updatedAt
+        case publicationUpdate, publicationUpdateAt, followUpAt, createdAt, updatedAt
     }
 
     /// `imageAnchors` is read as optional so a record written before pictures
@@ -152,6 +159,7 @@ extension SourceHighlight: Codable {
         publicationUpdateAt = publicationUpdate.isEmpty
             ? nil
             : try container.decodeIfPresent(Date.self, forKey: .publicationUpdateAt)
+        followUpAt = try container.decodeIfPresent(Date.self, forKey: .followUpAt)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -180,6 +188,7 @@ extension SourceHighlight: Codable {
             try container.encode(publicationUpdate, forKey: .publicationUpdate)
             try container.encodeIfPresent(publicationUpdateAt, forKey: .publicationUpdateAt)
         }
+        try container.encodeIfPresent(followUpAt, forKey: .followUpAt)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
@@ -611,7 +620,7 @@ enum SourceHighlightColor: String, CaseIterable, Sendable, Codable {
         switch self {
         case .yellow: return "Remember"
         case .green: return "Key idea"
-        case .blue: return "Follow up"
+        case .blue: return "Question"
         case .pink: return "Doubt"
         case .purple: return "Connect"
         }
@@ -627,8 +636,9 @@ enum SourceHighlightColor: String, CaseIterable, Sendable, Codable {
         allCases.map { "\($0.rawValue) (\($0.meaning))" }.joined(separator: ", ")
     }
 
-    /// Whether the marker says the passage is not settled: blue (Follow up) and
-    /// pink (Doubt) are the learner's own reminders to come back. A review, a
+    /// Whether the marker says the passage is not settled: blue (Question) and
+    /// pink (Doubt). Whether the learner means to come back to it is the
+    /// mark's own follow-up flag (`SourceHighlight.followUpAt`), not this. A review, a
     /// card draft and an idea extraction treat these differently from a mark
     /// that says "this is worth keeping".
     var isOpenItem: Bool { self == .blue || self == .pink }
@@ -640,13 +650,13 @@ enum SourceHighlightColor: String, CaseIterable, Sendable, Codable {
         switch self {
         case .yellow: return "worth remembering, close to word for word"
         case .green: return "a main claim or idea of the source"
-        case .blue: return "to follow up later: not yet looked into, checked or understood"
+        case .blue: return "a question the learner has: not yet looked into, checked or understood"
         case .pink: return "doubted or disagreed with: the evidence needs weighing"
         case .purple: return "connects to something else the learner knows"
         }
     }
 
-    /// `[REMEMBER]`, `[KEY IDEA]`, `[FOLLOW UP]`, `[DOUBT]`, `[CONNECT]`: the tag
+    /// `[REMEMBER]`, `[KEY IDEA]`, `[QUESTION]`, `[DOUBT]`, `[CONNECT]`: the tag
     /// a mark carries in front of its quote in a prompt.
     var promptTag: String { "[\(meaning.uppercased())]" }
 
