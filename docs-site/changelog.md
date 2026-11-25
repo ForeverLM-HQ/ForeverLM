@@ -6,7 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **Flag a highlight to follow up, whatever its color.** The card under a highlight has a flag beside the bin: press it and the passage is on **To Follow Up** (the Library row's list on the Mac, **Follow Up** on the iPhone) until you take the flag off. Color no longer decides it, so blue now means **Question** rather than Follow up, and checking a passage off as followed up keeps its color. Blue and pink highlights you already had start out flagged, so nothing leaves the list. Assistants see the flag as `follow_up` on `list_source_highlights` and `search_source_highlights`, list what is flagged with `follow_up: true`, and set it with `update_source_highlight`.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
@@ -33,6 +32,17 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 1.0.11 (build 329) — 2026-11-25
+
+**Highlights:**
+- **Flag a highlight to follow up,** whatever its color.
+- **A book's chat can add a to-do to your Board.**
+
+- **Flag a highlight to follow up, whatever its color.** The card under a highlight has a flag beside the bin: press it and the passage is on **To Follow Up** (the Library row's list on the Mac, **Follow Up** on the iPhone) until you take the flag off. Color no longer decides it, so blue now means **Question** rather than Follow up, and checking a passage off as followed up keeps its color. Blue and pink highlights you already had start out flagged, so nothing leaves the list. Assistants see the flag as `follow_up` on `list_source_highlights` and `search_source_highlights`, list what is flagged with `follow_up: true`, and set it with `update_source_highlight`.
+- **A chat on a book, paper or notebook can add a to-do to your Board.** Ask it to add something to your board and the card lands in the Board's **To do** column, linked to what you were reading; those chats had no way to add one before. For assistants, `create_notebook_task` with no notebook named puts the task on the Board, and makes the Board first if there is none.
+- **Keep is the button to press under saved cards.** When a chat reply saves cards, **Keep** (or **Keep All**) is now the dark pill on the right and **Check Cards** the quiet link beside it: keeping is the usual choice, and it was the small one.
+- **Assistants can edit cards still in To Check.** `update_card` now changes a To Check card's front, back, why and pictures, and the card stays in To Check until you keep or skip it; before, it refused new words unless the card was kept.
 
 ## 1.0.10 (build 328) — 2026-11-25
 
