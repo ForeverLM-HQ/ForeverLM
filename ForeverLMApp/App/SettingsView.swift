@@ -23,11 +23,9 @@ enum SettingsPane: Hashable {
     case aiImages
     /// The model and resolution that film explainer videos.
     case aiVideos
-    /// Paying for ForeverLM: the Early user deal, $19 once.
-    case aiBilling
-    /// The OpenRouter key, where spending is read and the background limits
-    /// (product owner, 2026-11-14: "maybe this api key stuff should live in
-    /// settings?"). The OpenAI key for voice mode is in Voice.
+    /// Signing in, the OpenRouter key, where spending is read and the
+    /// background limits (product owner, 2026-11-14: "maybe this api key stuff
+    /// should live in settings?"), and the OpenAI key for voice mode.
     case aiKeys
     /// What is running and what it cost: not a pane, it opens from the rail's
     /// OpenRouter button (`AIUsagePlace`), so a request for it goes there.
@@ -60,7 +58,7 @@ enum AssistantIntegrationSettings {
     }
 }
 
-/// Billing, model and app settings — or, in the team scope, the open team's
+/// Model and app settings — or, in the team scope, the open team's
 /// settings and nothing else. Plugins are not settings: they have a place of
 /// their own on the icon strip, as Codex's do (`PluginsPane`).
 ///
@@ -79,35 +77,7 @@ struct SettingsView: View {
         _selection = State(initialValue: initialPane ?? .aiChatModels)
     }
 
-    @Environment(ManagedAIAccountModel.self) private var account
-
     var body: some View {
-        // A locked app (the free days over, nothing paid) keeps only Billing
-        // and Sign Out here, as its pay screen does.
-        if account.isAppLocked {
-            lockedBody
-        } else {
-            unlockedBody
-        }
-    }
-
-    private var lockedBody: some View {
-        VStack(spacing: 0) {
-            paneView(for: .aiBilling)
-            Divider()
-            HStack {
-                Spacer()
-                Button("Sign Out") { account.signOut() }
-                    .accessibilityIdentifier("settings.locked.signOut")
-            }
-            .padding(12)
-        }
-        .navigationTitle("Settings")
-        .background(Color(nsColor: .windowBackgroundColor))
-        .frame(minWidth: 760, idealWidth: 860)
-    }
-
-    private var unlockedBody: some View {
         HStack(spacing: 0) {
             SettingsSidebar(
                 scope: scope,
@@ -173,16 +143,14 @@ struct SettingsView: View {
         case .aiVideos:
             VideoGenerationSettingsDetailView()
         case .aiKeys:
-            APIKeysSettingsDetailView(onOpenBilling: { navigate(to: .aiBilling) })
-        case .aiBilling:
-            BillingSettingsDetailView()
+            APIKeysSettingsDetailView()
         case .aiUsage:
             // `navigate(to:)` sends this to the rail's popover; no pane here.
             EmptyView()
         case .mcp:
-            MCPSettingsDetailView(onOpenBilling: { navigate(to: .aiBilling) })
+            MCPSettingsDetailView()
         case .mcpPairing:
-            MCPSettingsDetailView(showsPairingCode: true, onOpenBilling: { navigate(to: .aiBilling) })
+            MCPSettingsDetailView(showsPairingCode: true)
         }
     }
 
@@ -304,19 +272,10 @@ enum SettingsSearchCatalog {
                 id: "api-keys",
                 title: "API Keys",
                 subtitle: "Account",
-                keywords: ["key", "api key", "openrouter", "openai", "voice key", "spend", "spending", "limit", "daily limit", "background limit", "credits", "free credits", "byok"],
+                keywords: ["key", "api key", "openrouter", "openai", "voice key", "spend", "spending", "limit", "daily limit", "background limit", "credits", "free credits", "byok", "sign in", "apple"],
                 destination: .aiKeys,
                 icon: "key.fill",
                 tint: .yellow
-            ),
-            SettingsSearchItem(
-                id: "billing",
-                title: "Billing",
-                subtitle: "Account",
-                keywords: ["plan", "early user deal", "deal", "paid once", "pay once", "buy", "purchase", "free days", "unlock", "payment", "card", "stripe", "receipts"],
-                destination: .aiBilling,
-                icon: "creditcard.fill",
-                tint: .purple
             ),
             SettingsSearchItem(
                 id: "data-privacy",
@@ -486,7 +445,6 @@ private struct SettingsSidebar: View {
         Group {
             groupHeader("Account")
             row(.aiKeys, icon: "key.fill", title: "API Keys", tint: .yellow)
-            row(.aiBilling, icon: "creditcard.fill", title: "Billing", tint: .purple)
             row(.dataPrivacy, icon: "hand.raised.fill", title: "Data & Privacy", tint: .gray)
         }
 
@@ -1199,7 +1157,7 @@ struct ManagedAISignInSection: View {
 
     var body: some View {
         SettingsSection(title: title) {
-            BillingCard {
+            AccountCard {
                 VStack(alignment: .leading, spacing: 14) {
                     Text(message)
                         .font(.callout)
@@ -1302,53 +1260,18 @@ private struct ReadOnlyPlainTextView: NSViewRepresentable {
     }
 }
 
-/// Settings → Billing: paying for ForeverLM, and nothing else
-/// (`AppPlanSettingsSection`), apart from all the AI usage, which is
-/// Settings › AI Usage (product owner, 2026-09-28).
-/// Settings › API Keys: the OpenRouter key, spending and the background
-/// limits, moved here from the rail's AI Usage popover.
+/// Settings › API Keys: signing in, the OpenRouter key, spending and the
+/// background limits, moved here from the rail's AI Usage popover, and the
+/// OpenAI key for voice mode.
 private struct APIKeysSettingsDetailView: View {
-    let onOpenBilling: () -> Void
-
     var body: some View {
         ScrollView {
-            AIUsageAccountSections(onOpenBilling: onOpenBilling)
+            AIUsageAccountSections()
                 .padding(24)
                 .frame(maxWidth: 760, alignment: .leading)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle("API Keys")
-    }
-}
-
-private struct BillingSettingsDetailView: View {
-    @Environment(ManagedAIAccountModel.self) private var account
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                if account.isSignedIn {
-                    AppPlanSettingsSection()
-                } else {
-                    ManagedAISignInSection(title: "Plan", message: "Sign in to see your plan.")
-                }
-
-                // Checkout, the Stripe page and Keep My Plan report here;
-                // cancelling reports in its own sheet.
-                if let message = account.errorMessage {
-                    Label(message, systemImage: "exclamationmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(24)
-            .frame(maxWidth: 760, alignment: .leading)
-        }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .navigationTitle("Billing")
-        .task { await account.refresh() }
     }
 }
 

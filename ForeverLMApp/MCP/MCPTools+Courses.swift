@@ -845,7 +845,7 @@ extension MCPDataStore {
             guard let resolved = KeychainService.resolveConfig(for: .lecturePaperDiscovery) else {
                 throw MCPError.invalidInput(
                     KeychainService.backgroundAIUnavailableMessage(for: .lecturePaperDiscovery)
-                        ?? "Lecture Paper Discovery is not configured. Sign in to ForeverLM (Settings › Billing), or pin a model to the task with set_ai_task_settings."
+                        ?? "Lecture Paper Discovery is not configured. Sign in to ForeverLM (Settings › API Keys), or pin a model to the task with set_ai_task_settings."
                 )
             }
             discoveryConfig = resolved

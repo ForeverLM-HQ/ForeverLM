@@ -68,6 +68,13 @@ struct RetiredDefaultsCleanupTests {
         "usage_records_2026-03-31",
         "usage_records_2026-04-01",
         "usage_daily_total_2026-03-30",
+        // The paid app's, retired 2026-11-24 when ForeverLM became free, and
+        // the first cleanup's own mark.
+        "managedAI.appAccess",
+        "managedAI.serverClockOffset",
+        "firstRun.pretend31DaysPassed",
+        "freeDaysNotice.lastDay.1792310400",
+        "retiredDefaultsCleanup.v1",
     ]
 
     private func withSuite(_ body: (UserDefaults, String) throws -> Void) throws {

@@ -479,6 +479,12 @@
       ]
     },
     {
+      "name": "firstRun.pretend31DaysPassed",
+      "reason": "retired with the paid app; removed once at launch, never read",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "focus.nudgeBackOnTrack",
       "reason": "whether this Mac watches for drift; it is about the screen being sat at",
       "scope": "device",
@@ -866,13 +872,13 @@
     },
     {
       "name": "managedAI.appAccess",
-      "reason": "cache of server-held account state",
+      "reason": "retired with the paid app; removed once at launch, never read",
       "scope": "device",
       "synced": false
     },
     {
       "name": "managedAI.serverClockOffset",
-      "reason": "this device's clock against the server's",
+      "reason": "retired with the paid app; removed once at launch, never read",
       "scope": "device",
       "synced": false
     },
@@ -1469,8 +1475,8 @@
       "synced": false
     },
     {
-      "name": "retiredDefaultsCleanup.v1",
-      "reason": "one-shot cleanup marker: this Mac's preferences hold no retired keys",
+      "name": "retiredDefaultsCleanup.v2",
+      "reason": "one-shot cleanup marker: this device's preferences hold no retired keys",
       "scope": "device",
       "synced": false
     },
@@ -2421,7 +2427,7 @@
     },
     {
       "prefix": "freeDaysNotice.",
-      "reason": "a notice seen on one Mac is not owed to another",
+      "reason": "retired with the paid app; removed once at launch, never read",
       "scope": "device",
       "synced": false
     },

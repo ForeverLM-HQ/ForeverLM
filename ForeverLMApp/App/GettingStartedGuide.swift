@@ -1545,11 +1545,10 @@ struct GettingStartedGuide: View {
             return true
         case .enhancements:
             switch aiPage {
+            // ForeverLM pays for no AI (2026-11-15), so the key is the one
+            // way on: the page waits for it.
             case .key:
-                return GettingStartedAIPayment.isReady(
-                    hasOwnKey: account.ownKey != nil,
-                    ownKeyAllowed: account.ownKeyAllowed
-                )
+                return account.ownKey != nil
             // The question moves on at "No"; "Yes" opens the steps, and
             // Continue waits for that.
             case .credits:

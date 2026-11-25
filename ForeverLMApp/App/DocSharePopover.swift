@@ -110,7 +110,7 @@ struct DocSharePopover: View {
                     .foregroundStyle(.red)
             }
             if !isSignedIn {
-                Text("Publishing is tied to your ForeverLM account. Sign in with Apple in Settings › Billing first.")
+                Text("Publishing is tied to your ForeverLM account. Sign in with Apple in Settings › API Keys first.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

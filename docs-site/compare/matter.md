@@ -12,7 +12,7 @@ Matter is a polished read-later app for articles and newsletters on iPhone, iPad
 
 | | ForeverLM | Matter |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free |
+| **Price** | Free; AI on your own OpenRouter key at cost | Free |
 | **Platforms** | Mac-centered, with synced iPhone access | iPhone, iPad, and web |
 | **Best for** | Managing and learning from many source types | A focused queue for articles and newsletters |
 | **Capture** | Reading lists, URLs, files, feeds, reference tools, podcasts, and plugins | Share sheet, browser, email newsletters, and feeds |

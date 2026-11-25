@@ -8,13 +8,10 @@ private let aiUsageLogger = Logger(subsystem: "com.foreverlm", category: "AIUsag
 // activity by task. It opens from the rail's
 // OpenRouter button, under what is running now (`BackgroundWorkButton`).
 
-/// AI Usage above the activity: the learner's own key and
-/// spending with its limits, one card each. Paying for ForeverLM is
-/// Settings › Billing; the key card only points there when the account may
-/// not run the key.
+/// Settings › API Keys: the learner's own keys and spending with its limits,
+/// one card each. ForeverLM itself is free, so nothing here is about paying
+/// for it.
 struct AIUsageAccountSections: View {
-    let onOpenBilling: () -> Void
-
     @Environment(ManagedAIAccountModel.self) private var account
     @State private var ownKeyRouter: ManagedAI.OwnKeyRouter = .openRouter
     @State private var ownKeyDraft = ""
@@ -58,32 +55,19 @@ struct AIUsageAccountSections: View {
     }
 
     /// The product owner (2026-09-25): ForeverLM's AI features are bring your own key.
-    /// The key is the pane's first card: with one stored, during the free
-    /// days or once ForeverLM is paid for, OpenRouter bills the learner at
-    /// cost for everything ForeverLM sends through it. OpenRouter is the only
-    /// router. Every line that names the scope reads it off
+    /// The key is the pane's first card: with one stored, OpenRouter bills the
+    /// learner at cost for everything ForeverLM sends through it. OpenRouter is
+    /// the only router. Every line that names the scope reads it off
     /// `ManagedAI.OwnKeyRouter`.
     private var ownKeySection: some View {
         SettingsSection(
             title: "API keys",
             description: "AI features run on your OpenRouter API key, billed at cost."
         ) {
-            billingCard {
+            AccountCard {
                 VStack(alignment: .leading, spacing: 0) {
-                    // The key runs while the account is unlocked: the free
-                    // days, or paid. Otherwise the proxy refuses it for every
-                    // model, free ones included (`app_locked`); paying is
-                    // Billing's, so this row only goes there.
-                    if !account.ownKeyAllowed {
-                        billingRow(title: AppLockWall.title, detail: "Your key runs AI features again once you pay") {
-                            Button("Open Billing") { onOpenBilling() }
-                                .buttonStyle(.bordered)
-                                .accessibilityIdentifier("billing.ownKey.choosePlan")
-                        }
-                        rowDivider
-                    }
                     if let own = account.ownKey {
-                        billingRow(
+                        AccountRow(
                             title: "\(own.router.label) key ending in \(own.suffix)",
                             detail: "\(own.router.billedScopeCapitalized) are billed to your \(own.router.label) account"
                         ) {
@@ -108,14 +92,14 @@ struct AIUsageAccountSections: View {
                             .help("Without a key, AI features stop until you add one again")
                         }
                         if own.router == .openRouter {
-                            rowDivider
+                            AccountRowDivider()
                             freeRequestsRow
                                 .task(id: own) { await loadFreeRequests() }
                         }
                     }
 
                     if account.ownKey == nil || isReplacingOwnKey {
-                        if account.ownKey != nil { rowDivider }
+                        if account.ownKey != nil { AccountRowDivider() }
                         ownKeyEntry
                     }
                 }
@@ -129,7 +113,7 @@ struct AIUsageAccountSections: View {
                 SecureField("Paste your \(ownKeyRouter.label) key", text: $ownKeyDraft)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { Task { await saveOwnKey() } }
-                    .accessibilityIdentifier("billing.ownKey.field")
+                    .accessibilityIdentifier("apiKeys.ownKey.field")
 
                 Button {
                     Task { await saveOwnKey() }
@@ -142,7 +126,7 @@ struct AIUsageAccountSections: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(ownKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ownKeySaving)
-                .accessibilityIdentifier("billing.ownKey.save")
+                .accessibilityIdentifier("apiKeys.ownKey.save")
 
                 if isReplacingOwnKey {
                     Button("Cancel") {
@@ -176,7 +160,7 @@ struct AIUsageAccountSections: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .help(ownKeyRouter.keyPrivacyNote)
-                .accessibilityIdentifier("billing.ownKey.privacy")
+                .accessibilityIdentifier("apiKeys.ownKey.privacy")
         }
     }
 
@@ -185,7 +169,7 @@ struct AIUsageAccountSections: View {
     /// when the key row appears and on Refresh.
     private var freeRequestsRow: some View {
         let spent = freeRequests?.isSpent == true
-        return BillingRow(
+        return AccountRow(
             title: spent ? "Out of free-model requests" : "Free-model requests today",
             detail: freeRequestsDetail,
             isWarning: spent
@@ -207,7 +191,7 @@ struct AIUsageAccountSections: View {
         // A group of its own: on a plain row the identifier landed on both
         // texts and on Refresh.
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("billing.ownKey.freeRequests")
+        .accessibilityIdentifier("apiKeys.ownKey.freeRequests")
     }
 
     private var freeRequestsDetail: String {
@@ -243,9 +227,9 @@ struct AIUsageAccountSections: View {
     /// monitor. The daily background limit is this Mac's guard and stays.
     private var spendingSection: some View {
         SettingsSection(title: "Spending") {
-            billingCard {
+            AccountCard {
                 VStack(alignment: .leading, spacing: 0) {
-                    billingRow(
+                    AccountRow(
                         title: "Spend",
                         detail: "What your key has cost, by model and day, is in OpenRouter"
                     ) {
@@ -253,7 +237,7 @@ struct AIUsageAccountSections: View {
                             .buttonStyle(.bordered)
                             .accessibilityIdentifier("aiUsage.openRouterActivity")
                     }
-                    rowDivider
+                    AccountRowDivider()
                     BackgroundAIDailyCapRow()
                 }
             }
@@ -263,7 +247,7 @@ struct AIUsageAccountSections: View {
     @ViewBuilder
     private var accountError: some View {
         if let message = account.errorMessage ?? account.balanceErrorMessage {
-            billingCard {
+            AccountCard {
                 HStack(spacing: 12) {
                     Label(message, systemImage: "exclamationmark.circle.fill")
                         .font(.caption)
@@ -283,23 +267,75 @@ struct AIUsageAccountSections: View {
             }
         }
     }
+}
 
-    private var rowDivider: some View {
-        BillingRowDivider()
+/// The dense account card Settings › API Keys and AI Usage share: rows of
+/// title, detail and controls, parted by full-width dividers.
+struct AccountCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
     }
 
-    private func billingRow<Controls: View>(
-        title: String,
-        detail: String,
-        @ViewBuilder controls: () -> Controls
-    ) -> some View {
-        BillingRow(title: title, detail: detail, controls: controls)
+    var body: some View {
+        // The stack is load-bearing, as in `SettingsCard`: modifiers on a
+        // multi-view `content` would otherwise paint a card per row.
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        }
+    }
+}
+
+/// Quiet title/detail/control rows, like the dense account rows in ChatGPT
+/// and Codex.
+struct AccountRow<Controls: View>: View {
+    let title: String
+    let detail: String
+    /// A row that needs the learner's eye: the detail turns orange.
+    let isWarning: Bool
+    let controls: Controls
+
+    init(title: String, detail: String, isWarning: Bool = false, @ViewBuilder controls: () -> Controls) {
+        self.title = title
+        self.detail = detail
+        self.isWarning = isWarning
+        self.controls = controls()
     }
 
-    private func billingCard<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        BillingCard(content: content)
+    var body: some View {
+        HStack(alignment: .center, spacing: 20) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(isWarning ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            HStack(spacing: 8) { controls }
+        }
+    }
+}
+
+struct AccountRowDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.horizontal, -16)
+            .padding(.vertical, 14)
     }
 }
 
@@ -1164,7 +1200,7 @@ struct AIUsagePanel: View {
     /// The key is Settings › API Keys; with none, this is the way there.
     private var keyPointer: some View {
         SettingsCard {
-            BillingRow(title: "Add your OpenRouter key", detail: "AI features run on it, billed at cost") {
+            AccountRow(title: "Add your OpenRouter key", detail: "AI features run on it, billed at cost") {
                 Button("Open API Keys") { onOpenSettings(.aiKeys) }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("aiUsage.openAPIKeys")
@@ -1194,7 +1230,7 @@ private struct AIUsageSpentToday: View {
 
     var body: some View {
         SettingsCard {
-            BillingRow(title: "Spent today", detail: detail) {
+            AccountRow(title: "Spent today", detail: detail) {
                 Text(totals == nil ? "—" : amount)
                     .font(.title2.weight(.semibold))
                     .monospacedDigit()
@@ -1239,10 +1275,10 @@ struct RealtimeVoiceOwnKeySection: View {
 
     var body: some View {
         SettingsSection(title: "OpenAI API key", description: Self.description) {
-            BillingCard {
+            AccountCard {
                 VStack(alignment: .leading, spacing: 0) {
                     if let suffix {
-                        BillingRow(title: "OpenAI key ending in \(suffix)", detail: "Voice mode runs on your key, billed by OpenAI") {
+                        AccountRow(title: "OpenAI key ending in \(suffix)", detail: "Voice mode runs on your key, billed by OpenAI") {
                             Button("Replace") {
                                 draft = ""
                                 isReplacing = true
@@ -1259,7 +1295,7 @@ struct RealtimeVoiceOwnKeySection: View {
                         }
                     }
                     if loaded, suffix == nil || isReplacing {
-                        if suffix != nil { BillingRowDivider() }
+                        if suffix != nil { AccountRowDivider() }
                         entry
                     }
                 }

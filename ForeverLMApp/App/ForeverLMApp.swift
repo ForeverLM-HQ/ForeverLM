@@ -496,9 +496,6 @@ struct ForeverLMApp: App {
     /// future surface all read the same sign-in state, so signing out in Settings re-walls
     /// the app immediately instead of leaving a stale unlocked window behind.
     @State private var managedAIAccount = ManagedAIAccountModel()
-    #if os(macOS) && FOREVERLM_FIRST_RUN
-    @State private var firstRunDay31 = FirstRunTrialSkip.isOn
-    #endif
     @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
     /// Observed so the Canvas and Atlas menu items come and go with the beta
@@ -709,9 +706,6 @@ struct ForeverLMApp: App {
                                 await MCPRuntimeCoordinator.startPreferredRuntime()
                             }
                         }
-                        // The free days' notices, two days before the end and on
-                        // the last day, each once.
-                        FreeDaysNotices.showIfDue(account: managedAIAccount, vm: studioViewModel)
                         // App activation is the review's event: it reads
                         // today's cards again and re-asserts the one daily
                         // notification, which the one-time retirement sweep would
@@ -733,14 +727,8 @@ struct ForeverLMApp: App {
                     }
                 }
                 .task {
-                    // MCP follows its own enable toggle, and stops while the app is
-                    // locked (the free days over, nothing paid): the gate is in
-                    // `MCPServerLauncher.startHostedTunnel`, and the lock's change
-                    // below stops or restarts the connection. Tool calls that reach
-                    // this Mac directly are refused while locked by
-                    // `MCPProtocolHandler.appLockRefusal`; the hosted gateway refuses
-                    // its own. Non-blocking: errors are shown in Settings -> MCP,
-                    // not here.
+                    // MCP follows its own enable toggle. Non-blocking: errors are
+                    // shown in Settings -> MCP, not here.
                     //
                     // The tunnel is provisioned under the Apple user id, which only
                     // sign-in writes. On a first launch the window is up before the
@@ -763,25 +751,6 @@ struct ForeverLMApp: App {
                             await MCPRuntimeCoordinator.stopAll()
                         }
                     }
-                }
-                .onChange(of: managedAIAccount.isAppLocked) { _, locked in
-                    // The pay screen is up: background AI, sync and the MCP
-                    // connection stop (docs/pricing-pro-design.md → Day 8). Paying
-                    // brings them back exactly as they were.
-                    guard !UITestConfiguration.isUITesting else { return }
-                    Task {
-                        if locked {
-                            await MCPRuntimeCoordinator.stopAll()
-                        } else {
-                            if AssistantIntegrationSettings.isEnabled, managedAIAccount.hasAccountAccess {
-                                await MCPRuntimeCoordinator.startPreferredRuntime()
-                            }
-                            await MacSyncSession.current?.syncNow()
-                        }
-                    }
-                }
-                .onChange(of: managedAIAccount.freeDaysLeft) { _, _ in
-                    FreeDaysNotices.showIfDue(account: managedAIAccount, vm: studioViewModel)
                 }
                 .onChange(of: managedAIAccount.hasAccountAccess) { _, hasAccess in
                     guard !UITestConfiguration.isUITesting,
@@ -852,14 +821,6 @@ struct ForeverLMApp: App {
                 }
                 ThirdPartyLicensesMenuItem()
                 ScreenRecordModeMenuItem()
-                #if os(macOS) && FOREVERLM_FIRST_RUN
-                // First Run app only: see the app as it is on day 31.
-                Button(firstRunDay31 ? "Back to Day 1 of the Free Days" : "Pretend 31 Days Have Passed") {
-                    FirstRunTrialSkip.isOn.toggle()
-                    firstRunDay31 = FirstRunTrialSkip.isOn
-                    managedAIAccount.trialSkipChanged()
-                }
-                #endif
             }
 
             CommandGroup(after: .toolbar) {

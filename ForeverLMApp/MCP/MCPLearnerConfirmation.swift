@@ -50,7 +50,7 @@ enum MCPLearnerConfirmation {
         clear
             ? Request(
                 title: "Remove your \(routerLabel) key?",
-                detail: "\(caller) asked ForeverLM to remove the \(routerLabel) key it uses for AI. Without it, AI is paid from your ForeverLM balance.",
+                detail: "\(caller) asked ForeverLM to remove the \(routerLabel) key it uses for AI. Without it, AI features stop until you add a key again.",
                 confirmLabel: "Remove Key"
             )
             : Request(

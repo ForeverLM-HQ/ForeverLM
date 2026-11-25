@@ -243,7 +243,7 @@ struct ReviewSlashCommand: Identifiable, Equatable {
             argHint: "[pane]",
             arguments: [
                 Argument(value: "ai", display: "AI settings"),
-                Argument(value: "billing", display: "Billing"),
+                Argument(value: "keys", display: "API Keys"),
                 Argument(value: "usage", display: "AI Usage"),
                 Argument(value: "sources", display: "Sources"),
                 Argument(value: "plugins", display: "Plugins"),
@@ -1079,8 +1079,8 @@ enum ReviewSlashCommandParser {
     static func parseSettingsPane(_ token: String) -> SettingsPane? {
         switch token.lowercased() {
         case "ai": return .aiChatModels
-        case "billing", "plan", "subscription": return .aiBilling
-        case "usage", "credits", "key": return .aiUsage
+        case "keys", "key", "api": return .aiKeys
+        case "usage", "credits": return .aiUsage
         case "mcp": return .mcp
         case "sources", "source": return .sources
         default: return nil

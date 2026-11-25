@@ -12,7 +12,7 @@ Memo (memo.cards, formerly PDF2Anki) was built by medical students to turn study
 
 | | ForeverLM | Memo |
 |---|---|---|
-| **Price** | 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free plan (limits not published); Pro $20/mo or $120/yr; Max $50/mo or $300/yr. Usage draws on a monthly "energy" balance with no fixed number of generations |
+| **Price** | Free; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free plan (limits not published); Pro $20/mo or $120/yr; Max $50/mo or $300/yr. Usage draws on a monthly "energy" balance with no fixed number of generations |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Web, Mac, Windows, Linux, iOS; Android as a web app; Chrome extension |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Memo's cloud; hosting provider and region not stated; a copy of your data on request |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | Standard, Thinking and Pro modes; the models are not named; no bring-your-own-key |
@@ -29,7 +29,7 @@ Memo (memo.cards, formerly PDF2Anki) was built by medical students to turn study
 
 Memo's free plan needs no card, and its paid plans are Pro at $20 a month ($120 billed yearly) and Max at $50 a month ($300 billed yearly). What a plan buys is a monthly balance of "energy", and Memo says a plan does not promise a fixed number of generations. You find out how far it goes by using it.
 
-ForeverLM is 7 days free, then $19 once, with no subscription and no tiers. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP.
+ForeverLM is free, with no subscription and no tiers. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP.
 
 ## Where Memo is better
 

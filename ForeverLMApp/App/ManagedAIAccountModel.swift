@@ -6,9 +6,9 @@ import Security
 #endif
 import AuthenticationServices
 
-/// UI-facing state for the managed AI rail ("ForeverLM AI"): sign-in, the paid
-/// app's access (the free days, payment, the lock),
-/// the own OpenRouter key, any leftover balance, and billing history. `@MainActor @Observable`, with in-flight
+/// UI-facing state for the ForeverLM account: sign-in and the own OpenRouter
+/// key. ForeverLM is free (product owner, 2026-11-24), so there is no plan,
+/// payment or lock to hold. `@MainActor @Observable`, with in-flight
 /// flags and no `throws` out of its methods; failures land in `errorMessage` as a
 /// full user-facing sentence.
 ///
@@ -20,9 +20,6 @@ final class ManagedAIAccountModel {
 
     private(set) var balance: ManagedAI.Balance? {
         didSet {
-            // Every balance fetch carries the plan too, and every sign-out
-            // clears both, so the plan follows whatever the balance just did.
-            appAccess = ManagedAI.appAccess
             // Screen record mode is admin only, and this is the one place the
             // proxy's answer arrives. A nil balance (a transient failure, a
             // locally lapsed session) leaves the last answer standing, so a
@@ -37,63 +34,18 @@ final class ManagedAIAccountModel {
         }
     }
 
-    /// The paid app's access: the free days, paid once, monthly (bought
-    /// before the lock), comped, family or locked. Nil until a worker that reports plans has answered.
-    /// See `ManagedAI.AppAccess`.
-    private(set) var appAccess: ManagedAI.AppAccess? = ManagedAI.appAccess {
-        didSet {
-            guard appAccess != oldValue else { return }
-            scheduleFreeDaysTick()
-        }
-    }
-    /// The plan whose checkout is being opened, so only its button spins.
-    private(set) var planCheckoutInFlight: ManagedAI.AppPlan?
-    /// Reads the account again every few seconds after checkout opens, while
-    /// the app is locked, so the pay screen opens the app by itself once
-    /// Stripe's webhook lands (product owner, 2026-10-13: no "I've Paid").
-    @ObservationIgnored private var paymentWatch: Task<Void, Never>?
-
-    /// Moves when the free days cross a day, or end, while the app is open,
-    /// so the account menu's count and the lock are read again.
-    private(set) var freeDaysClock = 0
-    @ObservationIgnored private var freeDaysTick: Task<Void, Never>?
-
-    /// Whether the learner's own router key may pay for requests: for any
-    /// account that is not locked (`ManagedAI.ownKeyAllowed`).
-    var ownKeyAllowed: Bool { !isAppLocked }
-    /// What the app costs, as the proxy last reported it.
-    var planPrices: ManagedAI.AppAccess.Prices { appAccess?.prices ?? .unknown }
-
-    /// Whether the app is locked: the free days are over and nothing is paid
-    /// (`ManagedAI.isAppLocked`). The Mac then shows only `AppLockWall`.
-    var isAppLocked: Bool {
-        _ = freeDaysClock
-        return appAccess?.isLocked(at: ManagedAI.serverNow) ?? false
-    }
-
-    /// Whole free days left after today, while the free days run. Nil
-    /// otherwise.
-    var freeDaysLeft: Int? {
-        _ = freeDaysClock
-        return appAccess?.freeDaysLeft(at: ManagedAI.serverNow)
-    }
-
-    /// The account menu's quiet line: "29 days free left".
-    var freeDaysStatus: String? {
-        freeDaysLeft.map(ManagedAI.AppAccess.freeDaysStatus(daysLeft:))
-    }
     /// Whether AI work has nothing to run on: no own key stored (ForeverLM pays
     /// for no AI). Ambient UI shows it as the "add your key" prompt.
     var creditsAreEmpty: Bool { !isLoadingStoredSession && ownKey == nil }
 
-    /// The learner's own router key, mirrored for the Billing pane. Loaded with
-    /// the stored session, off the main actor, and kept current by the two
+    /// The learner's own router key, mirrored for Settings › API Keys. Loaded
+    /// with the stored session, off the main actor, and kept current by the two
     /// writers below.
     private(set) var ownKey: ManagedAI.OwnKey?
 
-    /// Whether the proxy recognises this account as an operator that may add
-    /// balance without paying. Absent until a balance load succeeds, so the
-    /// control appears only once the server has actually said so.
+    /// Whether the proxy recognises this account as an operator, the one
+    /// kind of account screen record mode is for. Absent until a balance load
+    /// succeeds, so the control appears only once the server has actually said so.
     var isAdmin: Bool { balance?.isAdmin == true }
     /// Starts closed until the stored credential snapshot has been read off-main.
     /// Keychain reads can synchronously contact `securityd`; doing them from a
@@ -115,9 +67,9 @@ final class ManagedAIAccountModel {
     /// the next balance read clears once the account is open again. Set only by
     /// `show(_:)`; any other write to `errorMessage` resets it.
     @ObservationIgnored private var errorIsAccountDisabled = false
-    /// A balance load failure is owned separately from sign-in and billing
+    /// A balance load failure is owned separately from sign-in and key
     /// actions. A later successful refresh can clear this without erasing a
-    /// checkout, portal, or account error the learner still needs to see.
+    /// sign-in, key or account error the learner still needs to see.
     private(set) var balanceErrorMessage: String?
     @ObservationIgnored private var lastBalanceRefreshAt: Date?
     @ObservationIgnored private var balanceRequest: Task<ManagedAI.Balance, Error>?
@@ -162,9 +114,6 @@ final class ManagedAIAccountModel {
         hasAccountAccess = snapshot.hasAccountAccess
         ownKey = snapshot.ownKey
         isLoadingStoredSession = false
-        // The access cached from the last launch may hold free days that
-        // run out while this one is open.
-        scheduleFreeDaysTick()
     }
 
     // MARK: - Your own router key
@@ -459,12 +408,12 @@ final class ManagedAIAccountModel {
         } catch {
             logger.warning("Managed AI balance failed: \(error.localizedDescription, privacy: .public)")
             if !silently {
-                balanceErrorMessage = "Couldn't load your ForeverLM billing details. Check your connection and try again."
+                balanceErrorMessage = "Couldn't load your ForeverLM account. Check your connection and try again."
             }
         }
     }
 
-    /// Launch validation and the Billing pane can appear on the same activation.
+    /// Launch validation and Settings › API Keys can appear on the same activation.
     /// They must await one shared read instead of racing duplicate D1 snapshots;
     /// importantly, a visible caller still observes and reports the shared error.
     private func requestBalance() async throws -> ManagedAI.Balance {
@@ -480,7 +429,7 @@ final class ManagedAIAccountModel {
         return try await request.value
     }
 
-    // MARK: - Own key and plan
+    // MARK: - Connect OpenRouter
 
     private(set) var openRouterConnectInFlight = false
     private var openRouterConnectTask: Task<Bool, Never>?
@@ -514,87 +463,6 @@ final class ManagedAIAccountModel {
             openRouterConnectInFlight = false
         }
         return connected
-    }
-
-    /// Opens Stripe Checkout in the browser: the Early user deal (`.once`),
-    /// the one plan the paid app sells. It takes effect when Stripe's webhook
-    /// lands; the app becoming active again, or the payment watch, picks it up.
-    func choosePlan(_ plan: ManagedAI.AppPlan) async {
-        guard planCheckoutInFlight == nil else { return }
-        planCheckoutInFlight = plan
-        defer { planCheckoutInFlight = nil }
-        errorMessage = nil
-
-        do {
-            let url = try await ManagedAI.planCheckoutURL(plan)
-            open(url)
-            watchForPayment()
-        } catch let error as ManagedAI.ServiceError where error.isAlreadyPaid {
-            // The server says this account has paid, so the pay screen is
-            // stale (paid in another window or on another device). Read the
-            // account again: that unlocks the app, and no error is shown.
-            await refresh(minimumInterval: 0, silently: true)
-        } catch let error as ManagedAI.ServiceError {
-            show(error)
-        } catch {
-            logger.warning("Plan checkout failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = "Couldn't start checkout. Check your connection and try again."
-        }
-    }
-
-    /// While the app is locked, reads the account every five seconds for ten
-    /// minutes after checkout opens, and stops as soon as it is unlocked.
-    private func watchForPayment() {
-        paymentWatch?.cancel()
-        guard isAppLocked else { return }
-        let deadline = Date().addingTimeInterval(600)
-        paymentWatch = Task { [weak self] in
-            while Date() < deadline {
-                try? await Task.sleep(for: .seconds(5))
-                guard !Task.isCancelled, let self, self.isAppLocked else { return }
-                await self.refresh(minimumInterval: 2, silently: true)
-            }
-        }
-    }
-
-    #if FOREVERLM_FIRST_RUN
-    /// The First Run app's day-31 switch changed `ManagedAI.serverNow`: read
-    /// the lock and the account menu's count again, and ask the proxy.
-    func trialSkipChanged() {
-        freeDaysClock += 1
-        scheduleFreeDaysTick()
-        Task { await refresh(silently: true) }
-    }
-    #endif
-
-    /// Re-reads the lock and the account menu's count when the free days
-    /// next cross a day on the proxy's clock, and once more when they end,
-    /// so a Mac left open locks on time and a refresh confirms it.
-    private func scheduleFreeDaysTick() {
-        freeDaysTick?.cancel()
-        freeDaysTick = nil
-        guard let access = appAccess, access.state == .freeDays,
-              let freeUntil = access.freeUntil else { return }
-        let remaining = freeUntil.timeIntervalSince(ManagedAI.serverNow)
-        guard remaining > 0 else { return }
-        let toNextDay = remaining.truncatingRemainder(dividingBy: MemoryTutorScheduler.secondsPerDay)
-        let delay = (toNextDay > 0 ? toNextDay : MemoryTutorScheduler.secondsPerDay) + 1
-        let endsTheFreeDays = delay >= remaining
-        freeDaysTick = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(delay))
-            guard !Task.isCancelled, let self else { return }
-            self.freeDaysClock += 1
-            if endsTheFreeDays {
-                await self.refresh(silently: true)
-            }
-            self.scheduleFreeDaysTick()
-        }
-    }
-
-    private func open(_ url: URL) {
-        #if canImport(AppKit)
-        NSWorkspace.shared.open(url)
-        #endif
     }
 }
 

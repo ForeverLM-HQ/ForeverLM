@@ -391,17 +391,6 @@ struct GettingStartedTests {
         #expect(GettingStartedStep.enhancements.rawValue == 4)
     }
 
-    @Test("Setup's AI step needs the OpenRouter key on an account that may run it, or another way to pay")
-    func aiStepNeedsKeyTheAccountMayRun() {
-        // The proxy refuses the key on an account it may not run on: a locked
-        // one in the paid app (2026-10-10; the free days run it). So a key
-        // alone, or an unlocked account alone, pays for nothing.
-        #expect(GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: true))
-        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: true, ownKeyAllowed: false))
-        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: true))
-        #expect(!GettingStartedAIPayment.isReady(hasOwnKey: false, ownKeyAllowed: false))
-    }
-
     @Test("Every Setup step that asks a question names its options and can be answered")
     func setupStepsAskAnswerableQuestions() {
         // Setup is the part that cannot be skipped, so each of its steps has

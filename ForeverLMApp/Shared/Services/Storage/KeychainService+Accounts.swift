@@ -490,32 +490,4 @@ extension KeychainService {
             else { delete(.appleUserEmail) }
         }
     }
-
-    // MARK: - Stripe
-
-    static var stripeAPIKey: String? {
-        get { load(.stripeAPIKey) }
-        set {
-            if let newValue { save(newValue, for: .stripeAPIKey) }
-            else { delete(.stripeAPIKey) }
-        }
-    }
-
-    static var stripeMonthlyLink: String {
-        get { load(.stripeMonthlyLink) ?? "" }
-        set {
-            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { delete(.stripeMonthlyLink) }
-            else { save(trimmed, for: .stripeMonthlyLink) }
-        }
-    }
-
-    static var stripeYearlyLink: String {
-        get { load(.stripeYearlyLink) ?? "" }
-        set {
-            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { delete(.stripeYearlyLink) }
-            else { save(trimmed, for: .stripeYearlyLink) }
-        }
-    }
 }

@@ -93,25 +93,6 @@ private enum MCPSetupAssistant: String, CaseIterable, Identifiable {
     }
 }
 
-/// The purple "Open Billing" label. `.borderedProminent` paints no hover, and a
-/// `.hoverWash` grey sits behind a filled label, so the fill darkens itself.
-private struct MCPOpenBillingLabel: View {
-    @State private var isHovering = false
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
-        Text("Open Billing")
-            .foregroundStyle(Color.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            .background(shape.fill(Color.purple))
-            .overlay(shape.fill(Color.black.opacity(isHovering ? 0.18 : 0)))
-            .contentShape(shape)
-            .onHover { isHovering = $0 }
-            .animation(.easeOut(duration: 0.12), value: isHovering)
-    }
-}
-
 /// Prompt-first setup for connecting external AI clients to the hosted relay.
 struct MCPSettingsDetailView: View {
     private static let publicMCPURL = "https://plugin.foreverlm.com/mcp"
@@ -124,20 +105,15 @@ struct MCPSettingsDetailView: View {
     @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
     @PreferenceStorage(Prefs.MCP.showStatusLight) private var showsMCPStatusLight
 
-    @Environment(ManagedAIAccountModel.self) private var account
-
     let showsPairingCode: Bool
-    /// Opens Settings › Billing, where MCP is unlocked.
-    let onOpenBilling: () -> Void
 
     // Keychain reads are securityd IPC round-trips; load them once off-main in
     // `.task` rather than on every render.
     @State private var storedTunnelURL: String?
     @State private var ownerPairingCode: String?
 
-    init(showsPairingCode: Bool = false, onOpenBilling: @escaping () -> Void) {
+    init(showsPairingCode: Bool = false) {
         self.showsPairingCode = showsPairingCode
-        self.onOpenBilling = onOpenBilling
     }
 
     private var hostedMCPURL: String? {
@@ -191,25 +167,7 @@ struct MCPSettingsDetailView: View {
                 }
                 .padding(.top, 20)
 
-                if account.isAppLocked {
-                    // The connection is stopped until MCP is paid for; nothing
-                    // else in the app is held back.
-                    GroupBox {
-                        HStack(spacing: 10) {
-                            Image(systemName: "lock.fill")
-                                .foregroundStyle(.secondary)
-                            Text(AppLockWall.title)
-                                .font(.title3.weight(.semibold))
-                            Spacer()
-                            Button(action: onOpenBilling) {
-                                MCPOpenBillingLabel()
-                            }
-                            .buttonStyle(.hoverWash(in: RoundedRectangle(cornerRadius: 6, style: .continuous), inset: 0, opacity: 0))
-                            .accessibilityIdentifier("settings.mcp.openBilling")
-                        }
-                        .padding(6)
-                    }
-                } else if assistantIntegrationsEnabled {
+                if assistantIntegrationsEnabled {
                     mcpConnectionPanel
                 } else {
                     GroupBox {
@@ -232,9 +190,7 @@ struct MCPSettingsDetailView: View {
                     }
                 }
 
-                if !account.isAppLocked {
-                    ConnectedAIAppsSection()
-                }
+                ConnectedAIAppsSection()
 
                 // The account button's dot, bottom left of the main window.
                 // Its switch lives here, beside the connection it reports on.

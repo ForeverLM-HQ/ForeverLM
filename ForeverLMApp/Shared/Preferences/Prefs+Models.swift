@@ -83,9 +83,13 @@ extension Prefs {
         static let qualification = DeviceKey<Data?>("aiModelQualification.v1", reason: "this device's record of the model test runs it made")
         static let priceWatchLastSeen = DeviceKey<Data?>("aiModelPriceWatch.lastSeen.v1", reason: "what this Mac last saw each free model cost")
         static let priceWatchAnnouncedEnded = DeviceKey<[String]?>("aiModelPriceWatch.announcedEnded.v1", reason: "the ended free offers this Mac has already announced")
-        static let managedAppAccess = DeviceKey<Data?>("managedAI.appAccess", reason: "cache of server-held account state")
-        static let managedServerClockOffset = DeviceKey<Double?>("managedAI.serverClockOffset", reason: "this device's clock against the server's")
-        static let firstRunPretend31DaysPassed = DeviceKey<Bool>("firstRun.pretend31DaysPassed", default: false, reason: "First Run app only: shows day 31 of the free days on this Mac; must reach no other device or account")
+        /// Retired 2026-11-24 with the paid app (ForeverLM is free): the cached
+        /// plan, the proxy's clock its free days ran on, and the First Run
+        /// app's day-31 switch. Nothing reads them; `RetiredDefaultsCleanup`
+        /// removes what a Mac or iPhone still holds, and they stay out of sync.
+        static let retiredAppAccess = DeviceKey<Any?>.unread("managedAI.appAccess", reason: "retired with the paid app; removed once at launch, never read")
+        static let retiredServerClockOffset = DeviceKey<Any?>.unread("managedAI.serverClockOffset", reason: "retired with the paid app; removed once at launch, never read")
+        static let retiredPretend31DaysPassed = DeviceKey<Any?>.unread("firstRun.pretend31DaysPassed", reason: "retired with the paid app; removed once at launch, never read")
 
         static let all: [AnyPreferenceKey] = [
             aiProvider.erased,
@@ -153,9 +157,9 @@ extension Prefs {
             qualification.erased,
             priceWatchLastSeen.erased,
             priceWatchAnnouncedEnded.erased,
-            managedAppAccess.erased,
-            managedServerClockOffset.erased,
-            firstRunPretend31DaysPassed.erased,
+            retiredAppAccess.erased,
+            retiredServerClockOffset.erased,
+            retiredPretend31DaysPassed.erased,
         ]
     }
 }

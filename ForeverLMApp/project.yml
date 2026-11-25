@@ -751,8 +751,6 @@ targets:
       # CloudArticleTTS and the Mobile* services call ManagedAI.isSignedIn/rewrite.
       - Shared/Services/AI/AppleSignInSupport.swift
       - Shared/Services/AI/ManagedAI.swift
-      # The app plan the proxy returns with every session (ManagedAI reads it).
-      - Shared/Services/AI/ManagedAIAppAccess.swift
       - Shared/Services/AI/ManagedTranscriptionClient.swift
       - Shared/Services/Notifications/NotificationRetirement.swift
       # The Planner's bout timer, phone side: the break a write-up earned is
@@ -770,6 +768,8 @@ targets:
       - Shared/Services/Storage/ThumbnailDiskCache.swift
       - Shared/Services/Storage/CacheDirectorySweep.swift
       - Shared/Services/Storage/LegacyIdentityAdoption.swift
+      # Preference keys nothing reads any more, removed once at launch, as on the Mac.
+      - Shared/Services/Storage/RetiredDefaultsCleanup.swift
       # CloudKit schema v2: the record types, zones and field policies the
       # sync core reads, generated from schema/cloudkit-schema.json
       # (docs/cloudkit-schema-design.md §12.1, §14.1), and the sync core

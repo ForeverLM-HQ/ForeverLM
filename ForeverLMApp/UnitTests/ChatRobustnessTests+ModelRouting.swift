@@ -580,6 +580,29 @@ extension ChatRobustnessTests {
         )
     }
 
+    /// ForeverLM is free (2026-11-24) and the key is all AI needs, so no
+    /// message about the key names a plan.
+    @Test("The key runs for every account, so no message ties it to a plan")
+    func keyNeedsNoPlan() {
+        let messages = [
+            AICreditEntitlement.purchaseRequiredMessage,
+            KeychainService.emptyBalanceMessage,
+            ReviewSessionManager.chatConfigFailureMessageForTesting(isSignedIn: true, provider: .openRouter),
+        ]
+        for text in messages {
+            #expect(!text.isEmpty)
+            #expect(!text.localizedCaseInsensitiveContains("plan"), "\(text)")
+        }
+        // A refusal is still recognised as one the account, not the model,
+        // made: today's wording, and those stored chats hold from while the
+        // key needed a plan.
+        #expect(AICreditEntitlement.isBlockedByBudget(AICreditEntitlement.purchaseRequiredMessage))
+        for stored in AICreditEntitlement.planEraPurchaseRequiredMessages {
+            #expect(AICreditEntitlement.isBlockedByBudget("Error: \(stored)"))
+        }
+        #expect(!AICreditEntitlement.isBlockedByBudget("The model timed out."))
+    }
+
     @Test("Reasoning opt-out asks first-generation GPT-5 models for minimal effort, not none")
     func lowestReasoningEffortRespectsMandatoryReasoningModels() {
         // OpenRouter rejects `none` for these with a 400: "Reasoning is

@@ -1348,10 +1348,10 @@ struct StudioNavigationRail: View {
 
     /// MCP on the strip: its glyph with the status light on its corner, at
     /// all times, so how assistants reach this Mac is seen without opening
-    /// anything; a click opens MCP settings (Billing while MCP is locked).
+    /// anything; a click opens MCP settings.
     private var railMCPButton: some View {
         Button {
-            onOpenSettings(account.isAppLocked ? .aiBilling : .mcp)
+            onOpenSettings(.mcp)
         } label: {
             RailGlyph(systemImage: "point.3.connected.trianglepath.dotted")
                 .overlay(alignment: .bottomTrailing) {
@@ -1466,21 +1466,6 @@ struct StudioNavigationRail: View {
 
     @ViewBuilder
     private var accountMenuActions: some View {
-        // The free days' count, quietly: "29 days free left". It opens
-        // Billing, where the deal is (docs/pricing-pro-design.md → The free
-        // days).
-        if let freeDays = account.freeDaysStatus {
-            accountMenuAction(
-                title: freeDays,
-                systemImage: "gift",
-                accessibilityIdentifier: "rail.freeDays"
-            ) {
-                showsAccountMenu = false
-                onOpenSettings(.aiBilling)
-            }
-            .help("Open Billing")
-        }
-
         if showsMCPStatusLight {
             accountMenuAction(
                 title: mcpStatusLightLabel,
@@ -1648,12 +1633,8 @@ struct StudioNavigationRail: View {
         }
     }
 
-    /// While the app is locked (the free days over, nothing paid) the
-    /// connection is stopped on purpose (product owner, 2026-10-10), so the
-    /// light says so rather than calling it a failure.
     private var mcpStatusLightLabel: String {
         guard assistantIntegrationsEnabled else { return "MCP disabled" }
-        if account.isAppLocked { return "MCP locked" }
         switch mcpLauncher.state {
         case .running:
             return "MCP connected"

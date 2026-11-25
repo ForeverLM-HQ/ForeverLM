@@ -19,7 +19,7 @@ import AppKit
 // - `run_settings_action` is the pane buttons that do something once
 //   (Sync now, Prepare now, Check now, …).
 // - `open_settings` is for what a chat must not do for the learner — a
-//   sign-in, a payment, Apple's sharing sheet — and shows the pane instead.
+//   sign-in, Apple's sharing sheet — and shows the pane instead.
 // - The account and plugin tools (teams, disconnects, feeds, calendars, chat
 //   model list, spending limit) live beside it in their own files and are
 //   gathered by `settingsParityToolDefs` / `executeSettingsParityTool`.
@@ -180,8 +180,7 @@ extension MCPDataStore {
         ["pane": "Background › Memory review", "read": "get_memory_review_settings", "write": "set_memory_review_settings"],
         ["pane": "Background › Models (Text-only, Multimodal, Tasks), a card's ⋯ for its host; Data & Privacy", "read": "get_ai_task_settings", "write": "set_ai_task_settings"],
         ["pane": "Chat › Models (which models the chat picker offers)", "read": "get_ai_task_settings", "write": "set_chat_model_offered"],
-        ["pane": "AI Usage › API keys", "read": "get_own_router_key", "write": "set_own_router_key"],
-        ["pane": "Billing › Plan (paying is the learner's own step)", "read": "get_billing_settings", "write": "open_settings (billing)"],
+        ["pane": "API Keys (the OpenRouter key; signing in is the learner's own step)", "read": "get_own_router_key, get_billing_settings", "write": "set_own_router_key, open_settings (api_keys)"],
         ["pane": "Sources sidebar › bulk re-queues waiting for a decision", "read": "get_background_ai_jobs", "write": "decide_background_ai_job"],
         ["pane": "Automatic audio (no pane)", "read": "get_automatic_audio_settings", "write": "set_automatic_audio_settings"],
         ["pane": "Plugins › Calendar (the Mac's Calendar, which is the day)", "read": "get_calendar_settings", "write": "set_calendar_settings"],
@@ -194,13 +193,12 @@ extension MCPDataStore {
     ].filter { JournalWatch.isEnabled || $0["pane"]?.hasPrefix("Feeds") != true }
 
     /// What stays in the window on purpose: each needs the learner's own
-    /// hand — a browser consent, a payment, a macOS permission sheet. A
+    /// hand — a browser consent, an Apple sheet, a macOS permission sheet. A
     /// plugin is connected in the Plugins place, which `open_settings`
     /// opens for its id as it does a pane.
     static let settingsOnlyInTheWindow: [[String: String]] = [
-        ["control": "Sign in with Apple", "why": "An Apple sign-in sheet only the learner can answer.", "open_settings": "billing"],
+        ["control": "Sign in with Apple", "why": "An Apple sign-in sheet only the learner can answer.", "open_settings": "api_keys"],
         ["control": "Connect a plugin (X, YouTube, Google Drive, Slack, GitHub), in the Plugins place on the icon strip", "why": "The provider's consent page in a browser.", "open_settings": "plugins"],
-        ["control": "Pay for ForeverLM, or change or cancel a monthly plan", "why": "Stripe Checkout or the Stripe billing portal.", "open_settings": "billing"],
         ["control": "Manage team members", "why": "Apple's iCloud sharing sheet.", "open_settings": "data_privacy"],
     ]
 
@@ -1142,7 +1140,7 @@ extension MCPDataStore {
         // Settings opens on Chat in its place.
         ("general", .pane(.aiChatModels)), ("chat", .pane(.aiChatModels)), ("voice", .pane(.aiTextToSpeech)),
         ("images", .pane(.aiImages)), ("videos", .pane(.aiVideos)), ("background", .pane(.aiBackgroundModels)),
-        ("billing", .pane(.aiBilling)), ("ai_usage", .pane(.aiUsage)), ("data_privacy", .pane(.dataPrivacy)),
+        ("api_keys", .pane(.aiKeys)), ("ai_usage", .pane(.aiUsage)), ("data_privacy", .pane(.dataPrivacy)),
         ("team_general", .pane(.teamGeneral)), ("team_members", .pane(.teamMembers)),
         ("sources", .pane(.sources)), ("plugins", .plugins(nil)),
         ("mcp", .pane(.mcp)), ("mcp_pairing", .pane(.mcpPairing)), (PluginPage.x.rawValue, .plugins(.x)),
@@ -1157,7 +1155,8 @@ extension MCPDataStore {
         let id = pane?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         let match: SettingsPaneTarget
         if id.isEmpty {
-            match = .pane(.aiBilling)
+            // Where Settings itself opens.
+            match = .pane(.aiChatModels)
         } else if let found = Self.settingsPaneIDs.first(where: { $0.id == id }) {
             match = found.target
         } else {
@@ -1173,7 +1172,7 @@ extension MCPDataStore {
                 PluginsPlace.requestOpen(page)
             }
         }
-        var payload: [String: Any] = ["opened": id.isEmpty ? "billing" : id]
+        var payload: [String: Any] = ["opened": id.isEmpty ? "chat" : id]
         if case .plugins = match { payload["in"] = "plugins" }
         return try jsonString(payload)
     }
@@ -1283,7 +1282,7 @@ extension MCPToolRegistry {
     }
 
     /// None of these holds the store gate: they wait on the UI, the network
-    /// (Slack, Google, the billing service) or a macOS permission sheet, and
+    /// (Slack, Google, the account service) or a macOS permission sheet, and
     /// their own store reads are single statements, like the exempt connector
     /// reads in `storeGateExemptToolNames`.
     static let settingsParityToolNames: Set<String> = Set(settingsParityToolDefs.map(\.name))
@@ -1333,11 +1332,11 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "open_settings",
-                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, paying for ForeverLM, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
+                description: "Open ForeverLM's Settings window on the learner's Mac at one pane, for what a chat must leave to the learner — signing in, managing team members in Apple's sharing sheet. team_general and team_members open the open team's own Settings, a separate window from the learner's, and need a team library open. Plugins are not in Settings: plugins, and a plugin's id (x, youtube, google_drive, apple_calendar, slack, linear, github, notion, build_your_own_plugin), open the Plugins place on the icon strip at every plugin or at that plugin's page, where the learner connects it through the provider's consent page. Brings ForeverLM to the front.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Billing, paying for ForeverLM; ai_usage is the key, spending and activity; plugins and a plugin's id open the Plugins place."],
+                        "pane": ["type": "string", "enum": MCPDataStore.settingsPaneIDs.map { $0.id }, "description": "The pane to show. Omit for Chat, where Settings opens; api_keys is signing in and the OpenRouter and OpenAI keys; ai_usage is spending and activity; plugins and a plugin's id open the Plugins place."],
                     ],
                     "required": [] as [String],
                 ]

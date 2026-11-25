@@ -4,9 +4,9 @@ import AppKit
 
 /// The account wall: ForeverLM requires Sign in with Apple before it can be used.
 ///
-/// One Apple account is the app's identity everywhere — it is what managed AI meters usage
-/// against and what MCP per-tool-call billing attributes calls to. Establishing it once at
-/// launch keeps the rest of the app free of sign-in prompts.
+/// One Apple account is the app's identity everywhere: the MCP connection is provisioned
+/// under it and publishing signs with it. Establishing it once at launch keeps the rest of
+/// the app free of sign-in prompts.
 ///
 /// There is deliberately no bypass — no "not now", no escape hatch. That is a real cost: a
 /// Mac signed out of iCloud, or offline on first launch, cannot get past this screen.
@@ -154,115 +154,5 @@ struct AppleAccountWall: View {
             guard error == nil else { return }
             DispatchQueue.main.async { NSApp.terminate(nil) }
         }
-    }
-}
-
-/// The pay screen (product owner, 2026-10-10; docs/pricing-pro-design.md → Day 8:
-/// locked): once the free days are over and nothing is paid, it is the
-/// only thing the Mac shows, after the sign-in wall and ahead of everything
-/// else. The Early user deal, $19 once and nothing beside it, Sign Out, and
-/// where the library lives, so "your files, no lock-in" stays true. There is
-/// no "I've Paid" (product owner, 2026-10-13): the account is read again when
-/// the app becomes active and every few seconds after checkout opens, so
-/// paying opens the app by itself. Nothing is deleted; paying restores the
-/// app exactly as it was. While it is up, background AI, sync and the MCP
-/// connection are stopped (`ManagedAI.isAppLocked`).
-///
-/// The price is the proxy's (`AppAccess.prices`), and the deal is offered
-/// while it is on sale. The same quiet card on a soft wash as
-/// `AppleAccountWall`.
-struct AppLockWall: View {
-    static let title = "Your free days are over"
-    static let message = "Please unlock the app. Like software in the good old days: pay once, no monthly subscription, and you can use it forever."
-    static let libraryLine = "Nothing is deleted: your library stays on this Mac as plain files you own."
-
-    @Environment(ManagedAIAccountModel.self) private var account
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var prices: ManagedAI.AppAccess.Prices { account.planPrices }
-    private var onSale: [ManagedAI.AppPlan] { account.appAccess?.plansOnSale ?? ManagedAI.AppAccess.paidAppPlans }
-    private var busy: Bool { account.planCheckoutInFlight != nil }
-
-    var body: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 12) {
-                ForeverLMMark(width: 96, motion: .still)
-                    .frame(height: 62)
-                Text(Self.title)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                Text(Self.message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(spacing: 10) {
-                if onSale.contains(.once) {
-                    Button {
-                        Task { await account.choosePlan(.once) }
-                    } label: {
-                        ZStack {
-                            Text(EarlyUserDealOffer.buyTitle(onceCents: prices.onceCents))
-                                .font(.headline)
-                                .opacity(account.planCheckoutInFlight == .once ? 0 : 1)
-                            if account.planCheckoutInFlight == .once {
-                                ProgressView().controlSize(.small)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.extraLarge)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(busy)
-                    .accessibilityIdentifier("appLock.buyOnce")
-                }
-            }
-
-            Button("Sign Out") { account.signOut() }
-                .controlSize(.large)
-                .disabled(busy)
-                .accessibilityIdentifier("appLock.signOut")
-
-            if let message = account.errorMessage ?? account.balanceErrorMessage {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Divider()
-
-            Label(Self.libraryLine, systemImage: "folder")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("appLock.library")
-        }
-        .padding(36)
-        .frame(width: 440)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.background)
-                .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.12), radius: 24, y: 10)
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(alignment: .top) {
-            LinearGradient(
-                colors: [Color.accentColor.opacity(colorScheme == .dark ? 0.22 : 0.14), .clear],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 320)
-            .blur(radius: 40)
-        }
-        // Checkout finishes in the browser; coming back is when to look again.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await account.refresh(minimumInterval: 2, silently: true) }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("appLock.wall")
     }
 }

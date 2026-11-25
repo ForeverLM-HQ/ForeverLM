@@ -2,7 +2,8 @@ import Foundation
 import OSLog
 
 /// Keys this Mac's preferences hold that nothing reads any more, removed once,
-/// at launch, after the windows are up and off the main actor.
+/// at launch, after the windows are up and off the main actor. The iPhone runs
+/// it too, for the keys it shared with the Mac (the paid app's cached plan).
 ///
 /// **Why it matters.** CFPreferences keeps the whole domain in one dictionary,
 /// and after every defaults write the next read re-merges it and diffs it for
@@ -74,14 +75,22 @@ enum RetiredDefaultsCleanup {
         "readai.importedMeetingIDs",
         "bookNameOverrides",
         "drive.lastDisconnectReason",
+        // The paid app's, retired 2026-11-24 when ForeverLM became free: the
+        // cached plan, the proxy's clock, and the First Run app's day-31 switch.
+        Prefs.Models.retiredAppAccess.name,
+        Prefs.Models.retiredServerClockOffset.name,
+        Prefs.Models.retiredPretend31DaysPassed.name,
+        // The first cleanup's own completion mark.
+        "retiredDefaultsCleanup.v1",
     ]
 
     /// Prefixes of keys nothing reads or writes any more: a per-day usage log
     /// and its daily totals from builds older than this repository (dated
-    /// 2026-03 and 2026-04). Usage lives in `ai_usage_events` in knowledge.db.
-    /// They stay in `SyncedPreferenceKeys.excludedPrefixes`, so an older
-    /// build that writes one again never syncs it.
-    static let retiredPrefixes = ["usage_records_", "usage_daily_total_"]
+    /// 2026-03 and 2026-04), whose usage lives in `ai_usage_events` in
+    /// knowledge.db, and the paid app's free-days notices. They stay in
+    /// `SyncedPreferenceKeys.excludedPrefixes`, so an older build that writes
+    /// one again never syncs it.
+    static let retiredPrefixes = ["usage_records_", "usage_daily_total_", Prefs.Families.retiredFreeDaysNotice.prefix]
 
     static func isRetired(_ key: String) -> Bool {
         isTypeNamedFrameKey(key) || retiredKeys.contains(key) || retiredPrefixes.contains { key.hasPrefix($0) }

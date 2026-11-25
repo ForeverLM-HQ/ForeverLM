@@ -292,10 +292,7 @@ actor MacSyncSession {
     }
 
     /// One round of the cadence: the coordinator syncs, or, when none was made yet, the start is tried again.
-    /// None while the app is locked (the free days over and nothing paid; `ManagedAI.isAppLocked`): what was
-    /// written waits in the outbox, and the app runs a round as soon as the lock lifts.
     func round() async {
-        guard !ManagedAI.isAppLocked else { return }
         if let coordinator {
             await coordinator.runRound()
         } else {
@@ -328,7 +325,6 @@ actor MacSyncSession {
     /// The outbox got a row: sent soon, past its debounce (`StorageService.scheduleCloudKitSync`, and the
     /// watcher for a write nothing announced). Writes in quick succession share one send.
     func localWrite(after delay: TimeInterval = SyncCoordinator.sendSoonDelay) async {
-        guard !ManagedAI.isAppLocked else { return }
         await coordinator?.sendSoon(after: delay)
     }
 
