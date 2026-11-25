@@ -11,8 +11,9 @@ extension Prefs {
         /// discoverability is unavailable, so the native app seeds this once and
         /// every client thereafter uses the synced value.
         static let displayName = AccountKey<String>("account.displayName", default: "")
-        /// Retired 2026-11-15 with comped usage (ForeverLM pays for no AI): the
-        /// crown no longer shows on the Mac. Kept so the synced row stays known.
+        /// Retired 2026-11-15 with comped usage (ForeverLM pays for no AI): no
+        /// crown shows on the Mac or the web, nothing reads or writes it, and
+        /// the settings catalog marks it retired. Kept so the synced row stays known.
         static let showsCompCrown = AccountKey<Bool>("account.showsCompCrown", default: true)
         /// The learner's own words about where they are coming from
         /// (`LearnerProfile.aboutYouPreferenceKey`): every course tailors its

@@ -912,7 +912,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | Key | Type | Scope | MCP | Meaning |
 |---|---|---|---|---|
 | `account.displayName` | string | account | `set_app_setting` account.display_name | The name the account button, the account menu and the chat greeting show, on every Mac and the web. |
-| `account.showsCompCrown` | bool | account | `set_app_setting` account.show_comp_crown | Whether an account whose AI usage ForeverLM pays for shows it: the Mac account menu's "Usage is paid for" row and the crown in the web's account footer (the Mac's account button carries no crown since 2026-10-06); true when absent. |
+| `account.showsCompCrown` | bool | account |  | Retired 2026-11-15: whether an account whose AI usage ForeverLM paid for showed it (the account menu's "Usage is paid for" line on the Mac and the web). ForeverLM pays for no AI, so no account shows it and nothing reads or writes this; kept so the synced row stays known. Retired. |
 | `account.aboutYou` | string | account | `set_app_setting` account.about_you | Where the learner is coming from, in their words (LearnerProfile.aboutYouPreferenceKey); every course tailors to it. |
 | `aiSpend.backgroundDailyCapUSD` | double | account | `set_app_setting` billing.background_daily_cap_usd | Background AI's daily limit in US dollars (BackgroundAIDailyCap); absent or 0 means off. 0 to 250. |
 | `aiSpend.stoppedSteps` | array | account | `resume_ai_work` steps (derived) | The background steps the learner stopped under Running in the background or with cancel_ai_work (AIInFlightCalls.stoppedStepsKey; AI task ids, ledger task keys and automatic_audio, strings): none runs on any Mac until resumed. Absent means none. |

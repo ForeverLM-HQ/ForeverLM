@@ -383,12 +383,16 @@ extension MCPDataStore {
             reach: .account,
             kind: .choice,
             // The providers `read_aloud.model` covers; the voice keys are
-            // private to `MacArticleSpeechSettings`.
+            // private to `MacArticleSpeechSettings`. An OpenRouter pick is
+            // also remembered under the selected model (`write` below,
+            // `ArticleSpeechVoiceMemory`), so that model's row is named too.
             preferenceKeys: [
                 Prefs.ReadAloud.openRouterVoice.name, Prefs.ReadAloud.groqVoice.name, Prefs.ReadAloud.openAIVoice.name,
                 Prefs.ReadAloud.togetherVoice.name, Prefs.ReadAloud.elevenLabsVoice.name, Prefs.ReadAloud.xaiVoice.name,
                 Prefs.ReadAloud.geminiVoice.name,
-            ],
+            ] + (provider == .openRouter
+                ? [Prefs.Families.readAloudModelVoice.key(MacArticleSpeechSettings.model(for: provider)).name]
+                : []),
             options: {
                 let provider = MacArticleSpeechSettings.provider
                 let model = MacArticleSpeechSettings.model(for: provider)
