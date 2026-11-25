@@ -20,7 +20,7 @@ extension MCPToolRegistry {
                                 "properties": [
                                     "source_id": ["type": "string", "description": "The source the card is about, from list_sources or a search."],
                                     "front": ["type": "string", "description": "The question to ask, on one line."],
-                                    "back": ["type": "string", "description": "The complete answer, and no more."],
+                                    "back": ["type": "string", "description": "The complete answer, and no more. It may end with one interactive visualization when clicking or moving something teaches the answer better than words (a chart whose bars open to the items behind them): a fenced code block whose language is visualization, holding one self-contained HTML document written as a chat visualization is (inline script, style and SVG; no network). The review runs it under the words, so the words stay a complete answer without it."],
                                     "why": ["type": "string", "description": "One line on why the back is right."],
                                     "quote": ["type": "string", "description": "The passage of the source the card stands on, copied word for word from its text."],
                                     "also_from": Self.cardAlsoFromInputSchema(description: "The other sources the card also stands on, when they state what it asks: each with the passage that does, copied word for word from its text."),
@@ -173,7 +173,7 @@ extension MCPToolRegistry {
                         "card_id": ["type": "string", "description": "A card_id from get_due_cards or list_cards status kept."],
                         "item_id": ["type": "string", "description": "The card's item_id, instead of card_id."],
                         "front": ["type": "string", "description": "The question in the learner's new words."],
-                        "back": ["type": "string", "description": "A new answer: starts the card over."],
+                        "back": ["type": "string", "description": "A new answer: starts the card over. It may end with one interactive visualization when clicking or moving something teaches the answer better than words (a chart whose bars open to the items behind them): a fenced code block whose language is visualization, holding one self-contained HTML document written as a chat visualization is (inline script, style and SVG; no network). The review runs it under the words, so the words stay a complete answer without it."],
                         "why": ["type": "string", "description": "A new line on why the answer is right: starts the card over."],
                         "front_images": Self.cardImagesInputSchema(description: "Replacement pictures for the question face; starts the card over. Pass [] to remove them."),
                         "back_images": Self.cardImagesInputSchema(description: "Replacement pictures for the answer face; starts the card over. Pass [] to remove them."),

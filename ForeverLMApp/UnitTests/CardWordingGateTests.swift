@@ -160,4 +160,38 @@ struct CardWordingGateTests {
             )
         }
     }
+
+    @Test("A face's visualization is never read by the check, and a reworded face keeps it as written")
+    func visualizationRidesThrough() async throws {
+        let html = "<button onclick=\"this.textContent='SDHA SDHB SDHC SDHD'\">Complex II</button>"
+        let back = CardVisualization.joined(words: Self.back, html: html)
+        let wording = CannedCardWording(pointing: ["this lecture"]) { question in
+            question == Self.pointing ? Self.named : nil
+        }
+        let outcomes = try await CardWordingGate.screen(
+            [.init(front: Self.pointing, back: back, sourceTitle: Self.lectureTitle)],
+            answersMayChange: true,
+            usage: AIUsageSource(id: "src-lecture", type: "video", title: Self.lectureTitle),
+            backend: wording
+        )
+        #expect(outcomes == [.reworded(front: Self.named, back: back)])
+        #expect(wording.checks.allSatisfy { !$0.contains("<button") }, "the check reads words, not the program")
+        #expect(wording.rewordings.allSatisfy { !$0.contains("<button") })
+    }
+
+    @Test("A card face splits into its words and the one visualization it runs")
+    func visualizationFence() {
+        let face = "Complex II is all nuclear.\n\n```visualization\n<div>SDHA</div>\n```\n"
+        #expect(CardVisualization.split(face) == .init(words: "Complex II is all nuclear.", html: "<div>SDHA</div>"))
+        #expect(CardVisualization.split("Plain words.") == .init(words: "Plain words.", html: nil))
+        // Half a block is words, as a streaming chat shows it; a block inside another is that block's text.
+        #expect(CardVisualization.split("a\n```visualization\n<b>").html == nil)
+        #expect(CardVisualization.split("````md\n```visualization\nx\n```\n````").html == nil)
+        // A program that holds a fence of its own goes back under a longer fence.
+        let joined = CardVisualization.joined(words: "w", html: "let f = \"```\"")
+        #expect(CardVisualization.split(joined) == .init(words: "w", html: "let f = \"```\""))
+        // The voice reads words.
+        #expect(RealtimeVoiceCardReview.clipped(face) == "Complex II is all nuclear.")
+        #expect(MemoryCard(cardID: "c", front: "Which genes?", back: face, origin: .assistant).backWords == "Complex II is all nuclear.")
+    }
 }

@@ -256,12 +256,17 @@ struct MemoryCardSessionView: View {
         // switch; the menu alone sits in the corner above the question.
         let hasTopRow = !tags.isEmpty || card.isVariant || card.alwaysAsk
         return VStack(alignment: .leading, spacing: 0) {
-            Text(card.prompt.foldingMathSpans())
+            let front = CardVisualization.split(card.prompt)
+            Text(front.words.foldingMathSpans())
                 .font(MemoryCardMetrics.frontFont)
                 .foregroundStyle(shown ? Color.secondary : Color.primary)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("memory.cards.prompt")
+            if let html = front.html {
+                MemoryCardVisualizationView(html: html)
+                    .padding(.top, 16)
+            }
             if !card.frontImages.isEmpty {
                 MemoryCardImageGrid(images: card.frontImages)
                     .padding(.top, 16)
@@ -346,11 +351,16 @@ struct MemoryCardSessionView: View {
                 MemoryCardVerdictLine(check: check)
                     .padding(.bottom, 16)
             }
-            Text(card.back.foldingMathSpans())
+            let back = CardVisualization.split(card.back)
+            Text(back.words.foldingMathSpans())
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("memory.cards.back")
+            if let html = back.html {
+                MemoryCardVisualizationView(html: html)
+                    .padding(.top, 16)
+            }
             if !card.backImages.isEmpty {
                 MemoryCardImageGrid(images: card.backImages)
                     .padding(.top, 16)
@@ -682,11 +692,11 @@ struct MemoryCardSessionView: View {
         VStack(alignment: .leading, spacing: 0) {
             // The card it is about: its front muted, its back.
             VStack(alignment: .leading, spacing: 6) {
-                Text(deeper.card.prompt)
+                Text(CardVisualization.words(deeper.card.prompt))
                     .font(.system(size: 15, weight: .regular, design: .serif))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(deeper.card.back)
+                Text(CardVisualization.words(deeper.card.back))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

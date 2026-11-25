@@ -365,12 +365,17 @@ struct MobileCardsToCheckList<Header: View>: View {
                     MemoryCardVerdictLine(check: check)
                         .padding(.bottom, 14)
                 }
-                Text(card.face.back.foldingMathSpans())
+                let back = CardVisualization.split(card.face.back)
+                Text(back.words.foldingMathSpans())
                     .font(.system(size: backSize))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel("Answer: \(card.face.back)")
+                    .accessibilityLabel("Answer: \(back.words)")
                     .accessibilityIdentifier("memory.toCheck.back")
+                if let html = back.html {
+                    MemoryCardVisualizationView(html: html)
+                        .padding(.top, MobileDesign.Spacing.large)
+                }
                 if !card.face.backImages.isEmpty {
                     MobileMemoryCardImageGrid(images: card.face.backImages, sourceID: card.sourceID, cardIDs: [card.cardID])
                         .padding(.top, MobileDesign.Spacing.large)

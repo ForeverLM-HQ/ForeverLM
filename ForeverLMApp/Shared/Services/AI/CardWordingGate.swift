@@ -164,11 +164,18 @@ enum CardWordingGate {
     /// is false for a kept card, whose answer is its identity. Outcomes come
     /// back in `faces`' order. Throws when the check cannot be made.
     static func screen(
-        _ faces: [CardWordingCheck.Face],
+        _ written: [CardWordingCheck.Face],
         answersMayChange: Bool,
         usage: AIUsageSource,
         backend: any CardWordingBackend
     ) async throws -> [CardWordingCheck.Outcome] {
+        // The check reads a face's words. A visualization's HTML
+        // (`CardVisualization`) is no wording to judge, and a rewording
+        // must not rewrite its program: it goes back on as it was written.
+        let parts = written.map { (front: CardVisualization.split($0.front), back: CardVisualization.split($0.back)) }
+        let faces = zip(written, parts).map { face, part in
+            CardWordingCheck.Face(front: part.front.words, back: part.back.words, sourceTitle: face.sourceTitle)
+        }
         var outcomes = [CardWordingCheck.Outcome](repeating: .passed, count: faces.count)
         for start in stride(from: 0, to: faces.count, by: CardWordingCheck.batchSize) {
             try Task.checkCancellation()
@@ -210,7 +217,11 @@ enum CardWordingGate {
             for (offset, index) in failing.enumerated() {
                 let verdict = second[offset + 1]
                 if verdict?.standsAlone == true {
-                    outcomes[start + index] = .reworded(front: reworded[offset].front, back: reworded[offset].back)
+                    let part = parts[start + index]
+                    outcomes[start + index] = .reworded(
+                        front: CardVisualization.joined(words: reworded[offset].front, html: part.front.html),
+                        back: CardVisualization.joined(words: reworded[offset].back, html: part.back.html)
+                    )
                 } else {
                     outcomes[start + index] = .failed(reason: CardWordingCheck.failureReason(verdict?.problem ?? problems[offset]))
                 }

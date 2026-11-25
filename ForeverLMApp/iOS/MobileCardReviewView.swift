@@ -1029,7 +1029,8 @@ struct MobileCardReviewScreen: View {
         let showsWordingMenu = card.isVariant || card.alwaysAsk
         let hasTopRow = !tags.isEmpty || showsWordingMenu
         return VStack(alignment: .leading, spacing: 0) {
-            Text(card.prompt.foldingMathSpans())
+            let front = CardVisualization.split(card.prompt)
+            Text(front.words.foldingMathSpans())
                 .font(.system(size: frontSize, weight: .regular, design: .serif))
                 .foregroundStyle(shown ? Color.secondary : Color.primary)
                 .lineSpacing(2)
@@ -1037,6 +1038,10 @@ struct MobileCardReviewScreen: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($spoken, equals: .prompt)
                 .accessibilityIdentifier("memory.cards.prompt")
+            if let html = front.html {
+                MemoryCardVisualizationView(html: html)
+                    .padding(.top, MobileDesign.Spacing.large)
+            }
             if !card.frontImages.isEmpty {
                 MobileMemoryCardImageGrid(images: card.frontImages, sourceID: card.sourceID, cardIDs: [card.itemID, card.cardID])
                     .padding(.top, MobileDesign.Spacing.large)
@@ -1116,13 +1121,18 @@ struct MobileCardReviewScreen: View {
                 MemoryCardVerdictLine(check: check)
                     .padding(.bottom, 14)
             }
-            Text(card.back.foldingMathSpans())
+            let back = CardVisualization.split(card.back)
+            Text(back.words.foldingMathSpans())
                 .font(.system(size: backSize))
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel("Answer: \(card.back)")
+                .accessibilityLabel("Answer: \(back.words)")
                 .accessibilityFocused($spoken, equals: .back)
                 .accessibilityIdentifier("memory.cards.back")
+            if let html = back.html {
+                MemoryCardVisualizationView(html: html)
+                    .padding(.top, MobileDesign.Spacing.large)
+            }
             if !card.backImages.isEmpty {
                 MobileMemoryCardImageGrid(images: card.backImages, sourceID: card.sourceID, cardIDs: [card.itemID, card.cardID])
                     .padding(.top, MobileDesign.Spacing.large)

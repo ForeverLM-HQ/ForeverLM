@@ -1136,11 +1136,16 @@ private struct MemoryCardToCheckFace: View {
                 MemoryCardVerdictLine(check: check)
                     .padding(.bottom, 16)
             }
-            Text(card.face.back.foldingMathSpans())
+            let back = CardVisualization.split(card.face.back)
+            Text(back.words.foldingMathSpans())
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("memory.pane.toCheck.back")
+            if let html = back.html {
+                MemoryCardVisualizationView(html: html)
+                    .padding(.top, 16)
+            }
             if !card.face.backImages.isEmpty {
                 MemoryCardImageGrid(images: card.face.backImages)
                     .padding(.top, 16)

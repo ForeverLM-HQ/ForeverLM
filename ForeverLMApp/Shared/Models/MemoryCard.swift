@@ -911,3 +911,132 @@ struct MemoryCardDeckState: Equatable, Sendable {
         return state
     }
 }
+
+// MARK: - A card face's interactive visualization
+
+/// A card face may carry one interactive visualization: a fenced block whose
+/// language is `visualization`, holding one self-contained HTML document —
+/// the block a chat reply and a page's Visualize row write
+/// (`Prompts.chatVisualization`), so a chart a chat drew can go onto a card
+/// as it is (product owner, 2026-11-25: "a widget where I can click to see
+/// the exact genes"). The face is stored as written, fence and all, so it
+/// syncs with no new field; whatever reads it as words (the card's text,
+/// the wording check, the voice review, the watch) reads `words`, and the
+/// review runs `html` in a sandboxed frame under them
+/// (`MemoryCardVisualizationView`).
+enum CardVisualization {
+    struct Parts: Equatable, Sendable {
+        /// The face without its visualization: what is said and read.
+        let words: String
+        /// The document the face's visualization runs, nil when it has none.
+        let html: String?
+    }
+
+    /// One face split into its words and its visualization. Only a closed
+    /// fence counts; a fence inside another code block is that block's text.
+    /// A face with more than one runs the first, and the rest are dropped
+    /// from its words, as the chat shows at most one a reply.
+    static func split(_ text: String) -> Parts {
+        guard text.range(of: "visualization", options: .caseInsensitive) != nil else {
+            return Parts(words: text, html: nil)
+        }
+        func fence(_ line: Substring) -> (marker: Character, length: Int, rest: Substring)? {
+            let indent = line.prefix { $0 == " " || $0 == "\t" }
+            guard indent.count <= 3 else { return nil }
+            let body = line.dropFirst(indent.count)
+            guard let marker = body.first, marker == "`" || marker == "~" else { return nil }
+            let run = body.prefix { $0 == marker }
+            guard run.count >= 3 else { return nil }
+            return (marker, run.count, body.dropFirst(run.count))
+        }
+        func closes(_ line: Substring, _ open: (marker: Character, length: Int)) -> Bool {
+            guard let candidate = fence(line) else { return false }
+            return candidate.marker == open.marker && candidate.length >= open.length
+                && candidate.rest.allSatisfy { $0 == " " || $0 == "\t" }
+        }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        var words: [Substring] = []
+        var html: String?
+        var outer: (marker: Character, length: Int)?
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            if let open = outer {
+                if closes(line, open) { outer = nil }
+                words.append(line)
+                index += 1
+                continue
+            }
+            guard let opener = fence(line) else {
+                words.append(line)
+                index += 1
+                continue
+            }
+            let open = (marker: opener.marker, length: opener.length)
+            guard opener.rest.trimmingCharacters(in: .whitespaces).lowercased() == "visualization",
+                  let end = lines[(index + 1)...].firstIndex(where: { closes($0, open) }) else {
+                outer = open
+                words.append(line)
+                index += 1
+                continue
+            }
+            let body = lines[(index + 1)..<end].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            if html == nil, !body.isEmpty { html = body }
+            index = end + 1
+        }
+        let joined = words.joined(separator: "\n")
+            .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return Parts(words: joined, html: html)
+    }
+
+    /// The face's words with `html`'s fence after them, as `split` reads it
+    /// back: how a face whose words were reworded keeps its visualization.
+    static func joined(words: String, html: String?) -> String {
+        guard let html, !html.isEmpty else { return words }
+        let fence = html.contains("```") ? "~~~~" : "```"
+        let block = "\(fence)visualization\n\(html)\n\(fence)"
+        let trimmed = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? block : "\(trimmed)\n\n\(block)"
+    }
+
+    /// The face's words, for whatever reads a card aloud or as text.
+    static func words(_ text: String) -> String { split(text).words }
+
+    /// What a frame loads: the face's HTML inside the shell a chat's frame
+    /// uses (`visualizationDocument` in chat-visualization.js), whose first
+    /// element is a policy that lets no request out. The document, head and
+    /// body tags the model wrote, and any meta or base, are taken out so
+    /// nothing runs or navigates before the policy is in force.
+    static let policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; form-action 'none'; base-uri 'none'"
+
+    static func document(_ html: String) -> String {
+        let body = html
+            .replacingOccurrences(of: "<!doctype[^>]*>", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "</?(?:html|head|body)\\b[^>]*>", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "<(?:meta|base)\\b[^>]*>", with: "", options: [.regularExpression, .caseInsensitive])
+        return "<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"Content-Security-Policy\" content=\"\(policy)\"><meta name=\"color-scheme\" content=\"light dark\"><style>html,body{margin:0;background:transparent;font:14px/1.45 -apple-system,BlinkMacSystemFont,\"SF Pro Text\",sans-serif;color:CanvasText}</style></head><body>\(body)<script>(function(){function r(){parent.postMessage({foreverlmVisualizationHeight:Math.ceil(document.body.scrollHeight)},\"*\")}new ResizeObserver(r).observe(document.body);addEventListener(\"load\",r)})()</script></body></html>"
+    }
+
+    /// The page the card's web view loads: an empty page holding the
+    /// document in a frame sandboxed without `allow-same-origin`, so the
+    /// model's script has an opaque origin and no way to the app's message
+    /// handler, which only listens to the main frame. The frame's height
+    /// reports go to the page, which passes the number on.
+    static func hostPage(_ html: String) -> String {
+        let srcdoc = document(html)
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+        return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"color-scheme\" content=\"light dark\"><style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}iframe{display:block;width:100%;height:80px;border:0;background:transparent}</style></head><body><iframe sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" title=\"Visualization\" srcdoc=\"\(srcdoc)\"></iframe><script>addEventListener(\"message\",function(e){var f=document.querySelector(\"iframe\");if(!f||e.source!==f.contentWindow)return;var h=Number(e.data&&e.data.foreverlmVisualizationHeight);if(!isFinite(h)||h<=0)return;h=Math.round(Math.min(\(Int(maximumHeight)),Math.max(\(Int(minimumHeight)),h)));f.style.height=h+\"px\";var m=window.webkit&&window.webkit.messageHandlers.cardVisualizationHeight;if(m)m.postMessage(h)})</script></body></html>"
+    }
+
+    static let minimumHeight: Double = 80
+    static let maximumHeight: Double = 720
+}
+
+extension MemoryCard {
+    /// The answer's words, without its visualization.
+    var backWords: String { CardVisualization.words(back) }
+}

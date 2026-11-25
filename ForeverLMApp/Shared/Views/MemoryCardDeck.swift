@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 /// How a card looks wherever Memory draws one, on the Mac and on the phone
 /// (docs/memory-design.md, "How a card looks"): an index card —
@@ -330,3 +331,160 @@ extension AnyTransition {
         )
     }
 }
+
+// MARK: - A face's interactive visualization
+
+/// A card face's visualization (`CardVisualization`), run under its words:
+/// the chart a chat drew, on the card, as live as it was in the chat — a bar
+/// to click for the genes behind it, a slider to move. It runs in a frame
+/// sandboxed without `allow-same-origin` under a policy that lets no request
+/// out, as a chat reply's does, and takes the height the frame asks for,
+/// between 80 and 720 points.
+struct MemoryCardVisualizationView: View {
+    let html: String
+    @State private var height = CGFloat(CardVisualization.minimumHeight)
+
+    var body: some View {
+        MemoryCardVisualizationWebView(html: html, height: $height)
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Interactive visualization")
+            .accessibilityIdentifier("memory.card.visualization")
+    }
+}
+
+@MainActor
+final class MemoryCardVisualizationCoordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    var height: Binding<CGFloat>
+    var loadedHTML: String?
+
+    init(height: Binding<CGFloat>) {
+        self.height = height
+    }
+
+    static let handlerName = "cardVisualizationHeight"
+
+    static func configuration(coordinator: MemoryCardVisualizationCoordinator) -> WKWebViewConfiguration {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.userContentController.add(WeakVisualizationHandler(coordinator), name: handlerName)
+        return configuration
+    }
+
+    func load(_ html: String, into webView: WKWebView) {
+        guard loadedHTML != html else { return }
+        loadedHTML = html
+        webView.loadHTMLString(CardVisualization.hostPage(html), baseURL: nil)
+    }
+
+    /// Only the empty host page and its `srcdoc` frame load: a link, a form
+    /// or a script that tries to go anywhere is refused.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
+    ) {
+        let scheme = navigationAction.request.url?.scheme?.lowercased()
+        decisionHandler(scheme == "about" && navigationAction.navigationType == .other ? .allow : .cancel)
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        // The host page's own script, never the visualization's frame.
+        guard message.frameInfo.isMainFrame, let value = (message.body as? NSNumber)?.doubleValue else { return }
+        let clamped = CGFloat(min(CardVisualization.maximumHeight, max(CardVisualization.minimumHeight, value)))
+        if abs(height.wrappedValue - clamped) >= 1 { height.wrappedValue = clamped }
+    }
+}
+
+/// The content controller holds its handlers strongly; this keeps it from
+/// holding the coordinator, and with it the web view, past the card.
+@MainActor
+private final class WeakVisualizationHandler: NSObject, WKScriptMessageHandler {
+    weak var target: (any WKScriptMessageHandler)?
+    init(_ target: any WKScriptMessageHandler) { self.target = target }
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+#if os(macOS)
+struct MemoryCardVisualizationWebView: NSViewRepresentable {
+    let html: String
+    @Binding var height: CGFloat
+
+    func makeCoordinator() -> MemoryCardVisualizationCoordinator {
+        MemoryCardVisualizationCoordinator(height: $height)
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let webView = PassThroughScrollWebView(frame: .zero, configuration: MemoryCardVisualizationCoordinator.configuration(coordinator: context.coordinator))
+        webView.navigationDelegate = context.coordinator
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.allowsMagnification = false
+        context.coordinator.load(html, into: webView)
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.height = $height
+        context.coordinator.load(html, into: webView)
+    }
+
+    static func dismantleNSView(_ webView: WKWebView, coordinator: MemoryCardVisualizationCoordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: MemoryCardVisualizationCoordinator.handlerName)
+        webView.navigationDelegate = nil
+    }
+
+    /// A vertical scroll over the frame scrolls the review, not the frame,
+    /// which is sized to its content (`ChatMarkdownView` does the same).
+    final class PassThroughScrollWebView: WKWebView {
+        override func scrollWheel(with event: NSEvent) {
+            guard abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX) else {
+                super.scrollWheel(with: event)
+                return
+            }
+            var ancestor = superview
+            while let view = ancestor {
+                if let scrollView = view as? NSScrollView {
+                    scrollView.scrollWheel(with: event)
+                    return
+                }
+                ancestor = view.superview
+            }
+            nextResponder?.scrollWheel(with: event)
+        }
+    }
+}
+#else
+struct MemoryCardVisualizationWebView: UIViewRepresentable {
+    let html: String
+    @Binding var height: CGFloat
+
+    func makeCoordinator() -> MemoryCardVisualizationCoordinator {
+        MemoryCardVisualizationCoordinator(height: $height)
+    }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView(frame: .zero, configuration: MemoryCardVisualizationCoordinator.configuration(coordinator: context.coordinator))
+        webView.navigationDelegate = context.coordinator
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        context.coordinator.load(html, into: webView)
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.height = $height
+        context.coordinator.load(html, into: webView)
+    }
+
+    static func dismantleUIView(_ webView: WKWebView, coordinator: MemoryCardVisualizationCoordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: MemoryCardVisualizationCoordinator.handlerName)
+        webView.navigationDelegate = nil
+    }
+}
+#endif

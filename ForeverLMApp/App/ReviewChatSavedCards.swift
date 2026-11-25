@@ -288,10 +288,15 @@ struct ReviewChatSavedCardsView: View {
             }
             MemoryCardFold()
                 .padding(.vertical, 10)
-            Text(card.face.back.foldingMathSpans())
+            let back = CardVisualization.split(card.face.back)
+            Text(back.words.foldingMathSpans())
                 .font(.system(size: 13))
                 .foregroundStyle(Color.primary.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
+            if let html = back.html {
+                MemoryCardVisualizationView(html: html)
+                    .padding(.top, 10)
+            }
             if !card.face.backImages.isEmpty {
                 MemoryCardImageGrid(images: card.face.backImages, animationStartsAtOnce: false)
                     .padding(.top, 10)

@@ -303,10 +303,14 @@ private struct KnowledgeMapReviewCard: View {
                 if let check = sitting.answerCheck {
                     MemoryCardVerdictLine(check: check)
                 }
-                Text(card.back.foldingMathSpans())
+                let back = CardVisualization.split(card.back)
+                Text(back.words.foldingMathSpans())
                     .font(.system(size: 14.5))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("knowledgeMap.review.back")
+                if let html = back.html {
+                    MemoryCardVisualizationView(html: html)
+                }
                 if !card.backImages.isEmpty {
                     MemoryCardImageGrid(images: card.backImages)
                 }
