@@ -281,6 +281,10 @@ final class ArtifactEditorWebView: WKWebView {
         case redo
     }
 
+    /// Updated by the editor's focus events. False leaves Cmd-Z to WebKit, so
+    /// a link field or AI instruction field keeps its ordinary input history.
+    var pageHistoryHasFocus = false
+
     /// The doc's find bar. The app-wide key monitor normally claims Cmd+F
     /// before it reaches this view; this is the fallback for a press that
     /// arrives here anyway, so the shortcut never dies in the web process.
@@ -478,7 +482,7 @@ final class ArtifactEditorWebView: WKWebView {
     /// to its history. Cross that native/web boundary explicitly; ordinary
     /// native text controls still follow AppKit's responder-chain undo.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard let action = Self.historyAction(for: event) else {
+        guard pageHistoryHasFocus, let action = Self.historyAction(for: event) else {
             return super.performKeyEquivalent(with: event)
         }
         evaluateJavaScript(Self.historyScript(for: action)) { _, _ in }
@@ -1056,6 +1060,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         )
         webView.navigationDelegate = nil
         (webView as? ArtifactEditorWebView)?.findState = nil
+        (webView as? ArtifactEditorWebView)?.pageHistoryHasFocus = false
         coordinator.detach()
 
         if canReuse,
@@ -1603,6 +1608,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 if let webView = message.webView {
                     markReady(in: webView)
                 }
+            case "historyFocusChanged":
+                (message.webView as? ArtifactEditorWebView)?.pageHistoryHasFocus = (payload["page"] as? Bool) == true
             case "pageWidthChanged":
                 // The editor drew the width already; keeping it here stops the
                 // next update from sending it back a frame late, mid-drag.

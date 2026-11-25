@@ -8226,14 +8226,24 @@ function performHistoryAction(action) {
   if (action !== 'undo' && action !== 'redo') return false
   const view = activeEditorView()
   const focused = document.activeElement
-  if (view && (focused === view.dom || view.dom.contains(focused))) {
-    userHasInteracted = true
-    const handled = (action === 'redo' ? redoHistory : undoHistory)(view.state, view.dispatch)
-    if (handled) reportMarkdownNow()
-    return handled
-  }
-  return document.execCommand(action)
+  if (!view || (focused !== view.dom && !view.dom.contains(focused))) return false
+  userHasInteracted = true
+  const handled = (action === 'redo' ? redoHistory : undoHistory)(view.state, view.dispatch)
+  if (handled) reportMarkdownNow()
+  return handled
 }
+
+function reportHistoryFocus() {
+  const view = activeEditorView()
+  const focused = document.activeElement
+  post('historyFocusChanged', { page: Boolean(view && (focused === view.dom || view.dom.contains(focused))) })
+}
+
+// The Mac host must know synchronously whether its Edit-menu key equivalent
+// belongs to the prose or to a field in the page chrome. Focus changes are the
+// boundary event; no key press waits on a JavaScript round trip.
+document.addEventListener('focusin', reportHistoryFocus)
+document.addEventListener('focusout', () => queueMicrotask(reportHistoryFocus))
 
 /// Counts the writer's changes (`unreportedEdit`).
 const editWatchPlugin = $prose(() => new Plugin({
