@@ -33,6 +33,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.8 (build 326) — 2026-11-25
+
+**Highlights:**
+- **ForeverLM opens again:** build 325 quit at launch with a chat on screen.
+
+- **ForeverLM opens again.** Build 325 quit at launch whenever a chat was on screen: counting what the chat's "in context" pill holds went round in a circle until the app ran out of stack. The count is now taken straight from what is open beside the chat.
+
 ## 1.0.7 (build 325) — 2026-11-25
 
 **Highlights:**
