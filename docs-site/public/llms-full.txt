@@ -6861,6 +6861,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.6 (build 324) — 2026-11-25
+
+**Highlights:**
+- **The Feynman Technique lists what you actually worked on,** most time first, with your chats about each.
+
+- **The strip's Feynman Technique lists what you actually worked on.** It ranks by time: the minutes you read, heard or watched each source since yesterday plus the chats you had about it, and names those chats beside it. It used to list whatever you opened last, so a book's Index and Contents could crowd out a paper you spent four hours on. A book's front and back matter, pages read outside the library and sources opened for under five minutes with no chat are left out, and a chapter says which book it is from.
+- **Generate Audiobook from the Reader.** A book chapter's ⋯ menu, in the docked Reader and a Reader window, has **Generate Audiobook** beside Log Chapter as Listened, with the same price question and progress as the book's row in the Library.
+- **"Added to Library" no longer lands in the Notifications bell:** a plain confirmation of something you just added leaves no dot. A partial failure still waits there.
+
 ## 1.0.5 (build 323) — 2026-11-24
 
 **Highlights:**

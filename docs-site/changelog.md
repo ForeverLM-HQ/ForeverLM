@@ -6,7 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **The strip's Feynman Technique lists what you actually worked on.** It ranks by time: the minutes you read, heard or watched each source since yesterday plus the chats you had about it, and names those chats beside it. It used to list whatever you opened last, so a book's Index and Contents could crowd out a paper you spent four hours on. A book's front and back matter, pages read outside the library and sources opened for under five minutes with no chat are left out, and a chapter says which book it is from.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
@@ -33,6 +32,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 1.0.6 (build 324) — 2026-11-25
+
+**Highlights:**
+- **The Feynman Technique lists what you actually worked on,** most time first, with your chats about each.
+
+- **The strip's Feynman Technique lists what you actually worked on.** It ranks by time: the minutes you read, heard or watched each source since yesterday plus the chats you had about it, and names those chats beside it. It used to list whatever you opened last, so a book's Index and Contents could crowd out a paper you spent four hours on. A book's front and back matter, pages read outside the library and sources opened for under five minutes with no chat are left out, and a chapter says which book it is from.
+- **Generate Audiobook from the Reader.** A book chapter's ⋯ menu, in the docked Reader and a Reader window, has **Generate Audiobook** beside Log Chapter as Listened, with the same price question and progress as the book's row in the Library.
+- **"Added to Library" no longer lands in the Notifications bell:** a plain confirmation of something you just added leaves no dot. A partial failure still waits there.
 
 ## 1.0.5 (build 323) — 2026-11-24
 
