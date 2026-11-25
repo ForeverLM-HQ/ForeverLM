@@ -479,6 +479,12 @@
       ]
     },
     {
+      "name": "firstRun.pretend31DaysPassed",
+      "reason": "First Run app only: shows day 31 of the free days on this Mac; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "focus.nudgeBackOnTrack",
       "reason": "whether this Mac watches for drift; it is about the screen being sat at",
       "scope": "device",
@@ -1652,7 +1658,7 @@
     },
     {
       "name": "space.sidebarHidden",
-      "reason": "device-local: whether this Mac's Space sidebar is hidden",
+      "reason": "device-local: whether a new window on this Mac opens with its Space sidebar hidden",
       "scope": "device",
       "synced": false
     },
