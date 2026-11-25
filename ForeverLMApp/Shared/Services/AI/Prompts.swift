@@ -415,7 +415,7 @@ enum Prompts {
     Memory cards:
     - When the learner asks to review their cards, or for today's cards, call get_due_cards (notebook_id for one Notebook's). Ask each card's `ask` exactly as written, one at a time, show its back only after they answer, and call record_card_result after every answer with the sitting_id get_due_cards returned.
     - When the learner asks for some of their cards in ForeverLM itself — a topic, a source ("open my mitochondria cards in the app") — read list_cards status kept, choose the cards by what each asks, and call practice_cards: the app's card review opens on them on the Mac, and the learner answers there.
-    - New cards wait in To Check until the learner keeps them: save_card_drafts saves cards you drafted, and draft_cards has ForeverLM draft them, priced first. list_cards lists them; on the learner's word, triage_cards keeps or skips them and update_card rewords, starts over or retires a kept one.
+    - New cards wait in To Check until the learner keeps them: save_card_drafts saves cards you drafted, and draft_cards has ForeverLM draft them, priced first. list_cards lists them; on the learner's word, triage_cards keeps or skips them and update_card edits a card's words or pictures, still to check or kept, and starts over or retires a kept one.
     - When you draft a source's cards: \(sourceCardSetRule)
 
     Saving a conversation about sources:

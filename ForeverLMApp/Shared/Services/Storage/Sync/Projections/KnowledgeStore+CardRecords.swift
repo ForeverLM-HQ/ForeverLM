@@ -346,11 +346,19 @@ extension KnowledgeStore {
         }
     }
 
-    /// Puts pictures on a draft that is still to check, in its Card's `draft_json`: the face's list for
-    /// the question and/or the answer is replaced (nil leaves a face alone), and a Keep carries them as
-    /// it carries the draft's own. False when no draft Card is waiting under `cardID`; a card kept or
-    /// skipped already is never written over.
-    func setCardDraftPictures(cardID: String, front: [MemoryCardImage]?, back: [MemoryCardImage]?) throws -> Bool {
+    /// Edits a draft that is still to check, in its Card's `draft_json`, without deciding it: `front`,
+    /// `back` and `why` replace its words (the top-level wording and the rubric's), and `frontImages` or
+    /// `backImages` replace a face's pictures; nil leaves that part alone. A Keep carries the edit as it
+    /// carries the draft's own words, and Skip drops it. False when no draft Card is waiting under
+    /// `cardID`; a card kept or skipped already is never written over.
+    func editCardDraft(
+        cardID: String,
+        front: String? = nil,
+        back: String? = nil,
+        why: [String]? = nil,
+        frontImages: [MemoryCardImage]? = nil,
+        backImages: [MemoryCardImage]? = nil
+    ) throws -> Bool {
         var held: SyncJSON?
         try query("SELECT draft_json FROM memory_card_states WHERE card_id = ? AND status = 'draft'", [.text(cardID)]) { row in
             held = SittingProjection.json(row.text(0))
@@ -360,13 +368,19 @@ extension KnowledgeStore {
               var rubric = (try? JSONSerialization.jsonObject(with: Data(rubricText.utf8))) as? [String: Any],
               var face = rubric[MemoryCard.cardKey] as? [String: Any]
         else { return false }
+        if let front {
+            draft["front"] = .string(front)
+            face[MemoryCard.frontKey] = front
+        }
+        if let back { draft["back"] = .string(back) }
+        if let why { rubric[MemoryCard.criteriaKey] = why }
         func put(_ key: String, _ images: [MemoryCardImage]?) {
             guard let images else { return }
             let list = MemoryCardImage.faceList(images)
             face[key] = list.isEmpty ? nil : list.map(\.rubricObject)
         }
-        put(MemoryCard.frontImagesKey, front)
-        put(MemoryCard.backImagesKey, back)
+        put(MemoryCard.frontImagesKey, frontImages)
+        put(MemoryCard.backImagesKey, backImages)
         rubric[MemoryCard.cardKey] = face
         let data = try JSONSerialization.data(withJSONObject: rubric, options: [.sortedKeys, .withoutEscapingSlashes])
         guard let json = String(data: data, encoding: .utf8) else { return false }

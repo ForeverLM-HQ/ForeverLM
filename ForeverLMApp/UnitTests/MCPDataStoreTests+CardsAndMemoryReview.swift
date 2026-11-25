@@ -125,7 +125,7 @@ extension MCPDataStoreTests {
 
     @Test("update_card puts pictures on a card still to check, with no Memory pane open, and leaves its words alone")
     func updateCardPicturesOnCardToCheck() async throws {
-        // The pictures are written onto the draft Card (`setCardDraftPictures`), generation 2's
+        // The pictures are written onto the draft Card (`editCardDraft`), generation 2's
         // card to check, so the store is activated as every shipping Mac's is.
         let (store, dbPath, _, cleanup) = try makeCardStore(activated: true)
         defer { cleanup() }
@@ -158,14 +158,29 @@ extension MCPDataStoreTests {
         #expect(images.last?["alt"] as? String == "Fig. 1")
         #expect(try store.knowledgeStore().loadMemoryItem(MemoryTutorIdentity.cardItemID(cardID: draftID)) == nil, "the card is still a draft")
 
-        // Its words still go through triage_cards, not here.
+        // Its words are edited where it waits too, and it stays to check.
+        let reworded = try parseJSON(try await store.updateCard(
+            cardID: draftID, itemID: nil, front: "What makes later recall stronger?", back: "Retrieval practice: recalling it.",
+            why: "Recalling strengthens access.",
+            startOver: nil, alwaysAsk: nil, retire: nil
+        ))
+        #expect(reworded["still_to_check"] as? Bool == true)
+        let edited = try parseJSON(try await store.listCards(status: "to_check", notebookID: nil, sourceID: nil, limit: nil))
+        let editedCard = try #require((edited["to_check"] as? [[String: Any]])?.first)
+        #expect(editedCard["card_id"] as? String == draftID)
+        #expect(editedCard["front"] as? String == "What makes later recall stronger?")
+        #expect(editedCard["back"] as? String == "Retrieval practice: recalling it.")
+        #expect(editedCard["why"] as? String == "Recalling strengthens access.")
+        #expect((editedCard["back_images"] as? [[String: Any]])?.count == 2, "its pictures stay")
+        #expect(try store.knowledgeStore().loadMemoryItem(MemoryTutorIdentity.cardItemID(cardID: draftID)) == nil, "the card is still a draft")
+
+        // Deciding it is triage_cards'.
         do {
             _ = try await store.updateCard(
-                cardID: draftID, itemID: nil, front: "Reworded?", back: nil, why: nil,
-                backImages: ["![Curve](foreverlm://image/source-cards/page/4)"],
-                startOver: nil, alwaysAsk: nil, retire: nil
+                cardID: draftID, itemID: nil, front: nil, back: nil, why: nil,
+                startOver: true, alwaysAsk: nil, retire: nil
             )
-            Issue.record("update_card reworded a card still to check")
+            Issue.record("update_card started over a card still to check")
         } catch let error as MCPError {
             #expect(error.localizedDescription.contains("triage_cards"))
         }

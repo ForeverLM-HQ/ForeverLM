@@ -1076,35 +1076,16 @@ extension MCPDataStore {
         do {
             kept = try keptCard(cardID: cardID, itemID: itemID, store: store)
         } catch MCPError.notFound(let message) {
-            // Not a kept card: the card to check in front of the learner may
-            // be the one meant, and pictures are all that can be put on it.
-            if hasFrontImages || hasBackImages, let cardID = Self.trimmedOrNil(cardID), itemID == nil {
-                guard front == nil, back == nil, why == nil, !startOverAsked, alwaysAsk == nil, !retire else {
-                    throw MCPError.invalidInput("Nothing was changed. \(cardID) is still to check, and only its pictures can be changed here: front_images or back_images. Its words are kept, edited or skipped with triage_cards, on the learner's word.")
-                }
-                let frontImages = hasFrontImages ? try Self.cardImages(rawFrontImages, cardIndex: 0, field: "front_images", store: store) : nil
-                let backImages = hasBackImages ? try Self.cardImages(rawBackImages, cardIndex: 0, field: "back_images", store: store) : nil
-                // The pictures go onto the draft itself, so they stay with it
-                // whether or not a Memory pane has it on screen; a pane that
-                // does shows them at once, held beside the card.
-                let inPane = await Self.holdPicturesOnCardToCheck(cardID: cardID, front: frontImages, back: backImages)
-                let onDraft = try store.setCardDraftPictures(cardID: cardID, front: frontImages, back: backImages)
-                if onDraft {
-                    await notebookFileStorage.scheduleSoonCloudKitSyncForCardDrafts()
-                    MemoryCardStateStore.reload()
-                }
-                if inPane || onDraft {
-                    var faces: [String] = []
-                    if frontImages != nil { faces.append("the question") }
-                    if backImages != nil { faces.append("the answer") }
-                    return try jsonString([
-                        "card_id": cardID,
-                        "held": true,
-                        "message": "The card is still to check, so its words are untouched: its pictures on \(faces.joined(separator: " and ")) are saved with the card, and the learner's Keep carries them (Skip drops them).",
-                    ] as [String: Any])
-                }
-            }
-            throw MCPError.notFound(message)
+            // Not a kept card: it may be a card still to check, which is
+            // edited where it waits, without being kept or skipped.
+            guard let cardID = Self.trimmedOrNil(cardID), itemID == nil else { throw MCPError.notFound(message) }
+            return try await updateCardToCheck(
+                cardID: cardID, front: front, back: back, why: why,
+                rawFrontImages: hasFrontImages ? rawFrontImages : nil,
+                rawBackImages: hasBackImages ? rawBackImages : nil,
+                startOver: startOverAsked, alwaysAsk: alwaysAsk, retire: retire,
+                notFound: message, store: store
+            )
         }
         let (item, attempts, keptFace) = kept
         let frontImages = hasFrontImages
@@ -1238,6 +1219,106 @@ extension MCPDataStore {
             payload["ask"] = newFace.front
         }
         return try jsonString(payload)
+    }
+}
+
+// MARK: - Editing a card still to check
+
+extension MCPDataStore {
+    /// update_card on a card in Memory's To Check: its words and pictures change where it waits, and it
+    /// stays to check, for the learner to keep or skip. New words pass the wording gate first, as a
+    /// draft's do. Deciding it (start over, always ask, retire) is triage_cards' and the learner's.
+    func updateCardToCheck(
+        cardID: String,
+        front rawFront: String?,
+        back rawBack: String?,
+        why: [String]?,
+        rawFrontImages: Any?,
+        rawBackImages: Any?,
+        startOver: Bool,
+        alwaysAsk: Bool?,
+        retire: Bool,
+        notFound: String,
+        store: KnowledgeStore
+    ) async throws -> String {
+        let row = try store.cardRecordRows(cardID: cardID).first { $0.status == "draft" }
+        let draft = row.flatMap(KnowledgeStore.flashcard)
+        let frontImages = rawFrontImages != nil ? try Self.cardImages(rawFrontImages, cardIndex: 0, field: "front_images", store: store) : nil
+        let backImages = rawBackImages != nil ? try Self.cardImages(rawBackImages, cardIndex: 0, field: "back_images", store: store) : nil
+        guard let draft else {
+            // No draft Card under that id: a Memory pane may still hold it on screen, and pictures can be
+            // held there for its Keep.
+            if rawFront == nil, rawBack == nil, why == nil, frontImages != nil || backImages != nil,
+               await Self.holdPicturesOnCardToCheck(cardID: cardID, front: frontImages, back: backImages) {
+                return try jsonString([
+                    "card_id": cardID,
+                    "held": true,
+                    "message": "The card is still to check: its pictures are held with it in the Memory pane, and the learner's Keep carries them (Skip drops them).",
+                ] as [String: Any])
+            }
+            throw MCPError.notFound(notFound)
+        }
+        guard !startOver, alwaysAsk == nil, !retire else {
+            throw MCPError.invalidInput("Nothing was changed. \(cardID) is still to check: start_over, always_ask and retire are for kept cards. Keep or skip it with triage_cards, on the learner's word; its words and pictures can be edited here.")
+        }
+        var front = rawFront
+        var back = rawBack
+        var rewordedByCheck = false
+        if front != nil || back != nil {
+            let sourceTitle = try draft.sourceID.flatMap { try store.loadSourceWithoutContent($0)?.title } ?? "its source"
+            let proposed = CardWordingCheck.Face(front: front ?? draft.front, back: back ?? draft.back, sourceTitle: sourceTitle)
+            let outcome: CardWordingCheck.Outcome
+            do {
+                outcome = try await CardWordingGate.screen(
+                    [proposed],
+                    answersMayChange: back != nil,
+                    usage: AIUsageSource(id: draft.sourceID ?? cardID, type: "memory_card", title: sourceTitle),
+                    backend: CardWordingGate.backend()
+                ).first ?? .passed
+            } catch {
+                throw MCPError.invalidInput("Nothing was changed. The card's wording could not be checked: \(error.localizedDescription)")
+            }
+            switch outcome {
+            case .passed:
+                break
+            case .reworded(let newFront, let newBack):
+                rewordedByCheck = true
+                if front != nil || newFront != proposed.front { front = newFront }
+                if back != nil { back = newBack }
+            case .failed(let reason):
+                throw MCPError.invalidInput("Nothing was changed. \(reason) Ask about the subject itself, or name the source.")
+            }
+        }
+        // A Memory pane holding the card shows new pictures at once; the words it reads again below.
+        if frontImages != nil || backImages != nil {
+            _ = await Self.holdPicturesOnCardToCheck(cardID: cardID, front: frontImages, back: backImages)
+        }
+        guard try store.editCardDraft(
+            cardID: cardID, front: front, back: back, why: why, frontImages: frontImages, backImages: backImages
+        ) else {
+            throw MCPError.notFound(notFound)
+        }
+        await notebookFileStorage.scheduleSoonCloudKitSyncForCardDrafts()
+        MemoryCardStateStore.reload()
+        await MemoryCardStateStore.settled(defaults: cardStateDefaults)
+        await MainActor.run { AppModelBridge.studio?.memoryCardRevision &+= 1 }
+
+        var changes: [String] = []
+        if let front, front != draft.front { changes.append("reworded") }
+        if (back != nil && back != draft.back) || why != nil { changes.append("its answer changed") }
+        if frontImages != nil || backImages != nil { changes.append("its pictures changed") }
+        if rewordedByCheck {
+            changes.append("reworded by ForeverLM so it names what it is about rather than pointing at its source unnamed")
+        }
+        let edited = changes.isEmpty ? "Nothing changed: the card already reads that way." : "The card was \(changes.joined(separator: "; "))."
+        return try jsonString([
+            "card_id": cardID,
+            "still_to_check": true,
+            "changed": !changes.isEmpty,
+            "front": front ?? draft.front,
+            "back": back ?? draft.back,
+            "message": "\(edited) It is still to check: the learner's Keep keeps it as it reads now, and Skip drops it.",
+        ] as [String: Any])
     }
 }
 
