@@ -346,4 +346,53 @@ extension ArticleSpeechService {
         return true
     }
 }
+/// Generate Audiobook for the book a source belongs to: the Library's book
+/// row and the Reader's ⋯ on any of its chapters (2026-11-24: the Reader,
+/// where a book is listened to, had only Log Chapter as Listened).
+struct GenerateAudiobookMenuItem: View {
+    @Environment(StudioViewModel.self) private var vm
+    @ObservedObject private var audioQueue = SourceAudioGenerationQueue.shared
+    let groupName: String
+
+    var body: some View {
+        let remaining = audioQueue.progress(forGroup: groupName).remaining
+        Button {
+            Task { await vm.startAudiobookGeneration(forBookGroup: groupName) }
+        } label: {
+            Label(
+                remaining > 0 ? "Generating Audiobook… (\(remaining) left)" : "Generate Audiobook",
+                systemImage: "headphones"
+            )
+        }
+        .disabled(remaining > 0)
+        .help("Generate text-to-speech audio for every chapter that does not have it yet")
+    }
+}
+
+extension StudioViewModel {
+    /// Quote the whole book once, then hand every chapter that still needs
+    /// audio to the batch queue in reading order, so the book becomes
+    /// listenable from the front while the rest fills in behind it.
+    func startAudiobookGeneration(forBookGroup groupName: String) async {
+        guard let plan = await ArticleSpeechService.shared.audiobookPlan(forBookGroup: groupName) else {
+            // Nothing to do is the common case here — every chapter already has
+            // audio — and it is worth saying, because the menu item cannot know
+            // that without pricing the book.
+            showToast(
+                MacArticleSpeechSettings.provider.isCloudProvider
+                    ? "Every chapter of this book already has audio"
+                    : "Choose a file-generating voice in Text-to-Speech settings first"
+            )
+            return
+        }
+        if plan.isBillable, !ArticleSpeechService.confirmAudiobookGeneration(plan) { return }
+        let outcome = SourceAudioGenerationQueue.shared.enqueue(plan.chapters, allowsUnsupportedLanguages: false)
+        guard !outcome.queued.isEmpty else {
+            showToast("This book's chapters are already being generated")
+            return
+        }
+        let noun = outcome.queued.count == 1 ? "chapter" : "chapters"
+        showToast("Generating \(outcome.queued.count) \(noun) of \(plan.title)")
+    }
+}
 #endif

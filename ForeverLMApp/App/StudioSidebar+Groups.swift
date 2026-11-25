@@ -344,19 +344,7 @@ extension StudioSidebar {
             // One click narrates the whole book. Generating chapter by
             // chapter was the only route, and a forty-chapter book made
             // that forty clicks and forty price dialogs.
-            let audiobookProgress = audioQueue.progress(forGroup: groupName)
-            Button {
-                Task { await startAudiobookGeneration(forBookGroup: groupName) }
-            } label: {
-                Label(
-                    audiobookProgress.remaining > 0
-                        ? "Generating Audiobook… (\(audiobookProgress.remaining) left)"
-                        : "Generate Audiobook",
-                    systemImage: "headphones"
-                )
-            }
-            .disabled(audiobookProgress.remaining > 0)
-            .help("Generate text-to-speech audio for every chapter that does not have it yet")
+            GenerateAudiobookMenuItem(groupName: groupName)
             // A book's walkthrough is one a chapter (product owner, 2026-09-19:
             // "books (or chapters thereof)"): this writes the chapters that
             // have none, one after another, steps only — one writing call a

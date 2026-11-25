@@ -38,12 +38,9 @@ struct StudioSidebar: View, Equatable {
     /// opens. Observing it re-rendered the entire sidebar — and re-diffed the
     /// sources table — on every `playbackCurrentTime` tick during text-to-speech.
     let articleSpeech = ArticleSpeechService.shared
-    /// The batch narration queue, observed so a book row can say how far its
-    /// audiobook has to go. Its published state is a handful of small items,
-    /// unlike the speech service's per-tick playback clock above.
-    @ObservedObject var audioQueue = SourceAudioGenerationQueue.shared
     /// The book row's Write Walkthroughs for All Chapters reads its progress
-    /// here, the way the audiobook item reads the audio queue's.
+    /// here. (Generate Audiobook observes the audio queue itself, in
+    /// `GenerateAudiobookMenuItem`.)
     @ObservedObject var walkthroughCoordinator = WalkthroughGenerationCoordinator.shared
     @Environment(\.openWindow) var openWindow
     @Environment(\.studioTitlebarBandHeight) var titlebarBandHeight

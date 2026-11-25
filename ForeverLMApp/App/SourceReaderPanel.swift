@@ -1006,6 +1006,9 @@ struct SourceReaderPanel: View {
                 } label: {
                     Label("Log Chapter as Listened", systemImage: "headphones")
                 }
+                if let group = article.parentGroup {
+                    GenerateAudiobookMenuItem(groupName: group)
+                }
             }
 
             // A paper without a PDF whose publisher page is on screen: either

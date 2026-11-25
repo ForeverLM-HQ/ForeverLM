@@ -221,31 +221,6 @@ extension StudioSidebar {
             : "Double-click to open; drag to move"
     }
 
-    /// Quote the whole book once, then hand every chapter that still needs
-    /// audio to the batch queue in reading order, so the book becomes
-    /// listenable from the front while the rest fills in behind it.
-    func startAudiobookGeneration(forBookGroup groupName: String) async {
-        guard let plan = await articleSpeech.audiobookPlan(forBookGroup: groupName) else {
-            // Nothing to do is the common case here — every chapter already has
-            // audio — and it is worth saying, because the menu item cannot know
-            // that without pricing the book.
-            vm.showToast(
-                MacArticleSpeechSettings.provider.isCloudProvider
-                    ? "Every chapter of this book already has audio"
-                    : "Choose a file-generating voice in Text-to-Speech settings first"
-            )
-            return
-        }
-        if plan.isBillable, !ArticleSpeechService.confirmAudiobookGeneration(plan) { return }
-        let outcome = audioQueue.enqueue(plan.chapters, allowsUnsupportedLanguages: false)
-        guard !outcome.queued.isEmpty else {
-            vm.showToast("This book's chapters are already being generated")
-            return
-        }
-        let noun = outcome.queued.count == 1 ? "chapter" : "chapters"
-        vm.showToast("Generating \(outcome.queued.count) \(noun) of \(plan.title)")
-    }
-
     /// A plain click or an arrow key opens the row when the Library opens
     /// sources on a single click.
     func openSidebarArticleFromRowClick(_ sourceID: String) {

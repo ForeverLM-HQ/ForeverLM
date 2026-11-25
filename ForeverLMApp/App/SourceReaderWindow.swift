@@ -733,6 +733,9 @@ struct SourceReaderWindow: View {
                 } label: {
                     Label("Log Chapter as Listened", systemImage: "headphones")
                 }
+                if let group = article.parentGroup {
+                    GenerateAudiobookMenuItem(groupName: group)
+                }
             }
 
             if usesEmbeddedBrowser(article),
