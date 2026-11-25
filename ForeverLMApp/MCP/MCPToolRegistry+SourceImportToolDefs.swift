@@ -148,15 +148,18 @@ extension MCPToolRegistry {
                 ]
             ),
             MCPToolDef(
-                name: "set_source_hidden",
-                description: "Hide or unhide a source in Studio. For podcast episodes this also updates the podcast episode hide state. Hiding is visual only: the source leaves the Studio sources list and stays in knowledge for chat, search and reviews.",
+                name: "set_visibility",
+                description: "Hide or show something in Studio's lists. `target` says what: `source` (one source by `source_id`), `podcast_show` or `youtube_channel` (every episode or video by its show or channel name in `name`), or `course`, `video_playlist` or `meeting` (a group by its course name, playlist id or meeting group name in `name`). A hidden source or group is visual only: it leaves the lists and stays in knowledge for chat, search and reviews. A hidden show or channel is muted: its episodes or videos also leave chat, search and reviews. `force_visible` (target `source` only, instead of `hidden`) brings back one podcast episode or YouTube video whose show or channel is muted, or with false removes that override. Stopping a show's future imports is set_podcast_show_import_blocked.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "source_id": ["type": "string", "description": "The source ID"],
-                        "hidden": ["type": "boolean", "description": "true to hide, false to unhide"],
+                        "target": ["type": "string", "enum": ["source", "podcast_show", "youtube_channel", "course", "video_playlist", "meeting"], "description": "What to hide or show."],
+                        "source_id": ["type": "string", "description": "The source ID, for target source."],
+                        "name": ["type": "string", "description": "Show name, channel name, course name, video-playlist id or meeting group name, as Studio shows it, for every other target."],
+                        "hidden": ["type": "boolean", "description": "true to hide, false to show again."],
+                        "force_visible": ["type": "boolean", "description": "Target source only: true to show this episode or video while its show or channel is muted, false to remove that override."],
                     ],
-                    "required": ["source_id", "hidden"],
+                    "required": ["target"],
                 ]
             ),
             MCPToolDef(
@@ -172,32 +175,8 @@ extension MCPToolRegistry {
                 ]
             ),
             MCPToolDef(
-                name: "set_podcast_episode_hidden",
-                description: "Hide or unhide a podcast episode source. Hiding is visual only: the source leaves the Studio sources list and stays in knowledge for chat, search and reviews.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "source_id": ["type": "string", "description": "Podcast episode source ID"],
-                        "hidden": ["type": "boolean", "description": "true to hide, false to unhide"],
-                    ],
-                    "required": ["source_id", "hidden"],
-                ]
-            ),
-            MCPToolDef(
-                name: "set_podcast_show_hidden",
-                description: "Hide or unhide all normal episodes for a podcast show by show name. A hidden show is muted: its episodes leave the Studio sources list and are excluded from chat, search, reviews and these tools, except an episode with a visible override (set_podcast_episode_visible_override), which comes back into both.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "show_name": ["type": "string", "description": "Podcast show name as shown in Studio"],
-                        "hidden": ["type": "boolean", "description": "true to hide, false to unhide"],
-                    ],
-                    "required": ["show_name", "hidden"],
-                ]
-            ),
-            MCPToolDef(
                 name: "set_podcast_show_import_blocked",
-                description: "Block or unblock a podcast show's future imports by show name — Studio's 'Never Import <show>'. A blocked show's episodes are never imported from Apple Podcasts again, however often they are played; episodes already in the library are untouched (use remove_all_from_podcast for those). This is about ingestion, not visibility: use set_podcast_show_hidden to mute a show whose episodes should stay.",
+                description: "Block or unblock a podcast show's future imports by show name — Studio's 'Never Import <show>'. A blocked show's episodes are never imported from Apple Podcasts again, however often they are played; episodes already in the library are untouched (use remove_all_from_podcast for those). This is about ingestion, not visibility: use set_visibility (target podcast_show) to mute a show whose episodes should stay.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -205,42 +184,6 @@ extension MCPToolRegistry {
                         "blocked": ["type": "boolean", "description": "true to stop importing the show, false to import it again"],
                     ],
                     "required": ["show_name", "blocked"],
-                ]
-            ),
-            MCPToolDef(
-                name: "set_podcast_episode_visible_override",
-                description: "Show or stop force-showing a podcast episode when its show is hidden. A shown episode is back in the sources list and in knowledge for chat, search and reviews.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "source_id": ["type": "string", "description": "Podcast episode source ID"],
-                        "visible": ["type": "boolean", "description": "true to force visible, false to remove the override"],
-                    ],
-                    "required": ["source_id", "visible"],
-                ]
-            ),
-            MCPToolDef(
-                name: "set_youtube_channel_hidden",
-                description: "Hide or unhide every YouTube video from an uploader channel. A hidden channel is muted: its videos leave the Studio sources list and are excluded from chat, search, reviews and these tools, except a video with a visible override (set_youtube_video_visible_override), which comes back into both.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "channel_name": ["type": "string", "description": "YouTube channel name as shown in Studio"],
-                        "hidden": ["type": "boolean", "description": "true to hide, false to unhide"],
-                    ],
-                    "required": ["channel_name", "hidden"],
-                ]
-            ),
-            MCPToolDef(
-                name: "set_youtube_video_visible_override",
-                description: "Show or stop force-showing a YouTube video when its channel is hidden. A shown video is back in the sources list and in knowledge for chat, search and reviews.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "source_id": ["type": "string", "description": "YouTube video source ID"],
-                        "visible": ["type": "boolean", "description": "true to force visible, false to remove the override"],
-                    ],
-                    "required": ["source_id", "visible"],
                 ]
             ),
             MCPToolDef(
@@ -316,19 +259,6 @@ extension MCPToolRegistry {
                         "new_title": ["type": "string", "description": "New display title."],
                     ],
                     "required": ["group_type", "group_key", "new_title"],
-                ]
-            ),
-            MCPToolDef(
-                name: "set_group_hidden",
-                description: "Hide or unhide a course, video playlist, or meeting group. Hiding is visual only: its sources leave the Studio sources list and stay in knowledge for chat, search and reviews.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "group_type": ["type": "string", "enum": ["course", "video_playlist", "meeting"], "description": "Kind of group."],
-                        "group_key": ["type": "string", "description": "Course name, video-playlist id, or meeting group name."],
-                        "hidden": ["type": "boolean", "description": "true to hide, false to unhide."],
-                    ],
-                    "required": ["group_type", "group_key", "hidden"],
                 ]
             ),
             MCPToolDef(

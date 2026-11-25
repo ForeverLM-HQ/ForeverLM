@@ -297,7 +297,7 @@ extension MCPDataStore {
 
         return try jsonString([
             "plugins": plugins,
-            "guidance": "Connecting a plugin needs the provider's consent page, which only the learner can answer: offer open_settings with the entry's open_settings pane. disconnect_plugin disconnects (ask first); set_slack_channel_enabled flips a Slack channel; follow_youtube_channel / unfollow_youtube_channel, set_connector_auto_import and set_youtube_channel_hidden manage YouTube; get_calendar_settings / set_calendar_settings choose the day's calendars, and get_calendar_events / create_calendar_event read and write the day.",
+            "guidance": "Connecting a plugin needs the provider's consent page, which only the learner can answer: offer open_settings with the entry's open_settings pane. disconnect_plugin disconnects (ask first); set_slack_channel_enabled flips a Slack channel; follow_youtube_channel / unfollow_youtube_channel, set_connector_auto_import and set_visibility (target youtube_channel) manage YouTube; get_calendar_settings / set_calendar_settings choose the day's calendars, and get_calendar_events / create_calendar_event read and write the day.",
         ] as [String: Any])
     }
 
@@ -340,7 +340,7 @@ extension MCPDataStore {
             "open_settings": "youtube",
             "connect_requires": "Google's consent page for youtube.readonly, opened from Plugins › YouTube › Connect.",
             "disconnect": "disconnect_plugin with plugin youtube and account_id when more than one account is connected",
-            "tools": "set_connector_auto_import (automatic import), follow_youtube_liked_videos / follow_youtube_foreverlm_playlist (an account's import source; account when several are connected), follow_youtube_channel / unfollow_youtube_channel, set_youtube_channel_hidden, refresh_youtube_sources",
+            "tools": "set_connector_auto_import (automatic import), follow_youtube_liked_videos / follow_youtube_foreverlm_playlist (an account's import source; account when several are connected), follow_youtube_channel / unfollow_youtube_channel, set_visibility (target youtube_channel), refresh_youtube_sources",
         ]
         let snapshot = YouTubeService.shared.snapshot()
         row["accounts"] = snapshot.accounts.map { account -> [String: Any] in

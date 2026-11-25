@@ -615,7 +615,7 @@ Changing, hiding and removing what is already in the library.
 | `update_source` | `source_id`, `title?`, `author?`, `source_type?`, `journal?`, `published_year?`, `doi?`, `parent_group?`, `content?`, `is_paywalled?` | Change a source's details: title, author, type, a paper's venue, year and DOI, the course, book or series it is filed under, its text, or its paywall mark. |
 | `move_source_type` | `source_id`, `new_type` | Reclassify a source, such as an article that is really a paper. |
 | `set_source_read` | `source_id`, `read?` | The Reader's **Mark as Read** for a web article, paper or video (Mark as Watched for a video); other types are refused. Unread clears the stamp, and a video's watch progress with it. The Schedule's completion is separate (`set_source_completion`). |
-| `set_source_hidden` | `source_id`, `hidden` | Hide a source from the Studio's lists, or show it again. Hiding is visual only: the source stays in chat, search and reviews. |
+| `set_visibility` | `target`, `source_id?`, `name?`, `hidden?`, `force_visible?` | Hide something from the Studio's lists, or show it again. `target` is `source` (with `source_id`), `podcast_show` or `youtube_channel` (with the show or channel `name`), or `course`, `video_playlist` or `meeting` (with the group's `name`). A hidden source or group stays in chat, search and reviews; a muted show or channel leaves them too. `force_visible`, for a source, shows one episode or video of a muted show or channel, or with false stops showing it. |
 | `set_source_paywall_status` | `source_id`, `is_paywalled` | Mark an article, paper or unclassified source paywalled, or clear the mark, so the app stops retrying it and offers the paywall recovery options. |
 | `list_source_actions` | `source_id` | What can be done to a source, matching its row's menu; actions that need the screen, such as showing it in Finder, are reported as unavailable here. |
 | `refetch_source_content` | `source_id` | Fetch a source's text again from its address and clear an error. An article is refreshed as **Refresh from Website** does it, and kept only when the site returned at least as much text as the saved copy, so a paywall preview never replaces it; a podcast episode's transcript is fetched from Apple Podcasts again, in the background. |
@@ -635,7 +635,6 @@ Changing, hiding and removing what is already in the library.
 | `remove_source` | `source_id` | Remove a source as the Studio row's menu does: its address is dismissed so nothing adds it again, then it is archived (a paper never downloaded is deleted). |
 | `delete_source` | `source_id` | Delete a source for good. The row's ordinary Remove is `remove_source`. |
 | `rename_group` | `group_type`, `group_key`, `new_title` | Rename a course, video playlist or meeting series. |
-| `set_group_hidden` | `group_type`, `group_key`, `hidden` | Hide a course, video playlist or meeting series from the Studio's lists, or show it again; its sources stay in chat, search and reviews. |
 
 ## Podcasts and YouTube
 
@@ -653,11 +652,6 @@ video shown on its own.
 | `import_podcast_youtube_transcript` | `source_id`, `video`, `replace?`, `approved_spend_usd?` | The Reader's **Use Transcript**: the captions of a video the learner confirmed is this episode become its transcript, then are formatted and cleared of ad reads in the background. Refused for an episode that has a transcript unless `replace`. |
 | `remove_all_from_podcast` | `show_name` | **Remove All from …**: dismiss and archive every episode of the show. |
 | `set_podcast_show_import_blocked` | `show_name`, `blocked` | **Never Import …**: its episodes are never imported again, however often they are played. Episodes already in the library stay. |
-| `set_podcast_show_hidden` | `show_name`, `hidden` | Mute a show, or bring it back. |
-| `set_podcast_episode_hidden` | `source_id`, `hidden` | Hide one episode from the lists (visual only: it stays in chat, search and reviews), or show it. |
-| `set_podcast_episode_visible_override` | `source_id`, `visible` | Show one episode of a muted show, or stop showing it. |
-| `set_youtube_channel_hidden` | `channel_name`, `hidden` | Mute every video from one YouTube channel, or bring them back. |
-| `set_youtube_video_visible_override` | `source_id`, `visible` | Show one video of a muted channel, or stop showing it. |
 
 ## What a source cites
 

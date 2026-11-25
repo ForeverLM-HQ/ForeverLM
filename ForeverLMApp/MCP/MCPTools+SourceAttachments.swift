@@ -82,6 +82,43 @@ extension MCPDataStore {
             : "'\(article.title)' had no reading view."
     }
 
+    /// `set_visibility`: one tool for every hide and show in Studio's lists,
+    /// routed to the handler each kind of thing already had.
+    func setVisibility(arguments: [String: Any]) throws -> String {
+        let target = arguments["target"] as? String ?? ""
+        let hidden = arguments["hidden"] as? Bool
+        let forceVisible = arguments["force_visible"] as? Bool
+        let name = (arguments["name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if target == "source" {
+            let sourceID = arguments["source_id"] as? String ?? ""
+            if let forceVisible {
+                guard hidden == nil else {
+                    throw MCPError.invalidInput("Give hidden or force_visible, not both.")
+                }
+                let store = try knowledgeStore()
+                guard let article = try store.loadSourceForSync(sourceID) else {
+                    throw MCPError.notFound("Source not found: \(sourceID)")
+                }
+                return article.sourceType == .podcast
+                    ? try setPodcastEpisodeVisibleOverride(sourceID: sourceID, visible: forceVisible)
+                    : try setYouTubeVideoVisibleOverride(sourceID: sourceID, visible: forceVisible)
+            }
+            guard let hidden else { throw MCPError.invalidInput("hidden is required.") }
+            return try setSourceHidden(sourceID: sourceID, hidden: hidden)
+        }
+        guard forceVisible == nil else {
+            throw MCPError.invalidInput("force_visible is for target source only.")
+        }
+        guard let hidden else { throw MCPError.invalidInput("hidden is required.") }
+        switch target {
+        case "podcast_show": return try setPodcastShowHidden(showName: name, hidden: hidden)
+        case "youtube_channel": return try setYouTubeChannelHidden(channelName: name, hidden: hidden)
+        case "course", "video_playlist", "meeting": return try setGroupHidden(groupType: target, groupKey: name, hidden: hidden)
+        default:
+            throw MCPError.invalidInput("target must be source, podcast_show, youtube_channel, course, video_playlist or meeting.")
+        }
+    }
+
     func setSourceHidden(sourceID: String, hidden: Bool) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
@@ -120,18 +157,6 @@ extension MCPDataStore {
         return "\(isPaywalled ? "Marked" : "Cleared paywall status for") source '\(article.title)'\(isPaywalled ? " as paywalled" : "")"
     }
 
-    func setPodcastEpisodeHidden(sourceID: String, hidden: Bool) throws -> String {
-        let store = try knowledgeStore()
-        guard let article = try store.loadSourceForSync(sourceID) else {
-            throw MCPError.notFound("Source not found: \(sourceID)")
-        }
-        guard article.sourceType == .podcast else {
-            throw MCPError.invalidInput("set_podcast_episode_hidden requires a podcast source.")
-        }
-        try store.setPodcastEpisodeHidden(sourceID, hidden: hidden)
-        return "\(hidden ? "Hid" : "Unhid") podcast episode '\(article.title)'"
-    }
-
     func setPodcastShowHidden(showName: String, hidden: Bool) throws -> String {
         let trimmed = showName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -165,7 +190,7 @@ extension MCPDataStore {
             throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .podcast else {
-            throw MCPError.invalidInput("set_podcast_episode_visible_override requires a podcast source.")
+            throw MCPError.invalidInput("force_visible needs a podcast episode or a YouTube video.")
         }
         try store.setPodcastEpisodeVisibleOverride(sourceID, visible: visible)
         return "\(visible ? "Force-showing" : "Removed force-show override for") podcast episode '\(article.title)'"
@@ -186,7 +211,7 @@ extension MCPDataStore {
             throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .video, article.isYouTubeURL else {
-            throw MCPError.invalidInput("set_youtube_video_visible_override requires a YouTube video source.")
+            throw MCPError.invalidInput("force_visible needs a podcast episode or a YouTube video.")
         }
         try store.setYouTubeVideoVisibleOverride(sourceID, visible: visible)
         return "\(visible ? "Force-showing" : "Removed force-show override for") YouTube video '\(article.title)'"

@@ -188,7 +188,7 @@ extension MCPDataStore {
         ["pane": "Data & Privacy › Notes about your work (reading, correcting and forgetting notes)", "read": "list_working_notes", "write": "save_working_note, update_working_note, forget_working_note"],
         ["pane": "Data & Privacy › Teams", "read": "list_teams", "write": "create_team, rename_team, delete_team, leave_team, open_team_library, get_team_invitation_link"],
         ["pane": "Plugins › connected accounts", "read": "get_plugin_connections", "write": "disconnect_plugin, set_slack_channel_enabled"],
-        ["pane": "Plugins › YouTube", "read": "get_plugin_connections", "write": "set_connector_auto_import, follow_youtube_liked_videos, follow_youtube_foreverlm_playlist, follow_youtube_channel, unfollow_youtube_channel, set_youtube_channel_hidden"],
+        ["pane": "Plugins › YouTube", "read": "get_plugin_connections", "write": "set_connector_auto_import, follow_youtube_liked_videos, follow_youtube_foreverlm_playlist, follow_youtube_channel, unfollow_youtube_channel, set_visibility"],
         ["pane": "Feeds › followed journals", "read": "list_journal_feeds", "write": "follow_journal_feed, unfollow_journal_feed"],
         ["pane": "Sources › Zoom recordings", "read": "list_unconverted_zoom_recordings", "write": "resolve_unconverted_zoom_recording"],
     ].filter { JournalWatch.isEnabled || $0["pane"]?.hasPrefix("Feeds") != true }

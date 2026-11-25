@@ -186,7 +186,7 @@ extension MCPDataStore {
             "- assign_sources_to_day: put on the Schedule",
             "- get_review_sessions: show review sessions for this source",
             "- add_notebook_sources: add to an explicitly identified Notebook",
-            "- set_source_hidden: hide or unhide source",
+            "- set_visibility (target source): hide or unhide source",
             "- remove_source: Studio Remove behavior with dismissal plus archive/delete",
             "- archive_source: archive without dismissal",
             "- delete_source: permanently delete",
@@ -235,10 +235,9 @@ extension MCPDataStore {
         }
 
         if article.sourceType == .podcast {
-            lines.append("- set_podcast_episode_hidden: hide or unhide this episode")
-            lines.append("- set_podcast_show_hidden: hide or unhide show '\(article.domain)'")
+            lines.append("- set_visibility (target podcast_show, name '\(article.domain)'): mute or unmute the show")
             lines.append("- set_podcast_show_import_blocked: stop importing show '\(article.domain)' entirely, or let it back in")
-            lines.append("- set_podcast_episode_visible_override: force-show this episode while its show is hidden")
+            lines.append("- set_visibility (target source, force_visible): show this episode while its show is muted")
         }
 
         if article.sourceType == .video {
@@ -248,8 +247,8 @@ extension MCPDataStore {
             lines.append("- update_video_cited_paper_status: dismiss one of those papers, or restore a dismissed one")
             lines.append("- scan_video_for_cited_papers: read this video's slides for cited papers (catch-up for videos ingested before slide scanning existed)")
             if article.isYouTubeURL {
-                lines.append("- set_youtube_channel_hidden: hide or unhide channel '\(article.domain)'")
-                lines.append("- set_youtube_video_visible_override: force-show this video while its channel is hidden")
+                lines.append("- set_visibility (target youtube_channel, name '\(article.domain)'): mute or unmute the channel")
+                lines.append("- set_visibility (target source, force_visible): show this video while its channel is muted")
             }
         }
 

@@ -66,45 +66,17 @@ extension MCPToolRegistry {
             return try store.archiveSource(arguments["source_id"] as? String ?? "")
         case "unarchive_source":
             return try store.unarchiveSourceRestoringContent(arguments["source_id"] as? String ?? "")
-        case "set_source_hidden":
-            return try store.setSourceHidden(
-                sourceID: arguments["source_id"] as? String ?? "",
-                hidden: arguments["hidden"] as? Bool ?? true
-            )
+        case "set_visibility":
+            return try store.setVisibility(arguments: arguments)
         case "set_source_paywall_status":
             return try store.setSourcePaywallStatus(
                 sourceID: arguments["source_id"] as? String ?? "",
                 isPaywalled: arguments["is_paywalled"] as? Bool ?? true
             )
-        case "set_podcast_episode_hidden":
-            return try store.setPodcastEpisodeHidden(
-                sourceID: arguments["source_id"] as? String ?? "",
-                hidden: arguments["hidden"] as? Bool ?? true
-            )
-        case "set_podcast_show_hidden":
-            return try store.setPodcastShowHidden(
-                showName: arguments["show_name"] as? String ?? "",
-                hidden: arguments["hidden"] as? Bool ?? true
-            )
         case "set_podcast_show_import_blocked":
             return try store.setPodcastShowImportBlocked(
                 showName: arguments["show_name"] as? String ?? "",
                 blocked: arguments["blocked"] as? Bool ?? true
-            )
-        case "set_podcast_episode_visible_override":
-            return try store.setPodcastEpisodeVisibleOverride(
-                sourceID: arguments["source_id"] as? String ?? "",
-                visible: arguments["visible"] as? Bool ?? true
-            )
-        case "set_youtube_channel_hidden":
-            return try store.setYouTubeChannelHidden(
-                channelName: arguments["channel_name"] as? String ?? "",
-                hidden: arguments["hidden"] as? Bool ?? true
-            )
-        case "set_youtube_video_visible_override":
-            return try store.setYouTubeVideoVisibleOverride(
-                sourceID: arguments["source_id"] as? String ?? "",
-                visible: arguments["visible"] as? Bool ?? true
             )
         case "attach_text_file_to_source":
             return try store.attachTextFileToSource(
@@ -138,12 +110,6 @@ extension MCPToolRegistry {
                 groupType: arguments["group_type"] as? String ?? "",
                 groupKey: arguments["group_key"] as? String ?? "",
                 newTitle: arguments["new_title"] as? String ?? ""
-            )
-        case "set_group_hidden":
-            return try store.setGroupHidden(
-                groupType: arguments["group_type"] as? String ?? "",
-                groupKey: arguments["group_key"] as? String ?? "",
-                hidden: arguments["hidden"] as? Bool ?? true
             )
         case "get_source_settings":
             return try store.getSourceSettings()

@@ -70,7 +70,7 @@ enum PluginPage: String, CaseIterable, Sendable {
             return [
                 "follow_youtube_liked_videos", "follow_youtube_foreverlm_playlist", "follow_youtube_channel",
                 "unfollow_youtube_channel", "import_youtube_playlist", "refresh_youtube_sources",
-                "set_youtube_channel_hidden", "set_connector_auto_import",
+                "set_visibility", "set_connector_auto_import",
             ]
         case .googleDrive:
             return []

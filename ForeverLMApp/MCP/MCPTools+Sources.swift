@@ -126,7 +126,7 @@ extension MCPDataStore {
 
     /// One podcast show or YouTube channel as the library files it: the show
     /// name is the podcast row's `domain` (the feed's own title, the same value
-    /// the Studio sidebar groups by and `set_podcast_show_hidden` takes), and a
+    /// the Studio sidebar groups by and `set_visibility` takes for a podcast show), and a
     /// channel is the video row's `domain`.
     struct MCPShow: Hashable {
         let name: String

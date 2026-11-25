@@ -19,7 +19,7 @@ Everything you have finished carries the same green check: a lecture you watched
 
 A notebook can follow a course: its sources, and every lecture the course gains later, join the notebook, and the course's page can open beside the notebook's chat. **⋯ › Link to Notebook** makes a notebook you already have follow the course, **⋯ › Make Study Notebook** makes a new one named after it that holds its sources, and **Unlink from** stops one following (it keeps the sources it holds). The page says "Linked to" the notebooks that follow it, under its title. Deleting or merging a notebook never changes a course.
 
-Click a lecture or reading to open it in the Reader beside the course, so the path stays in view while you watch. Right-click a row for more: **Show in Sources**, **Write Quiz** on a lecture, the papers a lecture only cites under **Papers**, and **Remove from Course**. The course's own actions are in the **⋯** menu at the top of its page, or in its card's right-click menu. **Hide Course** takes a course off the list; **Undo** in the notice that follows brings it back, and so can an assistant connected over MCP (`set_group_hidden`).
+Click a lecture or reading to open it in the Reader beside the course, so the path stays in view while you watch. Right-click a row for more: **Show in Sources**, **Write Quiz** on a lecture, the papers a lecture only cites under **Papers**, and **Remove from Course**. The course's own actions are in the **⋯** menu at the top of its page, or in its card's right-click menu. **Hide Course** takes a course off the list; **Undo** in the notice that follows brings it back, and so can an assistant connected over MCP (`set_visibility`).
 
 ### Finish a quiz to go on
 

@@ -230,12 +230,9 @@ extension ReviewSessionManager {
         // Meeting import and grouping.
         "list_meeting_groups", "get_meeting_group", "attach_meeting_artifact",
         "import_meeting_transcript_files", "transcribe_meeting_recording",
-        "rename_group", "set_group_hidden",
+        "rename_group",
         // Podcast matching and episode visibility.
         "find_podcast_match", "resolve_podcast_match", "remove_all_from_podcast",
-        "set_podcast_episode_hidden", "set_podcast_episode_visible_override",
-        "set_podcast_show_hidden",
-        "set_youtube_channel_hidden", "set_youtube_video_visible_override",
         // Course lecture assembly.
         "create_course_lecture", "add_source_to_lecture", "add_paper_to_lecture",
         "remove_course_lecture_item", "rename_course_lecture",
