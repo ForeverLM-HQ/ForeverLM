@@ -119,10 +119,11 @@ struct CrossWindowReaderNavigationTests {
         ])
         let url = URL(string: "https://example.com/a-web-citation")!
 
-        vm.openWebCitationInReader(url, title: "A web citation")
+        vm.openWebCitation(url, title: "A web citation")
 
-        #expect(here.externalReaderPage?.url == url)
+        #expect(here.externalReaderPage == nil)
         #expect(there.externalReaderPage == nil)
+        #expect(vm.browserOpenRequest?.url == url)
         #expect(vm.toastAction == nil)
     }
 

@@ -127,9 +127,14 @@ extension StudioViewModel {
     /// Opens a page in the Browser pane, in a new tab. The Library profile
     /// unless a profile is named, so a page saved from the tab lands where
     /// the readers can use its cookies.
-    func openInBrowser(_ url: URL, profileID: UUID? = nil) {
-        activateCenterTab(.browser)
-        browserOpenRequest = BrowserOpenRequest(url: url, profileID: profileID, windowID: activeWindowState.id)
+    func openInBrowser(
+        _ url: URL,
+        profileID: UUID? = nil,
+        in destinationWindowState: StudioWindowState? = nil
+    ) {
+        let destination = destinationWindowState ?? activeWindowState
+        activateCenterTab(.browser, in: destination)
+        browserOpenRequest = BrowserOpenRequest(url: url, profileID: profileID, windowID: destination.id)
     }
 
     /// Brings a specific doc forward — the way back from a chat to the passage

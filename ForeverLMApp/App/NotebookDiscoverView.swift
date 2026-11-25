@@ -259,7 +259,7 @@ private struct NotebookDiscoverContent: View {
     /// holds opens as the saved source.
     private func open(_ row: NotebookDiscoveryRow) {
         guard let url = URL(string: row.url) else { return }
-        vm.openWebCitationInReader(url, title: row.title, in: windowState)
+        vm.openWebCitation(url, title: row.title, in: windowState)
         onOpenPage?()
     }
 }

@@ -93,22 +93,6 @@ struct ArticleArchiveCacheTests {
         #expect(loadCount == 0)
     }
 
-    @Test("Missing online archive prefers the native web reader")
-    func missingOnlineArchiveUsesWebReader() {
-        #expect(ArchivedArticleFallback.shouldUseLiveWebReader(
-            urlString: "https://publication.substack.com/p/article",
-            allowed: true
-        ))
-        #expect(!ArchivedArticleFallback.shouldUseLiveWebReader(
-            urlString: "Articles/local-only/article.html",
-            allowed: true
-        ))
-        #expect(!ArchivedArticleFallback.shouldUseLiveWebReader(
-            urlString: "https://publication.substack.com/p/paywalled",
-            allowed: false
-        ))
-    }
-
     @Test("Background warm migrates historical article directories once")
     func backgroundWarmMigratesHistoricalArchives() async throws {
         let temporaryRoot = FileManager.default.temporaryDirectory

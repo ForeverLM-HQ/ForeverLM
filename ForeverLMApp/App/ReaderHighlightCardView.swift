@@ -690,7 +690,7 @@ private final class ReaderCardAnchorView: NSView {
 
 /// One paper a mark's note cites. Its citation opens it, the saved copy when
 /// the library holds it and the live page beside Chat when not
-/// (`openWebCitationInReader`); the button beside it keeps it, through the
+/// (`openWebCitation`); the button beside it keeps it, through the
 /// import a chat's Web sources row uses (`addCitedPageToSources`), and reads
 /// Open once the library has it, the way a citation card in a PDF does.
 private struct ReaderHighlightReferenceRow: View {
@@ -764,7 +764,7 @@ private struct ReaderHighlightReferenceRow: View {
 
     private func open() {
         guard let url = URL(string: reference.url) else { return }
-        vm.openWebCitationInReader(url, title: reference.title.isEmpty ? reference.citation : reference.title)
+        vm.openWebCitation(url, title: reference.title.isEmpty ? reference.citation : reference.title)
         opened()
     }
 

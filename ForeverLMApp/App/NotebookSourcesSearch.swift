@@ -706,7 +706,7 @@ struct NotebookDiscoveryCard: View {
     /// library holds opens as the saved source.
     private func open(_ row: NotebookDiscoveryRow) {
         guard let url = URL(string: row.url), let windowState else { return }
-        vm.openWebCitationInReader(url, title: row.title, in: windowState)
+        vm.openWebCitation(url, title: row.title, in: windowState)
     }
 }
 

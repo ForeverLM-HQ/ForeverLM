@@ -1113,10 +1113,6 @@ struct WebViewReader: NSViewRepresentable {
 
         // MARK: Link context menu
 
-        /// URLs the learner explicitly asked to open from the link context menu,
-        /// exempt from the publisher-PDF interception below until the navigation
-        /// resolves.
-        private var explicitlyOpenedURLs = Set<String>()
         /// "Download Linked File" saves to disk rather than attaching to the
         /// source, so it runs through its own delegate.
         private lazy var linkDownloader = ReaderLinkDownloader { [weak self] message in
@@ -1124,12 +1120,23 @@ struct WebViewReader: NSViewRepresentable {
             Task { @MainActor in vm.showToast(message) }
         }
 
-        /// "Open Link". Publisher PDF links are normally intercepted and attached
-        /// to the source in the background; an explicit open shows the page
-        /// instead, which is the only outcome that reads as the menu working.
+        /// "Open Link" keeps an in-document jump in the Reader and hands every
+        /// other web document to the Browser. Reader is a source renderer, not
+        /// a second browsing surface.
         func openLinkFromContextMenu(_ url: URL, in webView: WKWebView) {
-            explicitlyOpenedURLs.insert(url.absoluteString)
-            webView.load(URLRequest(url: url))
+            if ReaderWebLinkRouting.opensInBrowser(url, sourceDocument: initialPageURL) {
+                openLinkInBrowser(url)
+            } else {
+                webView.load(URLRequest(url: url))
+            }
+        }
+
+        /// A normal click leaves the source and therefore opens visibly in the
+        /// Browser. Command-click leaves the learner in the Reader and creates
+        /// a background Browser tab below.
+        @MainActor
+        func openLinkInBrowser(_ url: URL) {
+            WebLinkOpening.open(url)
         }
 
         /// "Open Link in New Tab", and a Command-click: the page opens in a
@@ -1160,19 +1167,19 @@ struct WebViewReader: NSViewRepresentable {
 
         // MARK: WKUIDelegate
 
-        /// Handle target="_blank", form-target, and user-initiated window.open()
-        /// navigations in the existing reader. Loading the original request is
-        /// important: rebuilding it from only the URL drops its method, body,
-        /// referrer, and site-provided headers, which breaks publisher handoffs.
-        /// The resulting main-frame navigation returns through the normal policy
-        /// delegates below, including download handling.
+        /// A new-window web link belongs to the Browser. Non-web requests retain
+        /// the ordinary page/download handling below.
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
             guard navigationAction.targetFrame == nil else { return nil }
-            if navigationAction.navigationType == .linkActivated,
-               navigationAction.modifierFlags.contains(.command),
-               let url = navigationAction.request.url,
-               url.hasWebScheme {
-                Task { @MainActor in self.openLinkInNewTab(url) }
+            if let url = navigationAction.request.url,
+               ReaderWebLinkRouting.opensInBrowser(url, sourceDocument: initialPageURL) {
+                Task { @MainActor in
+                    if navigationAction.modifierFlags.contains(.command) {
+                        self.openLinkInNewTab(url)
+                    } else {
+                        self.openLinkInBrowser(url)
+                    }
+                }
                 return nil
             }
             if let url = navigationAction.request.url,
@@ -1424,9 +1431,6 @@ struct WebViewReader: NSViewRepresentable {
                 self.parent.isLoading = false
             }
             updateReaderLocation(for: webView)
-            // The exemption covers one navigation; a page that finished loading
-            // has no further claim on it.
-            explicitlyOpenedURLs.removeAll()
             startAttachmentDownloadIfDisplayingPDF(in: webView)
             // Before `restoreInitialScrollIfNeeded` claims `initialPageURL`,
             // while this is still known to be the source's own page.
@@ -1737,6 +1741,22 @@ struct WebViewReader: NSViewRepresentable {
                 return
             }
 
+            // The Reader owns the source document only. Following a link to
+            // another HTTP(S) document continues in the Browser, whose profiles,
+            // address bar, sign-in state and Add to Sources action own browsing.
+            // Same-document anchors remain in the Reader.
+            if isMainFrame,
+               isLinkActivated,
+               let url = navigationAction.request.url,
+               ReaderWebLinkRouting.opensInBrowser(
+                   url,
+                   sourceDocument: initialPageURL ?? URL(string: parent.urlString)
+               ) {
+                decisionHandler(.cancel, preferences)
+                Task { @MainActor in self.openLinkInBrowser(url) }
+                return
+            }
+
             // Returning through history: put that page back where it was left.
             if isMainFrame {
                 isReturningThroughHistory = navigationAction.navigationType == .backForward
@@ -1804,15 +1824,6 @@ struct WebViewReader: NSViewRepresentable {
             if navigationResponse.isForMainFrame {
                 mainFrameMIMEType = response.mimeType?.lowercased()
             }
-            // An explicitly opened link renders in place when WebKit can show it
-            // — PDFs included — instead of becoming a silent attachment.
-            if let url = response.url,
-               explicitlyOpenedURLs.remove(url.absoluteString) != nil,
-               navigationResponse.canShowMIMEType {
-                decisionHandler(.allow)
-                return
-            }
-
             // A page that already came back as a download once is shown as
             // that page; only a PDF from it downloads.
             if let url = response.url,

@@ -501,6 +501,31 @@ enum ArticleReaderPageIdentity {
     }
 }
 
+/// A Reader owns one source document; the Browser owns navigation beyond it.
+/// A fragment jump (and a publisher-added query on the source URL) stays in
+/// the Reader because it is still a location within the source. An HTTP(S)
+/// destination that names another document goes to the Browser.
+enum ReaderWebLinkRouting {
+    static func opensInBrowser(_ destination: URL?, sourceDocument: URL?) -> Bool {
+        guard let destination, destination.hasWebScheme else { return false }
+        guard let sourceDocument else { return true }
+        if sameDocument(destination, sourceDocument) { return false }
+        return !ArticleReaderPageIdentity.isSameDocumentIgnoringAddedQuery(
+            destination,
+            sourceURL: sourceDocument
+        )
+    }
+
+    private static func sameDocument(_ lhs: URL, _ rhs: URL) -> Bool {
+        if lhs == rhs { return true }
+        var lhsParts = URLComponents(url: lhs, resolvingAgainstBaseURL: false)
+        var rhsParts = URLComponents(url: rhs, resolvingAgainstBaseURL: false)
+        lhsParts?.fragment = nil
+        rhsParts?.fragment = nil
+        return lhsParts?.url == rhsParts?.url
+    }
+}
+
 struct ArticleReaderView: View {
     let article: StudioArticle
     /// When true, hides the bottom action bar (used inside CardReviewWorkspace left pane)

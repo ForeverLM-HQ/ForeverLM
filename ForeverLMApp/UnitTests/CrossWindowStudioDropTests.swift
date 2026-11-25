@@ -252,8 +252,8 @@ struct CrossWindowStudioDropTests {
         #expect(vm.artifactIndexRequest?.windowID == vm.activeWindowState.id)
     }
 
-    @Test("a web citation opens beside Chat without entering the library")
-    func webCitationIsTransientUntilSaved() async throws {
+    @Test("a web citation opens in Browser without entering the library")
+    func webCitationOpensInBrowserUntilSaved() async throws {
         let destination = StudioWindowState(snapshot: .init(
             centerTabGroups: ["chat*|reader|tasks|notepad|notebooks"],
             navigationRailVisible: true
@@ -262,15 +262,12 @@ struct CrossWindowStudioDropTests {
         let initialSourceIDs = vm.articles.map(\.id)
         let url = try #require(URL(string: "https://example.com/paper.pdf?utm_source=research"))
 
-        vm.openWebCitationInReader(url, title: "Primary research", in: destination)
+        vm.openWebCitation(url, title: "Primary research", in: destination)
 
-        let page = try #require(destination.externalReaderPage)
-        #expect(page.url == url)
-        #expect(page.title == "Primary research")
-        #expect(page.article.sourceType == .paper)
+        #expect(destination.externalReaderPage == nil)
+        #expect(vm.browserOpenRequest?.url == url)
         #expect(vm.articles.map(\.id) == initialSourceIDs)
-        #expect(destination.centerTabGroups.groups.count == 2)
-        #expect(destination.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
+        #expect(destination.centerTabGroups.groups.map(\.activeTab).contains(.browser))
 
         await vm.selectArticle("saved-source", in: destination)
         #expect(destination.externalReaderPage == nil)

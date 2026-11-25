@@ -184,7 +184,7 @@ struct ReviewChatMessageContent: View {
                         }
                     },
                     onOpenWebURL: { url, title in
-                        vm.openWebCitationInReader(url, title: title)
+                        vm.openWebCitation(url, title: title)
                     },
                     // "Open Link in New Window" on a citation or a Sources row:
                     // the source in a Studio window of its own, as the Docs

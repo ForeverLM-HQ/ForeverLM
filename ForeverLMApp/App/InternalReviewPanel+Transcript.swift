@@ -113,7 +113,7 @@ extension InternalReviewPanelContent {
                 }
             },
             openWebURL: { url, title in
-                vm.openWebCitationInReader(url, title: title)
+                vm.openWebCitation(url, title: title)
             },
             selection: { action, passage, messageID, anchor in
                 handleReplySelection(action, passage: passage, messageID: messageID, anchor: anchor)

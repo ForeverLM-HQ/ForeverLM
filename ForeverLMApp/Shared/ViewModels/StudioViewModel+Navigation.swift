@@ -520,18 +520,15 @@ extension StudioViewModel {
         Task { await refreshArtifactWalkthroughIDs() }
     }
 
-    /// Opens a provider-returned web citation beside Chat without importing it.
-    /// Saving remains a separate, explicit Reader action that travels through
-    /// `addArticle`, including canonical deduplication and archived-source revival.
+    /// Opens a provider-returned web citation in Browser without importing it.
     ///
     /// A citation the library already holds — by address, or by the paper's
     /// DOI under whatever address it was saved — opens as that source instead
     /// of as a live page: the saved copy is where the notes, highlights and
     /// reading position are, and a PDF beats a publisher's abstract page. An
     /// index page whose address names only its own record (PubMed) cannot be
-    /// recognised before it loads; the Reader swaps it for the saved source
-    /// once the page has declared its DOI (`SourceReaderPanel`).
-    func openWebCitationInReader(
+    /// recognised before it loads; Browser can save it as an offline source.
+    func openWebCitation(
         _ citedURL: URL,
         title rawTitle: String? = nil,
         in destinationWindowState: StudioWindowState? = nil
@@ -541,48 +538,27 @@ extension StudioViewModel {
             showToast("Could not open this web source")
             return
         }
-        // YouTube opens one video at a time (`YouTubeContainment`): a video at
-        // its watch address, which the Reader plays alone, and none of
-        // YouTube's other pages.
+        // YouTube opens one video at a time (`YouTubeContainment`), never one
+        // of YouTube's surrounding browse pages.
         let rawURL: URL
-        let isVideo: Bool
         switch YouTubeContainment.decision(for: citedURL) {
         case .video(let watchURL):
             rawURL = watchURL
-            isVideo = true
         case .refused:
             showToast(YouTubeContainment.refusalMessage)
             return
         case .notYouTube:
             rawURL = citedURL
-            isVideo = false
         }
 
         if let sourceID = librarySourceID(forURL: rawURL.absoluteString) {
             openSavedCopy(sourceID, in: destinationWindowState)
             return
         }
-        // A page the library does not hold opens in the learner's own browser
-        // when Settings › Sources › Links says so; a video still plays in the
-        // Reader, the one place YouTube opens.
-        if !isVideo, WebLinkOpening.destination == .defaultBrowser {
-            BrowserPasskeySupport.openOutside(rawURL)
-            return
-        }
-
-        let suppliedTitle = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let title = suppliedTitle?.isEmpty == false
-            ? suppliedTitle!
-            : (rawURL.host ?? rawURL.absoluteString)
-        let page = StudioExternalReaderPage(url: rawURL, title: title)
-
-        // A citation click opens here, like a library citation; a drop
-        // target names its own window.
-        let destination = destinationWindowState ?? activeWindowState
-        destination.externalReaderPage = page
-        showReaderPanel = true
-        readerPoppedOut = false
-        revealReader(beside: .chat, in: destination)
+        // Reader mounts only material ForeverLM already holds locally. An
+        // unsaved address always belongs to Browser, where it can be explored
+        // and explicitly saved for offline reading.
+        openInBrowser(rawURL, in: destinationWindowState)
     }
 
     /// The saved source a web page turned out to be, opened where the page

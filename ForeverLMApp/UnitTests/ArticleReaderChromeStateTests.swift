@@ -134,6 +134,35 @@ struct ArticleReaderReturnStateTests {
     }
 }
 
+@Suite("Reader and Browser boundary")
+struct ReaderWebLinkRoutingTests {
+    @Test("Reader keeps source locations and sends other web documents to Browser")
+    func routesByDocumentIdentity() {
+        let source = URL(string: "https://example.org/papers/one")!
+
+        #expect(!ReaderWebLinkRouting.opensInBrowser(
+            URL(string: "https://example.org/papers/one#methods"),
+            sourceDocument: source
+        ))
+        #expect(!ReaderWebLinkRouting.opensInBrowser(
+            URL(string: "https://example.org/papers/one?session=return"),
+            sourceDocument: source
+        ))
+        #expect(ReaderWebLinkRouting.opensInBrowser(
+            URL(string: "https://example.org/papers/two"),
+            sourceDocument: source
+        ))
+        #expect(ReaderWebLinkRouting.opensInBrowser(
+            URL(string: "https://publisher.example.net/reference"),
+            sourceDocument: source
+        ))
+        #expect(!ReaderWebLinkRouting.opensInBrowser(
+            URL(fileURLWithPath: "/tmp/chapter.xhtml"),
+            sourceDocument: source
+        ))
+    }
+}
+
 @Suite("Article reader initial-load stall fallback")
 @MainActor
 struct ArticleReaderStallFallbackTests {

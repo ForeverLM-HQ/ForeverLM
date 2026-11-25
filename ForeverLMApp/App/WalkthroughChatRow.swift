@@ -955,7 +955,7 @@ private struct WalkthroughCitedWorkCard: View {
         if let libraryID {
             Task { await vm.openLinkedSourceInReader(libraryID) }
         } else if let address = shown.address {
-            vm.openWebCitationInReader(address, title: shown.title)
+            vm.openWebCitation(address, title: shown.title)
         } else if let search = shown.scholarSearchURL {
             WebLinkOpening.open(search)
         }

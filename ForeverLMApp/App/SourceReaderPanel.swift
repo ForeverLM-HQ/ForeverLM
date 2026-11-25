@@ -3,6 +3,29 @@ import SwiftUI
 import PDFKit
 import UniformTypeIdentifiers
 
+/// Reader is an offline surface. A source record by itself is not readable:
+/// its PDF, EPUB, archive, transcript, or saved article text must be local.
+struct ReaderLocalContentUnavailableView: View {
+    let article: StudioArticle
+
+    private var browserURL: URL? {
+        URL(string: article.url).flatMap { WebLinkOpening.isWebLink($0) ? $0 : nil }
+    }
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Not Available Offline", systemImage: "arrow.down.doc")
+        } description: {
+            Text("Save this source in Browser first.")
+        } actions: {
+            if let browserURL {
+                Button("Open in Browser") { WebLinkOpening.open(browserURL) }
+                    .buttonStyle(.hoverWash)
+            }
+        }
+    }
+}
+
 /// Inline source reader panel for the Studio 4-panel layout.
 /// Shows the selected source's content (web article, PDF, or text transcript).
 /// Includes a pop-out button to open the reader in a separate window.
@@ -561,9 +584,7 @@ struct SourceReaderPanel: View {
                 density: density,
                 article: article,
                 isSavedSource: !isDisplayingExternalPage,
-                showsLoadingIndicator: !isNarrating(article)
-                    && articleReaderChrome.isLoading
-                    && usesEmbeddedBrowser(article),
+                showsLoadingIndicator: false,
                 addPageState: addPageState,
                 addPage: {
                     if let pageURL { addCurrentPageToLibrary(pageURL) }
@@ -730,7 +751,7 @@ struct SourceReaderPanel: View {
     /// holds that paper: the Reader was asked for the source, not for a
     /// publisher's page about it, so it swaps to the saved copy. A PubMed
     /// address cannot be recognised before the page loads
-    /// (`openWebCitationInReader` catches every address that can), which is
+    /// (`openWebCitation` catches every address that can), which is
     /// why the swap happens here rather than at the click.
     private func swapExternalPageForSavedSourceIfNeeded() {
         guard isDisplayingExternalPage, let external = windowState.externalReaderPage,
@@ -1011,41 +1032,6 @@ struct SourceReaderPanel: View {
                 }
             }
 
-            // A paper without a PDF whose publisher page is on screen: either
-            // the source has no PDF link of its own, or the publisher refused
-            // the PDF and the reader fell back to the page. Both show the page
-            // through the reader that installs these actions.
-            if isSavedSource,
-               article.sourceType == .paper && article.localFilePath == nil
-                && (usesEmbeddedBrowser(article) || vm.readerAbandonedRemotePDF(article.id)) {
-                Button {
-                    articleReaderChrome.downloadPDF?()
-                } label: {
-                    Label("Download PDF", systemImage: "arrow.down.doc")
-                }
-                Button {
-                    articleReaderChrome.savePaperFromPage?()
-                } label: {
-                    Label("Save Paper from Page", systemImage: "doc.text.viewfinder")
-                }
-                .help("Save this page as the paper's text and print it to a PDF")
-            }
-
-            // An article the app could not read, whose page the reader shows:
-            // the PDF the page hands over becomes the article's document.
-            if isSavedSource, usesEmbeddedBrowser(article),
-               WebPagePolicy.awaitsDocumentPDF(
-                   sourceType: article.sourceType,
-                   isUnreadable: article.hasPaywallMarker || article.state == .error
-               ) {
-                Button {
-                    articleReaderChrome.downloadPDF?()
-                } label: {
-                    Label("Download PDF", systemImage: "arrow.down.doc")
-                }
-                .help("Download the article's PDF from this page and attach it")
-            }
-
             if isSavedSource && isNarrating(article) {
                 Divider()
 
@@ -1193,35 +1179,19 @@ struct SourceReaderPanel: View {
     }
 
     private func zoomIn(_ article: StudioArticle) {
-        if usesEmbeddedBrowser(article) {
-            articleReaderChrome.zoomIn?()
-        } else {
-            setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step)
-        }
+        setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step)
     }
 
     private func zoomOut(_ article: StudioArticle) {
-        if usesEmbeddedBrowser(article) {
-            articleReaderChrome.zoomOut?()
-        } else {
-            setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step)
-        }
+        setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step)
     }
 
     private func resetZoom(_ article: StudioArticle) {
-        if usesEmbeddedBrowser(article) {
-            articleReaderChrome.resetZoom?()
-        } else {
-            resetReaderZoom()
-        }
+        resetReaderZoom()
     }
 
     private func magnify(_ article: StudioArticle, by amount: CGFloat) {
-        if usesEmbeddedBrowser(article) {
-            articleReaderChrome.setZoom?(articleReaderChrome.zoomScale + amount)
-        } else {
-            setReaderZoomScale(readerZoomScale + amount)
-        }
+        setReaderZoomScale(readerZoomScale + amount)
     }
 
     private func setReaderZoomScale(_ scale: CGFloat) {
@@ -1235,9 +1205,7 @@ struct SourceReaderPanel: View {
     }
 
     private func supportsReaderZoom(_ article: StudioArticle) -> Bool {
-        usesEmbeddedBrowser(article)
-            || article.cachedHasRemotePDFURL
-            || article.isPDF
+        (article.isPDF && article.cachedResolvedPDFPath != nil)
             || article.cachedIsEPUBChapter
             || article.isYouTubeURL
             || article.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -1502,7 +1470,7 @@ struct SourceReaderPanel: View {
         ReaderBrowserURL.current(
             for: article,
             youtubeWatchPageURL: youtubeWatchPageURL,
-            embeddedBrowser: usesEmbeddedBrowser(article) ? articleReaderChrome : nil,
+            embeddedBrowser: nil,
             archivedArticlePageURL: archivedArticlePageURL
         )
     }
@@ -1517,28 +1485,11 @@ struct SourceReaderPanel: View {
 
     // MARK: - Content
 
-    /// Research citations are intentionally not `StudioViewModel.articles` yet.
-    /// Render the live page without read progress, notes, highlights, schedule
-    /// activity, or any other write keyed by a source id; only Add to Sources
-    /// may turn this presentation-only article into a durable source.
+    /// Restored state from builds that put unsaved web pages in Reader. Reader
+    /// no longer mounts network content; the address goes back to Browser.
     @ViewBuilder
     private func externalPageContent(for article: StudioArticle) -> some View {
-        if case .video(let watchURL) = YouTubeContainment.decision(for: article.url) {
-            // A YouTube video no source holds plays alone, never as the watch
-            // page with YouTube's recommendations around it.
-            ExternalYouTubeVideoView(watchURL: watchURL, zoomScale: readerZoomScale)
-        } else {
-            ArticleReaderView(
-                article: article,
-                reviewMode: true,
-                showsSpeechControls: false,
-                showsBrowserToolbar: false,
-                findState: findState,
-                chromeState: articleReaderChrome,
-                speech: speech,
-                selectionChanged: { selectedText = $0 }
-            )
-        }
+        ReaderLocalContentUnavailableView(article: article)
     }
 
     @ViewBuilder
@@ -1571,16 +1522,12 @@ struct SourceReaderPanel: View {
                 resetZoomAction: resetReaderZoom
             )
         } else if article.cachedIsArchivedArticle,
-                  !article.cachedPrefersLiveWebPage,
                   let path = article.cachedResolvedLocalPath {
             ArchivedArticleReaderView(
                 articleID: article.id,
                 canonicalFilePath: path,
                 fallbackText: article.content,
                 liveWebArticle: article,
-                allowsLiveWebFallback: article.cachedIsWebArticle
-                    && !article.cachedHasRemotePDFURL
-                    && !article.isPaywalled,
                 initialScrollFraction: ArticleReadingPositionLocator(
                     encoded: vm.readingPositionLocator(for: article.id) ?? article.readingPositionLocator
                 )?.webScrollFraction,
@@ -1603,29 +1550,6 @@ struct SourceReaderPanel: View {
                 zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
                 resetZoomAction: resetReaderZoom
             )
-        } else if article.cachedIsWebArticle
-                    && !article.cachedHasRemotePDFURL
-                    && (article.localFilePath == nil || article.cachedPrefersLiveWebPage) {
-            // A paywalled paper's stored text is an extraction — markdown in a
-            // plain text view, with the publisher's own structure flattened. The
-            // page is the better reading of it, and it is also where signing in
-            // happens, so it renders here too; the text stays the fallback below.
-            ArticleReaderView(
-                article: article,
-                reviewMode: true,
-                showsSpeechControls: false,
-                showsBrowserToolbar: false,
-                findState: findState,
-                chromeState: articleReaderChrome,
-                speech: speech,
-                // An archived source reaching the live reader still owns durable
-                // text. If the page has since died and its archive file is not
-                // on this Mac, show that text rather than a load error. A
-                // paywalled source holds text for the same reason.
-                usesPersistedTextOnLoadFailure: article.cachedIsArchivedArticle
-                    || hasAttachedPaywallText(article),
-                selectionChanged: { selectedText = $0 }
-            )
         } else if article.readsStoredTextOverRemotePDF {
             // Text handed in with a PDF URL is the source, often one part of
             // the file (see `readsStoredTextOverRemotePDF`). Never fall through
@@ -1647,58 +1571,6 @@ struct SourceReaderPanel: View {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .task(id: article.id) { await vm.hydrateStoredContent(for: article.id) }
-            }
-        } else if article.cachedHasRemotePDFURL, vm.readerAbandonedRemotePDF(article.id) {
-            // The publisher refused the PDF. Text ForeverLM already holds beats
-            // a page that may only show the abstract; with no text, the page is
-            // the paper for a subscriber, and the reader's own session is where
-            // a sign-in for it lives. Text still being cleaned up is not shown:
-            // until the paper is ready, its content is the raw page dump, and
-            // the page itself reads better while Save Paper from Page finishes.
-            if article.state == .ready,
-               StudioViewModel.sourceHoldsReadableText(article),
-               let content = article.content {
-                TranscriptReaderView(
-                    article: article,
-                    content: content,
-                    selectedText: $selectedText,
-                    findState: findState,
-                    zoomScale: readerZoomScale,
-                    navigationTarget: bestMatch(for: article),
-                    readerTheme: .system,
-                    zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
-                    zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
-                    resetZoomAction: resetReaderZoom
-                )
-            } else {
-                ArticleReaderView(
-                    article: article,
-                    reviewMode: true,
-                    showsSpeechControls: false,
-                    showsBrowserToolbar: false,
-                    findState: findState,
-                    chromeState: articleReaderChrome,
-                    speech: speech,
-                    selectionChanged: { selectedText = $0 }
-                )
-            }
-        } else if article.cachedHasRemotePDFURL, let pdfURL = article.remotePDFURL {
-            PaperReaderSwitch(article: article, zoomScale: readerZoomScale) {
-                RemotePDFReaderView(
-                    articleId: article.id,
-                    url: pdfURL,
-                    landingPageURL: URL(string: article.url).flatMap { $0 == pdfURL ? nil : $0 },
-                    initialPageIndex: article.readingPositionPage,
-                    selectedText: $selectedText,
-                    findState: findState,
-                    findRevision: findState.searchRevision,
-                    zoomScale: readerZoomScale,
-                    pageChanged: { page, pageCount in vm.updateReadingPosition(for: article.id, page: page, pageCount: pageCount) },
-                    zoomScaleChanged: setReaderZoomScale,
-                    zoomInAction: { setReaderZoomScale(readerZoomScale + ArticleReaderZoom.step) },
-                    zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
-                    resetZoomAction: resetReaderZoom
-                )
             }
         } else if article.isPDF, article.cachedResolvedPDFPath != nil {
             PaperReaderSwitch(article: article, zoomScale: readerZoomScale) {
@@ -1811,17 +1683,8 @@ struct SourceReaderPanel: View {
                 resetZoomAction: resetReaderZoom
             )
         } else if article.url.hasPrefix("http://") || article.url.hasPrefix("https://") {
-            // Papers and other sources with web URLs but no local PDF/content yet
-            ArticleReaderView(
-                article: article,
-                reviewMode: true,
-                showsSpeechControls: false,
-                showsBrowserToolbar: false,
-                findState: findState,
-                chromeState: articleReaderChrome,
-                speech: speech,
-                selectionChanged: { selectedText = $0 }
-            )
+            ReaderLocalContentUnavailableView(article: article)
+                .task(id: article.id) { await vm.hydrateStoredContent(for: article.id) }
         } else {
             ContentUnavailableView {
                 Label("No Content", systemImage: "doc.text")
@@ -1884,30 +1747,10 @@ struct SourceReaderPanel: View {
         }
     }
 
-    /// Dark Mode only invents a page's colors on two surfaces: a PDF, inverted
-    /// at the layer, and a live publisher page that turned out to have no dark
-    /// design of its own. Everything else composes its own dark page, so there
-    /// would be nothing there for this to switch off — and in Light Mode nothing
-    /// is darkened at all.
+    /// Dark Mode only invents a page's colors for a locally held PDF.
     private func showsOriginalPageColorsToggle(for article: StudioArticle) -> Bool {
         guard colorScheme == .dark else { return false }
-        return usesEmbeddedBrowser(article)
-            || article.cachedHasRemotePDFURL
-            || article.isPDF
-    }
-
-    private func usesEmbeddedBrowser(_ article: StudioArticle) -> Bool {
-        guard !article.isYouTubeURL,
-              !article.cachedHasRemotePDFURL,
-              !article.isPDF,
-              !article.cachedIsEPUBChapter else { return false }
-        // Having archived a page is not a reason to stop showing it. See
-        // `cachedPrefersLiveWebPage`: the archive is the offline snapshot, and
-        // the reader falls back to it when the live load fails.
-        if article.cachedIsArchivedArticle { return article.cachedPrefersLiveWebPage }
-        if article.cachedIsWebArticle { return true }
-        if article.content?.isEmpty == false { return false }
-        return article.url.hasPrefix("http://") || article.url.hasPrefix("https://")
+        return article.isPDF && article.cachedResolvedPDFPath != nil
     }
 
     /// A paywalled or locally imported archive renders through the EPUB reader
@@ -1915,7 +1758,6 @@ struct SourceReaderPanel: View {
     /// hyperlinks — following one has to be reversible. Those chevrons stay
     /// hidden until there is history to walk.
     private func showsBrowserNavigation(_ article: StudioArticle) -> Bool {
-        if usesEmbeddedBrowser(article) { return true }
         guard article.cachedIsArchivedArticle else { return false }
         return articleReaderChrome.canGoBack || articleReaderChrome.canGoForward
     }

@@ -13,12 +13,10 @@ import WebKit
 /// The browser exists so a learner can be signed in to two Google accounts at
 /// once — ChatGPT on one, the Google Drive plugin on another — and the
 /// web has exactly one mechanism for that: separate website data stores.
-/// The **Library** profile is `WKWebsiteDataStore.default()`, the jar every
-/// reader and every paper fetch already share, so a publisher sign-in made
-/// there serves the whole app. Every other profile is a persistent store of
-/// its own (`WKWebsiteDataStore(forIdentifier:)`) that nothing else reads:
-/// a login there is invisible to the readers, to the paper pipeline and to
-/// the other profiles.
+/// The **Library** profile is `WKWebsiteDataStore.default()`, the jar Browser
+/// and paper fetching share, so a publisher sign-in made there can serve an
+/// explicit save or download. Every other profile is a persistent store of
+/// its own (`WKWebsiteDataStore(forIdentifier:)`) that nothing else reads.
 struct BrowserProfile: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     var name: String
@@ -250,8 +248,8 @@ struct BrowserSessionSnapshot: Codable, Equatable {
 final class BrowserWorkspace {
     static let sessionKey = Prefs.Readers.browserSession.name
 
-    /// New tabs start here. The Library profile, so a page saved from the
-    /// start of a session lands where the readers can use its cookies.
+    /// New tabs start in Library, where saving or downloading a source can
+    /// reuse the tab's authenticated session.
     nonisolated static let newTabProfileID = BrowserProfile.libraryID
 
     let profiles: BrowserProfileStore
@@ -702,12 +700,11 @@ enum WebPagePolicy {
         }
     }
 
-    /// Where a YouTube video a page would have left for goes: the Reader,
-    /// which plays a saved one as its source and any other in its player as a
-    /// page not saved, with Add to Sources over it.
+    /// A saved YouTube video opens as its source; any unsaved watch address
+    /// stays in Browser, where it may be added to Sources.
     @MainActor
     static func openYouTubeVideo(_ watchURL: URL) {
-        library?.openWebCitationInReader(watchURL)
+        library?.openWebCitation(watchURL)
     }
 
     /// Why a click on one of YouTube's other pages did nothing.

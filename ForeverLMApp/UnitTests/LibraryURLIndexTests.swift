@@ -159,17 +159,18 @@ struct LibraryURLIndexTests {
 
         // The DOI link a chat cites, for a paper saved under its publisher's address: recognised at the click.
         let doiLink = try #require(URL(string: "https://doi.org/10.1016/j.cell.2026.08.028"))
-        vm.openWebCitationInReader(doiLink, title: "MitoSpace", in: destination)
+        vm.openWebCitation(doiLink, title: "MitoSpace", in: destination)
         for _ in 0..<200 where destination.readerArticleID != "mitospace" {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         #expect(destination.externalReaderPage == nil)
         #expect(destination.readerArticleID == "mitospace")
 
-        // An unknown page still opens live, untouched.
+        // An unknown page belongs to Browser and never becomes Reader state.
         let other = try #require(URL(string: "https://example.com/story"))
-        vm.openWebCitationInReader(other, title: "Story", in: destination)
-        #expect(destination.externalReaderPage?.url == other)
+        vm.openWebCitation(other, title: "Story", in: destination)
+        #expect(destination.externalReaderPage == nil)
+        #expect(vm.browserOpenRequest?.url == other)
     }
 }
 

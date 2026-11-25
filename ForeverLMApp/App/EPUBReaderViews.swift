@@ -1287,13 +1287,6 @@ enum ArchivedArticleFallback {
         return persisted
     }
 
-    static func shouldUseLiveWebReader(urlString: String, allowed: Bool) -> Bool {
-        guard allowed,
-              let scheme = URL(string: urlString)?.scheme?.lowercased() else {
-            return false
-        }
-        return scheme == "http" || scheme == "https"
-    }
 }
 
 struct ArchivedArticleReaderView: View {
@@ -1302,11 +1295,8 @@ struct ArchivedArticleReaderView: View {
     let articleID: String
     let canonicalFilePath: String
     let fallbackText: String?
-    /// The original web source to show when its rich local archive has not
-    /// arrived yet. Local-only and paywalled captures leave this nil/disabled
-    /// and retain the durable text fallback instead.
+    /// The original address, offered in Browser when the local archive fails.
     let liveWebArticle: StudioArticle?
-    let allowsLiveWebFallback: Bool
     let initialScrollFraction: Double?
     @Binding var selectedText: String
     let findState: ReaderFindState
@@ -1351,26 +1341,6 @@ struct ArchivedArticleReaderView: View {
                     zoomOutAction: zoomOutAction,
                     resetZoomAction: resetZoomAction
                 )
-            } else if failure != nil,
-                      let liveWebArticle,
-                      ArchivedArticleFallback.shouldUseLiveWebReader(
-                        urlString: liveWebArticle.url,
-                        allowed: allowsLiveWebFallback
-                      ) {
-                // The archive is the preferred offline snapshot, but a stale
-                // archive path must not turn an ordinary online article into a
-                // processed-text document. WebViewReader still tries any real
-                // cached file if the live request itself fails.
-                ArticleReaderView(
-                    article: liveWebArticle,
-                    reviewMode: true,
-                    showsSpeechControls: false,
-                    showsBrowserToolbar: false,
-                    findState: findState,
-                    chromeState: chromeState,
-                    usesPersistedTextOnLoadFailure: true,
-                    selectionChanged: { selectedText = $0 }
-                )
             } else if let fallbackText = persistedFallbackText ?? fallbackText,
                       !fallbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                       failure != nil {
@@ -1394,6 +1364,9 @@ struct ArchivedArticleReaderView: View {
                     Text(failure.message)
                 } actions: {
                     Button("Retry") { retryRevision += 1 }
+                    if let liveWebArticle, let url = URL(string: liveWebArticle.url), WebLinkOpening.isWebLink(url) {
+                        Button("Open in Browser") { WebLinkOpening.open(url) }
+                    }
                 }
             } else {
                 ReaderLoadingView(title: "Loading article…")
@@ -1414,14 +1387,6 @@ struct ArchivedArticleReaderView: View {
                 // Navigating to another source cancels this view's preparation.
             } catch let cacheFailure as ArticleArchiveCache.Failure {
                 guard !Task.isCancelled else { return }
-                if let liveWebArticle,
-                   ArchivedArticleFallback.shouldUseLiveWebReader(
-                    urlString: liveWebArticle.url,
-                    allowed: allowsLiveWebFallback
-                   ) {
-                    failure = cacheFailure
-                    return
-                }
                 persistedFallbackText = await ArchivedArticleFallback.resolve(
                     inMemory: fallbackText,
                     loadPersisted: {
@@ -1479,14 +1444,11 @@ struct InlineEPUBReaderView: NSViewRepresentable {
     /// Archived-article hosts use this to mark reading complete after a genuine
     /// user scroll reaches the article content's end. Book readers leave it nil.
     var readingCompletionReached: (() -> Void)? = nil
-    /// Reports the web view's committed main-frame URL. Archived articles keep
-    /// live hyperlinks, so a click can navigate this reader to an external page;
-    /// callers use this to point "Open in Browser"/"Copy Link" at the page that
-    /// is actually on screen instead of the stored source URL.
+    /// Reports the web view's committed main-frame URL. This remains useful for
+    /// local chapter changes; external web links leave for the Browser.
     var pageURLChanged: ((URL?) -> Void)? = nil
-    /// Host shells pass their chrome state so the toolbar's back/forward buttons
-    /// can drive this web view. Archived articles keep live hyperlinks, so a
-    /// click can strand the reader on an external page with no way home.
+    /// Host shells pass their chrome state so local chapter/history navigation
+    /// can drive this web view.
     var chromeState: ArticleReaderChromeState? = nil
     let zoomInAction: () -> Void
     let zoomOutAction: () -> Void
@@ -1646,11 +1608,13 @@ struct InlineEPUBReaderView: NSViewRepresentable {
     /// its versions back in its web process, where the reader cannot carry them
     /// out — "Download Linked File" never even becomes a `WKDownload`.
     private static func applyLinkMenuActions(to webView: ForeverLMWebView, coordinator: Coordinator) {
-        // This reader is a single browsing surface with back/forward chrome, so
-        // a link opens here; the coordinator's policy delegate still hands
-        // other apps' schemes to macOS.
-        webView.openLinkAction = { [weak webView] url in
-            webView?.load(URLRequest(url: url))
+        webView.openLinkAction = { [weak webView, weak coordinator] url in
+            guard let webView, let coordinator else { return }
+            if ReaderWebLinkRouting.opensInBrowser(url, sourceDocument: webView.url) {
+                coordinator.openLinkInBrowser(url)
+            } else {
+                webView.load(URLRequest(url: url))
+            }
         }
         webView.openLinkExternallyAction = { url in
             BrowserService.open(url)
@@ -1900,10 +1864,8 @@ struct InlineEPUBReaderView: NSViewRepresentable {
         }
 
         /// WebKit asks its UI delegate to create a second web view for links such
-        /// as `target="_blank"` and user-initiated `window.open()`. The reader is
-        /// intentionally a single browsing surface, so keep arbitrary web links
-        /// in this web view (and therefore in its back/forward history) instead
-        /// of silently dropping the click.
+        /// as `target="_blank"` and user-initiated `window.open()`. Web documents
+        /// belong in the Browser; local book navigation remains in this view.
         func webView(
             _ webView: WKWebView,
             createWebViewWith configuration: WKWebViewConfiguration,
@@ -1911,6 +1873,11 @@ struct InlineEPUBReaderView: NSViewRepresentable {
             windowFeatures: WKWindowFeatures
         ) -> WKWebView? {
             guard navigationAction.targetFrame == nil else { return nil }
+            if let url = navigationAction.request.url,
+               ReaderWebLinkRouting.opensInBrowser(url, sourceDocument: webView.url) {
+                openLinkInBrowser(url)
+                return nil
+            }
             if navigationAction.navigationType == .linkActivated,
                let url = navigationAction.request.url,
                Self.shouldOpenWithSystem(url) {
@@ -1936,6 +1903,14 @@ struct InlineEPUBReaderView: NSViewRepresentable {
                Self.shouldOpenWithSystem(url) {
                 _ = NSWorkspace.shared.open(url)
                 decisionHandler(.cancel, preferences)
+                return
+            }
+            if navigationAction.targetFrame?.isMainFrame != false,
+               navigationAction.navigationType == .linkActivated,
+               let url = navigationAction.request.url,
+               ReaderWebLinkRouting.opensInBrowser(url, sourceDocument: webView.url) {
+                decisionHandler(.cancel, preferences)
+                openLinkInBrowser(url)
                 return
             }
             // A book read as one document never gives way to one of its own
@@ -1975,6 +1950,11 @@ struct InlineEPUBReaderView: NSViewRepresentable {
         private static func shouldOpenWithSystem(_ url: URL) -> Bool {
             guard let scheme = url.scheme?.lowercased() else { return false }
             return !["http", "https", "file", "about", "data", "blob", "javascript", EPUBBookScheme.name].contains(scheme)
+        }
+
+        @MainActor
+        func openLinkInBrowser(_ url: URL) {
+            WebLinkOpening.open(url)
         }
 
         /// The URL this page was published at, for resolving site-relative links
