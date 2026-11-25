@@ -33,6 +33,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.9 (build 327) — 2026-11-25
+
+**Highlights:**
+- **ForeverLM is free:** no pay screen, no free days, nothing locks.
+- **The Reader shows what is saved;** the web opens in the Browser.
+
+- **ForeverLM is free.** There is no pay screen, no free days and nothing that locks: sync, background AI and connecting an assistant always run. Settings no longer has a Billing pane; your OpenRouter key is under **API Keys**, and AI still runs on it at OpenRouter's cost with nothing added.
+- **The Reader shows what is saved on your Mac, and the web opens in the Browser.** A saved article with no offline copy no longer loads the live site inside the Reader; it says **Not Available Offline** with **Open in Browser**. Links inside a saved article and citations that are not in your library open in the Browser tab, and the Reader loses its web back, zoom and download buttons.
+- **The ForeverLM view inside Codex, Claude and ChatGPT is quieter.** A row no longer spills the source's text into the view; it has the ForeverLM icon to open it in the app and **Chat** to bring it into the conversation, and a notebook's sources show the same thumbnails and bylines as the Library.
+- **Fewer, broader tools for assistants.** One `set_visibility` tool replaces seven hide and show tools, and `canvas_region` and `canvas_arrow` replace the six Canvas region and arrow tools (392 tools in all).
+- **ForeverLM counts which assistant tools are used.** The Mac app adds up how often each MCP tool is called and sends the daily totals, with no account, device, arguments or results, so tools nobody uses can be retired. The Privacy page says so.
+
 ## 1.0.8 (build 326) — 2026-11-25
 
 **Highlights:**
