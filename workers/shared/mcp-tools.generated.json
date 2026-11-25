@@ -2106,13 +2106,12 @@
         "kind" : {
           "description" : "What the list holds.",
           "enum" : [
-            "goals",
             "ideas"
           ],
           "type" : "string"
         },
         "name" : {
-          "description" : "The list's name. Defaults to Goals or Ideas.",
+          "description" : "The list's name. Defaults to Ideas.",
           "type" : "string"
         },
         "space_id" : {
@@ -2652,7 +2651,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Delete a list from the learner's Space forever, on their explicit word: the list, its place in a space and its pin go, on every device. The goals and ideas it held are not deleted; they stay in Goals and Ideas, in no list. Only a list already in Trash can be deleted (update_space_list with in_trash true first), as in the Space. This cannot be undone.",
+    "description" : "Delete an Idea list from the learner's Space forever, on their explicit word: the list, its place in a space and its pin go, on every device. The Ideas it held are not deleted; they stay in Ideas, in no list. Only a list already in Trash can be deleted (update_space_list with in_trash true first), as in the Space. This cannot be undone.",
     "inputSchema" : {
       "properties" : {
         "list_id" : {
@@ -4789,7 +4788,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Settings › API Keys: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider, and without a key no AI feature runs. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
+    "description" : "Read AI Usage › API keys: whether the learner has stored their own OpenRouter key, which router it is for, and the key's last four characters. Never the key itself. ForeverLM's AI features are bring your own key: with a key stored, OpenRouter bills the learner directly, at cost, for everything ForeverLM sends through it, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs while the account is unlocked (its free days, or ForeverLM paid for; own_key_allowed); a locked account's key runs no model, free ones included. The response names the scope: an OpenRouter key covers chat, reviews and background tasks plus every voice, speech-to-text, image and video model OpenRouter serves, first-party ones such as Gemini and Grok speech, GPT-4o mini transcription and Veo included, so the key pays for every model ForeverLM uses.",
     "inputSchema" : {
       "properties" : {
 
@@ -7180,7 +7179,7 @@
             "images",
             "videos",
             "background",
-            "api_keys",
+            "billing",
             "ai_usage",
             "data_privacy",
             "team_general",
@@ -10568,7 +10567,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Store, replace, or remove the learner's own OpenRouter key — Settings › API Keys, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
+    "description" : "Store, replace, or remove the learner's own OpenRouter key — AI Usage › API keys, exactly as pasting it into the pane does. Pass router and key to store or replace; pass clear: true (with router) to remove. The key goes to the learner's iCloud Keychain, never to a synced preference, a log, or the response; the response carries only the router and the key's last four characters. Ask before calling this with a key the learner did not just hand you.",
     "inputSchema" : {
       "properties" : {
         "clear" : {
@@ -12575,11 +12574,11 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change one of the learner's lists in their Space on their word, as its menu does: rename it (name), file it in one of their spaces (space_id from list_spaces) or take it out of every space (space_id \"\"), pin or unpin it in the Space sidebar (pinned), move it to Trash or restore it (in_trash), put goals or ideas in it (add_item_ids, each moved out of any list it was in) or take them out (remove_item_ids). A goal goes only in a goals list and an idea only in an ideas list. Pass only what changes; the goals and ideas themselves are not changed. Returns the list as it is now.",
+    "description" : "Change one of the learner's Idea lists in their Space on their word, as its menu does: rename it (name), file it in one of their spaces (space_id from list_spaces) or take it out of every space (space_id \"\"), pin or unpin it in the Space sidebar (pinned), move it to Trash or restore it (in_trash), put Ideas in it (add_item_ids, each moved out of any list it was in) or take them out (remove_item_ids). Pass only what changes; the Ideas themselves are not changed. Returns the list as it is now.",
     "inputSchema" : {
       "properties" : {
         "add_item_ids" : {
-          "description" : "Goal IDs from list_goals for a goals list, or Idea IDs from list_ideas for an ideas list.",
+          "description" : "Idea IDs from list_ideas.",
           "items" : {
             "type" : "string"
           },
@@ -12602,7 +12601,7 @@
           "type" : "boolean"
         },
         "remove_item_ids" : {
-          "description" : "Goal IDs from list_goals for a goals list, or Idea IDs from list_ideas for an ideas list.",
+          "description" : "Idea IDs from list_ideas.",
           "items" : {
             "type" : "string"
           },
