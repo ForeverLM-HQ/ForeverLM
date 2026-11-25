@@ -115,7 +115,9 @@ struct HighlightColorMeaningTests {
         #expect(Prompts.sourceIdeaExtraction.contains(SourceHighlightColor.promptTagGuide))
         #expect(Prompts.cohortSessionPlanner.contains(SourceHighlightColor.promptTagGuide))
         #expect(Prompts.cardDrafter.contains("[QUESTION] or [DOUBT]"))
-        #expect(Prompts.mcpServerInstructions.contains("color \"blue\" or \"pink\""))
+        // Follow-ups are the flag now, whatever the color; doubts are still pink.
+        #expect(Prompts.mcpServerInstructions.contains("search_source_highlights with follow_up true"))
+        #expect(Prompts.mcpServerInstructions.contains("for what they doubt with color \"pink\""))
         #expect(Prompts.mcpServerInstructions.contains(SourceHighlightColor.meaningGuide))
     }
 

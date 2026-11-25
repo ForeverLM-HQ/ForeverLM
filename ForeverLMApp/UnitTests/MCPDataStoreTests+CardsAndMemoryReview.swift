@@ -123,7 +123,7 @@ extension MCPDataStoreTests {
         #expect(try store.knowledgeStore().loadArtifact(MemoryCard.draftDeckID(sourceID: "source-cards")) != nil)
     }
 
-    @Test("update_card puts pictures on a card still to check, with no Memory pane open, and leaves its words alone")
+    @Test("update_card edits a card still to check where it waits, with no Memory pane open: pictures leave its words alone, new words keep it to check")
     func updateCardPicturesOnCardToCheck() async throws {
         // The pictures are written onto the draft Card (`editCardDraft`), generation 2's
         // card to check, so the store is activated as every shipping Mac's is.
@@ -147,7 +147,10 @@ extension MCPDataStoreTests {
             ],
             startOver: nil, alwaysAsk: nil, retire: nil
         ))
-        #expect(payload["held"] as? Bool == true)
+        // Written onto the draft itself; `held` is only for a card a Memory pane holds with no draft.
+        #expect(payload["still_to_check"] as? Bool == true)
+        #expect(payload["changed"] as? Bool == true)
+        #expect(payload["front"] as? String == "What strengthens later access?")
 
         let after = try parseJSON(try await store.listCards(status: "to_check", notebookID: nil, sourceID: nil, limit: nil))
         let card = try #require((after["to_check"] as? [[String: Any]])?.first)
