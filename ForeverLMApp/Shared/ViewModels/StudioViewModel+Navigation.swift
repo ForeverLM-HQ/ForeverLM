@@ -793,10 +793,30 @@ extension StudioViewModel {
         toastUndo = undo
         toastAction = action
         scheduleToastDismissal(for: message)
+        guard !Self.isLibraryAddConfirmation(message) else { return }
         recentNotices.insert(StudioNotice(message: message, date: Date(), undo: undo, action: action), at: 0)
         if recentNotices.count > Self.recentNoticeLimit {
             recentNotices.removeLast(recentNotices.count - Self.recentNoticeLimit)
         }
+    }
+
+    /// A plain "it landed" for something the learner just added: the source
+    /// now sits in the Library (or the notebook), which is its own record, so
+    /// the bell keeps none. A partial failure ("Added to Library, but not
+    /// to …") is not one of these and still waits in the bell.
+    nonisolated static func isLibraryAddConfirmation(_ message: String) -> Bool {
+        let exact: Set<String> = [
+            "Added to Library", "Added to your library", "Added to the team library",
+            "Already in Library", "Added to the notebook", "Linked in the notebook",
+            "Already in the notebook", "Added to Library and to the notebook",
+            "Added to Library; already in the notebook",
+        ]
+        if exact.contains(message) { return true }
+        let quotedPrefixes = [
+            "Added to Library and to \u{201C}", "Added to Library; already in \u{201C}",
+            "Added to \u{201C}", "Linked in \u{201C}", "Already in \u{201C}",
+        ]
+        return message.hasSuffix("\u{201D}") && quotedPrefixes.contains { message.hasPrefix($0) }
     }
 
     /// Recent notices the bell has not shown yet.

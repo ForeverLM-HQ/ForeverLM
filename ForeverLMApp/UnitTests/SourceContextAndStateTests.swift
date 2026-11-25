@@ -829,9 +829,9 @@ struct ErrorLoadingStateTests {
     func noticesGoToTheBell() async {
         let vm = makeViewModel()
         var undone = 0
-        vm.showToast("Added to Library")
+        vm.showToast("Link copied")
         vm.showToast("Hid Paper", undo: { undone += 1 })
-        #expect(vm.recentNotices.map(\.message) == ["Hid Paper", "Added to Library"])
+        #expect(vm.recentNotices.map(\.message) == ["Hid Paper", "Link copied"])
         #expect(vm.unreadNoticeCount == 2)
 
         vm.markNoticesRead()
@@ -849,6 +849,23 @@ struct ErrorLoadingStateTests {
         vm.clearNotices()
         #expect(vm.recentNotices.isEmpty)
         #expect(vm.toastMessage == nil)
+    }
+
+    @Test("A plain library-add confirmation keeps out of the bell; a partial failure does not")
+    func libraryAddConfirmationsSkipTheBell() {
+        let vm = makeViewModel()
+        vm.showToast("Added to Library")
+        vm.showToast("Added to Library and to \u{201C}Aging\u{201D}")
+        vm.showToast("Added to your library")
+        #expect(vm.recentNotices.isEmpty)
+        #expect(vm.unreadNoticeCount == 0)
+
+        vm.showToast("Added to Library, but not to \u{201C}Aging\u{201D}: offline")
+        vm.showToast("Could not add to Library")
+        #expect(vm.recentNotices.map(\.message) == [
+            "Could not add to Library",
+            "Added to Library, but not to \u{201C}Aging\u{201D}: offline",
+        ])
     }
 
     @Test("A plain toast offers no Undo, and dismissing drops a pending one")
