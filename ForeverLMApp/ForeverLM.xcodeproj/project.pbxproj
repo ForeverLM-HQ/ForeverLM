@@ -1878,6 +1878,7 @@
 		C9F6633EE9046618BE0EB113 /* MobileNotebookChatTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9F36B190D542F902487318 /* MobileNotebookChatTab.swift */; };
 		CA3DAC512EA6E53ADC29A13E /* MacArticleTTSClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8779BD620A4986DCAB51C88D /* MacArticleTTSClient.swift */; };
 		CA86DA1F9C3D682E1BB7C836 /* MCPToolRegistry+ToolList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59DA954BE9C187A454B6462C /* MCPToolRegistry+ToolList.swift */; };
+		5192E746690E74CFDF77C086 /* MCPToolUsageCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EAE4BE11AF262C73C59337E /* MCPToolUsageCounter.swift */; };
 		CA87804EDD50A3240343E8F5 /* StudioSidebar+ArticlesSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B53A8E535584219016D916 /* StudioSidebar+ArticlesSections.swift */; };
 		CAD044EB330C99A67ADAE424 /* FractionalIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAAE28247F7FB9AE3F02370 /* FractionalIndex.swift */; };
 		CAD04656262FE31E5869FC5B /* OpenAIRealtimeNarration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0003409E5E512FC0394F04A2 /* OpenAIRealtimeNarration.swift */; };
@@ -3214,6 +3215,7 @@
 		5946A85D0C8B858938ADFFD3 /* StudioViewModel+CourseLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+CourseLibrary.swift"; sourceTree = "<group>"; };
 		599B29EE03F5ED0BC80AC176 /* KnowledgeStore+CanonicalContentCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+CanonicalContentCleanup.swift"; sourceTree = "<group>"; };
 		59DA954BE9C187A454B6462C /* MCPToolRegistry+ToolList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPToolRegistry+ToolList.swift"; sourceTree = "<group>"; };
+		7EAE4BE11AF262C73C59337E /* MCPToolUsageCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPToolUsageCounter.swift; sourceTree = "<group>"; };
 		59F2A811B8CF27F031328B3A /* CollectionProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionProjectionTests.swift; sourceTree = "<group>"; };
 		59FA05BF1BF3CE82E548E850 /* SourceSkeleton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceSkeleton.swift; sourceTree = "<group>"; };
 		5A208906E14BDA840795A239 /* ArtifactSyncFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactSyncFixture.swift; sourceTree = "<group>"; };
@@ -6870,6 +6872,7 @@
 				69F114DECA1C262B76D10CA4 /* MCPToolRegistry+SourceImportToolDefs.swift */,
 				329C5527B2DCF6AB826B8984 /* MCPToolRegistry+SourceToolsToolDefs.swift */,
 				59DA954BE9C187A454B6462C /* MCPToolRegistry+ToolList.swift */,
+				7EAE4BE11AF262C73C59337E /* MCPToolUsageCounter.swift */,
 				6EDE9AAE67CC0631C8C807C4 /* MCPTools.swift */,
 				C1263657C8B4A3ECD45E9F89 /* MCPTools+AccountSettings.swift */,
 				BAA3742A46CE8C09E16227FE /* MCPTools+AddSources.swift */,
@@ -9256,6 +9259,7 @@
 				C50D76A3947868A239CF1488 /* MCPToolRegistry+SourceImportToolDefs.swift in Sources */,
 				8FFC6866055A95F7ECA573B9 /* MCPToolRegistry+SourceToolsToolDefs.swift in Sources */,
 				CA86DA1F9C3D682E1BB7C836 /* MCPToolRegistry+ToolList.swift in Sources */,
+				5192E746690E74CFDF77C086 /* MCPToolUsageCounter.swift in Sources */,
 				736E73C09DBB9C0E11888E27 /* MCPTools+AISettings.swift in Sources */,
 				9065CE9520EB8BCA527368CF /* MCPTools+AccountSettings.swift in Sources */,
 				29FDC939AB6D61A62887104A /* MCPTools+AddSources.swift in Sources */,

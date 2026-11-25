@@ -401,6 +401,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         )
         // A call an AI app made that sets ForeverLM's models to work draws its
         // popup in the Studio window while it runs (MCPToolActivity.swift).
+        let started = ContinuousClock.now
         let activity = await store.beginToolActivity(name: name, arguments: normalizedArguments, access: access)
         let hold = holdsStoreGate ? MCPStoreGateHold(gateMode) : nil
         let chatModel = access.clientID == MCPAccessContext.internalFullAccess.clientID && ChatRequestedModel.toolNames.contains(name)
@@ -426,6 +427,14 @@ final class MCPToolRegistry: @unchecked Sendable {
         }
         hold?.end()
         await activity?.end(outcome)
+        // Counted anonymously, to learn which tools learners use (MCPToolUsageCounter.swift).
+        let elapsed = ContinuousClock.now - started
+        MCPToolUsageCounter.note(
+            tool: name,
+            fromApp: access.clientID == MCPAccessContext.internalFullAccess.clientID,
+            isError: outcome.isError,
+            milliseconds: Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+        )
         if holdsStoreGate { await store.releaseToolOperation() }
         let isError = outcome.isError
         // A successful mutating tool changed persisted app state out from under any
