@@ -500,10 +500,11 @@ extension InternalReviewPanelContent {
     /// The row is the composer's tray, behind the card's top
     /// edge (`ChatComposerStack`), where Codex shows the project.
     ///
-    /// What is open beside the chat has a chip too, in every window, a
-    /// notebook's included: the chat is told of it with every
-    /// message, so the tray says so, and its × leaves it out
-    /// (`onScreenChips`).
+    /// What is open beside the chat is counted in the same pill, in every
+    /// window, a notebook's included: the chat is told of it with every
+    /// message, so the tray says so (product owner, 2026-11-25: "maybe it
+    /// should just show '2 sources in context' … instead of the titles").
+    /// The pill's popover lists each, and its × leaves it out.
     @ViewBuilder
     private var composerContextRow: some View {
         let chips = composerContextChips
@@ -515,11 +516,6 @@ extension InternalReviewPanelContent {
                 if chips.notebook {
                     notebookChip
                 }
-                onScreenChips(chips.onScreen)
-                if let card = chips.card {
-                    onScreenCardChip(card)
-                }
-                openItemChips(chips.open)
                 if chips.context {
                     attachedSourcesChip
                 }
@@ -555,12 +551,12 @@ extension InternalReviewPanelContent {
     private var composerContextChips: (notebook: Bool, context: Bool, onScreen: [ChatContextAdditions.OnScreen], card: ChatContextAdditions.CardOnScreen?, open: [ChatContextAdditions.OpenItem], showsAny: Bool) {
         let inOwnNotebookWindow = notebookGuideNotebook != nil
         let notebook = linkedResearchNotebook != nil && !inOwnNotebookWindow
-        let context = contextItemCount > 0
+        let context = contextPillCount > 0
         let onScreen = onScreenChipSources
         let card = onScreenCardChipCard
         let open = openItemChipItems
         let plan = manager.reviewPlan != nil && manager.offersReviewPlanTool
-        return (notebook, context, onScreen, card, open, notebook || context || plan || !onScreen.isEmpty || card != nil || !open.isEmpty || manager.canvasContext != nil)
+        return (notebook, context, onScreen, card, open, notebook || context || plan || manager.canvasContext != nil)
     }
 
     /// The Pages, Sites, web pages and courses on screen in any
@@ -622,73 +618,56 @@ extension InternalReviewPanelContent {
         return card
     }
 
-    /// The card open in the Memory pane beside the chat as a chip, like an
-    /// open source's (product owner, 2026-10-15: "whatever is open on the
-    /// right is actually automatically in the chat context"): the chat is
-    /// told of the card with every message (`ChatContextAdditions.cardFraming`),
-    /// and the × leaves it out for as long as it stays in front.
+    /// What is open beside the chat, as the "in context" popover lists it:
+    /// a library source as the read-in sources are, a card or another open
+    /// item as a chip. The chat is told of each with every message
+    /// (`ChatContextAdditions.onScreen`, `cardFraming`, `openFraming`); the
+    /// × leaves it out of this chat for as long as it stays open
+    /// (`ReviewSessionManager.onScreenSourcesLeftOut`).
     @ViewBuilder
-    private func onScreenCardChip(_ card: ChatContextAdditions.CardOnScreen) -> some View {
-        ComposerRemovableChip(
-            symbol: "rectangle.on.rectangle",
-            title: card.question,
-            maxTitleWidth: 220,
-            help: "Open beside this chat, so the chat sees it",
-            removeHelp: "Leave this card out of this chat while it is open",
-            accessibilityLabel: "Open beside the chat: card \u{201C}\(card.question)\u{201D}",
-            open: nil,
-            remove: { manager.leaveOutOnScreenSource(card.id) }
-        )
-        .accessibilityIdentifier("chat.onScreenCardChip")
-    }
-
-    /// A chip for each source open beside the chat (product owner,
-    /// 2026-10-13: "perhaps a chat should know at all times what is OPEN;
-    /// i.e. it should know i have this youtube video open. and if i don't
-    /// want to chat about that; i can click a small X and it will remove it
-    /// from context"). The chat already reads what is on screen with every
-    /// message, a video with its moment (`ChatContextAdditions.onScreen`);
-    /// the chip shows it, and its × leaves the source out of this chat for
-    /// as long as it stays open (`ReviewSessionManager.onScreenSourcesLeftOut`).
-    /// The source is in front of the learner, so the chip opens nothing.
-    @ViewBuilder
-    private func onScreenChips(_ sources: [ChatContextAdditions.OnScreen]) -> some View {
-        ForEach(sources, id: \.id) { source in
-            ComposerRemovableChip(
-                symbol: vm.articlesById[source.id]?.sourceType.symbolName ?? "doc",
-                title: source.title,
-                maxTitleWidth: 220,
-                help: "Open beside this chat, so the chat sees it",
-                removeHelp: "Leave \u{201C}\(source.title)\u{201D} out of this chat while it is open",
-                accessibilityLabel: "Open beside the chat: \(source.title)",
-                open: nil,
-                remove: { manager.leaveOutOnScreenSource(source.id) }
-            )
-            .accessibilityIdentifier("chat.onScreenChip")
+    private var openBesideChatRows: some View {
+        let chips = composerContextChips
+        ForEach(chips.onScreen, id: \.id) { source in
+            if let article = vm.articlesById[source.id] {
+                ContextSourceCard(
+                    source: article,
+                    metadataVisibility: metadataVisibility,
+                    onOpen: { isContextSourcesPopoverPresented = false },
+                    onRemove: { manager.leaveOutOnScreenSource(source.id) }
+                )
+                .accessibilityIdentifier("chat.onScreenChip")
+            } else {
+                openBesideChatChip(symbol: "doc", title: source.title, key: source.id)
+                    .accessibilityIdentifier("chat.onScreenChip")
+            }
         }
-    }
-
-    /// A chip for each Page, Site, web page or course open in any
-    /// window (product owner, 2026-11-08: "put everything that's open into
-    /// the context"): every message carries them
-    /// (`ChatContextAdditions.openFraming`), the chip says so, and its ×
-    /// leaves the item out of this chat for as long as it stays open.
-    @ViewBuilder
-    private func openItemChips(_ items: [ChatContextAdditions.OpenItem]) -> some View {
-        ForEach(items, id: \.key) { item in
-            let title = item.title.isEmpty ? (item.url ?? item.kind) : item.title
-            ComposerRemovableChip(
+        if let card = chips.card {
+            openBesideChatChip(symbol: "rectangle.on.rectangle", title: card.question, key: card.id)
+                .accessibilityIdentifier("chat.onScreenCardChip")
+        }
+        ForEach(chips.open, id: \.key) { item in
+            openBesideChatChip(
                 symbol: Self.openItemSymbol(item.kind),
-                title: title,
-                maxTitleWidth: 220,
-                help: "Open in ForeverLM, so the chat sees it",
-                removeHelp: "Leave \u{201C}\(title)\u{201D} out of this chat while it is open",
-                accessibilityLabel: "Open in ForeverLM: \(item.kind) \(title)",
-                open: nil,
-                remove: { manager.leaveOutOnScreenSource(item.key) }
+                title: item.title.isEmpty ? (item.url ?? item.kind) : item.title,
+                key: item.key
             )
             .accessibilityIdentifier("chat.openItemChip")
         }
+    }
+
+    private func openBesideChatChip(symbol: String, title: String, key: String) -> some View {
+        ComposerRemovableChip(
+            symbol: symbol,
+            title: title,
+            maxTitleWidth: contextSourcesPopoverWidth - 60,
+            help: "Open beside this chat, so the chat sees it",
+            removeHelp: "Leave \u{201C}\(title)\u{201D} out of this chat while it is open",
+            accessibilityLabel: "Open beside the chat: \(title)",
+            open: nil,
+            remove: { manager.leaveOutOnScreenSource(key) }
+        )
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
     }
 
     private static func openItemSymbol(_ kind: String) -> String {
@@ -792,7 +771,7 @@ extension InternalReviewPanelContent {
     /// nothing.
     @ViewBuilder
     private var attachedSourcesChip: some View {
-        if contextItemCount > 0 {
+        if contextPillCount > 0 {
             Button {
                 isContextSourcesPopoverPresented.toggle()
             } label: {
@@ -803,7 +782,7 @@ extension InternalReviewPanelContent {
                     Text(loadedContextSummary)
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
-                        .animation(.easeOut(duration: 0.18), value: contextItemCount)
+                        .animation(.easeOut(duration: 0.18), value: contextPillCount)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -825,8 +804,8 @@ extension InternalReviewPanelContent {
             .buttonStyle(.plain)
             .onHover { isContextSourcesChipHovering = $0 }
             .animation(.easeOut(duration: 0.12), value: isContextSourcesChipHovering)
-            .help("Show what this chat has read in")
-            .accessibilityLabel("\(contextItemCount) items in context")
+            .help("Show what this chat has read in and what is open beside it")
+            .accessibilityLabel(loadedContextSummary)
             .popover(isPresented: $isContextSourcesPopoverPresented, arrowEdge: .top) {
                 contextSourcesPopover
             }
@@ -858,8 +837,24 @@ extension InternalReviewPanelContent {
         return manager.contextDocs.filter { !shown.contains($0.id) }
     }
 
+    /// What is open beside the chat and has no other place in the tray.
+    private var openBesideChatCount: Int {
+        let chips = composerContextChips
+        return chips.onScreen.count + (chips.card == nil ? 0 : 1) + chips.open.count
+    }
+
+    /// The pill's one number: what the chat has read in, plus what is open
+    /// beside it.
+    private var contextPillCount: Int { contextItemCount + openBesideChatCount }
+
+    /// "2 sources in context" when every item is a library source, else
+    /// "3 in context".
     private var loadedContextSummary: String {
-        "\(contextItemCount) in context"
+        let chips = composerContextChips
+        let onlySources = docsOutsideChips.isEmpty && chips.card == nil && chips.open.isEmpty
+        let count = contextPillCount
+        guard onlySources else { return "\(count) in context" }
+        return "\(count) \(count == 1 ? "source" : "sources") in context"
     }
 
     /// What the assistant has actually read — not what it could reach.
@@ -870,8 +865,8 @@ extension InternalReviewPanelContent {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                if contextItemCount > 0 {
-                    Text("\(contextItemCount)")
+                if contextPillCount > 0 {
+                    Text("\(contextPillCount)")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.tertiary)
                 }
@@ -880,7 +875,7 @@ extension InternalReviewPanelContent {
             .padding(.top, 12)
             .padding(.bottom, 6)
 
-            if contextItemCount == 0 {
+            if contextPillCount == 0 {
                 Text("Nothing loaded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -897,6 +892,7 @@ extension InternalReviewPanelContent {
                                 manager.removeContextDoc(doc.id)
                             }
                         }
+                        openBesideChatRows
                         ForEach(sourcesOutsideChips) { source in
                             ContextSourceCard(
                                 source: source,
