@@ -1086,8 +1086,12 @@ struct StudioView: View {
             }
             // The daily reminder and the Today menu: the Memory pane's
             // review of every notebook, whose Start Review is the way in.
-            .onReceive(NotificationCenter.default.publisher(for: .requestMemoryReview)) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: .requestMemoryReview)) { note in
                 guard StudioWindowRegistry.shared.activeState === windowState else { return }
+                if note.object as? String == CohortReviewNotifications.morningKey {
+                    vm.openMorningOrMemory(in: windowState)
+                    return
+                }
                 vm.inWindow(windowState) { vm.requestCardReview(scope: .allNotebooks) }
             }
             // The morning-after cards banner: the drafts that wait in To Check

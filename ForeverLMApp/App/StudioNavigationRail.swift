@@ -961,7 +961,9 @@ struct StudioNavigationRail: View {
             identifier: "studio.navigation.memory",
             isCompact: compact
         ) {
-            vm.inWindow(windowState) { vm.openMemoryPane() }
+            // This morning's explanation while it waits, then the cards
+            // (docs/morning-routine-design.md).
+            vm.openMorningOrMemory(in: windowState)
         }
         .onDrag {
             StudioDragVisibility.shared.begin(centerTab: .memory, stripEntry: .row(.memory))

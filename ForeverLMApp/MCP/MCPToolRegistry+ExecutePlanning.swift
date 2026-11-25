@@ -203,7 +203,8 @@ extension MCPToolRegistry {
                 readyByHour: arguments["ready_by_hour"] as? Int,
                 newCardsPerDay: arguments["new_cards_per_day"] as? Int,
                 autoDraftCards: arguments["auto_draft_cards"] as? Bool,
-                draftNudges: arguments["draft_nudges"] as? Bool
+                draftNudges: arguments["draft_nudges"] as? Bool,
+                morningExplanation: arguments["morning_explanation"] as? Bool
             )
         default:
             return nil

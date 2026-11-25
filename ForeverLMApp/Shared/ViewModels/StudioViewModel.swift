@@ -1271,6 +1271,16 @@ class StudioViewModel {
     /// read recently: the sources and which window they came from, consumed
     /// by the Chat panel's auto-start (`requestRecentTeachBack`).
     @ObservationIgnored var pendingRecentTeachBack: RecentTeachBackRequest?
+    /// This morning's explanation, asked for by Memory or the reminder:
+    /// the pick, consumed by the Chat panel's auto-start
+    /// (`requestMorningExplanation`).
+    @ObservationIgnored var pendingMorningTeachBack: MorningPick?
+    /// Sources passed over with Pick something else, and when: not picked
+    /// again for `MorningRoutine.skipDays`. This Mac's, for its life.
+    @ObservationIgnored var morningSkippedAt: [String: Date] = [:]
+    /// The day (`MorningRoutine.dayKey`) the learner went on from the
+    /// morning's explanation to the cards, so Memory opens the cards after.
+    @ObservationIgnored var morningHandedToCardsDay: String?
     /// A course quiz row asked to take its quiz: the quiz and its grader,
     /// consumed by the Chat panel's auto-start (`takeCourseQuiz`).
     @ObservationIgnored var pendingCourseQuiz: CourseQuizChatRequest?

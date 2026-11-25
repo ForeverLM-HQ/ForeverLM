@@ -279,7 +279,21 @@ final class MemoryReviewPreparationRunner {
                 includesListings: false,
                 includesToCheck: false
             )
-            await CohortReviewNotifications.refresh(hasReviewReady: snapshot.counts.today > 0)
+            // The morning's pick, as things stand now, when the morning starts
+            // with an explanation (docs/morning-routine-design.md).
+            var explain: String?
+            if MemoryCardSettings.startsMorningWithExplanation(), let studio = AppModelBridge.studio,
+               let pick = await studio.morningPickQueue(now: next).first {
+                explain = pick.sourceIDs
+                    .compactMap { studio.articlesById[$0].map(studio.displayTitle(for:)) }
+                    .joined(separator: " and ")
+                if explain?.isEmpty == true { explain = nil }
+            }
+            await CohortReviewNotifications.refresh(
+                hasReviewReady: snapshot.counts.today > 0 || explain != nil,
+                explain: explain,
+                cardCount: snapshot.counts.today
+            )
         } catch {
             logger.error("The reminder could not read the next day's cards: \(error.localizedDescription)")
         }

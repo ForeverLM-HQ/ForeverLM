@@ -1265,6 +1265,14 @@ extension ReviewSessionManager {
                         text: graded.text,
                         isError: graded.isError
                     ))
+                case TeachBack.recordToolName:
+                    let recorded = stageTeachBackExplanation(arguments: call.arguments, isFirst: isFirst)
+                    results.append(AIToolResultPayload(
+                        callID: call.id,
+                        toolName: call.name,
+                        text: recorded.text,
+                        isError: recorded.isError
+                    ))
                 case "grade_topic_recall":
                     let graded = stageTopicGrade(arguments: call.arguments, isFirst: isFirst)
                     results.append(AIToolResultPayload(
@@ -1948,6 +1956,23 @@ extension ReviewSessionManager {
                 text: MemoryReviewTutoring.gradeAcknowledgement(grade: grade, depth: depth),
                 isError: false
             )
+        }
+    }
+
+    /// `record_explanation` from the teach-back tutor: held for the reply it
+    /// belongs to and written onto that reply's exchange. One per reply; a
+    /// later call in the same reply replaces it (the verdict as it ended).
+    private func stageTeachBackExplanation(arguments: [String: Any], isFirst: Bool) -> AppToolResult {
+        guard !isFirst else {
+            return AppToolResult(text: "Error: The learner has not explained anything yet.", isError: true)
+        }
+        switch TeachBack.Explanation.validate(arguments: arguments, chatSourceIDs: Set(activeSourceIDs)) {
+        case .failure(let error):
+            logger.error("record_explanation rejected: \(error.message, privacy: .public)")
+            return AppToolResult(text: error.message, isError: true)
+        case .success(let explanation):
+            stagedTeachBackExplanation = explanation
+            return AppToolResult(text: "Recorded. Reply to the learner as you would have; do not mention this.", isError: false)
         }
     }
 

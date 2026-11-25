@@ -288,6 +288,117 @@ extension StudioViewModel {
         return nil
     }
 
+    // MARK: - The morning routine (docs/morning-routine-design.md)
+
+    /// Every candidate for this morning's explanation, best first
+    /// (`MorningPickRule.queue`), from what the app already records: what was
+    /// taken in since yesterday, today's due cards, what has been explained,
+    /// and on the week's first morning the nearest explained neighbour. No
+    /// model call.
+    func morningPickQueue(now: Date = Date()) async -> [MorningPick] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return [] }
+        func eligible(_ id: String) -> Bool {
+            articlesById[id].map(isSourceIncludedInKnowledge) ?? false
+        }
+        var inputs = MorningPickRule.Inputs()
+        inputs.recent = ((try? await storage.substantiallyConsumedSourceIDs(since: yesterday, now: now)) ?? []).filter(eligible)
+        inputs.explainedAt = ((try? await storage.explainedSourceDates()) ?? [:]).filter { eligible($0.key) }
+        if let snapshot = try? await memoryCardReviewSnapshot(scope: .allNotebooks, includesListings: false, includesToCheck: false, now: now) {
+            var overdue: [String: Int] = [:]
+            for entry in snapshot.today.entries where !entry.isNew {
+                for source in entry.item.sources where eligible(source.sourceID) {
+                    overdue[source.sourceID] = max(overdue[source.sourceID] ?? 0, entry.daysOverdue)
+                }
+            }
+            inputs.due = overdue.map { MorningPickRule.DueSource(sourceID: $0.key, daysOverdue: $0.value) }
+        }
+        let skipFloor = now.addingTimeInterval(-Double(MorningRoutine.skipDays) * 86_400)
+        inputs.skipped = Set(morningSkippedAt.filter { $0.value > skipFloor }.keys)
+        if MorningPickRule.isConnectionMorning(now, calendar: calendar),
+           let seed = inputs.recent.first(where: { inputs.explainedAt[$0] == nil && !inputs.skipped.contains($0) }) {
+            let older = Set(inputs.explainedAt.keys).subtracting(inputs.recent).subtracting(inputs.skipped)
+            inputs.connectionPartner = try? await storage.nearestSource(to: seed, among: older)
+        }
+        return MorningPickRule.queue(inputs)
+    }
+
+    /// Whether Memory should open this morning's explanation rather than the
+    /// cards: the switch is on, nothing has been explained today, the learner
+    /// has not gone on to the cards today, and there is something to pick.
+    func morningExplanationWaits(now: Date = Date()) async -> Bool {
+        guard MemoryCardSettings.startsMorningWithExplanation(),
+              morningHandedToCardsDay != MorningRoutine.dayKey(now) else { return false }
+        let explained = (try? await storage.explainedSourceDates()) ?? [:]
+        guard !MorningPickRule.explainedToday(explained, now: now) else { return false }
+        return await !morningPickQueue(now: now).isEmpty
+    }
+
+    /// Today's morning chat, when one was started and is still in the list.
+    func todaysMorningChatID(now: Date = Date()) -> String? {
+        let start = Calendar.current.startOfDay(for: now)
+        return reviewSessionLinks
+            .filter { TeachBack.isMorningSessionID($0.id) && $0.createdAt >= start }
+            .max { $0.createdAt < $1.createdAt }?
+            .id
+    }
+
+    /// The Memory row (and the morning reminder): this morning's explanation
+    /// while it waits, today's morning chat again if one is open, else the
+    /// cards, as before.
+    func openMorningOrMemory(in window: StudioWindowState) {
+        Task { [weak self] in
+            guard let self else { return }
+            guard await morningExplanationWaits() else {
+                inWindow(window) { openMemoryPane() }
+                return
+            }
+            inWindow(window) {
+                if let chatID = todaysMorningChatID() {
+                    requestResumeReviewSession(chatID)
+                } else {
+                    requestMorningExplanation(in: window)
+                }
+            }
+        }
+    }
+
+    /// A new morning chat on the first pick not passed over. With nothing to
+    /// pick, the cards.
+    func requestMorningExplanation(in window: StudioWindowState? = nil) {
+        let window = window ?? chatRequestOriginWindow ?? activeWindowState
+        closeNotebook(in: window)
+        reviewChatPanelMode = .chat
+        isChatTabActive = true
+        let targetWindowID = window.id
+        Task { [weak self] in
+            guard let self else { return }
+            guard let pick = await morningPickQueue().first else {
+                inWindow(window) { openMemoryPane() }
+                showToast("Nothing to explain this morning. Here are today's cards.")
+                return
+            }
+            pendingMorningTeachBack = pick
+            reviewChatAutoStartRequestID = UUID()
+            reviewChatTargetWindowID = targetWindowID
+        }
+    }
+
+    /// Pick something else: the chat's sources are passed over for a few
+    /// days, and a new morning chat opens on the next pick.
+    func requestNextMorningPick(passingOver sourceIDs: [String], in window: StudioWindowState? = nil) {
+        let now = Date()
+        for id in sourceIDs { morningSkippedAt[id] = now }
+        requestMorningExplanation(in: window)
+    }
+
+    /// Next: today's cards. The morning is the cards' from here on today.
+    func continueMorningToCards(in window: StudioWindowState? = nil) {
+        morningHandedToCardsDay = MorningRoutine.dayKey(Date())
+        openMemoryPane(in: window)
+    }
+
     /// Reveal the previous-sessions list inside the open Chat panel (popover).
     func revealReviewSessionSidebar() {
         reviewSessionsRevealRequestID = UUID()
@@ -301,4 +412,15 @@ extension StudioViewModel {
 struct RecentTeachBackRequest: Equatable {
     let sourceIDs: [String]
     let sinceYesterday: Bool
+}
+
+/// The morning routine's constants (docs/morning-routine-design.md).
+enum MorningRoutine {
+    /// How long a source passed over with Pick something else stays out.
+    static let skipDays = 3
+
+    static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
 }

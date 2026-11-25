@@ -598,6 +598,9 @@ extension InternalReviewPanelContent {
             } else if context.isLatest, !context.isLive, manager.offersMemoryReviewSteer,
                       !manager.isGenerating, !manager.isSearching {
                 memoryReviewSteerChips
+            } else if context.isLatest, !context.isLive, TeachBack.isMorningSessionID(manager.currentSessionID),
+                      !manager.isGenerating, !manager.isSearching {
+                morningChips
             } else if let questions = suggestedQuestions(under: block, context: context) {
                 // The questions the reply suggested, under its footer.
                 ChatSuggestedQuestionCards(
@@ -831,6 +834,41 @@ extension InternalReviewPanelContent {
               previousSessionID != sessionID,
               vm.memoryReviewFocusSessionID == previousSessionID else { return }
         vm.leaveMemoryReviewFocus(sessionID: previousSessionID)
+    }
+
+    /// This morning's two ways on (docs/morning-routine-design.md): another
+    /// pick, passing this one over for a few days, or today's cards. Under
+    /// the newest settled reply, never in the transcript.
+    private var morningChips: some View {
+        HStack(spacing: 8) {
+            Button {
+                let passed = manager.activeSourceIDs
+                vm.requestNextMorningPick(passingOver: passed, in: windowState)
+            } label: {
+                Label("Pick something else", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.callout)
+                    .padding(.horizontal, 4)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Explain something else this morning; this one comes back in a few days")
+            .accessibilityIdentifier("mac.chatMorningPickAnother")
+            Button {
+                vm.continueMorningToCards(in: windowState)
+            } label: {
+                Label("Next: today's cards", systemImage: MemoryReviewSession.sidebarIcon)
+                    .font(.callout)
+                    .padding(.horizontal, 4)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Go on to today's cards")
+            .accessibilityIdentifier("mac.chatMorningCards")
+            Spacer(minLength: 0)
+        }
+        .padding(.top, -6)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("This morning")
     }
 
     private var memoryReviewSteerChips: some View {

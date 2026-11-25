@@ -123,7 +123,7 @@ struct MemoryReviewSettingsMCPTests {
 
         let tool = try #require(MCPToolRegistry(store: MCPDataStore()).tools.first { $0.name == "set_memory_review_settings" })
         let properties = try #require(tool.inputSchema["properties"] as? [String: Any])
-        for name in ["new_cards_per_day", "auto_draft_cards", "draft_nudges"] {
+        for name in ["new_cards_per_day", "auto_draft_cards", "draft_nudges", "morning_explanation"] {
             #expect(properties[name] != nil, Comment(rawValue: name))
         }
         #expect(properties["prepare_review_questions"] == nil, "no review questions are written ahead of time")

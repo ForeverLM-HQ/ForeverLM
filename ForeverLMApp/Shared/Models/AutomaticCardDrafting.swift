@@ -53,6 +53,15 @@ enum MemoryCardSettings {
     static func setShowsDraftNudges(_ on: Bool) {
         Preferences.set(on, for: Prefs.Memory.draftNudges)
     }
+
+    /// Start the morning with an explanation (`Prefs.Memory.morningExplanation`).
+    static func startsMorningWithExplanation(defaults: UserDefaults = .standard) -> Bool {
+        Preferences.withStorage(defaults) { Preferences.value(Prefs.Memory.morningExplanation) }
+    }
+
+    static func setStartsMorningWithExplanation(_ on: Bool) {
+        Preferences.set(on, for: Prefs.Memory.morningExplanation)
+    }
 }
 
 // MARK: Candidates, ranking and the day's limit

@@ -26,6 +26,7 @@ extension MCPDataStore {
             "new_cards_per_day": newCards,
             "auto_draft_cards": MemoryCardSettings.autoDraftsCards(),
             "draft_nudges": MemoryCardSettings.showsDraftNudges(),
+            "morning_explanation": MemoryCardSettings.startsMorningWithExplanation(),
             "prepare_daily": DailyReviewPreparation.isEnabled,
             "ready_by_hour": DailyReviewPreparation.hour,
             "scope": [
@@ -33,6 +34,7 @@ extension MCPDataStore {
                 "new_cards_per_day": "your account",
                 "auto_draft_cards": "your account",
                 "draft_nudges": "your account",
+                "morning_explanation": "your account",
                 "prepare_daily": "your account",
                 "ready_by_hour": "this Mac",
             ],
@@ -94,13 +96,14 @@ extension MCPDataStore {
         readyByHour: Int?,
         newCardsPerDay: Int? = nil,
         autoDraftCards: Bool? = nil,
-        draftNudges: Bool? = nil
+        draftNudges: Bool? = nil,
+        morningExplanation: Bool? = nil
     ) async throws -> String {
         let given: [Any?] = [
-            budgetMinutes, prepareDaily, readyByHour, newCardsPerDay, autoDraftCards, draftNudges,
+            budgetMinutes, prepareDaily, readyByHour, newCardsPerDay, autoDraftCards, draftNudges, morningExplanation,
         ]
         guard given.contains(where: { $0 != nil }) else {
-            throw MCPError.invalidInput("Pass budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_daily, ready_by_hour, or several; nothing to change.")
+            throw MCPError.invalidInput("Pass budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, morning_explanation, prepare_daily, ready_by_hour, or several; nothing to change.")
         }
         if let budgetMinutes, MemoryReviewBudget.clamp(budgetMinutes) != budgetMinutes {
             throw MCPError.invalidInput("budget_minutes must be between \(MemoryReviewBudget.minimumMinutes) and \(MemoryReviewBudget.maximumMinutes).")
@@ -133,6 +136,11 @@ extension MCPDataStore {
                 MemoryCardSettings.setShowsDraftNudges(draftNudges)
                 Task(priority: .utility) { await AppModelBridge.studio?.refreshCardsToCheckBanner() }
                 changed.append("draft_nudges")
+            }
+            if let morningExplanation, morningExplanation != MemoryCardSettings.startsMorningWithExplanation() {
+                MemoryCardSettings.setStartsMorningWithExplanation(morningExplanation)
+                Task { await MemoryReviewPreparationRunner.shared.refreshReminder() }
+                changed.append("morning_explanation")
             }
             if let prepareDaily, prepareDaily != DailyReviewPreparation.isEnabled {
                 // The switch's side effects, exactly as the pane's toggle has

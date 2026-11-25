@@ -13,6 +13,10 @@ extension Prefs {
         static let newCardsPerDay = AccountKey<Int?>("memory.new_cards_per_day")
         static let autoDraftCards = AccountKey<Bool>("memory.auto_draft_cards", default: false)
         static let draftNudges = AccountKey<Bool>("memory.draft_nudges", default: true)
+        /// Whether the morning starts with one explanation of the app's pick
+        /// before the cards (docs/morning-routine-design.md). A statement
+        /// about the learner's mornings, so it follows the account.
+        static let morningExplanation = AccountKey<Bool>("memory.morning_explanation", default: true)
         /// How many minutes a day the memory review gets. It sizes the review
         /// wherever it is planned and is a statement about the learner's day,
         /// not the device it was said on, so it follows the account; the phone
@@ -61,6 +65,7 @@ extension Prefs {
             newCardsPerDay.erased,
             autoDraftCards.erased,
             draftNudges.erased,
+            morningExplanation.erased,
             budgetMinutes.erased,
             dailyPreparationEnabled.erased,
             workingNotesEnabled.erased,

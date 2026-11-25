@@ -255,6 +255,55 @@ extension KnowledgeStore {
         noteStoreChanged()
     }
 
+    /// Stamps the tutor's verdict on a teach-back explanation onto the
+    /// exchange its reply landed on (`TeachBack.Explanation`): the operation,
+    /// `sound`, the score. The sources ride in the row's own `source_refs`,
+    /// written with the turn; `idea_coverage` is left alone.
+    func recordTeachBackExplanation(
+        sessionID: String,
+        sequence: Int,
+        operation: MemoryQuestionOperation,
+        score: Double
+    ) throws {
+        try execBind("""
+            UPDATE review_exchanges
+            SET question_verdict = ?, operation = ?, score = ?
+            WHERE session_id = ? AND sequence_number = ?
+        """) { stmt in
+            bind(stmt, 1, MemoryQuestionVerdict.sound.rawValue)
+            bind(stmt, 2, operation.rawValue)
+            sqlite3_bind_double(stmt, 3, score)
+            bind(stmt, 4, sessionID)
+            sqlite3_bind_int(stmt, 5, Int32(sequence))
+        }
+        noteStoreChanged()
+    }
+
+    /// When each source was last explained so that it held: a teach-back
+    /// verdict (`recordTeachBackExplanation`) of `held`, read off the
+    /// exchange's `source_refs`. What the morning's pick reads.
+    func explainedSourceDates() throws -> [String: Date] {
+        var latest: [String: Date] = [:]
+        try queryBind("""
+            SELECT source_refs, COALESCE(answered_at, 0)
+            FROM review_exchanges
+            WHERE operation IN ('explain', 'connect')
+              AND question_verdict = 'sound'
+              AND idea_coverage IS NULL
+              AND score >= ?
+        """, bind: { stmt in
+            sqlite3_bind_double(stmt, 1, TeachBack.explainedScore)
+        }) { stmt in
+            let at = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 1))
+            guard let json = self.string(stmt, 0), let data = json.data(using: .utf8),
+                  let ids = try? JSONDecoder().decode([String].self, from: data) else { return }
+            for id in ids where (latest[id] ?? .distantPast) < at {
+                latest[id] = at
+            }
+        }
+        return latest
+    }
+
     /// Records the learner's steer after the latest graded contour that has not
     /// been steered yet, and returns that contour's coverage so the caller
     /// knows which source it was about. nil when nothing was waiting for one.

@@ -327,6 +327,10 @@ final class ReviewSessionManager {
     /// A validated contour grade waiting for the reply it belongs to; written
     /// onto that reply's exchange by `persistAssistantResponse`.
     @ObservationIgnored var stagedContourGrade: MemoryContourGrade?
+    /// A teach-back verdict (`record_explanation`) waiting for the reply it
+    /// belongs to; written onto that reply's exchange by
+    /// `persistAssistantResponse`, as a contour grade is.
+    @ObservationIgnored var stagedTeachBackExplanation: TeachBack.Explanation?
     /// The cards this turn saved (`save_card_drafts`), waiting for the reply
     /// they belong to: `persistAssistantResponse` stores them at its head as
     /// one link line, so a reopened chat draws them where the turn drew them.
@@ -741,6 +745,20 @@ final class ReviewSessionManager {
         )
     }
 
+    /// This morning's explanation (docs/morning-routine-design.md): the
+    /// teach-back on the morning's pick, a library chat whose id marks it as
+    /// the morning's (`TeachBack.morningSessionIDPrefix`), opening with the
+    /// pick named and the ask already made.
+    func startMorningTeachBack(pick: MorningPick, articles: [StudioArticle], titles: [String]) async {
+        await startSession(
+            topic: TeachBack.morningTopic(sourceTitles: titles),
+            articles: articles,
+            mode: .review,
+            fixedSessionID: TeachBack.morningSessionID(),
+            scriptedOpening: TeachBack.morningOpeningMessage(pick: pick, sourceTitles: titles)
+        )
+    }
+
     /// A chat whose opening is already written (a course quiz's question 1)
     /// shows it at once and keeps it as the session's first prompt, as a
     /// model-written opening would be kept. No model is asked; the tutor
@@ -901,6 +919,7 @@ final class ReviewSessionManager {
             uniqueKeysWithValues: briefs.map { ($0.source.sourceID, $0.depth) }
         )
         stagedContourGrade = nil
+        stagedTeachBackExplanation = nil
         memoryReviewStatusBySource = [:]
         memoryReviewIdeaStates = [:]
         memoryReviewLastProbeKind = nil
@@ -1163,6 +1182,7 @@ final class ReviewSessionManager {
                 : .review
             dailyPlanRationale = nil
             stagedContourGrade = nil
+            stagedTeachBackExplanation = nil
             if let quizRequest {
                 await resumeCourseQuiz(quizRequest, sessionID: session.id)
             }
@@ -1431,6 +1451,7 @@ final class ReviewSessionManager {
         memoryReviewIdeasBySource = [:]
         memoryReviewDepthBySource = [:]
         stagedContourGrade = nil
+        stagedTeachBackExplanation = nil
         memoryReviewStatusBySource = [:]
         memoryReviewIdeaStates = [:]
         memoryReviewLastProbeKind = nil

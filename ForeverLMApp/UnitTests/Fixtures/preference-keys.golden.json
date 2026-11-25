@@ -949,6 +949,12 @@
       "traits": []
     },
     {
+      "name": "memory.morning_explanation",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
       "name": "memory.new_cards_per_day",
       "scope": "account",
       "synced": true,

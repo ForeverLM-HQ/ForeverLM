@@ -54,6 +54,55 @@ extension StorageService {
         try knowledgeStore().loadCourseQuizSittingRows()
     }
 
+    func recordTeachBackExplanation(sessionID: String, sequence: Int, explanation: TeachBack.Explanation) throws {
+        try knowledgeStore().recordTeachBackExplanation(
+            sessionID: sessionID,
+            sequence: sequence,
+            operation: explanation.operation,
+            score: explanation.verdict.score
+        )
+        scheduleCloudKitSync(.coalesced)
+    }
+
+    func explainedSourceDates() throws -> [String: Date] {
+        try knowledgeStore().explainedSourceDates()
+    }
+
+    /// The morning pick's evidence of what was taken in since `since`: the
+    /// sources the engagement ledger calls at least `substantial`, most
+    /// engaged first (`KnowledgeStore.cohortCandidates`).
+    func substantiallyConsumedSourceIDs(since: Date, now: Date = Date()) throws -> [String] {
+        try knowledgeStore().cohortCandidates(now: now, minimumConfidence: .substantial)
+            .filter { $0.consumedAt >= since || ($0.engagement.chatDiscussedAt ?? .distantPast) >= since }
+            .sorted {
+                $0.engagement.engagedSeconds != $1.engagement.engagedSeconds
+                    ? $0.engagement.engagedSeconds > $1.engagement.engagedSeconds
+                    : $0.sourceID < $1.sourceID
+            }
+            .map(\.sourceID)
+    }
+
+    /// Of `pool`, the source nearest `seed` by the library's embeddings: the
+    /// weekly connection's older half. Nil when either side has no vectors.
+    /// No model call: the index the search already holds.
+    func nearestSource(to seed: String, among pool: Set<String>) throws -> String? {
+        let candidates = pool.subtracting([seed])
+        guard !candidates.isEmpty else { return nil }
+        let ks = try knowledgeStore()
+        let model = Self.sourceEmbeddingModel
+        return SharedSourceVectorIndex.shared.withIndex(storePath: ks.dbPath, dimensions: Self.sourceEmbeddingDimensions) { index -> String? in
+            if index.rowCount == 0,
+               let embeddings = try? ks.loadAllEmbeddings(entityType: .sourceChunk, model: model),
+               !embeddings.isEmpty {
+                index.load(embeddings, sourceIDForChunk: Self.sourceId(fromSourceChunkEmbeddingId:))
+            }
+            guard let centroid = index.centroids(forSources: [seed])[seed] else { return nil }
+            return index.bestSourceScores(queries: [centroid], allowedSources: candidates)
+                .max { $0.value.score != $1.value.score ? $0.value.score < $1.value.score : $0.key > $1.key }?
+                .key
+        }
+    }
+
     func recordMemoryContourGrade(sessionID: String, sequence: Int, grade: MemoryContourGrade) throws {
         try knowledgeStore().recordMemoryContourGrade(sessionID: sessionID, sequence: sequence, grade: grade)
         scheduleCloudKitSync(.coalesced)

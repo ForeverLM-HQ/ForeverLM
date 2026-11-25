@@ -71,7 +71,7 @@ extension ReviewSessionManager {
         case .review:
             stable = Prompts.reviewTutor
         case .teachBack:
-            stable = Prompts.teachBackTutor
+            stable = Prompts.teachBackTutor + "\n\n" + TeachBack.recordingInstruction
         case .study:
             stable = Prompts.studyChat
         case .summarize:

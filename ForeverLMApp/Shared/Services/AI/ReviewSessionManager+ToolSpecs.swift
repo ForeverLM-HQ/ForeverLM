@@ -991,6 +991,12 @@ extension ReviewSessionManager {
             specs.append(AIToolSpec(portable: MemoryReviewTutoring.setReviewDepthTool))
         }
 
+        // A teach-back records how each explanation held, silently
+        // (docs/morning-routine-design.md, "Recording the explanation").
+        if sessionPromptKind == .teachBack, courseQuiz == nil, !activeSourceIDs.isEmpty {
+            specs.append(TeachBack.recordToolSpec)
+        }
+
         // "I want to do the Feynman Technique" is said in the notebook's chat:
         // a chat of a Notebook, not one already running it, a quiz or a
         // memory review, can open it.

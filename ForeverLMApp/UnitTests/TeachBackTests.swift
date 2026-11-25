@@ -171,4 +171,87 @@ struct TeachBackTests {
         let ids = try store.recentlyConsumedSourceIDs(since: now.addingTimeInterval(-2 * 86_400), limit: 8)
         #expect(ids == [heard, read])
     }
+
+    // MARK: - The morning routine (docs/morning-routine-design.md)
+
+    @Test("The morning's pick: yesterday's unexplained first, then kept sources by dryness, then explained ones gone dry")
+    func morningPickOrder() {
+        var inputs = MorningPickRule.Inputs()
+        inputs.recent = ["yesterday-a", "yesterday-explained", "yesterday-b"]
+        inputs.due = [
+            .init(sourceID: "kept-fading", daysOverdue: 0),
+            .init(sourceID: "kept-dry", daysOverdue: 4),
+            .init(sourceID: "explained-dry", daysOverdue: 2),
+            .init(sourceID: "explained-fading", daysOverdue: 0),
+        ]
+        let then = Date(timeIntervalSinceReferenceDate: 0)
+        inputs.explainedAt = ["yesterday-explained": then, "explained-dry": then, "explained-fading": then]
+        let queue = MorningPickRule.queue(inputs)
+        #expect(queue.map(\.sourceIDs) == [["yesterday-a"], ["yesterday-b"], ["kept-dry"], ["kept-fading"], ["explained-dry"]])
+        #expect(queue.map(\.reason) == [.yesterday, .yesterday, .keptNotExplained, .keptNotExplained, .explainedDry])
+    }
+
+    @Test("A source passed over is not picked; the weekly connection leads with yesterday's source and an explained one")
+    func morningPickSkipsAndConnects() {
+        var inputs = MorningPickRule.Inputs()
+        inputs.recent = ["a", "b"]
+        inputs.skipped = ["a"]
+        inputs.explainedAt = ["old": Date(timeIntervalSinceReferenceDate: 0)]
+        inputs.connectionPartner = "old"
+        let queue = MorningPickRule.queue(inputs)
+        #expect(queue.first == MorningPick(sourceIDs: ["b", "old"], reason: .connection))
+        #expect(!queue.contains { $0.sourceIDs.contains("a") })
+        inputs.connectionPartner = "never-explained"
+        #expect(MorningPickRule.queue(inputs).first?.reason == .yesterday, "a partner must already be explained")
+    }
+
+    @Test("record_explanation takes only the chat's sources and a known verdict")
+    func explanationValidation() {
+        let chat: Set<String> = ["s1", "s2"]
+        guard case .success(let one) = TeachBack.Explanation.validate(arguments: ["source_ids": ["s1"], "verdict": "held"], chatSourceIDs: chat) else {
+            Issue.record("a held explanation of one source is valid"); return
+        }
+        #expect(one.operation == .explain)
+        #expect(one.verdict.score == 1)
+        guard case .success(let two) = TeachBack.Explanation.validate(arguments: ["source_ids": ["s1", "s2", "s1"], "verdict": "partial"], chatSourceIDs: chat) else {
+            Issue.record("two sources tie together"); return
+        }
+        #expect(two.sourceIDs == ["s1", "s2"])
+        #expect(two.operation == .connect)
+        if case .success = TeachBack.Explanation.validate(arguments: ["source_ids": ["elsewhere"], "verdict": "held"], chatSourceIDs: chat) {
+            Issue.record("a source outside the chat is refused")
+        }
+        if case .success = TeachBack.Explanation.validate(arguments: ["source_ids": ["s1"], "verdict": "great"], chatSourceIDs: chat) {
+            Issue.record("an unknown verdict is refused")
+        }
+    }
+
+    @Test("A held explanation is what the pick reads as explained; partial is not, and a memory review grade is not")
+    func explainedSourceDatesReadHeldOnly() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let sessionID = TeachBack.morningSessionID()
+        try store.createReviewSession(id: sessionID, topic: "This morning", sourceIDs: [])
+        let held = try store.addReviewExchange(sessionID: sessionID, question: "Explain it", answer: "It goes like this", evaluation: "Yes", score: nil, knowledgeNote: nil, sourceRefs: ["held-source"])
+        try store.recordTeachBackExplanation(sessionID: sessionID, sequence: held, operation: .explain, score: TeachBack.Verdict.held.score)
+        let partial = try store.addReviewExchange(sessionID: sessionID, question: "And this?", answer: "Not sure", evaluation: "Close", score: nil, knowledgeNote: nil, sourceRefs: ["partial-source"])
+        try store.recordTeachBackExplanation(sessionID: sessionID, sequence: partial, operation: .explain, score: TeachBack.Verdict.partial.score)
+        let explained = try store.explainedSourceDates()
+        #expect(Set(explained.keys) == ["held-source"])
+    }
+
+    @Test("The reminder names the pick and the cards, or keeps the cards' words")
+    func morningReminderWords() {
+        #expect(CohortReviewNotifications.reminderWords(explain: "Cristae remodeling", cardCount: 12)
+            == ("This morning", "Explain: Cristae remodeling. Then 12 cards."))
+        #expect(CohortReviewNotifications.reminderWords(explain: "X", cardCount: 0).body == "Explain: X.")
+        #expect(CohortReviewNotifications.reminderWords(explain: nil, cardCount: 5).title == "Today's review is ready")
+    }
+
+    @Test("A morning chat's id keeps the teach-back's tutor")
+    func morningSessionKeepsTheTutor() {
+        let id = TeachBack.morningSessionID()
+        #expect(TeachBack.isSessionID(id))
+        #expect(TeachBack.isMorningSessionID(id))
+        #expect(!TeachBack.isMorningSessionID(TeachBack.sessionID()))
+    }
 }

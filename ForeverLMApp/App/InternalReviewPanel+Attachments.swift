@@ -371,6 +371,35 @@ extension InternalReviewPanelContent {
             return
         }
 
+        // This morning's explanation (docs/morning-routine-design.md): a new
+        // library chat on the morning's pick, opening with the ask made.
+        if let pick = vm.pendingMorningTeachBack {
+            vm.pendingMorningTeachBack = nil
+            guard !manager.isSearching, !manager.isGenerating else {
+                vm.showToast("Start this morning's explanation once this answer finishes")
+                return
+            }
+            if manager.sessionActive || !manager.chatMessages.isEmpty {
+                manager.endSession()
+            }
+            let articles = pick.sourceIDs.compactMap { vm.articlesById[$0] }
+            guard articles.count == pick.sourceIDs.count else { return }
+            linkedResearchNotebookID = nil
+            readsNotebookTicksLive = false
+            vm.setContextSources(articles.map(\.id))
+            clearComposer()
+            pendingReaderSelection = nil
+            guard await syncSynthesisToolContext() else { return }
+            await vm.ensureContextSourceContentLoaded()
+            await manager.startMorningTeachBack(
+                pick: pick,
+                articles: articles,
+                titles: articles.map(vm.displayTitle(for:))
+            )
+            await vm.loadReviewSessionLinks()
+            return
+        }
+
         // The strip's Feynman Technique: a new library chat on what the
         // learner read recently, opening by asking them to explain it.
         if let pending = vm.pendingRecentTeachBack {

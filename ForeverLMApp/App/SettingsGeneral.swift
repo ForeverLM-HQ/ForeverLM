@@ -291,6 +291,8 @@ struct SettingsMemoryReviewSection: View {
     private var autoDraftsCards: Bool
     @PreferenceStorage(Prefs.Memory.draftNudges)
     private var showsDraftNudges: Bool
+    @PreferenceStorage(Prefs.Memory.morningExplanation)
+    private var startsMorningWithExplanation: Bool
     /// macOS's answer about ForeverLM's notifications: read when the section
     /// appears and each time the app comes forward, since the learner may
     /// have just changed it in System Settings. Nil until it has been read.
@@ -349,6 +351,15 @@ struct SettingsMemoryReviewSection: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .accessibilityIdentifier("settings.memory.draftNudges")
+                }
+
+                SettingsLayout.rowDivider
+
+                SettingsRow("Start the morning with an explanation", detail: "Memory opens one thing to explain from memory, then today's cards.") {
+                    Toggle("Start the morning with an explanation", isOn: $startsMorningWithExplanation)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.memory.morningExplanation")
                 }
 
                 SettingsLayout.rowDivider

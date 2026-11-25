@@ -1083,9 +1083,15 @@ extension AppUpdateController: UNUserNotificationCenterDelegate {
         // the window forward would leave the learner hunting for them, and
         // the pane's Start Review is how every route into the review begins.
         if response.notification.request.identifier == CohortReviewNotifications.requestIdentifier {
+            // A reminder naming the morning's pick opens the explanation
+            // while it waits (docs/morning-routine-design.md).
+            let morning = response.notification.request.content.userInfo[CohortReviewNotifications.morningKey] as? Bool == true
             DispatchQueue.main.async {
                 NSApp.activate()
-                NotificationCenter.default.post(name: .requestMemoryReview, object: nil)
+                NotificationCenter.default.post(
+                    name: .requestMemoryReview,
+                    object: morning ? CohortReviewNotifications.morningKey : nil
+                )
             }
             return
         }

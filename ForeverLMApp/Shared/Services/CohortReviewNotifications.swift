@@ -35,7 +35,10 @@ enum CohortReviewNotifications {
     /// Safe to call on every activation, and deliberately called there: the
     /// one-time `NotificationRetirement` sweep removes all pending requests, so
     /// re-asserting is what keeps this channel alive if the two ever race.
-    static func refresh(hasReviewReady: Bool) async {
+    /// `explain` names the morning's pick when the morning starts with an
+    /// explanation (docs/morning-routine-design.md); `cardCount` is the
+    /// morning's cards.
+    static func refresh(hasReviewReady: Bool, explain: String? = nil, cardCount: Int = 0) async {
         let center = UNUserNotificationCenter.current()
         guard isEnabled, hasReviewReady else {
             center.removePendingNotificationRequests(withIdentifiers: [requestIdentifier])
@@ -49,8 +52,10 @@ enum CohortReviewNotifications {
         }
 
         let content = UNMutableNotificationContent()
-        content.title = "Today's review is ready"
-        content.body = "Your cards for today are waiting. Open Memory to start."
+        let words = reminderWords(explain: explain, cardCount: cardCount)
+        content.title = words.title
+        content.body = words.body
+        if explain != nil { content.userInfo = [morningKey: true] }
         content.sound = .default
 
         var components = DateComponents()
@@ -68,6 +73,18 @@ enum CohortReviewNotifications {
         } catch {
             logger.error("Scheduling the daily review reminder failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// Marks a reminder whose click opens this morning's explanation.
+    static let morningKey = "morning"
+
+    /// The reminder's words: the pick and the cards, or the cards alone.
+    static func reminderWords(explain: String?, cardCount: Int) -> (title: String, body: String) {
+        guard let explain else {
+            return ("Today's review is ready", "Your cards for today are waiting. Open Memory to start.")
+        }
+        let cards = cardCount == 1 ? "1 card" : "\(cardCount) cards"
+        return ("This morning", cardCount > 0 ? "Explain: \(explain). Then \(cards)." : "Explain: \(explain).")
     }
 
     static func cancel() {

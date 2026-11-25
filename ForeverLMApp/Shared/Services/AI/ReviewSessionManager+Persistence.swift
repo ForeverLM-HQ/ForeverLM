@@ -180,7 +180,10 @@ extension ReviewSessionManager {
             // A graded contour is about one source, and it is the one score an
             // in-app chat exchange carries, so `exemplarQuestions` can find it.
             let grade = stagedContourGrade
-            let exchangeSourceRefs = grade.map { [$0.sourceID] } ?? activeSourceIDs
+            // A teach-back verdict names its own sources: the pick reads them
+            // off this row's refs.
+            let explanation = grade == nil ? stagedTeachBackExplanation : nil
+            let exchangeSourceRefs = grade.map { [$0.sourceID] } ?? explanation?.sourceIDs ?? activeSourceIDs
             let updatedPendingExchange = try await answerTurnRow(
                 sessionID: sessionID,
                 answer: userAnswer,
@@ -203,6 +206,10 @@ extension ReviewSessionManager {
                     knowledgeNote: nil,
                     sourceRefs: exchangeSourceRefs
                 )
+            }
+            if let explanation {
+                try await storage.recordTeachBackExplanation(sessionID: sessionID, sequence: sequence, explanation: explanation)
+                stagedTeachBackExplanation = nil
             }
             if let grade {
                 try await storage.recordMemoryContourGrade(sessionID: sessionID, sequence: sequence, grade: grade)
@@ -277,6 +284,11 @@ extension ReviewSessionManager {
                 sequence: sequence,
                 field: .evaluation
             )
+        }
+
+        if stagedTeachBackExplanation != nil {
+            logger.error("A staged teach-back verdict had no exchange to land on and was dropped.")
+            stagedTeachBackExplanation = nil
         }
 
         if stagedContourGrade != nil {
