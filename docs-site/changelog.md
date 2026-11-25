@@ -6,8 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **The morning starts with one explanation.** Memory (and the morning reminder, which now names it) opens a Feynman Technique chat on one thing ForeverLM picks: what you read, heard or watched yesterday and have not explained yet, else a source whose cards are fading that you never explained, else one you explained before that is drying out. On the first morning of the week it may ask how yesterday's reading fits with something you explained before. **Pick something else** passes it over for a few days; **Next: today's cards** goes on to the cards. The tutor quietly notes which explanations held, so the next morning moves on. Turn it off in Settings › Memory, **Start the morning with an explanation**.
-- **The Feynman Technique on what you read recently, one click away.** Pin **Feynman Technique** to the icon strip from its ⋯ menu (**Show in Sidebar**), or pick it from that menu. It opens a new chat on the papers, articles, podcasts and videos you read, heard or watched yesterday and today (the past week when those days had none), names them, and asks you to explain one from memory; then it asks about the gaps and fills them in, as the notebook's Feynman Technique does.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
@@ -34,6 +32,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 1.0.5 (build 323) — 2026-11-24
+
+**Highlights:**
+- **The morning starts with one explanation:** Memory opens a Feynman Technique chat on one thing you read, then today's cards.
+- **Feynman Technique on the icon strip,** one click to explain what you read recently.
+
+- **The morning starts with one explanation.** Memory (and the morning reminder, which now names it) opens a Feynman Technique chat on one thing ForeverLM picks: what you read, heard or watched yesterday and have not explained yet, else a source whose cards are fading that you never explained, else one you explained before that is drying out. On the first morning of the week it may ask how yesterday's reading fits with something you explained before. **Pick something else** passes it over for a few days; **Next: today's cards** goes on to the cards. The tutor quietly notes which explanations held, so the next morning moves on. Turn it off in Settings › Memory, **Start the morning with an explanation**.
+- **The Feynman Technique on what you read recently, one click away.** Pin **Feynman Technique** to the icon strip from its ⋯ menu (**Show in Sidebar**), or pick it from that menu. It opens a new chat on the papers, articles, podcasts and videos you read, heard or watched yesterday and today (the past week when those days had none), names them, and asks you to explain one from memory; then it asks about the gaps and fills them in, as the notebook's Feynman Technique does.
+- **App notices wait in the Notifications bell** instead of popping up at the bottom: "Added to Library", "Hid …" and the like land in its Recent list, newest first, with a dot on the bell while unread, and keep their **Undo** or **Open** until used.
+- **Cmd-Z in a Page's link field or AI field undoes that field,** where it used to take back the last edit to the page.
+- **The Reader's ⋯ menu is shorter,** with 11 items where it had 22.
+- **Escape or Hide Outline takes a walkthrough's figure outline down.**
+- **The chat's / and @ popup fits above the composer** instead of running off the pane.
+- **A message asked about a passage shows "1 annotation",** not the whole quote.
+- **A ScienceDirect or Cell link finds its paper's free copy.** The app looks the DOI up from the link's article ID, so the open-access search runs, where such a paper used to be saved as a paywalled stub.
 
 ## 1.0.4 (build 322) — 2026-11-24
 
