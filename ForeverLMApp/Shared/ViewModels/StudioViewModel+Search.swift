@@ -877,7 +877,7 @@ extension StudioViewModel {
     /// byline, then where and when it appeared — "Brixi et al. · bioRxiv 2025".
     /// The whole author list filled the line before, so two versions of one
     /// paper read the same and the venue and year never showed.
-    static func sourcePickerPaperAttribution(author: String?, journal: String?, year: String?) -> String {
+    nonisolated static func sourcePickerPaperAttribution(author: String?, journal: String?, year: String?) -> String {
         let trimmed = { (value: String?) in value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
         var yearText = trimmed(year)
         if yearText.count > 4, yearText.prefix(4).allSatisfy(\.isNumber) {
@@ -892,7 +892,7 @@ extension StudioViewModel {
     /// "Brixi", "Brixi & Durrant", "Brixi et al." from a stored author list.
     /// Papers store one name per `;`; a list with no `;` but three or more
     /// commas is read as comma-separated. Anything else is one name, shown whole.
-    static func sourcePickerByline(_ author: String) -> String {
+    nonisolated static func sourcePickerByline(_ author: String) -> String {
         guard !author.isEmpty else { return "" }
         if author.hasSuffix(" et al.") || author.hasSuffix(" et al") { return author }
         var names = author.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }
