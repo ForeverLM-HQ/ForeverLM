@@ -1979,7 +1979,7 @@ struct MCPDataStoreTests {
         try knowledgeStore.setSourceHidden("hidden-1", hidden: true)
         try knowledgeStore.setSourceHidden("hidden-2", hidden: true)
 
-        let answer = try await store.browseLibrary(text: nil, sourceType: "book", limit: 40)
+        let answer = try await store.browseLibrary(text: nil, sourceType: "book", notebookID: nil, limit: 40)
         let data = try #require(answer.data(using: .utf8))
         let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         let visible = try #require(json["items"] as? [[String: Any]])
@@ -2006,6 +2006,33 @@ struct MCPDataStoreTests {
             limit: 20
         )
         #expect(knowledge.contains("hidden-1") && knowledge.contains("hidden-2"))
+    }
+
+    @Test("browse_library can draw only one Notebook's own sources")
+    func browseLibraryScopesToNotebook() async throws {
+        let (store, tmpPath) = try TestStores.mcp()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+        try insertSource(dbPath: dbPath, id: "inside-source", title: "Inside", content: "Notebook source")
+        try insertSource(dbPath: dbPath, id: "outside-source", title: "Outside", content: "Library only")
+        let created = try await store.createNotebook(
+            title: "Acme Lab Notes",
+            description: nil,
+            topic: nil,
+            endDateString: "",
+            sourceIDs: ["inside-source"],
+            dailyTarget: nil,
+            discover: false
+        )
+        let notebookID = try #require(createdNotebookID(in: created))
+
+        let answer = try await store.browseLibrary(text: nil, sourceType: nil, notebookID: notebookID, limit: 40)
+        let data = try #require(answer.data(using: .utf8))
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let items = try #require(json["items"] as? [[String: Any]])
+
+        #expect(json["total"] as? Int == 1)
+        #expect(items.map { $0["id"] as? String } == ["inside-source"])
     }
 
     func insertSource(

@@ -14,9 +14,10 @@ extension MCPDataStore {
     /// as chapters"), and every row with its picture as a JPEG data URL,
     /// because the view's sandbox can load nothing from this Mac and the
     /// artwork hosts are not on its list ("also no thumbnails at all").
-    func browseLibrary(text: String?, sourceType: String?, limit: Int) async throws -> String {
+    func browseLibrary(text: String?, sourceType: String?, notebookID: String?, limit: Int) async throws -> String {
         let trimmedText = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let trimmedType = sourceType?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedNotebookID = notebookID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var family: [String] = []
         if !trimmedType.isEmpty {
             guard let found = StudioSourceType.searchFamily(named: trimmedType) else {
@@ -24,8 +25,16 @@ extension MCPDataStore {
             }
             family = found
         }
+        let store = try knowledgeStore()
+        let scope: Set<String>?
+        if trimmedNotebookID.isEmpty {
+            scope = nil
+        } else {
+            let notebook = try resolveMCPNotebookGoal(notebookID: trimmedNotebookID, store: store)
+            scope = Set(notebook.items.filter(\.isApproved).map(\.sourceID))
+        }
         let rows = try matchingSourceRows(
-            scope: nil,
+            scope: scope,
             author: nil,
             titleContains: nil,
             text: trimmedText.isEmpty ? nil : trimmedText,
@@ -83,7 +92,6 @@ extension MCPDataStore {
         let shownHidden = Array(hiddenEntries.prefix(pageLimit))
         let shown = shownVisible.map { (entry: $0, hidden: false) }
             + shownHidden.map { (entry: $0, hidden: true) }
-        let store = try knowledgeStore()
         let coverPaths = shown.contains(where: { $0.entry.kind == StudioSourceType.book.rawValue })
             ? (try? store.loadBooks().coverPaths) ?? [:]
             : [:]

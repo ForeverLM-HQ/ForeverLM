@@ -146,6 +146,7 @@ extension MCPToolRegistry {
             return try await store.browseLibrary(
                 text: arguments["text"] as? String,
                 sourceType: arguments["source_type"] as? String,
+                notebookID: arguments["notebook_id"] as? String,
                 limit: arguments["limit"] as? Int ?? 40
             )
         case "start_review_session":
