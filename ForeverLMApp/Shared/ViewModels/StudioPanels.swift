@@ -2171,6 +2171,20 @@ struct StudioToastAction {
     }
 }
 
+/// One message `showToast` reported, kept in the Notifications bell's Recent
+/// list rather than popped up over the window (product owner, 2026-11-24: "I
+/// don't think we should have these things pop up in the middle of the
+/// screen"). It keeps its Undo and its second offer until used, so a notice
+/// read a minute later can still be taken back.
+struct StudioNotice: Identifiable {
+    let id = UUID()
+    let message: String
+    let date: Date
+    var undo: (() async -> Void)?
+    var action: StudioToastAction?
+    var isRead = false
+}
+
 enum ReviewChatPanelMode: String, CaseIterable, Codable, Hashable {
     case chat
     case sessions

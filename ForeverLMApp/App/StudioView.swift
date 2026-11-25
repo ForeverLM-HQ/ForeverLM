@@ -1589,91 +1589,6 @@ private struct CreditsEmptySheet: View {
     }
 }
 
-/// The status banner at the bottom of the Studio window.
-///
-/// The same banner carries "Copied source ID" and a provider's refusal naming the
-/// model and the setting to change. The second kind is worth reading twice and
-/// often worth pasting into a note or a bug report, so the text is selectable,
-/// copies in one click, and can be closed rather than only ever timed out.
-/// `StudioViewModel.toastDuration(for:)` decides how long it waits on its own, and
-/// the pointer resting on it stops the clock entirely.
-///
-/// When the message reports something reversible — "Hid <title>" — the banner
-/// also carries Undo, so the click that hid the wrong paper is taken back from
-/// the notice itself rather than from the Hidden Items list.
-private struct StudioToastBanner: View {
-    let message: String
-    var onUndo: (() -> Void)? = nil
-    /// A second offer under its own title — "Open here" on a notice that the
-    /// thing opened in another window — for windows that can act on it.
-    var action: (title: String, run: () -> Void)? = nil
-    let onDismiss: () -> Void
-
-    @State private var copied = false
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(message)
-                .font(.subheadline.weight(.medium))
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let onUndo {
-                Button("Undo", action: onUndo)
-                    .font(.subheadline.weight(.semibold))
-                    .buttonStyle(.hoverWash(tint: Color.accentColor))
-                    .accessibilityIdentifier("studio.toast.undo")
-            }
-
-            if let action {
-                Button(action.title, action: action.run)
-                    .font(.subheadline.weight(.semibold))
-                    .buttonStyle(.hoverWash(tint: Color.accentColor))
-                    .accessibilityIdentifier("studio.toast.action")
-            }
-
-            // Equal square boxes with a circular wash: `doc.on.doc` and `xmark`
-            // have very different glyph widths, so left to size themselves they
-            // read as a mismatched pair and their default washes overlap.
-            HStack(spacing: 4) {
-                Button(action: copy) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                        .zoomedSystemFont(size: 11, weight: .semibold)
-                        .frame(width: 22, height: 22)
-                        .foregroundStyle(copied ? Color.green : Color.secondary)
-                }
-                .help("Copy this message")
-                .accessibilityLabel("Copy message")
-
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .zoomedSystemFont(size: 10, weight: .semibold)
-                        .frame(width: 22, height: 22)
-                        .foregroundStyle(.secondary)
-                }
-                .help("Dismiss")
-                .accessibilityLabel("Dismiss message")
-            }
-            .buttonStyle(.hoverWash(in: Circle(), inset: 0, opacity: 0.12))
-        }
-        .padding(.leading, 18)
-        .padding(.trailing, 10)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(radius: 4)
-    }
-
-    private func copy() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(message, forType: .string)
-        copied = true
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            copied = false
-        }
-    }
-}
-
 private struct StudioDeletionUndoBanner: View {
     let message: String
     let onUndo: () -> Void
@@ -1696,22 +1611,16 @@ private struct StudioDeletionUndoBanner: View {
 }
 
 extension View {
-    /// Pins the shared Studio status banner to the bottom of this view's window.
+    /// Pins the cards that ask the learner for something to the bottom of
+    /// this view's window: a deletion's Undo and a publisher check.
     ///
-    /// `StudioViewModel.showToast(_:)` fires from the source-reader and assistant
-    /// pop-out windows as well as the main Studio window, so each window
-    /// that can raise a toast carries this overlay, and the message lands where
-    /// the action happened. Without it, messages raised from a secondary window (a
-    /// PDF download result, a review command's usage hint) would be silently
-    /// dropped.
+    /// Plain notices (`StudioViewModel.showToast(_:)`) no longer pop up here:
+    /// they wait in the Notifications bell's Recent list, Undo and Open here
+    /// included (product owner, 2026-11-24: "I don't think we should have
+    /// these things pop up in the middle of the screen").
     ///
-    /// There is a single `toastMessage`, stamped with the window that was key
-    /// when it was raised (`toastWindowID`), and only that window draws it: a
-    /// removal or a copy in one window announces nothing in another. The
-    /// Undo banner is its window's the same way. So is the banner's action: "Open here" means
-    /// the Studio window it was pressed in, and a window with no
-    /// `StudioWindowState` in its environment — a popped-out Reader — has
-    /// nowhere to open it, so shows no such button.
+    /// The Undo card is stamped with the window that was key when it was
+    /// raised, and only that window draws it.
     func studioToast(_ vm: StudioViewModel) -> some View {
         modifier(StudioToastOverlay(vm: vm))
     }
@@ -1721,11 +1630,6 @@ private struct StudioToastOverlay: ViewModifier {
     let vm: StudioViewModel
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var toastAction: (title: String, run: () -> Void)? {
-        guard let action = vm.toastAction, let windowState else { return nil }
-        return (action.title, { Task { await vm.runToastAction(in: windowState) } })
-    }
 
     /// With Reduce Motion on, a card fades in and out rather than sliding.
     private var cardTransition: AnyTransition {
@@ -1757,20 +1661,9 @@ private struct StudioToastOverlay: ViewModifier {
                         }
                         .transition(cardTransition)
                     }
-                    if let toast = vm.toastMessage, vm.isRequestTarget(vm.toastWindowID, windowState) {
-                        StudioToastBanner(
-                            message: toast,
-                            onUndo: vm.toastUndo == nil ? nil : { Task { await vm.undoToast() } },
-                            action: toastAction,
-                            onDismiss: { vm.dismissToast() }
-                        )
-                        .onHover { vm.setToastHovered($0) }
-                        .transition(cardTransition)
-                    }
                 }
                 .padding(.bottom, 20)
             }
-            .animation(.easeInOut(duration: 0.3), value: vm.toastMessage)
             .animation(.easeInOut(duration: 0.3), value: vm.pendingDeletionNotices.last?.id)
             .animation(.easeInOut(duration: 0.3), value: WebVerificationRequests.shared.latest?.id)
     }

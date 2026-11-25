@@ -825,6 +825,32 @@ struct ErrorLoadingStateTests {
         #expect(vm.toastMessage == nil)
     }
 
+    @Test("Every notice waits in the bell's Recent list, newest first, Undo offered once")
+    func noticesGoToTheBell() async {
+        let vm = makeViewModel()
+        var undone = 0
+        vm.showToast("Added to Library")
+        vm.showToast("Hid Paper", undo: { undone += 1 })
+        #expect(vm.recentNotices.map(\.message) == ["Hid Paper", "Added to Library"])
+        #expect(vm.unreadNoticeCount == 2)
+
+        vm.markNoticesRead()
+        #expect(vm.unreadNoticeCount == 0)
+
+        let hid = vm.recentNotices[0].id
+        await vm.undoNotice(hid)
+        await vm.undoNotice(hid)
+        #expect(undone == 1, "Undo runs once")
+        #expect(vm.recentNotices.first(where: { $0.id == hid })?.undo == nil)
+
+        for index in 0..<(StudioViewModel.recentNoticeLimit + 5) { vm.showToast("Notice \(index)") }
+        #expect(vm.recentNotices.count == StudioViewModel.recentNoticeLimit)
+
+        vm.clearNotices()
+        #expect(vm.recentNotices.isEmpty)
+        #expect(vm.toastMessage == nil)
+    }
+
     @Test("A plain toast offers no Undo, and dismissing drops a pending one")
     func toastUndoFollowsTheMessage() async {
         let vm = makeViewModel()

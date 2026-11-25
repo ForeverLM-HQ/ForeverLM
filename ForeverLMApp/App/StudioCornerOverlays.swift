@@ -712,12 +712,22 @@ struct NotificationCenterButton: View {
         let subjects = vm.inboxSubjects(planDay: planDay)
         let unread = kinds.filter { !tray.isRead($0, subject: subjects.subject($0)) }
         let unreadChats = InboxChats.listed(vm: vm)
-        let unreadCount = unread.count + unreadChats.count
+        let unreadNotices = vm.unreadNoticeCount
+        let unreadCount = unread.count + unreadChats.count + unreadNotices
         Button { isShown.toggle() } label: {
             Image(systemName: "bell")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 36, height: 30)
+                // A notice that used to pop up over the window now waits
+                // here, so its arrival is a dot on the bell.
+                .overlay(alignment: .topTrailing) {
+                    if unreadNotices > 0 {
+                        RailUnreadDot()
+                            .padding(.top, 6)
+                            .padding(.trailing, 9)
+                    }
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
@@ -734,6 +744,8 @@ struct NotificationCenterButton: View {
             )
             .environment(vm)
             .environment(windowState)
+            // Notices count as read once the bell has shown them.
+            .onDisappear { vm.markNoticesRead() }
         }
     }
 }
@@ -776,18 +788,20 @@ private struct NotificationCenterList: View {
         }
         let unread = marks.filter { !$0.isRead }
         let chats = InboxChats.listed(vm: vm)
-        let isEmpty = marks.isEmpty && chats.isEmpty
+        let notices = vm.recentNotices
+        let isEmpty = marks.isEmpty && chats.isEmpty && notices.isEmpty
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
             HStack(alignment: .firstTextBaseline, spacing: StudioDesign.Spacing.small) {
                 Text("Notifications")
                     .zoomedSystemFont(size: 12.5, weight: .semibold)
                     .textSelection(.disabled)
                 Spacer(minLength: 0)
-                if !unread.isEmpty || !chats.isEmpty {
+                if !unread.isEmpty || !chats.isEmpty || vm.unreadNoticeCount > 0 {
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
                             for mark in unread { tray.markRead(mark.kind, subject: mark.subject) }
                             ChatReadMarks.shared.markAllRead()
+                            vm.markNoticesRead()
                         }
                     } label: {
                         Text("Mark All as Read")
@@ -818,9 +832,55 @@ private struct NotificationCenterList: View {
                 notice(mark.kind)
                     .environment(\.cornerNoticeReadMark, mark)
             }
+            if !notices.isEmpty {
+                recentNotices(notices)
+            }
         }
         .padding(StudioDesign.Spacing.medium)
         .frame(width: 320, alignment: .leading)
+    }
+
+    /// What the app reported — "Added to Library", "Hid <title>", a model's
+    /// refusal — newest first, in place of the banner that used to pop up
+    /// at the bottom of the window. Scrolls past a handful.
+    @ViewBuilder
+    private func recentNotices(_ notices: [StudioNotice]) -> some View {
+        if !notices.isEmpty {
+            Divider()
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent")
+                    .zoomedSystemFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) { vm.clearNotices() }
+                } label: {
+                    Text("Clear")
+                        .zoomedSystemFont(size: 11, weight: .medium)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, StudioDesign.Spacing.xSmall)
+                        .padding(.vertical, 2)
+                }
+                .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0))
+                .accessibilityIdentifier("rail.notifications.clearRecent")
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(notices) { notice in
+                        RecentNoticeRow(
+                            notice: notice,
+                            undo: notice.undo == nil ? nil : { Task { await vm.undoNotice(notice.id) } },
+                            action: notice.action.map { action in
+                                (action.title, { Task { await vm.runNoticeAction(notice.id, in: windowState) } })
+                            }
+                        )
+                    }
+                }
+            }
+            .frame(maxHeight: 260)
+            .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// Opens a chat in this window, as its row in the sidebar does.
@@ -861,6 +921,78 @@ private struct NotificationCenterList: View {
             ForEach(vm.pluginsNeedingReconnect, id: \.self) { page in
                 PluginReconnectNoticeCard(page: page, close: close)
             }
+        }
+    }
+}
+
+/// One Recent notice in the bell: its message, selectable, how long ago, its
+/// Undo or Open here while it still offers one, and a copy button — a
+/// provider's refusal is often worth pasting into a note or a bug report.
+private struct RecentNoticeRow: View {
+    let notice: StudioNotice
+    let undo: (() -> Void)?
+    let action: (title: String, run: () -> Void)?
+
+    @State private var copied = false
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Group {
+                if !notice.isRead {
+                    RailUnreadDot()
+                }
+            }
+            .frame(width: 14)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(notice.message)
+                    .zoomedSystemFont(size: 12.5)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Text(notice.date, format: .relative(presentation: .named))
+                        .zoomedSystemFont(size: 11)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                    if let undo {
+                        Button("Undo", action: undo)
+                            .zoomedSystemFont(size: 11, weight: .semibold)
+                            .buttonStyle(.hoverWash(tint: Color.accentColor))
+                            .accessibilityIdentifier("rail.notifications.recent.undo")
+                    }
+                    if let action {
+                        Button(action.title, action: action.run)
+                            .zoomedSystemFont(size: 11, weight: .semibold)
+                            .buttonStyle(.hoverWash(tint: Color.accentColor))
+                            .accessibilityIdentifier("rail.notifications.recent.action")
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            Button(action: copy) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .zoomedSystemFont(size: 10, weight: .semibold)
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(copied ? Color.green : Color.secondary)
+            }
+            .buttonStyle(.hoverWash(in: Circle(), inset: 0, opacity: 0.12))
+            .opacity(hovering || copied ? 1 : 0)
+            .help("Copy this message")
+            .accessibilityLabel("Copy message")
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(notice.message, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
         }
     }
 }

@@ -793,6 +793,47 @@ extension StudioViewModel {
         toastUndo = undo
         toastAction = action
         scheduleToastDismissal(for: message)
+        recentNotices.insert(StudioNotice(message: message, date: Date(), undo: undo, action: action), at: 0)
+        if recentNotices.count > Self.recentNoticeLimit {
+            recentNotices.removeLast(recentNotices.count - Self.recentNoticeLimit)
+        }
+    }
+
+    /// Recent notices the bell has not shown yet.
+    var unreadNoticeCount: Int { recentNotices.lazy.filter { !$0.isRead }.count }
+
+    /// Marks every Recent notice read, as the bell closing or Mark All as
+    /// Read does.
+    func markNoticesRead() {
+        guard recentNotices.contains(where: { !$0.isRead }) else { return }
+        for index in recentNotices.indices { recentNotices[index].isRead = true }
+    }
+
+    /// Empties the bell's Recent list.
+    func clearNotices() {
+        recentNotices.removeAll()
+        dismissToast()
+    }
+
+    /// Runs a Recent notice's Undo from the bell. It is offered once: the
+    /// button goes as it is pressed, and the current toast with it if it is
+    /// that notice's, so the undo's own report ("Unhid <title>") replaces it.
+    func undoNotice(_ id: UUID) async {
+        guard let index = recentNotices.firstIndex(where: { $0.id == id }),
+              let undo = recentNotices[index].undo else { return }
+        recentNotices[index].undo = nil
+        if index == 0, toastUndo != nil { dismissToast() }
+        await undo()
+    }
+
+    /// Runs a Recent notice's second offer ("Open here") for the window
+    /// whose bell was pressed.
+    func runNoticeAction(_ id: UUID, in window: StudioWindowState?) async {
+        guard let index = recentNotices.firstIndex(where: { $0.id == id }),
+              let action = recentNotices[index].action else { return }
+        recentNotices[index].action = nil
+        if index == 0, toastAction != nil { dismissToast() }
+        await action.run(window)
     }
 
     /// Dismiss the current toast now, from the close button.
@@ -809,6 +850,7 @@ extension StudioViewModel {
     /// the action reports replaces it rather than racing it.
     func runToastAction(in window: StudioWindowState?) async {
         guard let action = toastAction else { return }
+        if !recentNotices.isEmpty { recentNotices[0].action = nil }
         dismissToast()
         await action.run(window)
     }
@@ -818,6 +860,7 @@ extension StudioViewModel {
     /// replaces it rather than racing it.
     func undoToast() async {
         guard let undo = toastUndo else { return }
+        if !recentNotices.isEmpty { recentNotices[0].undo = nil }
         dismissToast()
         await undo()
     }
