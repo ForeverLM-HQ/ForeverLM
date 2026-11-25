@@ -6,7 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **The Feynman Technique counts what you highlighted.** A source you marked passages in since yesterday is listed with how many, ranks higher for each one, and is listed even after a short read. The tutor is given the passages you marked (not shown in the chat): once you have explained what you remember, it checks your explanation reaches them and asks first about one it missed. The morning's pick puts the sources you marked in first too.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
@@ -33,6 +32,14 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 1.0.7 (build 325) — 2026-11-25
+
+**Highlights:**
+- **The Feynman Technique counts what you highlighted,** and its tutor asks about the passages you marked.
+
+- **The Feynman Technique counts what you highlighted.** A source you marked passages in since yesterday is listed with how many, ranks higher for each one, and is listed even after a short read. The tutor is given the passages you marked (not shown in the chat): once you have explained what you remember, it checks your explanation reaches them and asks first about one it missed. The morning's pick puts the sources you marked in first too.
+- **The chat's composer says "2 sources in context"** instead of a chip per open source. What is open beside the chat is counted in the one pill; its popover lists each open item with an × to leave it out while it stays open.
 
 ## 1.0.6 (build 324) — 2026-11-25
 
