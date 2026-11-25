@@ -235,6 +235,30 @@ extension KnowledgeStore {
         return rows
     }
 
+    /// The sources the learner read, listened to or watched since `since`,
+    /// most recently engaged first: what a recent teach-back is about
+    /// (`TeachBack.recentOpeningMessage`). Chat and review activity do not
+    /// count; talking about a source is not having read it.
+    func recentlyConsumedSourceIDs(since: Date, limit: Int) throws -> [String] {
+        let mask = sourceActivityMask([.reading, .listening, .watching])
+        var ids: [String] = []
+        try queryBind("""
+            SELECT source_id, MAX(last_activity_at) AS latest
+            FROM source_activity_days
+            WHERE last_activity_at >= ? AND (kinds & ?) != 0
+            GROUP BY source_id
+            ORDER BY latest DESC
+            LIMIT ?
+        """, bind: { stmt in
+            bind(stmt, 1, since.timeIntervalSinceReferenceDate)
+            bind(stmt, 2, Int(mask))
+            bind(stmt, 3, limit)
+        }) { stmt in
+            if let id = self.string(stmt, 0) { ids.append(id) }
+        }
+        return ids
+    }
+
     func sourceActivityDayCount(sourceID: String) throws -> Int {
         var count = 0
         try queryBind("SELECT COUNT(*) FROM source_activity_days WHERE source_id = ?", bind: { stmt in

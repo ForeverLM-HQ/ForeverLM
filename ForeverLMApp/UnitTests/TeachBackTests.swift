@@ -138,4 +138,37 @@ struct TeachBackTests {
         #expect(!offered(notebook: nil, opens: true), "a chat in no Notebook has none to open it in")
         #expect(!offered(notebook: "nb-1", opens: false), "a manager with no pane, as on the iPhone, cannot open a chat")
     }
+
+    @Test("A recent teach-back names what was read and asks for one explained from memory")
+    func recentOpening() {
+        let one = TeachBack.recentOpeningMessage(sourceTitles: ["Cristae remodeling"], sinceYesterday: true)
+        #expect(one.contains("“Cristae remodeling”"))
+        #expect(one.contains("since yesterday"))
+        #expect(TeachBack.recentTopic(sourceTitles: ["Cristae remodeling"]) == "Feynman Technique: Cristae remodeling")
+
+        let many = TeachBack.recentOpeningMessage(sourceTitles: ["A", "B"], sinceYesterday: false)
+        #expect(many.contains("- A\n- B"))
+        #expect(many.contains("this past week"))
+        #expect(many.contains("Pick one"))
+        #expect(TeachBack.recentTopic(sourceTitles: ["A", "B"]) == "Feynman Technique: recent reading")
+    }
+
+    @Test("Recent sources are those read, heard or watched since the cutoff, newest first; chat alone does not count")
+    func recentlyConsumedSources() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let now = Date()
+        func source(_ title: String) throws -> String {
+            var article = StudioArticle(url: "https://example.com/\(title)", title: title)
+            article.normalizedURL = URLNormalizer.normalize(article.url)
+            try store.saveSource(article)
+            return article.id
+        }
+        let old = try source("old"), read = try source("read"), heard = try source("heard"), chatted = try source("chatted")
+        _ = try store.recordScheduledSourceActivity(sourceID: old, on: now.addingTimeInterval(-10 * 86_400), kind: .reading)
+        _ = try store.recordScheduledSourceActivity(sourceID: read, on: now.addingTimeInterval(-3_600), kind: .reading)
+        _ = try store.recordScheduledSourceActivity(sourceID: heard, on: now.addingTimeInterval(-60), kind: .listening)
+        _ = try store.recordScheduledSourceActivity(sourceID: chatted, on: now.addingTimeInterval(-30), kind: .chat)
+        let ids = try store.recentlyConsumedSourceIDs(since: now.addingTimeInterval(-2 * 86_400), limit: 8)
+        #expect(ids == [heard, read])
+    }
 }

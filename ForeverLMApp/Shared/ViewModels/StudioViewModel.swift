@@ -1267,6 +1267,10 @@ class StudioViewModel {
     /// day's session id and its assembled material, consumed by the Chat
     /// panel's auto-start.
     @ObservationIgnored var pendingMemoryReview: MemoryReviewRequest?
+    /// The strip's Feynman Technique asked for a chat on what the learner
+    /// read recently: the sources and which window they came from, consumed
+    /// by the Chat panel's auto-start (`requestRecentTeachBack`).
+    @ObservationIgnored var pendingRecentTeachBack: RecentTeachBackRequest?
     /// A course quiz row asked to take its quiz: the quiz and its grader,
     /// consumed by the Chat panel's auto-start (`takeCourseQuiz`).
     @ObservationIgnored var pendingCourseQuiz: CourseQuizChatRequest?

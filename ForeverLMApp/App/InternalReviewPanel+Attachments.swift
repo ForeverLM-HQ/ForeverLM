@@ -371,6 +371,35 @@ extension InternalReviewPanelContent {
             return
         }
 
+        // The strip's Feynman Technique: a new library chat on what the
+        // learner read recently, opening by asking them to explain it.
+        if let pending = vm.pendingRecentTeachBack {
+            vm.pendingRecentTeachBack = nil
+            guard !manager.isSearching, !manager.isGenerating else {
+                vm.showToast("Start the \(TeachBack.title) once this answer finishes")
+                return
+            }
+            if manager.sessionActive || !manager.chatMessages.isEmpty {
+                manager.endSession()
+            }
+            let articles = pending.sourceIDs.compactMap { vm.articlesById[$0] }
+            guard !articles.isEmpty else { return }
+            linkedResearchNotebookID = nil
+            readsNotebookTicksLive = false
+            vm.setContextSources(articles.map(\.id))
+            clearComposer()
+            pendingReaderSelection = nil
+            guard await syncSynthesisToolContext() else { return }
+            await vm.ensureContextSourceContentLoaded()
+            await manager.startRecentTeachBack(
+                articles: articles,
+                titles: articles.map(vm.displayTitle(for:)),
+                sinceYesterday: pending.sinceYesterday
+            )
+            await vm.loadReviewSessionLinks()
+            return
+        }
+
         // A course quiz row asked to take its quiz: a new chat on the lecture
         // sources, the tutor asking the stored questions.
         if let pending = vm.pendingCourseQuiz {

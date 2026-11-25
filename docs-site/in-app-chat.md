@@ -21,7 +21,7 @@ Use in-app Chat when you want to:
 
 Chat is source-grounded. Add sources to the current context or open a scheduled source, then start a review from the Chat panel.
 
-In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in the notebook's Sources column, its own and those of any notebook you put into its context, and it can still reach the rest of your library when you ask it to. A new chat there starts in the notebook, an empty one offers **Suggest questions**, **Quiz me on it** and **Feynman Technique**, and what the chat makes (a Page, a course, a picture) is filed in the notebook.
+In a [notebook](/studio#inside-a-notebook), the chat reads the sources ticked in the notebook's Sources column, its own and those of any notebook you put into its context, and it can still reach the rest of your library when you ask it to. A new chat there starts in the notebook, an empty one offers **Suggest questions**, **Quiz me on it** and **Feynman Technique**, and what the chat makes (a Page, a course, a picture) is filed in the notebook. Outside a notebook, **Feynman Technique** in the icon strip's ⋯ (pin it with **Show in Sidebar**) runs the same chat on what you read, heard or watched yesterday and today.
 
 On the Mac, any chat can take you somewhere: "open this notebook", "show me that paper" or "go to my Bioelectricity notebook" opens it in the window, as clicking it would. Chat says it opened, made or changed something only when it actually did.
 

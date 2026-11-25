@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The Feynman Technique on what you read recently, one click away.** Pin **Feynman Technique** to the icon strip from its ⋯ menu (**Show in Sidebar**), or pick it from that menu. It opens a new chat on the papers, articles, podcasts and videos you read, heard or watched yesterday and today (the past week when those days had none), names them, and asks you to explain one from memory; then it asks about the gaps and fills them in, as the notebook's Feynman Technique does.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.

@@ -367,10 +367,18 @@ extension StudioViewModel {
             )
             if payload.tab == .courses { openCoursesListInReader(in: windowState) }
         case .place(let shortcut):
+            // The Feynman Technique is a chat: the pane shows Chat and the
+            // chat starts there.
+            if shortcut == .feynmanTechnique {
+                replaceCenterPane(at: groupIndex, with: .chat, in: windowState)
+                inWindow(windowState) { requestRecentTeachBack() }
+                return
+            }
             replaceCenterPane(at: groupIndex, with: .artifacts, in: windowState)
             switch shortcut {
             case .place(let place): showSpace(place, in: windowState)
             case .courses: openCoursesListInReader(in: windowState)
+            case .feynmanTechnique: break
             }
         case .output(let output):
             Task { await openNotebookOutput(output, inPaneAt: groupIndex, in: windowState) }

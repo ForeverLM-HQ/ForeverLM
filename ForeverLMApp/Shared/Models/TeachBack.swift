@@ -52,4 +52,40 @@ enum TeachBack {
     static func openingMessage(notebookTitle: String) -> String {
         "Tell me what you know about “\(notebookTitle)”, in your own words, from memory, in whatever order it comes. I'll show you pictures from your sources and ask about the gaps."
     }
+    // MARK: What you read recently
+    //
+    // The strip's one-click start (product owner, 2026-11-24: "let me do the
+    // Feynman technique on the things that I read yesterday or recently ...
+    // a one-button accessible thingy that I can pin maybe in the top left.
+    // It should just be a chat"): the same tutor, on the sources the learner
+    // read, heard or watched yesterday and today, or in the past week when
+    // those two days had none. No notebook.
+
+    /// The days a recent teach-back looks back first, today included, and the
+    /// days it widens to when those had nothing.
+    static let recentDays = 2
+    static let widerRecentDays = 7
+    /// At most this many sources, the most recently engaged first: enough
+    /// for a day's reading, few enough to pick one from.
+    static let recentSourceLimit = 8
+
+    /// The chat's title: the one source's name, or what the sources are.
+    static func recentTopic(sourceTitles: [String]) -> String {
+        if sourceTitles.count == 1, let only = sourceTitles.first {
+            return topic(notebookTitle: only)
+        }
+        return "\(title): recent reading"
+    }
+
+    /// The first message, written ahead as the notebook's is: what the
+    /// learner engaged with, named, and the ask to explain one (or all) from
+    /// memory. `sinceYesterday` says which window the list came from.
+    static func recentOpeningMessage(sourceTitles: [String], sinceYesterday: Bool) -> String {
+        let when = sinceYesterday ? "since yesterday" : "this past week"
+        if sourceTitles.count == 1, let only = sourceTitles.first {
+            return "You spent time with “\(only)” \(when). Tell me what you know about it, in your own words, from memory, in whatever order it comes. I'll show you pictures from it and ask about the gaps."
+        }
+        let list = sourceTitles.map { "- \($0)" }.joined(separator: "\n")
+        return "Here is what you read, heard or watched \(when):\n\n\(list)\n\nPick one, or tie a few together, and tell me what you know about it, in your own words, from memory, in whatever order it comes. I'll show you pictures from your sources and ask about the gaps."
+    }
 }

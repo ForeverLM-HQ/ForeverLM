@@ -727,6 +727,20 @@ final class ReviewSessionManager {
         )
     }
 
+    /// The Feynman Technique on what the learner read recently, started from
+    /// the strip: a library chat, no notebook, the sources as a catalog read on
+    /// demand, opening with them named (`TeachBack.recentOpeningMessage`).
+    /// Kept as a review, like the notebook's.
+    func startRecentTeachBack(articles: [StudioArticle], titles: [String], sinceYesterday: Bool) async {
+        await startSession(
+            topic: TeachBack.recentTopic(sourceTitles: titles),
+            articles: articles,
+            mode: .review,
+            fixedSessionID: TeachBack.sessionID(),
+            scriptedOpening: TeachBack.recentOpeningMessage(sourceTitles: titles, sinceYesterday: sinceYesterday)
+        )
+    }
+
     /// A chat whose opening is already written (a course quiz's question 1)
     /// shows it at once and keeps it as the session's first prompt, as a
     /// model-written opening would be kept. No model is asked; the tutor

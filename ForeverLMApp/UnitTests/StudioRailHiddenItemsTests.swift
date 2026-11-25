@@ -240,10 +240,18 @@ struct StudioRailShortcutsTests {
         #expect(stored.storage == "pages,sites")
     }
 
+    @Test("The Feynman Technique is a shortcut the strip keeps by its key")
+    func feynmanTechniqueRoundTrips() {
+        #expect(StudioRailShortcut(key: "feynmanTechnique") == .feynmanTechnique)
+        let kept = StudioRailShortcuts([.feynmanTechnique, .place(.pages)])
+        #expect(StudioRailShortcuts(storage: kept.storage) == kept)
+        #expect(StudioRailShortcut.feynmanTechnique.centerTab == nil)
+    }
+
     @Test("The places offered follow the Space sidebar: Notebooks, Courses, then the rest; Canvases only where listed")
     func offeredPlaces() {
         #expect(StudioRailShortcut.offered(listsCanvases: true).map(\.key)
-            == ["notebooks", "courses", "board", "plan", "pages", "sites", "animations", "canvases", "images", "drive"])
+            == ["notebooks", "courses", "board", "plan", "pages", "sites", "animations", "canvases", "images", "drive", "feynmanTechnique"])
         #expect(!StudioRailShortcut.offered(listsCanvases: false).contains(.place(.canvases)))
         let kept = StudioRailShortcuts([.place(.canvases), .place(.images)])
         #expect(kept.shown(listsCanvases: false) == [.place(.images)], "a kept Canvases waits where canvases are not listed")

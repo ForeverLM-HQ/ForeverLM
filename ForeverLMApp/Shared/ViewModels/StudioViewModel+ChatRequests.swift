@@ -243,9 +243,62 @@ extension StudioViewModel {
         requestBlankReviewChat()
     }
 
+    /// The Feynman Technique on what the learner read recently, one click
+    /// from the strip (product owner, 2026-11-24): a new library chat, the
+    /// sources read, heard or watched yesterday and today as its context, or
+    /// the past week's when those days had none, opening by asking the
+    /// learner to explain one from memory (`TeachBack.recentOpeningMessage`).
+    func requestRecentTeachBack() {
+        closeNotebook(in: chatRequestOriginWindow ?? activeWindowState)
+        reviewChatPanelMode = .chat
+        isChatTabActive = true
+        // The sources are read off the store, by which time the `inWindow`
+        // scope the click opened is gone: remember the window now.
+        let targetWindowID = (chatRequestOriginWindow ?? activeWindowState).id
+        Task { [weak self] in
+            guard let self else { return }
+            guard let request = await recentTeachBackRequest() else {
+                showToast("Nothing read, heard or watched this past week to explain yet.")
+                return
+            }
+            pendingRecentTeachBack = request
+            reviewChatAutoStartRequestID = UUID()
+            reviewChatTargetWindowID = targetWindowID
+        }
+    }
+
+    /// The sources a recent teach-back is about: those engaged since
+    /// yesterday's start, else since a week ago, still in the library and
+    /// not hidden. Nil when there are none.
+    func recentTeachBackRequest(now: Date = Date()) async -> RecentTeachBackRequest? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        for (days, sinceYesterday) in [(TeachBack.recentDays, true), (TeachBack.widerRecentDays, false)] {
+            guard let since = calendar.date(byAdding: .day, value: -(days - 1), to: today) else { continue }
+            let ids = (try? await storage.recentlyConsumedSourceIDs(since: since, limit: TeachBack.recentSourceLimit * 2)) ?? []
+            let sourceIDs = ids
+                .compactMap { articlesById[$0] }
+                .filter { isSourceIncludedInKnowledge($0) }
+                .prefix(TeachBack.recentSourceLimit)
+                .map(\.id)
+            if !sourceIDs.isEmpty {
+                return RecentTeachBackRequest(sourceIDs: Array(sourceIDs), sinceYesterday: sinceYesterday)
+            }
+        }
+        return nil
+    }
+
     /// Reveal the previous-sessions list inside the open Chat panel (popover).
     func revealReviewSessionSidebar() {
         reviewSessionsRevealRequestID = UUID()
     }
 
+}
+
+/// What the strip's Feynman Technique hands the Chat panel: the sources, most
+/// recently engaged first, and whether they are since yesterday or from the
+/// past week.
+struct RecentTeachBackRequest: Equatable {
+    let sourceIDs: [String]
+    let sinceYesterday: Bool
 }

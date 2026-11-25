@@ -15,8 +15,15 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
     case place(SpaceDestination)
     /// The Courses list, the Space sidebar's hub.
     case courses
+    /// Not a place but a start: the Feynman Technique on what the learner
+    /// read recently, a new chat (product owner, 2026-11-24: "a one-button
+    /// accessible thingy that I can pin maybe in the top left. It should just
+    /// be a chat"). Offered last in the ⋯ and kept on the strip like a place.
+    case feynmanTechnique
 
     var id: String { key }
+
+    static let feynmanTechniqueKey = "feynmanTechnique"
 
     /// The Space places a shortcut can be. All is the Space itself (its
     /// row), Trash is a place to visit rarely, and a team's, a space's or a
@@ -30,7 +37,7 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
         let sidebar = SpaceDestination.sidebarPlaces(listsCanvases: listsCanvases).filter(places.contains)
         let leading = sidebar.filter { $0 == .notebooks }
         let rest = sidebar.filter { $0 != .notebooks }
-        return leading.map(Self.place) + [.courses] + rest.map(Self.place)
+        return leading.map(Self.place) + [.courses] + rest.map(Self.place) + [.feynmanTechnique]
     }
 
     /// How the strip stores it: the place's `SpaceDestination.key`, or
@@ -39,6 +46,7 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
         switch self {
         case .place(let place): return place.key
         case .courses: return "courses"
+        case .feynmanTechnique: return Self.feynmanTechniqueKey
         }
     }
 
@@ -48,6 +56,10 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
     init?(key: String) {
         if key == "courses" {
             self = .courses
+            return
+        }
+        if key == Self.feynmanTechniqueKey {
+            self = .feynmanTechnique
             return
         }
         let place = SpaceDestination(key: key)
@@ -66,6 +78,7 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
         switch self {
         case .place(let place): return place.title
         case .courses: return SpaceHub.courses.title
+        case .feynmanTechnique: return TeachBack.title
         }
     }
 
@@ -73,6 +86,8 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
         switch self {
         case .place(let place): return place.symbolName
         case .courses: return SpaceHub.courses.symbolName
+        // The notebook guide's chip draws the same.
+        case .feynmanTechnique: return "person.bubble"
         }
     }
 
@@ -88,6 +103,7 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
         switch self {
         case .place(let place): return place.openableKind?.centerTab
         case .courses: return SpaceHub.courses.tab.centerTab
+        case .feynmanTechnique: return nil
         }
     }
 

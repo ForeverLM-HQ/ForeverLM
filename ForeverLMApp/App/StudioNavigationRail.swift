@@ -1098,6 +1098,9 @@ struct StudioNavigationRail: View {
             return activeTabs.contains(.artifacts) && windowState.spaceDestinationKey == place.key
         case .courses:
             return activeTabs.contains(.courses)
+        // A start, not a place: never lit.
+        case .feynmanTechnique:
+            return false
         }
     }
 
@@ -1107,6 +1110,7 @@ struct StudioNavigationRail: View {
             switch shortcut {
             case .place(let place): vm.showSpace(place, in: windowState)
             case .courses: vm.openCoursesListInReader(in: windowState)
+            case .feynmanTechnique: vm.requestRecentTeachBack()
             }
         }
     }
@@ -1117,6 +1121,7 @@ struct StudioNavigationRail: View {
         case .place(.sites): return .sites
         case .place: return nil
         case .courses: return .courses
+        case .feynmanTechnique: return nil
         }
     }
 
