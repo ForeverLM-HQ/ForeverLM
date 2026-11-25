@@ -33,6 +33,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.10 (build 328) — 2026-11-25
+
+**Highlights:**
+- **ForeverLM is paid again:** 7 days free, then $19 once; 1.0.9's free test is over.
+
+- **ForeverLM costs $19 again: 7 days free, then $19 once.** Build 327 made it free for a few hours as a test. The pay screen after the free days, the lock and **Settings › Billing** are back as they were in 1.0.8; the Reader, the assistant view and the merged assistant tools from 1.0.9 stay.
+
 ## 1.0.9 (build 327) — 2026-11-25
 
 **Highlights:**
