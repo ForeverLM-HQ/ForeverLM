@@ -1463,6 +1463,10 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
             || lowerText.contains("checking your browser")
             || lowerText.contains("performing security verification")
             || lowerText.contains("enable javascript and cookies to continue")
+            // archive.today's CAPTCHA page ("One more step. Please complete the
+            // security check to access archive.is"), stored as The Atlantic's
+            // "How Warren Buffett Did It" (found 2026-11-26).
+            || lowerText.contains("complete the security check to access")
     }
 
     /// A document whose head has loaded but whose body has no readable text or

@@ -141,7 +141,7 @@ actor SourceService {
         // Fallback: use WKWebView to render JS-heavy / bot-protected pages (macOS only)
         #if os(macOS)
         let rendered = try await WebViewContentExtractor.shared.extractContent(from: url)
-        if SubstackAppLink.isReaderShell(rendered) { throw SourceError.insufficientContent }
+        if let refusal = Self.notTheArticle(pageText: rendered) { throw refusal }
         return rendered
         #else
         throw SourceError.accessDenied
@@ -1280,10 +1280,10 @@ actor SourceService {
         )
 
         let plainText = extractTextFromHTML(readableHTML)
-        guard !plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !SubstackAppLink.isReaderShell(plainText) else {
+        guard !plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SourceError.insufficientContent
         }
+        if let refusal = Self.notTheArticle(pageText: plainText) { throw refusal }
 
         // Best-effort archival: clean HTML, download images, save to disk
         let localPath = writeArchive
@@ -1558,6 +1558,12 @@ actor SourceService {
             renderedHTML = nil
         }
         let page = Self.fullerPageHTML(fetched: fetchedHTML, rendered: renderedHTML)
+        // The site said the page is gone; the browser's copy of it is the
+        // site's "not found" page unless it reads like an article.
+        if let status = (plainFetch?.1 as? HTTPURLResponse)?.statusCode, status == 404 || status == 410,
+           page.map({ Self.readableWordCount(ofHTML: $0) < Self.scriptRenderedPageWordThreshold }) ?? true {
+            throw SourceError.httpError(status)
+        }
         #else
         let page = fetchedHTML
         #endif
@@ -1568,6 +1574,40 @@ actor SourceService {
             throw SourceError.accessDenied
         }
         return page
+    }
+
+    /// Fewer words than this, counting only words with a letter in them, is
+    /// no article: a cookie panel ("Analytics preferences"), a publication's
+    /// footer, a page whose body never loaded.
+    nonisolated static let minimumArticleWordCount = 30
+
+    /// Why a page's text is not the article it was fetched for, or nil when it
+    /// may be. Every web page a source stores passes through here
+    /// (`archiveWebPageHTML`: ingestion, Refresh from Website, a page the
+    /// reader adopts), so none of these can become a source's text. A survey of
+    /// the library on 2026-11-26 found each kind stored as an article: Substack's
+    /// reader bar (8), a 404 page (2), a cookie panel and a publication footer.
+    /// A publisher bot check is judged by the callers, which park the source
+    /// for the reader to fill (`recordSecurityChallengeBlock`).
+    nonisolated static func notTheArticle(pageText text: String) -> SourceError? {
+        if SubstackAppLink.isReaderShell(text) { return .insufficientContent }
+        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .filter { $0.contains(where: \.isLetter) }
+        if words.count < minimumArticleWordCount { return isErrorPage(text) ? .httpError(404) : .insufficientContent }
+        if words.count < 120, isErrorPage(text) { return .httpError(404) }
+        return nil
+    }
+
+    /// Whether the opening of a short page is a "not found" page: "404",
+    /// "Not Found", "Page not found", "This page could not be found".
+    nonisolated static func isErrorPage(_ text: String) -> Bool {
+        let opening = text.prefix(400).lowercased()
+        let says404 = opening.range(of: #"(^|[^0-9])404([^0-9]|$)"#, options: .regularExpression) != nil
+        return says404
+            || opening.contains("page not found")
+            || opening.contains("page could not be found")
+            || opening.contains("page doesn't exist")
+            || opening.contains("page does not exist")
     }
 
     /// Below this many readable words, a page fetched over plain HTTP is

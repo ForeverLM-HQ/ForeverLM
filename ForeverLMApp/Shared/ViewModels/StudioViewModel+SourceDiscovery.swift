@@ -936,22 +936,57 @@ extension StudioViewModel {
         }
     }
 
-    /// Once a launch: each article saved under a Substack app link whose text
-    /// is Substack's reader, its navigation bar and nothing else, is read again
-    /// from the post's own address (Refresh from Website, which now reads an
-    /// app link there). Seven posts saved from the reader before 2026-11-12
-    /// held only "Home Subscriptions Chat Activity Explore…" (2026-11-26). One
-    /// Substack does not answer for keeps its text and is tried next launch.
-    func rereadSubstackReaderShellSources() async {
-        guard !didRereadSubstackReaderShellSources else { return }
-        didRereadSubstackReaderShellSources = true
-        let appLinkArticles = articles.filter { SubstackAppLink.isAppLink($0.url) }
-        for article in appLinkArticles {
-            guard let saved = try? await storage.savedArticleCopy(article.id),
-                  let text = saved.text ?? saved.stagedRaw,
-                  SubstackAppLink.isReaderShell(text) else { continue }
-            let outcome = await refreshArticleFromWebsiteOutcome(article.id)
-            logger.info("Re-read Substack reader-shell source \(article.id, privacy: .public): \(String(describing: outcome), privacy: .public)")
+    /// Once a launch: each web article whose saved text is not the article —
+    /// a publisher bot check, Substack's reader bar, a "not found" page, or
+    /// too few words to be one (`SourceService.notTheArticle`) — is read again
+    /// from its website. A read that fails leaves the source without the junk:
+    /// its text and archived page are cleared and it is marked as not fetched,
+    /// so it no longer looks finished, the reader shows the live page, and a
+    /// page the reader then shows can become its text. A survey on 2026-11-26
+    /// found 24 such articles, saved by routes that judged nothing, or before
+    /// the bot-check guard existed.
+    func repairSourcesHoldingNonArticlePages() async {
+        guard !didRepairSourcesHoldingNonArticlePages else { return }
+        didRepairSourcesHoldingNonArticlePages = true
+        let candidates = articles.filter {
+            Self.canRefreshArticleFromWebsite($0)
+                && (($0.wordCount ?? 0) < SourceService.scriptRenderedPageWordThreshold || SubstackAppLink.isAppLink($0.url))
+        }
+        for candidate in candidates {
+            guard let text = await storage.loadSourceContent(candidate.id),
+                  let reason = Self.nonArticleReason(text: text, title: candidate.title, url: candidate.url) else { continue }
+            let outcome = await refreshArticleFromWebsiteOutcome(candidate.id)
+            if case .refreshed = outcome {
+                logger.info("Re-read \(candidate.id, privacy: .public), which held \(reason, privacy: .public)")
+                continue
+            }
+            guard let idx = articles.firstIndex(where: { $0.id == candidate.id }) else { continue }
+            await storage.clearSourceDerivedData(candidate.id)
+            articles[idx].content = nil
+            articles[idx].wordCount = 0
+            articles[idx].localFilePath = nil
+            articles[idx].state = .error
+            articles[idx].errorMessage = reason == Self.securityCheckReason
+                ? Self.securityChallengeFailureMessage
+                : "The saved page was \(reason), not the article. Open it to read it again."
+            await persistSource(articles[idx], context: "Clear a saved page that was not the article", showErrorToast: false)
+            logger.info("Cleared \(candidate.id, privacy: .public), which held \(reason, privacy: .public): \(String(describing: outcome), privacy: .public)")
+        }
+    }
+
+    nonisolated private static let securityCheckReason = "a publisher bot check"
+
+    /// What a source's saved text is instead of its article, or nil when it
+    /// may be the article. A placeholder written on purpose ("URL reference
+    /// only") is left alone.
+    nonisolated static func nonArticleReason(text: String, title: String, url: String) -> String? {
+        if text.contains("Full text intentionally not ingested") { return nil }
+        if SourceDiscovery.isSecurityVerificationContent(text: text, title: title, url: url) { return securityCheckReason }
+        if SubstackAppLink.isReaderShell(text) { return "Substack's reader bar" }
+        switch SourceService.notTheArticle(pageText: text) {
+        case .httpError?: return "a \"not found\" page"
+        case .some: return "too short to be an article"
+        case nil: return nil
         }
     }
 

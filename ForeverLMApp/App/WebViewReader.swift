@@ -975,7 +975,8 @@ struct WebViewReader: NSViewRepresentable {
             return {
                 html: document.documentElement ? document.documentElement.outerHTML : '',
                 title: document.title || '',
-                text: document.body ? (document.body.innerText || '') : ''
+                text: document.body ? (document.body.innerText || '') : '',
+                location: document.location ? document.location.href : ''
             };
         })()
         """
@@ -1002,7 +1003,7 @@ struct WebViewReader: NSViewRepresentable {
                       webView.url?.isFileURL != true,
                       Self.isSamePage(webView.url, pageURL),
                       vm.readerPageCanSupplySourceContent(articleId) else { return }
-                guard let page = await Self.renderedPageSnapshot(of: webView) else { return }
+                guard let page = await Self.renderedPageSnapshot(of: webView, expectedPage: pageURL) else { return }
                 // Papers are never taken from a page here: a paper is a PDF,
                 // and the learner asks for the page with Save Paper from Page.
                 await vm.adoptRenderedReaderPage(
@@ -1015,12 +1016,25 @@ struct WebViewReader: NSViewRepresentable {
         }
 
         /// The document the web view holds, as the reader sees it. Nil when
-        /// the page has no markup to hand over.
-        static func renderedPageSnapshot(of webView: WKWebView) async -> (html: String, title: String?, text: String)? {
+        /// the page has no markup to hand over, or when `expectedPage` is given
+        /// and the document is another page. `webView.url` names the page a
+        /// navigation is heading to as soon as it starts, while the document is
+        /// still the one before it: a source added from one page of a site and
+        /// then another was saved with the first page's text (2026-10-08,
+        /// "Explaining major evolutionary change" holding "Constraints on
+        /// evolutionary change"). The document's own address says which it is.
+        static func renderedPageSnapshot(
+            of webView: WKWebView,
+            expectedPage: URL? = nil
+        ) async -> (html: String, title: String?, text: String)? {
             let snapshot = try? await webView.evaluateJavaScript(renderedPageSnapshotJS)
             guard let page = snapshot as? [String: Any],
                   let html = page["html"] as? String,
                   !html.isEmpty else { return nil }
+            if let expectedPage {
+                let documentURL = (page["location"] as? String).flatMap(URL.init(string:))
+                guard isSamePage(documentURL, expectedPage) else { return nil }
+            }
             return (html, page["title"] as? String, page["text"] as? String ?? "")
         }
 
@@ -1571,7 +1585,7 @@ struct WebViewReader: NSViewRepresentable {
             )
         }
 
-        private static func isSamePage(_ lhs: URL?, _ rhs: URL?) -> Bool {
+        static func isSamePage(_ lhs: URL?, _ rhs: URL?) -> Bool {
             guard let lhs, let rhs else { return false }
             if lhs == rhs { return true }
             var lhsParts = URLComponents(url: lhs, resolvingAgainstBaseURL: false)

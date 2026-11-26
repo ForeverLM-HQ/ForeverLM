@@ -524,7 +524,7 @@ struct BrowserPane: View {
         _ = await vm.waitForSourceFetch(articleID, timeout: .seconds(90))
         guard webView.url == expectedURL || webView.url?.absoluteString == expectedURL.absoluteString,
               vm.readerPageCanSupplySourceContent(articleID),
-              let page = await WebViewReader.Coordinator.renderedPageSnapshot(of: webView) else { return }
+              let page = await WebViewReader.Coordinator.renderedPageSnapshot(of: webView, expectedPage: expectedURL) else { return }
         let adoption = await vm.adoptRenderedReaderPage(
             articleId: articleID,
             html: page.html,

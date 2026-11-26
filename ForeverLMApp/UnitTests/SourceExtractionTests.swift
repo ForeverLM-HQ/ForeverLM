@@ -636,3 +636,38 @@ struct OpenAccessPDFRecoveryTests {
         #expect(cookie?.expiresDate == now.addingTimeInterval(86_400))
     }
 }
+
+/// Pages that were stored as articles before 2026-11-26, and are refused now.
+@Suite("Pages that are not the article")
+struct NotTheArticleTests {
+    private let realArticle = "Constraints on evolutionary change\n" + String(repeating: "A lineage’s development may limit the sorts of phenotypes that it can evolve. ", count: 12)
+
+    @Test("A cookie panel, a footer and Substack's reader bar are refused")
+    func thinPagesAreRefused() {
+        #expect(SourceService.notTheArticle(pageText: "CellType | The Biological World Model\n\nAnalytics preferences") == .insufficientContent)
+        #expect(SourceService.notTheArticle(pageText: "# Zoe Hoare\nSubscribeSign in© 2026 Zoe Hoare · Privacy ∙ Terms ∙ Collection notice Start your SubstackGet the appSubstack is the home for great culture") == .insufficientContent)
+        #expect(SourceService.notTheArticle(pageText: "Two weeks in the wetlab\n\nHomeSubscriptionsChatActivityExploreDashboardProfileCreateMoreWhat's on your mind?For you") == .insufficientContent)
+    }
+
+    @Test("A \"not found\" page is refused as a 404")
+    func errorPagesAreRefused() {
+        #expect(SourceService.notTheArticle(pageText: "Selling AI Products + Services to Big Pharma | Ending Unexpected Drug Toxicity.\n\n# 404\nNot Found") == .httpError(404))
+        #expect(SourceService.notTheArticle(pageText: "OpenAI\n\nOpenAI\n# 404\nServer lights stay warm\nSomewhere, a small fan marks time\nThe room hums again\nby a model(opens in a new window)") == .httpError(404))
+    }
+
+    @Test("An article, even one that mentions 404 later, is kept")
+    func articlesAreKept() {
+        #expect(SourceService.notTheArticle(pageText: realArticle) == nil)
+        #expect(SourceService.notTheArticle(pageText: realArticle + " The server answered 404.") == nil)
+        #expect(SourceService.notTheArticle(pageText: "In 4040 BC " + realArticle) == nil)
+    }
+
+    @Test("The library repair names what a source holds, and leaves placeholders alone")
+    func repairJudgesSavedText() {
+        #expect(StudioViewModel.nonArticleReason(text: realArticle, title: "Constraints", url: "https://example.org/a") == nil)
+        #expect(StudioViewModel.nonArticleReason(text: "Rotenone, Paraquat, and Parkinson’s Disease\n\nURL reference only. Full text intentionally not ingested.", title: "Rotenone", url: "https://doi.org/10.1289/ehp.1002839") == nil)
+        let wall = "GLP-1 Drugs for Aging? | Science | AAAS\n\nwww.science.org\nPerforming security verification\nThis website uses a security service to protect against malicious bots."
+        #expect(StudioViewModel.nonArticleReason(text: wall, title: "GLP-1 Drugs for Aging?", url: "https://www.science.org/content/blog-post/glp-1-drugs-aging") == "a publisher bot check")
+        #expect(StudioViewModel.nonArticleReason(text: "x\n\n# 404\nNot Found", title: "x", url: "https://example.org/x") == "a \"not found\" page")
+    }
+}
