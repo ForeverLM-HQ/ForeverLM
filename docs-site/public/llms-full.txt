@@ -854,6 +854,11 @@ in the page, in any case and with or without accents. The magnifier at the
 top of the Space's sidebar searches every place at once: it opens **All**
 with its search ready.
 
+The sidebar toggle at the window's top left folds the Space's sidebar with the
+rest of the sidebar. With the Space in a pane beside another, that pane has a
+toggle of its own at its top left, over the sidebar: it folds the Space's
+sidebar out of the pane's way and, from the same place, brings it back.
+
 Goals belong to [Plan](/plan): each appears under the quarter that contains
 its deadline, and `/goal` sets one. Ideas may be kept in lists in the Space.
 
@@ -1383,9 +1388,10 @@ A video's row says how much of it you have watched, *42% watched* and then *Watc
 
 Any source can be hidden without being removed: right-click its row and choose **Hide**, or select it and press Delete, then **Hide Source**. Hiding one source is purely visual. A hidden podcast episode, paper, article or video leaves the sources list and nothing else: chat can still read and cite it, search still finds it, and reviews still draw on it. Hiding a whole podcast show or YouTube channel is stronger: its episodes are kept out of chat, search and reviews too, and unhiding one episode from Hidden Items brings that episode back into both. To keep a whole family of sources away from the AI, use the per-tab knowledge exclusion in Settings. The tab's quiet **hidden items** row at the foot of the list opens Hidden Items. Click a hidden source there to read it in the Reader without unhiding it, or click **Unhide** to bring it back to the list. Several selected rows hide together as **Hide N Sources**.
 
-After removing a source or collection, an **Undo** banner appears briefly.
-Undo before it expires to restore the untouched item. Once the banner expires,
-normal deletion finishes and re-ingestion may be required.
+After removing a source or collection, the bell (Notifications) at the foot of
+the strip shows a dot for ten seconds, and lists the removal with **Undo**. Undo
+in that time restores the untouched item; after it, normal deletion finishes and
+re-ingestion may be required. Nothing pops up over the window.
 
 ## Schedule
 
@@ -6855,6 +6861,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 1.0.16 (build 334) — 2026-11-26
+
+**Highlights:**
+- **A card can hold an argument's steps, each a card of its own.**
+- **Saved articles keep their figures.**
+- **Nothing pops up at the bottom of the window.**
+
+- **A card can hold an argument's steps, each a card of its own.** Ask a chat for "a card for this paper's argument, and one for each step". In the card review, a step of the answer that has its own card shows a magnifier: click it to be asked that step now, then the argument's answer comes back for its own grade.
+- **Saved articles keep their figures.** A figure a page wrote without quotes, as minified sites do, or offered at several sizes is downloaded with the article and shows in the Reader, offline too, where its alt text or a blank showed before.
+- **No white line through a selection in the Reader.** Selecting again after the **Chat** bar had shown sometimes left a thin white line through the highlight where the bar had been.
+- **A table on a card's back draws as a table,** with its header, aligned columns and no pipes, in To Check, the card review, the chat's saved cards and the Knowledge Map. Where a card shows as one line, its links and bold read as words, and the voice review no longer reads a link's address aloud.
+- **A Page in your Space leads with ‹ and the list it is in.** Open a Page from Pages and its top line starts with **‹ Pages**; a click takes you back to the list.
+- **Nothing pops up at the bottom of the window.** After you remove something, its **Undo** waits under the bell (Notifications), first in the list, for the ten seconds the removal can still be taken back, and the bell shows a dot meanwhile.
+- **The Space's sidebar folds in a pane beside another.** With the Space open in the pane on the right, a sidebar toggle at that pane's top left folds the sidebar and, from the same place, brings it back.
+- **In Codex, the ForeverLM view runs today's card review:** a card at a time, **Show Answer**, then **Forgot** or **Remembered**, each answer saved to your Mac. A Library row's **Chat** puts its source in the draft once, then reads **Added**.
 
 ## 1.0.15 (build 333) — 2026-11-26
 

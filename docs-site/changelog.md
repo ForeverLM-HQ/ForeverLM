@@ -33,6 +33,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.16 (build 334) — 2026-11-26
+
+**Highlights:**
+- **A card can hold an argument's steps, each a card of its own.**
+- **Saved articles keep their figures.**
+- **Nothing pops up at the bottom of the window.**
+
+- **A card can hold an argument's steps, each a card of its own.** Ask a chat for "a card for this paper's argument, and one for each step". In the card review, a step of the answer that has its own card shows a magnifier: click it to be asked that step now, then the argument's answer comes back for its own grade.
+- **Saved articles keep their figures.** A figure a page wrote without quotes, as minified sites do, or offered at several sizes is downloaded with the article and shows in the Reader, offline too, where its alt text or a blank showed before.
+- **No white line through a selection in the Reader.** Selecting again after the **Chat** bar had shown sometimes left a thin white line through the highlight where the bar had been.
+- **A table on a card's back draws as a table,** with its header, aligned columns and no pipes, in To Check, the card review, the chat's saved cards and the Knowledge Map. Where a card shows as one line, its links and bold read as words, and the voice review no longer reads a link's address aloud.
+- **A Page in your Space leads with ‹ and the list it is in.** Open a Page from Pages and its top line starts with **‹ Pages**; a click takes you back to the list.
+- **Nothing pops up at the bottom of the window.** After you remove something, its **Undo** waits under the bell (Notifications), first in the list, for the ten seconds the removal can still be taken back, and the bell shows a dot meanwhile.
+- **The Space's sidebar folds in a pane beside another.** With the Space open in the pane on the right, a sidebar toggle at that pane's top left folds the sidebar and, from the same place, brings it back.
+- **In Codex, the ForeverLM view runs today's card review:** a card at a time, **Show Answer**, then **Forgot** or **Remembered**, each answer saved to your Mac. A Library row's **Chat** puts its source in the draft once, then reads **Added**.
+
 ## 1.0.15 (build 333) — 2026-11-26
 
 **Highlights:**
