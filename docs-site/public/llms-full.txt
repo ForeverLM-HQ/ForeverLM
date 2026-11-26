@@ -6856,6 +6856,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.15 (build 333) — 2026-11-26
+
+**Highlights:**
+- **Tabs look like Codex's.**
+- **A chat sees what is open beside it only when you say so.**
+
+- **Tabs look like Codex's.** Every tab in a pane is the same width, the open one a soft grey with dark text and the others grey, and each tab's **×** is at its right end: always on the open tab, and on the others when you point at them. A crowded pane narrows all its tabs alike.
+- **A chat sees what is open beside it only when you say so.** Sources, cards, Pages and web pages open next to a chat stay out of its context until you press **Add what's open** by the composer; **Settings** › **Chat** › **Context** turns the old behaviour back on. The **in context** pill has an **×** that clears everything in it at once.
+- **A card's links and bold show as links and bold,** where a back written with a figure link showed its Markdown marks. The link opens the paper at its page.
+- **One article saved at two addresses becomes one source.** When two saved articles hold the same text under the same title (a publication that moved, a Substack post on its own domain), they are filed as one; when one holds a different article's text, it is read again from its own page. Your library is checked once at launch.
+- **Listen no longer stops a book over one section.** When the voice model reads a section not quite word for word, that section is read again, then in halves, and the rest of the book carries on.
+
 ## 1.0.14 (build 332) — 2026-11-26
 
 **Highlights:**
