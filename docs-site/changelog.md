@@ -33,6 +33,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.14 (build 332) — 2026-11-26
+
+**Highlights:**
+- **Articles cleared while the Mac was offline are read again at launch.**
+
+- **Articles that were cleared while the Mac was offline are read again at launch.** The repair that re-reads articles saved as something else no longer gives up on one just because the network was down; it waits for the next launch, and fetches again the ones it had already cleared.
+
 ## 1.0.13 (build 331) — 2026-11-26
 
 **Highlights:**
