@@ -4,7 +4,13 @@ import SwiftUI
 import Combine
 import AppKit
 
-/// One tab in a center group's strip.
+/// One tab in a center group's strip, drawn as Codex draws its tabs: every
+/// tab one fixed width, icon and title at its leading edge, its × at the
+/// trailing one; the active tab a flat grey rounded fill with dark text, the
+/// others grey text on nothing (product owner, 2026-11-26: "look at the codex
+/// app and how they design Tabs; i want the same design for my tab").
+/// Measured off Codex's window: a 234 x 38pt tab, a 10pt corner, a #F2F3F3
+/// fill, a regular-weight title, the × always on the active tab.
 struct StudioCenterTabButton: View {
     let title: String
     let systemImage: String
@@ -19,9 +25,9 @@ struct StudioCenterTabButton: View {
     let onSplitRight: () -> Void
     let onClose: () -> Void
     var onRename: (() -> Void)? = nil
-    /// The most of the title this tab shows: `maxTextWidth`, or less where
-    /// the pane's strip would not fit otherwise (`StudioCenterTabStripFit`).
-    var titleCap: CGFloat = StudioCenterTabButton.maxTextWidth
+    /// The tab's width: `width`, or less where the pane's strip would not fit
+    /// otherwise (`StudioCenterTabStripFit`).
+    var tabWidth: CGFloat = StudioCenterTabButton.width
 
     @State private var hovering = false
     /// The pointer is over the tab's × slot, which its own click surface reports
@@ -30,56 +36,39 @@ struct StudioCenterTabButton: View {
     @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = StudioCenterTabButton.textSize
 
     /// The tab's ×.
-    private static let closeSize: CGFloat = 14
+    static let closeSize: CGFloat = 16
 
-    /// A browser's tab, not a toolbar chip: taller, with a 13pt title and
-    /// room around it (product owner, 2026-11-24, of a browser's tab strip:
-    /// "design the tabs to be a bit bigger like this"). The band is 54pt
-    /// (58pt windowed), so a 32pt tab still leaves it air above and below.
-    static let height: CGFloat = 32
+    /// Every tab is this wide while its pane has the room; a crowded strip
+    /// narrows them all alike, so no tab is wider than another.
+    static let width: CGFloat = 234
+    /// The band is 54pt (58pt windowed), so a 38pt tab leaves it air above
+    /// and below.
+    static let height: CGFloat = 38
     /// The title's base size, before Dynamic Type scales it.
-    static let textSize: CGFloat = 13
-    static let horizontalPadding: CGFloat = 12
-    static let iconSpacing: CGFloat = 6
-    static let cornerRadius: CGFloat = 9
+    static let textSize: CGFloat = 14
+    static let horizontalPadding: CGFloat = 14
+    static let iconSpacing: CGFloat = 8
+    static let cornerRadius: CGFloat = 10
 
-    /// What a tab adds to its title: its icon (about the text's size), the
-    /// gap after it and its padding on both sides.
-    static func chromeWidth(textSize: CGFloat) -> CGFloat {
-        textSize + iconSpacing + 2 * horizontalPadding
+    /// The × stands at the trailing edge, in one place on every tab (product
+    /// owner, 2026-11-21: "It doesn't make sense to me the way sometimes the X
+    /// to close the tab is on the left and sometimes it's on the right"). The
+    /// active tab always shows it; another tab shows it under the pointer.
+    /// Tabs are a fixed width, so the slot it keeps moves neither the title
+    /// nor the strip.
+    private var showsClose: Bool { isActive || hovering }
+
+    /// What the title may take: the tab less its padding, icon and × slot.
+    private var titleRoom: CGFloat {
+        max(0, tabWidth - 2 * Self.horizontalPadding - tabTextSize - 2 * Self.iconSpacing - Self.closeSize)
     }
-
-    /// Match the visual label's fixed metrics and give the representable an
-    /// explicit non-zero frame. Letting an intrinsic-size-less NSView take its
-    /// ideal size inside the ZStack can collapse its hit area to zero even
-    /// while the SwiftUI label beside it remains visible.
-    ///
-    /// No tab keeps a slot for its × after the title: an empty slot made the
-    /// gap after a tab three times the gap before it (product owner,
-    /// 2026-11-11: "the spacing here is kind of weirdly or badly designed in
-    /// this top bar"). Every tab, the active one included, shows its × in its
-    /// icon's place while the pointer is over it, as Safari's tabs do, so
-    /// neither the strip nor the title moves, and the × is in one place on
-    /// every tab (product owner, 2026-11-21: "It doesn't make sense to me the
-    /// way sometimes the X to close the tab is on the left and sometimes it's
-    /// on the right"; picked left, on hover).
-    private var tabWidth: CGFloat {
-        min(fullTextWidth, titleCap) + Self.chromeWidth(textSize: tabTextSize)
-    }
-
-    /// The tab is under the pointer, so its × stands where its icon was.
-    private var closeTakesIconPlace: Bool { hovering }
-
-    /// The most of a title a tab shows; a longer one runs off the edge.
-    /// A chat renamed to a long title took twice a place tab's width at 150
-    /// (product owner, 2026-11-12: "it takes up too much space"), so a tab
-    /// shows about two words and the hover tooltip carries the whole title.
-    static let maxTextWidth: CGFloat = 100
 
     private var fullTextWidth: CGFloat {
-        let font = NSFont.systemFont(ofSize: tabTextSize, weight: isActive ? .semibold : .medium)
+        let font = NSFont.systemFont(ofSize: tabTextSize, weight: .regular)
         return ceil((title as NSString).size(withAttributes: [.font: font]).width)
     }
+
+    private var tint: Color { isActive ? Color.primary : Color.secondary }
 
     var body: some View {
         ZStack {
@@ -106,20 +95,20 @@ struct StudioCenterTabButton: View {
 
             HStack(spacing: Self.iconSpacing) {
                 Image(systemName: systemImage)
-                    .font(.system(size: max(10, tabTextSize - 1), weight: .medium))
-                    .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
-                    .opacity(closeTakesIconPlace ? 0 : 1)
+                    .font(.system(size: max(10, tabTextSize - 1), weight: .regular))
+                    .foregroundStyle(tint)
+                    .frame(width: tabTextSize)
                 Text(title)
-                    .font(.system(size: tabTextSize, weight: isActive ? .semibold : .medium))
-                    .foregroundStyle(isActive ? Color.primary : Color.primary.opacity(0.75))
+                    .font(.system(size: tabTextSize, weight: .regular))
+                    .foregroundStyle(tint)
                     .lineLimit(1)
-                    // The title is laid out whole and cut at the cap, with a
-                    // soft fade instead of an ellipsis; short titles hug their text.
+                    // The title is laid out whole and cut at the room it has,
+                    // with a soft fade instead of an ellipsis.
                     .fixedSize(horizontal: true, vertical: false)
-                    .frame(width: min(fullTextWidth, titleCap), alignment: .leading)
+                    .frame(width: min(fullTextWidth, titleRoom), alignment: .leading)
                     .clipped()
                     .mask(alignment: .leading) {
-                        if fullTextWidth > titleCap {
+                        if fullTextWidth > titleRoom {
                             LinearGradient(
                                 stops: [
                                     .init(color: .black, location: 0.85),
@@ -132,6 +121,22 @@ struct StudioCenterTabButton: View {
                             Color.black
                         }
                     }
+                Spacer(minLength: 0)
+                // Only drawn here. The tab's own click surface owns the press,
+                // × slot included: a second surface for the × let the band's
+                // router pick it as the tightest target, and a click there
+                // closed nothing (product owner, 2026-11-15 and 2026-11-21:
+                // "clicking the X in these tabs doesn't actually close them").
+                Image(systemName: "xmark")
+                    .zoomedSystemFont(size: 10, weight: .medium)
+                    .foregroundStyle(closeHovering ? Color.primary : Color.secondary)
+                    .frame(width: Self.closeSize, height: Self.closeSize)
+                    .background {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.primary.opacity(closeHovering ? 0.08 : 0))
+                            .padding(-2)
+                    }
+                    .opacity(showsClose ? 1 : 0)
             }
                 .padding(.horizontal, Self.horizontalPadding)
                 .frame(width: tabWidth, height: Self.height, alignment: .leading)
@@ -140,28 +145,6 @@ struct StudioCenterTabButton: View {
                     isHovered: hovering,
                     cornerRadius: Self.cornerRadius
                 ))
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            // Only drawn here. The tab's own click surface owns the press, × slot
-            // included: a second surface for the × let the band's router pick it
-            // as the tightest target, and a click there closed nothing (product
-            // owner, 2026-11-15 and 2026-11-21: "clicking the X in these tabs
-            // doesn't actually close them"). One surface decides, the way a
-            // terminal tab's × does.
-            Image(systemName: "xmark")
-                .zoomedSystemFont(size: 9.5, weight: .semibold)
-                .foregroundStyle(closeHovering ? Color.primary : Color.secondary)
-                .frame(width: Self.closeSize, height: Self.closeSize)
-                .background {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.primary.opacity(closeHovering ? 0.10 : 0))
-                        .padding(-2)
-                }
-                .opacity(closeTakesIconPlace ? 1 : 0)
-                // Centred on the icon it stands in for.
-                .padding(.leading, Self.horizontalPadding - 1)
-                .frame(width: tabWidth, height: Self.height, alignment: .leading)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

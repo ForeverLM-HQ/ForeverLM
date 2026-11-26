@@ -511,29 +511,25 @@ struct StudioAudiobookPlayerPlacementTests {
     }
 }
 
-/// A crowded tab strip shortens its titles so it fits its pane
+/// A crowded tab strip narrows its tabs, all alike, so it fits its pane
 /// (`StudioCenterTabStripFit`), and never spills back under the controls.
 struct StudioCenterTabStripFitTests {
-    @Test("titles keep the full cap while the strip fits")
+    @Test("tabs keep their full width while the strip fits")
     func fitsUntouched() {
-        let cap = StudioCenterTabStripFit.titleCap(titleWidths: [40, 60, 200], available: 400)
-        #expect(cap == StudioCenterTabButton.maxTextWidth)
+        let width = StudioCenterTabStripFit.tabWidth(count: 2, available: 600)
+        #expect(width == StudioCenterTabButton.width)
     }
 
-    @Test("the longest titles shorten first; short ones keep their width")
-    func longestShortenFirst() {
-        // 40 + 60 fit whole; the 200-point title gets what is left of 180.
-        let cap = StudioCenterTabStripFit.titleCap(titleWidths: [40, 60, 200], available: 180)
-        #expect(cap == 80)
-        let used = [40, 60, 200].map { min(CGFloat($0), cap) }.reduce(0, +)
-        #expect(used <= 180)
+    @Test("a crowded strip shares the room evenly, spacing included")
+    func evenShare() {
+        let width = StudioCenterTabStripFit.tabWidth(count: 4, available: 400)
+        #expect(width == 98)
+        #expect(4 * (width + StudioCenterTabStripFit.spacing) <= 400)
     }
 
-    @Test("titles share evenly when all are too long, down to the minimum")
-    func evenShareAndFloor() {
-        let even = StudioCenterTabStripFit.titleCap(titleWidths: [100, 100, 100, 100], available: 200)
-        #expect(even == 50)
-        let floor = StudioCenterTabStripFit.titleCap(titleWidths: [100, 100, 100, 100], available: 10)
-        #expect(floor == StudioCenterTabStripFit.minimumTitleCap)
+    @Test("tabs never narrow past the minimum")
+    func floorHolds() {
+        let width = StudioCenterTabStripFit.tabWidth(count: 10, available: 100)
+        #expect(width == StudioCenterTabStripFit.minimumTabWidth)
     }
 }

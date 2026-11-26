@@ -677,52 +677,38 @@ struct StudioChromeLineHeader<Header: View>: ViewModifier {
     }
 }
 
-/// How far a pane's tab titles may run so its whole strip fits the pane.
-/// A strip wider than its pane was centred by its frame and spilled out on
-/// both sides: the first pane's first tab slid back under ‹ › and the sidebar
+/// How wide a pane's tabs are so its whole strip fits the pane. A strip
+/// wider than its pane was centred by its frame and spilled out on both
+/// sides: the first pane's first tab slid back under ‹ › and the sidebar
 /// toggle, and the last ones under the pane beside it (product owner,
-/// 2026-11-11: "This is still a visual mistake. Look at this overlap"). A
-/// crowded strip shortens its longest titles first, as Safari's tabs do, and
-/// what still does not fit runs off the trailing edge, never the leading one.
+/// 2026-11-11: "This is still a visual mistake. Look at this overlap").
+/// Every tab is one width, as Codex's are (2026-11-26); a crowded strip
+/// narrows them all alike, and what still does not fit runs off the trailing
+/// edge, never the leading one.
 enum StudioCenterTabStripFit {
-    /// The fewest points of a title a crowded strip leaves a tab.
-    static let minimumTitleCap: CGFloat = 28
-
-    /// What `count` tabs cost besides their titles: each one's padding and
-    /// icon with the strip's spacing after it (a tab shows its × in its
-    /// icon's place, so it keeps no room for one).
-    static func tabsChrome(count: Int, textSize: CGFloat) -> CGFloat {
-        guard count > 0 else { return 0 }
-        return CGFloat(count) * (StudioCenterTabButton.chromeWidth(textSize: textSize) + 2)
-    }
+    /// The narrowest a crowded strip makes a tab.
+    static let minimumTabWidth: CGFloat = 72
+    /// The space between two tabs.
+    static let spacing: CGFloat = 2
 
     /// What the strip spends besides its tabs: its two edges, + and the split
     /// button, and the spacing around them.
     static func fixedWidth(leadingPadding: CGFloat) -> CGFloat {
         leadingPadding + StudioTopBar.centerTabStripHorizontalPadding
-            + 2 * StudioPanelChrome.centerTabCloseButtonSize + 3 * 2
+            + 2 * StudioPanelChrome.centerTabCloseButtonSize + 3 * spacing
     }
 
-    /// The largest cap at which the titles, each shown up to it, fit in
-    /// `available`: short titles keep their whole width and the long ones
-    /// share what is left. `preferred` when everything fits.
-    static func titleCap(
-        titleWidths: [CGFloat],
+    /// The width at which `count` tabs, with the spacing after each, fit in
+    /// `available`: `preferred` when they all fit at it, never under `minimum`.
+    static func tabWidth(
+        count: Int,
         available: CGFloat,
-        preferred: CGFloat = StudioCenterTabButton.maxTextWidth,
-        minimum: CGFloat = minimumTitleCap
+        preferred: CGFloat = StudioCenterTabButton.width,
+        minimum: CGFloat = minimumTabWidth
     ) -> CGFloat {
-        let wanted = titleWidths.map { min($0, preferred) }.sorted()
-        guard !wanted.isEmpty, wanted.reduce(0, +) > available else { return preferred }
-        var remaining = max(0, available)
-        var left = CGFloat(wanted.count)
-        for width in wanted {
-            let share = remaining / left
-            if width > share { return max(minimum, floor(share)) }
-            remaining -= width
-            left -= 1
-        }
-        return preferred
+        guard count > 0 else { return preferred }
+        let share = floor(available / CGFloat(count) - spacing)
+        return max(minimum, min(preferred, share))
     }
 }
 
@@ -736,8 +722,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     @Environment(\.studioPanelTrailingOverflow) private var outerTrailingOverflow
-    /// The tabs' text size (`StudioCenterTabButton`), to fit a strip by.
-    @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = StudioCenterTabButton.textSize
 
     let onSessionDropAtEdge: (ReviewSessionTransfer, Bool) -> Void
     /// The chat store of a chat place in a pane, whose chats the strip draws
@@ -1157,20 +1141,15 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         let leadingPadding = isLeading
             ? max(StudioTopBar.centerTabStripHorizontalPadding, headerLeadingInset)
             : StudioTopBar.centerTabStripHorizontalPadding
-        let titles = group.openTabs.flatMap { tab -> [String] in
-            if let store = chatStore(tab, group.id) { return store.shownChatTabs.map(chatTabTitle) }
-            return [tab.stripTitle(readerShowsVideo: readerShowsVideo, spaceTitle: spaceTitle)]
+        let tabCount = group.openTabs.reduce(0) { count, tab in
+            count + (chatStore(tab, group.id)?.shownChatTabs.count ?? 1)
         }
-        let titleFont = NSFont.systemFont(ofSize: tabTextSize, weight: .semibold)
-        let titleWidths = titles.map { ceil(($0 as NSString).size(withAttributes: [.font: titleFont]).width) }
         return GeometryReader { geo in
-        let titleCap = StudioCenterTabStripFit.titleCap(
-            titleWidths: titleWidths,
-            available: geo.size.width
-                - StudioCenterTabStripFit.fixedWidth(leadingPadding: leadingPadding)
-                - StudioCenterTabStripFit.tabsChrome(count: titles.count, textSize: tabTextSize)
+        let tabWidth = StudioCenterTabStripFit.tabWidth(
+            count: tabCount,
+            available: geo.size.width - StudioCenterTabStripFit.fixedWidth(leadingPadding: leadingPadding)
         )
-        HStack(spacing: 2) {
+        HStack(spacing: StudioCenterTabStripFit.spacing) {
             ForEach(Array(group.openTabs.enumerated()), id: \.element) { tabIndex, tab in
                 if dropTarget == .tab(group: groupIndex, index: tabIndex) {
                     dropIndicatorCapsule
@@ -1185,7 +1164,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                             tab, in: group, at: groupIndex, tabIndex: tabIndex,
                             chat: (store, chatTab),
                             title: chatTabTitle(chatTab),
-                            titleCap: titleCap,
+                            tabWidth: tabWidth,
                             systemImage: systemImage,
                             isActive: group.activeTab == tab && store.isActiveChatTab(chatTab),
                             action: {
@@ -1212,7 +1191,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     tabButton(
                         tab, in: group, at: groupIndex, tabIndex: tabIndex,
                         title: title,
-                        titleCap: titleCap,
+                        tabWidth: tabWidth,
                         systemImage: systemImage,
                         isActive: group.activeTab == tab,
                         action: {
@@ -1310,7 +1289,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         tabIndex: Int,
         chat: (store: StudioAssistantSessionStore, tab: StudioAssistantSessionStore.ChatTab)? = nil,
         title: String,
-        titleCap: CGFloat,
+        tabWidth: CGFloat,
         systemImage: String,
         isActive: Bool,
         action: @escaping () -> Void,
@@ -1351,7 +1330,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             onSplitRight: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: true, in: windowState) },
             onClose: onClose,
             onRename: onRename,
-            titleCap: titleCap
+            tabWidth: tabWidth
         )
         .onDrop(of: StudioCenterTabDragPayload.dropTypes, delegate: StudioCenterTabDropDelegate(
             target: .tab(group: groupIndex, index: tabIndex),

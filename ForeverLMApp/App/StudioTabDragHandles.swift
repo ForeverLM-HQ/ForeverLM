@@ -142,9 +142,8 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
         }
     }
     private var closeTrackingArea: NSTrackingArea?
-    /// Every tab's × stands at its leading edge, in its icon's place
-    /// (`StudioCenterTabButton`).
-    private static let closeSlotWidth: CGFloat = StudioCenterTabButton.horizontalPadding + 18
+    /// Every tab's × stands at its trailing edge (`StudioCenterTabButton`).
+    private static let closeSlotWidth: CGFloat = StudioCenterTabButton.horizontalPadding + StudioCenterTabButton.closeSize + 4
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -214,10 +213,10 @@ final class StudioCenterTabDragHandleView: StudioBandTabHandleView {
         }
     }
 
-    /// Whether `event` pressed where the tab's × stands: its icon's place,
+    /// Whether `event` pressed where the tab's × stands: its trailing edge,
     /// on every tab (`StudioCenterTabButton`).
     fileprivate func pressIsInCloseSlot(_ event: NSEvent) -> Bool {
-        convert(event.locationInWindow, from: nil).x <= Self.closeSlotWidth
+        convert(event.locationInWindow, from: nil).x >= bounds.width - Self.closeSlotWidth
     }
 
     override func beginTabDrag(with event: NSEvent) {
