@@ -1234,11 +1234,11 @@ private struct ReviewChatReferencedCardFace: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(card.question.foldingMathSpans())
+            Text(card.question.cardFaceText())
                 .font(.system(size: 17, design: .serif))
                 .fixedSize(horizontal: false, vertical: true)
             Divider()
-            Text(card.answer.foldingMathSpans())
+            Text(card.answer.cardFaceText())
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

@@ -440,7 +440,7 @@ struct MobileMemoryScreen: View {
                 Text(wording(of: card))
                     .font(.body)
                     .lineLimit(3)
-                Text(card.face.backWords.foldingMathSpans())
+                Text(card.face.backWords.cardFaceText())
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

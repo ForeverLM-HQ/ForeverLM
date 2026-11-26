@@ -18,6 +18,25 @@ extension String {
 }
 
 extension String {
+    /// A card's front or back as a `Text` draws it: math spans folded, then
+    /// the inline Markdown a card may carry drawn rather than shown as marks
+    /// — a `[Figure 4f](foreverlm://source/…?page=6)` link becomes the words
+    /// "Figure 4f", clickable, and `**Donor origin:**` becomes bold. Line
+    /// breaks are kept. Text with no Markdown mark comes back as it was.
+    func cardFaceText() -> AttributedString {
+        let folded = foldingMathSpans()
+        guard folded.contains(where: { $0 == "[" || $0 == "*" || $0 == "_" || $0 == "`" }) else {
+            return AttributedString(folded)
+        }
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace,
+            failurePolicy: .returnPartiallyParsedIfPossible
+        )
+        return (try? AttributedString(markdown: folded, options: options)) ?? AttributedString(folded)
+    }
+}
+
+extension String {
     /// The receiver with each math span (`\(…\)`, `\[…\]`, `$$…$$`) folded
     /// into readable text and everything around the spans untouched, line
     /// breaks included. A card's front, back and why are prose with a formula

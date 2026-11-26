@@ -1067,7 +1067,7 @@ private struct MemoryCardToCheckFace: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(card.face.front.foldingMathSpans())
+            Text(card.face.front.cardFaceText())
                 .font(MemoryCardMetrics.frontFont)
                 .foregroundStyle(opened == nil ? Color.primary : Color.secondary)
                 .lineSpacing(2)
@@ -1137,7 +1137,7 @@ private struct MemoryCardToCheckFace: View {
                     .padding(.bottom, 16)
             }
             let back = CardVisualization.split(card.face.back)
-            Text(back.words.foldingMathSpans())
+            Text(back.words.cardFaceText())
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)

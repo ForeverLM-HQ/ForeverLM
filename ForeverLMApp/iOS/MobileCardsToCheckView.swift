@@ -343,7 +343,7 @@ struct MobileCardsToCheckList<Header: View>: View {
         let inset: CGFloat = horizontalSizeClass == .regular ? 34 : 24
         let shown = isOpen(card)
         return VStack(alignment: .leading, spacing: 0) {
-            Text(card.face.front.foldingMathSpans())
+            Text(card.face.front.cardFaceText())
                 .font(.system(size: frontSize, weight: .regular, design: .serif))
                 .foregroundStyle(shown ? Color.secondary : Color.primary)
                 .lineSpacing(2)
@@ -366,7 +366,7 @@ struct MobileCardsToCheckList<Header: View>: View {
                         .padding(.bottom, 14)
                 }
                 let back = CardVisualization.split(card.face.back)
-                Text(back.words.foldingMathSpans())
+                Text(back.words.cardFaceText())
                     .font(.system(size: backSize))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)

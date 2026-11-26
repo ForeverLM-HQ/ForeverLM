@@ -257,7 +257,7 @@ struct MemoryCardSessionView: View {
         let hasTopRow = !tags.isEmpty || card.isVariant || card.alwaysAsk
         return VStack(alignment: .leading, spacing: 0) {
             let front = CardVisualization.split(card.prompt)
-            Text(front.words.foldingMathSpans())
+            Text(front.words.cardFaceText())
                 .font(MemoryCardMetrics.frontFont)
                 .foregroundStyle(shown ? Color.secondary : Color.primary)
                 .lineSpacing(2)
@@ -352,7 +352,7 @@ struct MemoryCardSessionView: View {
                     .padding(.bottom, 16)
             }
             let back = CardVisualization.split(card.back)
-            Text(back.words.foldingMathSpans())
+            Text(back.words.cardFaceText())
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)

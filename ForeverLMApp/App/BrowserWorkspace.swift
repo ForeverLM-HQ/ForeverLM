@@ -1632,7 +1632,21 @@ enum WebLinkOpening {
     /// The same choice for a SwiftUI `Link` or a link in a `Text`: the
     /// Studio window's `openURL` (`ForeverLMApp`).
     @MainActor
+    ///
+    /// An app link a card or a reply writes (`foreverlm://source/…`) goes to
+    /// this running app: under a build whose own scheme differs (`foreverlm-dev`
+    /// in Dev) it is readdressed to that scheme first, so the system never
+    /// hands it to another ForeverLM that happens to be installed.
     static func handle(_ url: URL) -> OpenURLAction.Result {
+        let ownScheme = ForeverLMRuntimeIdentity.urlScheme
+        if url.scheme?.lowercased() == "foreverlm", ownScheme.lowercased() != "foreverlm",
+           var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            parts.scheme = ownScheme
+            if let own = parts.url {
+                NSWorkspace.shared.open(own)
+                return .handled
+            }
+        }
         guard isWebLink(url) else { return .systemAction }
         open(url)
         return .handled
