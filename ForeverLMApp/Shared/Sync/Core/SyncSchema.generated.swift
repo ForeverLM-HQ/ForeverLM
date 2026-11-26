@@ -1028,6 +1028,7 @@ enum SyncTypeSpecs {
             SyncFieldSpec("supersedes", json: "id", policy: .serverFirst, refs: [.card]),
             SyncFieldSpec("splitFrom", json: "id", policy: .serverFirst, refs: [.card]),
             SyncFieldSpec("legacy", json: "object", policy: .serverFirst),
+            SyncFieldSpec("details", json: "object", kind: .map, policy: .lastWriter),
             SyncFieldSpec("pictures", json: "FileRef", kind: .map, policy: .lastWriter),
             SyncFieldSpec("editedAt", json: "ms", policy: .maximum, requirement: .always),
         ],

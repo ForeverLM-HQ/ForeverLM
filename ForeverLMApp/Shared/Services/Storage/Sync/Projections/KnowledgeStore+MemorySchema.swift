@@ -64,6 +64,21 @@ extension KnowledgeStore {
             ("supersedes", "TEXT"),
             ("split_from", "TEXT"),
         ]),
+        // A card's details (`Card.details`, schema 181): one row per card that takes one point of an
+        // overview card's answer further, such as a step of an argument. `parent_id` is the overview's
+        // Card id, `child_id` the detail's; `point` is the overview's line the detail elaborates, as
+        // written, and `sort_index` its place among the details. No foreign key either way, so
+        // deleting, retiring or starting over either card never touches the other (a link whose card
+        // is gone is simply not drawn). Rows feed the overview's record, one map element each.
+        ReplicaSchemaTable("memory_card_links", [
+            ("parent_id", "TEXT NOT NULL"),
+            ("child_id", "TEXT NOT NULL"),
+            ("point", "TEXT NOT NULL DEFAULT ''"),
+            ("sort_index", "INTEGER NOT NULL DEFAULT 0"),
+            ("linked_at", "REAL NOT NULL"),
+        ], constraints: ["PRIMARY KEY (parent_id, child_id)"], indexes: [
+            "CREATE INDEX IF NOT EXISTS idx_memory_card_links_child ON memory_card_links(child_id)",
+        ]),
         // This Mac's own activity log for a day (§3.5.24), the one `al:<day>:<deviceID>` record it
         // writes: `sources_json` is the `sources` map, `review_json` the goal clock. '' as the device
         // is this Mac before it knew its sync device id.

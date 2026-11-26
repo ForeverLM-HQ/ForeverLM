@@ -889,6 +889,7 @@ export const TYPES = deepFreeze({
       "supersedes": {"json":"id","kind":"scalar","policy":"S","required":false,"ref":["Card"]},
       "splitFrom": {"json":"id","kind":"scalar","policy":"S","required":false,"ref":["Card"]},
       "legacy": {"json":"object","kind":"scalar","policy":"S","required":false},
+      "details": {"json":"object","kind":"map","policy":"L","required":false},
       "pictures": {"json":"FileRef","kind":"map","policy":"L","required":false},
       "editedAt": {"json":"ms","kind":"scalar","policy":"X","required":true}
     },

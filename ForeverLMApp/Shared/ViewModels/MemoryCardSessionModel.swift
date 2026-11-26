@@ -65,6 +65,25 @@ final class MemoryCardSessionModel: Identifiable {
         let reply: @MainActor (_ request: MemoryUnderstandingProbe.CardReplyRequest, _ cardID: String) async throws -> String
     }
 
+    /// A card's links (docs/memory-design.md, "Cards that nest"): the details
+    /// its answer's points lead to, as cards the review can ask, and the
+    /// fronts of the overviews it is itself a detail of.
+    struct CardLinks: Equatable, Sendable {
+        var details: [Detail] = []
+        var overviewFronts: [String] = []
+    }
+
+    /// One detail of an overview, as the review asks it.
+    struct Detail: Equatable, Identifiable, Sendable {
+        let link: MemoryCardDetailLink
+        let card: MemoryCardSitting.Card
+        var id: String { card.itemID }
+    }
+
+    /// Reads the links of the cards given, by `MemoryCardSitting.Card.recordID`
+    /// (only cards that have any). Thrown errors leave the cards unlinked.
+    typealias CardLinksStep = @MainActor (_ cards: [MemoryCardSitting.Card]) async throws -> [String: CardLinks]
+
     /// The model's check of an answer (`AIService.checkCardAnswer`), for the
     /// card the request is about. Thrown errors are said on the card.
     typealias AnswerCheckStep = @MainActor (_ request: MemoryCardAnswerCheck.Request, _ cardID: String, _ sourceTitle: String?) async throws
@@ -137,6 +156,9 @@ final class MemoryCardSessionModel: Identifiable {
     var besideSourceID: String?
     /// Go Deeper's panel, in place of the next card; nil otherwise.
     private(set) var deeper: Deeper?
+    /// The links of the sitting's cards, by `MemoryCardSitting.Card.recordID`: read once a round is
+    /// dealt, so a card's answer shows its points' details and a detail the overview it belongs to.
+    private(set) var links: [String: CardLinks] = [:]
     /// The learner's answer to the panel's question, as it is typed.
     var deeperDraft = ""
     /// The learner's answer to the card on screen, as it is typed or
@@ -156,6 +178,7 @@ final class MemoryCardSessionModel: Identifiable {
     @ObservationIgnored private var writes: Task<Void, Never>?
     @ObservationIgnored private let deeperSteps: DeeperSteps?
     @ObservationIgnored private let answerCheckStep: AnswerCheckStep?
+    @ObservationIgnored private let cardLinksStep: CardLinksStep?
     /// The check of the answer on screen, while it runs.
     @ObservationIgnored private var checkWork: Task<Void, Never>?
     /// The model work of the panel showing: its question, then its reply.
@@ -175,7 +198,8 @@ final class MemoryCardSessionModel: Identifiable {
         followup: @escaping @MainActor () async throws -> Followup,
         firstDealAnswered: @escaping @MainActor (_ dayHasCardsLeft: Bool) -> Void = { _ in },
         deeper: DeeperSteps? = nil,
-        answerCheck: AnswerCheckStep? = nil
+        answerCheck: AnswerCheckStep? = nil,
+        cardLinks: CardLinksStep? = nil
     ) {
         self.id = sitting.key
         self.sitting = sitting
@@ -189,6 +213,8 @@ final class MemoryCardSessionModel: Identifiable {
         self.firstDealAnswered = firstDealAnswered
         self.deeperSteps = deeper
         self.answerCheckStep = answerCheck
+        self.cardLinksStep = cardLinks
+        readLinks(for: sitting.cards)
     }
 
     /// Whether leaving now ends today's session: the review made the
@@ -326,7 +352,7 @@ final class MemoryCardSessionModel: Identifiable {
     /// to answer. False when its round is over and another dealt.
     @discardableResult
     func restore(_ removed: MemoryCardSitting.Removed) -> Bool {
-        guard deeper == nil, sitting.restore(removed) else { return false }
+        guard deeper == nil, sitting.zoom == nil, sitting.restore(removed) else { return false }
         checkWork?.cancel()
         checkWork = nil
         attemptDraft = ""
@@ -418,6 +444,62 @@ final class MemoryCardSessionModel: Identifiable {
     func continueWithWaitingCards() {
         guard sitting.dealMore(waitingCards) else { return }
         waitingCards = []
+        readLinks(for: sitting.cards)
+    }
+
+    // MARK: Details
+
+    /// The details of `card`'s answer, in order; none for a card that has none (or before they are read).
+    func details(of card: MemoryCardSitting.Card) -> [Detail] {
+        links[card.recordID]?.details ?? []
+    }
+
+    /// The fronts of the overviews `card` is a detail of.
+    func overviewFronts(of card: MemoryCardSitting.Card) -> [String] {
+        links[card.recordID]?.overviewFronts ?? []
+    }
+
+    /// The overview whose answer waits under the detail asked now; nil when no zoom is open.
+    var zoomedOverview: MemoryCardSitting.Card? {
+        guard let zoom = sitting.zoom else { return nil }
+        return sitting.cards.first { $0.itemID == zoom.overviewItemID }
+    }
+
+    /// Zoom in: one of the details of the card on screen is asked now (`MemoryCardSitting.zoomIn`),
+    /// once its answer shows. Its answer is written as any card's; the overview's answer shows again
+    /// after it, still to grade.
+    func zoomIn(to detail: Detail) {
+        guard deeper == nil, !isKeepingDraft, sitting.isAnswerShown,
+              let card = sitting.current, details(of: card).contains(detail) else { return }
+        checkWork?.cancel()
+        checkWork = nil
+        attemptDraft = ""
+        sitting.zoomIn(to: detail.card)
+    }
+
+    /// Back to the overview's answer without answering the detail.
+    func zoomOut() {
+        guard !isKeepingDraft else { return }
+        checkWork?.cancel()
+        checkWork = nil
+        attemptDraft = ""
+        sitting.zoomOut()
+    }
+
+    /// Reads the links of `cards` not read yet, off the main actor, and adds them.
+    private func readLinks(for cards: [MemoryCardSitting.Card]) {
+        guard let step = cardLinksStep else { return }
+        let unread = cards.filter { links[$0.recordID] == nil }
+        guard !unread.isEmpty else { return }
+        Task { [weak self] in
+            do {
+                let read = try await step(unread)
+                guard let self else { return }
+                for card in unread { self.links[card.recordID] = read[card.recordID] ?? CardLinks() }
+            } catch {
+                self?.logger.error("A card's details were not read: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     /// The writes still on their way, for the caller that must see them

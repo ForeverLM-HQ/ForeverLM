@@ -9,6 +9,9 @@ import os
 struct CardRows: Equatable, Sendable {
     var item: MemoryItem?
     var state: State?
+    /// The cards that take one point of this card's answer further (`memory_card_links`, the record's
+    /// `details`), in their order.
+    var details: [MemoryCardDetailLink] = []
     /// A source's wire id where it differs from the local id (a team's copy): the record names sources
     /// by wire id (§4.3), the rows by the id this Mac holds.
     var wireKeys: [String: String] = [:]
@@ -61,8 +64,21 @@ struct CardProjection: RecordProjection {
                 localIDSQL: itemSQL, personalIDSQL: itemSQL
             ),
             .records("memory_card_states", type: .card, idColumn: "card_id", syncedColumns: Self.stateColumns),
+            // A card's details: one map element of the overview's record per row, keyed by the detail's
+            // id. No parent row is required: an overview is a draft (a state row) or a kept card (an item).
+            ProjectedTable(
+                "memory_card_links", localKey: ["parent_id", "child_id"], keyColumns: ["parent_id"],
+                syncedColumns: Self.detailColumns, elementColumn: "child_id",
+                recordTypes: [.card],
+                record: { values in
+                    values["parent_id"]?.textValue.map { RowRecord(type: .card, localID: $0, personalID: $0) }
+                },
+                localIDSQL: { "\($0).parent_id" }, personalIDSQL: { "\($0).parent_id" }
+            ),
         ]
     }
+
+    static let detailColumns = ["point", "sort_index", "linked_at"]
 
     private static func state(_ columns: [String]) -> FieldFeed { .columns(table: "memory_card_states", columns) }
 
@@ -81,6 +97,7 @@ struct CardProjection: RecordProjection {
             "seedKey": Self.state(["seed_key"]),
             "skippedAt": Self.state(["skipped_at"]),
             "retiredAt": .anyOf([.columns(table: "memory_items", ["status"]), Self.state(["retired_at"])]),
+            "details": .elementRows(table: "memory_card_links"),
         ]
     }
 
@@ -134,8 +151,9 @@ struct CardProjection: RecordProjection {
                 retiredAt: row.real(11), supersedes: row.text(12), splitFrom: row.text(13)
             )
         }
-        guard item != nil || state != nil else { return nil }
-        var rows = CardRows(item: item, state: state)
+        let details = try MemoryCardDetailLink.load(parentID: id, connection: connection)
+        guard item != nil || state != nil || !details.isEmpty else { return nil }
+        var rows = CardRows(item: item, state: state, details: details)
         if let store = connection as? KnowledgeStore {
             let ids = Set((item?.sources.map(\.sourceID) ?? []) + [state?.deckSourceID].compactMap { $0 })
             for source in ids {
@@ -220,6 +238,16 @@ struct CardProjection: RecordProjection {
             if let supersedes = state.supersedes { fields["supersedes"] = .string(supersedes) }
             if let splitFrom = state.splitFrom { fields["splitFrom"] = .string(splitFrom) }
         }
+        // Always the field, an empty map too: a detail whose row was removed here is sent as removed
+        // only while the field is encoded (`OutboxFeeder.diff`).
+        var details: [String: SyncJSON] = [:]
+        for detail in rows.details where details[detail.childID] == nil {
+            details[detail.childID] = [
+                "point": .string(detail.point), "order": SyncJSON(detail.order),
+                "linkedAt": SyncJSON(SyncTime.milliseconds(cocoaSeconds: detail.linkedAt)),
+            ]
+        }
+        fields["details"] = .object(details)
         return fields
     }
 
@@ -229,7 +257,33 @@ struct CardProjection: RecordProjection {
         // Per-member state: never in a space (D18).
         guard !record.zone.isSpace else { return .projected }
         try Self.applyFields(envelope.fields, id: record.localID, connection: connection)
+        try Self.applyDetails(envelope.fields["details"], parentID: record.localID, connection: connection)
         return .projected
+    }
+
+    /// Each element of `details`: a live detail is written with its point and place, a removed one
+    /// deleted. An element the record no longer lists (a removal marker compacted away) leaves its row
+    /// alone, as every map fed by rows does. A detail naming its own card is dropped.
+    static func applyDetails(_ value: SyncJSON?, parentID: String, connection: SQLiteConnection) throws {
+        guard let elements = value?.objectValue else { return }
+        for (childID, element) in elements.sorted(by: { $0.key < $1.key }) where !childID.isEmpty && childID != parentID {
+            guard let object = element.objectValue else {
+                try connection.execute(
+                    "DELETE FROM memory_card_links WHERE parent_id = ? AND child_id = ?",
+                    [.text(parentID), .text(childID)]
+                )
+                continue
+            }
+            try connection.execute("""
+                INSERT INTO memory_card_links (parent_id, child_id, point, sort_index, linked_at) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(parent_id, child_id) DO UPDATE SET
+                    point = excluded.point, sort_index = excluded.sort_index, linked_at = excluded.linked_at
+            """, [
+                .text(parentID), .text(childID), .text(object["point"]?.stringValue ?? ""),
+                .integer(object["order"]?.int64Value ?? 0),
+                .real(seconds(object["linkedAt"]) ?? Date().timeIntervalSinceReferenceDate),
+            ])
+        }
     }
 
     static func applyFields(_ fields: [String: SyncJSON], id: String, connection: SQLiteConnection) throws {

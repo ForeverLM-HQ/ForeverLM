@@ -464,9 +464,12 @@ enum MemoryCardError: LocalizedError, Equatable {
     case unwritable(String)
     case incomplete(String)
     case unanchored(String)
+    case notFound(String)
 
     var errorDescription: String? {
         switch self {
+        case .notFound(let cardID):
+            return "No card has the id \(cardID)."
         case .unwritable(let cardID):
             return "Card \(cardID)'s rubric could not be written."
         case .incomplete(let cardID):

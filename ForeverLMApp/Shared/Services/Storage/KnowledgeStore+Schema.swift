@@ -44,7 +44,12 @@ extension KnowledgeStore {
     // shouldn't necessarily itself code for followup"). `source_highlights.follow_up_at` is added, and
     // every blue or pink mark — the two colors that put a mark on the To Follow Up list until now — is
     // flagged as of when it was made, so nothing on that list falls off it.
-    static let schemaVersion: Int32 = 180
+    //
+    // 181: a card's details (product owner, 2026-11-26: a card that shows "the overall arc of an
+    // argument" and lets the learner "zoom in on the individual pieces and get quizzed on them").
+    // `memory_card_links` (`Card.details`) comes from the shared CREATE TABLE IF NOT EXISTS above,
+    // empty: DDL only.
+    static let schemaVersion: Int32 = 181
     static let generation1RemovalSchemaVersion: Int32 = 175
     static let deadObjectsRemovalSchemaVersion: Int32 = 176
     static let boardListsSchemaVersion: Int32 = 177

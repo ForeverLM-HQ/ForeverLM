@@ -8482,7 +8482,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Save flashcards you drafted from the learner's sources as cards for them to check in ForeverLM: they wait in Memory's To Check (a notebook's Studio shows its count on its Cards row) until the learner keeps, edits or skips each one, and only a kept card is ever reviewed. Each card names its source_id, as list_sources or a search returns it (an id the library does not hold refuses the whole call), and a quote: words copied exactly from that source's text (get_source_content), the passage the card stands on. A card whose quote the source does not print is not saved and is listed under not_grounded. A card is about an idea, and an idea is often printed in more than one source: when other sources of the library state what the card asks, name each in also_from with its own quote (at most 5; find_card_sources finds them), and the card stands on all of them, its source chips in To Check and in review showing each. A link whose source's text does not print its quote is left off, the card still saved, and listed under not_grounded_links. Write front as the question to ask, back as the complete answer and no more, and why as one line on why the back is right. Draft few cards a source: for a paper, a talk or a long article, one card first that asks the learner to tell its story (the question, how it was studied, what it found, what it means), its back a short paragraph, then only the two to four findings worth knowing on their own, such as a headline number or the key mechanism; never ten or fifteen small factoids. A card stands on its own: it is asked weeks later among cards from every source, so neither face may point at its source unnamed (“this lecture”, “the paper”, “the speaker”, “the authors”); ask about the subject itself, or name the source. Every card is checked for that before it is saved (a small background model call on the learner's Card Wording Check model): one that points at its source is reworded once and listed under reworded, or, when the rewording does not fix it, not saved and listed under not_standalone; when the check cannot run, the source's cards are not saved and sources_not_saved says why. Images are the default: when a relevant slide, paper figure, diagram or other durable ForeverLM picture materially supports recall, include it in front_images or back_images; omit imagery only when no useful picture is available. Each face takes up to four pictures; pass the exact Markdown image line returned by show_source_image, inspect_paper_figure or generate_image, or {target, alt}. Multiple images share a row in review. Local paths, web URLs, chat attachments and made-up image ids are refused. seed is optional: a short, stable key for what the card was drafted from (a walkthrough step, a highlight, a review-guide question), so the same seed is never drafted twice. A card whose seed or front its source's cards already hold is not saved again (already_drafted), whether it was kept or skipped. Pass kept_by_default true when the learner asked you for these cards; leave it false for cards you drafted unasked. Either way the learner keeps, edits or skips each one. A draft waits in To Check until it is kept or skipped; it never expires. Cards stay the learner's own: they never enter a team, whatever notebook they were made for. Returns each source's saved_card_ids and what was not saved, with why.",
+    "description" : "Save flashcards you drafted from the learner's sources as cards for them to check in ForeverLM: they wait in Memory's To Check (a notebook's Studio shows its count on its Cards row) until the learner keeps, edits or skips each one, and only a kept card is ever reviewed. Each card names its source_id, as list_sources or a search returns it (an id the library does not hold refuses the whole call), and a quote: words copied exactly from that source's text (get_source_content), the passage the card stands on. A card whose quote the source does not print is not saved and is listed under not_grounded. A card is about an idea, and an idea is often printed in more than one source: when other sources of the library state what the card asks, name each in also_from with its own quote (at most 5; find_card_sources finds them), and the card stands on all of them, its source chips in To Check and in review showing each. A link whose source's text does not print its quote is left off, the card still saved, and listed under not_grounded_links. Write front as the question to ask, back as the complete answer and no more, and why as one line on why the back is right. Draft few cards a source: for a paper, a talk or a long article, one card first that asks the learner to tell its story (the question, how it was studied, what it found, what it means), its back a short paragraph, then only the two to four findings worth knowing on their own, such as a headline number or the key mechanism; never ten or fifteen small factoids. A card stands on its own: it is asked weeks later among cards from every source, so neither face may point at its source unnamed (“this lecture”, “the paper”, “the speaker”, “the authors”); ask about the subject itself, or name the source. Every card is checked for that before it is saved (a small background model call on the learner's Card Wording Check model): one that points at its source is reworded once and listed under reworded, or, when the rewording does not fix it, not saved and listed under not_standalone; when the check cannot run, the source's cards are not saved and sources_not_saved says why. Images are the default: when a relevant slide, paper figure, diagram or other durable ForeverLM picture materially supports recall, include it in front_images or back_images; omit imagery only when no useful picture is available. Each face takes up to four pictures; pass the exact Markdown image line returned by show_source_image, inspect_paper_figure or generate_image, or {target, alt}. Multiple images share a row in review. Local paths, web URLs, chat attachments and made-up image ids are refused. seed is optional: a short, stable key for what the card was drafted from (a walkthrough step, a highlight, a review-guide question), so the same seed is never drafted twice. A card whose seed or front its source's cards already hold is not saved again (already_drafted), whether it was kept or skipped. Pass kept_by_default true when the learner asked you for these cards; leave it false for cards you drafted unasked. Either way the learner keeps, edits or skips each one. A draft waits in To Check until it is kept or skipped; it never expires. Cards stay the learner's own: they never enter a team, whatever notebook they were made for. An argument, a mechanism or a story in several steps is one overview card and a card for each step worth knowing on its own: the overview's front asks for the whole (“Lay out the argument that …, step by step”), its back is the steps, one short line each (at most 12), and each step card is saved in the same call with detail_of naming the overview (its ref in this call, or the card_id of a card saved before) and point copying the overview's line it takes further. A step card keeps every rule above: one ask, a short back, its own quote, standing on its own. In review each linked line of the overview's answer asks its step card at once, and every card keeps its own schedule. Returns each source's saved_card_ids and what was not saved, with why, and details_linked (each overview's details) or details_not_linked when a link could not be made.",
     "inputSchema" : {
       "properties" : {
         "cards" : {
@@ -8539,6 +8539,10 @@
                 "maxItems" : 4,
                 "type" : "array"
               },
+              "detail_of" : {
+                "description" : "This card takes one point of another card's answer further, such as a step of an argument: that card's ref in this call, or the card_id of a card saved before.",
+                "type" : "string"
+              },
               "front" : {
                 "description" : "The question to ask, on one line.",
                 "type" : "string"
@@ -8567,8 +8571,16 @@
                 "maxItems" : 4,
                 "type" : "array"
               },
+              "point" : {
+                "description" : "With detail_of: the line of that card's back this card takes further, copied exactly.",
+                "type" : "string"
+              },
               "quote" : {
                 "description" : "The passage of the source the card stands on, copied word for word from its text.",
+                "type" : "string"
+              },
+              "ref" : {
+                "description" : "A short name for this card within this call (“argument”, “step2”), so another card of the call can name it in detail_of.",
                 "type" : "string"
               },
               "seed" : {
@@ -10182,6 +10194,46 @@
       "type" : "object"
     },
     "name" : "set_canvas_display",
+    "readOnlyHint" : false
+  },
+  {
+    "description" : "Link the cards that take each point of a card's answer further, on the learner's word: an overview card (the arc of an argument, a paper's findings) whose back is a short list, a line a point, and for each point a card of its own. details replaces the overview's list, in order, each {card_id, point}, point being the overview's line that card takes further, copied exactly; [] unlinks them all. Kept cards and cards to check alike, by card_id or item_id from list_cards; a card that is unknown, the overview itself, or one that already holds the overview among its own details is left out and listed under not_linked. Free, and no Start Over: no card's words, sources or schedule change. In review each linked line of the overview's answer asks its card at once; forgetting the overview deals nothing else. list_cards and get_due_cards show each card's details and detail_of. Returns the overview's card_id and its details.",
+    "inputSchema" : {
+      "properties" : {
+        "card_id" : {
+          "description" : "The overview card: a card_id or item_id from list_cards.",
+          "type" : "string"
+        },
+        "details" : {
+          "description" : "The overview's details, in order. [] unlinks them all.",
+          "items" : {
+            "properties" : {
+              "card_id" : {
+                "description" : "The detail card: a card_id or item_id from list_cards.",
+                "type" : "string"
+              },
+              "point" : {
+                "description" : "The overview's line this card takes further, copied exactly.",
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "card_id",
+              "point"
+            ],
+            "type" : "object"
+          },
+          "maxItems" : 12,
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "card_id",
+        "details"
+      ],
+      "type" : "object"
+    },
+    "name" : "set_card_details",
     "readOnlyHint" : false
   },
   {

@@ -555,6 +555,9 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "get_due_cards",
   "record_card_result",
   "update_card",
+  // Which card takes which point of another's answer further is the cards'
+  // own synced rows on the Mac.
+  "set_card_details",
   // The chosen cards are dealt by that scheduler into the app's own card
   // review, which opens in the Mac's window.
   "practice_cards",

@@ -581,6 +581,7 @@ Home: `library` (always the personal Library).
 | `supersedes` | id → Card | scalar | S |  | Editing a kept card retires it and mints a new card pointing back. |
 | `splitFrom` | id → Card | scalar | S |  |  |
 | `legacy` | object | scalar | S |  | {kind, target, learnerContext, goalID, ideaID}: migrated memory_items columns. |
+| `details` | object | map | L |  | Card id → {point, order, linkedAt}: the cards that each take one point of this card's answer further (an argument's steps), point being the answer's line it elaborates, verbatim, and order its place among them; per-detail merge. Never cascades: a detail is a card of its own on its own schedule (2026-11-26, was memory_card_links). Keys: the detail card's id. |
 | `pictures` | FileRef | map | L |  | The card's pictures a light client cannot draw from what it holds (a slide, a video frame, an article's or book's image, a drawn picture), each rendered by a Mac as a JPEG satellite, keyed by CardPictureKey.key(target) (2026-10-19). Keys: pictureKey. |
 | `editedAt` | ms | scalar | X | ✓ | Ms of the last content change. |
 

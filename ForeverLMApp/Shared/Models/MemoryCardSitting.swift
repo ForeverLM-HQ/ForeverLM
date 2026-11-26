@@ -408,6 +408,9 @@ struct MemoryCardSitting: Equatable, Sendable {
 
         var id: String { itemID }
         var isDraft: Bool { draft != nil }
+        /// The card's Card record id, which its links name (`memory_card_links`): a draft's own card
+        /// id, a kept card's item.
+        var recordID: String { draft != nil ? cardID : itemID }
 
         init(
             itemID: String,
@@ -624,6 +627,24 @@ struct MemoryCardSitting: Equatable, Sendable {
     /// asked for nothing more than that, so leaving after it is not leaving
     /// early.
     private(set) var firstDealAnswered = false
+    /// A detail asked from an overview's answer, in front of it; nil otherwise.
+    private(set) var zoom: Zoom?
+
+    /// Zooming in from an overview's answer to one of its details (an argument's step): the detail is
+    /// asked now, in front of the overview, and once it is answered, skipped or set aside the
+    /// overview's answer shows again, ungraded, for the next point or its own grade. One level: a
+    /// detail asked so zooms no further.
+    struct Zoom: Equatable, Sendable {
+        let overviewItemID: String
+        let detailItemID: String
+        /// Whether this round had dealt the detail further on: its answer is then the round's. A
+        /// detail the round did not deal is practice, as a notebook's Practice is: an answer is
+        /// written only for a card due or new, so zooming in never pushes a card's next review out.
+        let wasDealt: Bool
+        /// The overview's answer and its check, as they stood.
+        let attempt: String?
+        let answerCheck: AnswerCheck?
+    }
 
     init(key: String, kind: Kind, cards: [Card]) {
         self.key = key
@@ -650,8 +671,11 @@ struct MemoryCardSitting: Equatable, Sendable {
     var forgottenCount: Int { results.values.filter { !$0 }.count }
     /// This round's drafts skipped.
     var skippedCount: Int { cards.filter { skippedItemIDs.contains($0.itemID) }.count }
-    /// This round's forgotten cards, in the order they were dealt.
-    var forgottenCards: [Card] { cards.filter { results[$0.itemID] == false } }
+    /// This round's forgotten cards, in the order they were dealt, once each.
+    var forgottenCards: [Card] {
+        var seen = Set<String>()
+        return cards.filter { results[$0.itemID] == false && seen.insert($0.itemID).inserted }
+    }
 
     /// The learner's answer, typed or said, turns the card on screen to its
     /// back. A blank answer turns nothing; Show Answer
@@ -742,15 +766,17 @@ struct MemoryCardSitting: Equatable, Sendable {
         results[card.itemID] = remembered
         let keeping = card.draft
         if keeping != nil { cards[position].markKept() }
+        let zoomed = zoom?.detailItemID == card.itemID ? zoom : nil
         position += 1
         hideAnswer()
+        if zoomed != nil { returnFromZoom() }
         if !isRepeat, position >= cards.count { firstDealAnswered = true }
         guard !isRepeat, recordedItemIDs.insert(card.itemID).inserted else { return nil }
         return Answer(
             itemID: card.itemID,
             prompt: card.prompt,
             remembered: remembered,
-            practice: kind == .practice,
+            practice: kind == .practice || zoomed?.wasDealt == false,
             keeping: keeping
         )
     }
@@ -762,8 +788,10 @@ struct MemoryCardSitting: Equatable, Sendable {
     mutating func skipCurrentDraft() -> MemoryCardToCheck? {
         guard !isRepeat, let card = current, let draft = card.draft else { return nil }
         skippedItemIDs.insert(card.itemID)
+        let zoomed = zoom?.detailItemID == card.itemID
         position += 1
         hideAnswer()
+        if zoomed { returnFromZoom() }
         if position >= cards.count { firstDealAnswered = true }
         return draft
     }
@@ -783,7 +811,7 @@ struct MemoryCardSitting: Equatable, Sendable {
     /// deleted, so nil for one; nil too when no card is on screen.
     @discardableResult
     mutating func removeCurrent() -> Removed? {
-        guard let card = current, !card.isDraft else { return nil }
+        guard zoom == nil, let card = current, !card.isDraft else { return nil }
         let removed = Removed(card: card, round: roundNumber, firstDealAnsweredBefore: firstDealAnswered)
         cards.remove(at: position)
         results[card.itemID] = nil
@@ -816,6 +844,49 @@ struct MemoryCardSitting: Equatable, Sendable {
         cards[index] = kept
     }
 
+    /// Zoom in (`Zoom`): `detail`, one of the overview on screen's details, is asked now, in front of
+    /// it, its question to answer. A detail the round deals further on comes forward rather than being
+    /// asked twice. False unless the overview's answer shows and no zoom is open.
+    @discardableResult
+    mutating func zoomIn(to detail: Card) -> Bool {
+        guard zoom == nil, isAnswerShown, let overview = current, detail.itemID != overview.itemID else { return false }
+        var wasDealt = false
+        if let later = cards.indices.first(where: { $0 > position && cards[$0].itemID == detail.itemID }) {
+            cards.remove(at: later)
+            wasDealt = true
+        }
+        zoom = Zoom(
+            overviewItemID: overview.itemID,
+            detailItemID: detail.itemID,
+            wasDealt: wasDealt,
+            attempt: attempt,
+            answerCheck: answerCheck
+        )
+        cards.insert(detail, at: position)
+        hideAnswer()
+        return true
+    }
+
+    /// Back to the overview without answering the detail: it leaves the round, or goes back to where
+    /// the round dealt it, after the overview.
+    mutating func zoomOut() {
+        guard let zoom, position < cards.count, cards[position].itemID == zoom.detailItemID else { return }
+        let detail = cards.remove(at: position)
+        if zoom.wasDealt { cards.insert(detail, at: min(position + 1, cards.count)) }
+        returnFromZoom()
+    }
+
+    /// The overview's answer showing again as it stood: a check that was still running is not waited
+    /// for (its verdict was dropped when the detail's own check began), so it shows none.
+    private mutating func returnFromZoom() {
+        guard let zoom else { return }
+        self.zoom = nil
+        guard let overview = current, overview.itemID == zoom.overviewItemID else { return }
+        isAnswerShown = true
+        attempt = zoom.attempt
+        answerCheck = zoom.answerCheck == .checking ? nil : zoom.answerCheck
+    }
+
     /// Deals this round's forgotten cards again, in the order they came.
     /// Nothing they answer is written. False when the round is not over or
     /// nothing was forgotten.
@@ -845,6 +916,7 @@ struct MemoryCardSitting: Equatable, Sendable {
 
     private mutating func startRound(_ round: [Card], isRepeat: Bool) {
         cards = round
+        zoom = nil
         position = 0
         hideAnswer()
         results = [:]

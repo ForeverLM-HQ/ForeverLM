@@ -297,7 +297,8 @@ extension StudioViewModel {
                     // Practice deals the notebook whole and nothing after it.
                     followup: { MemoryCardSessionModel.Followup(cards: [], dayHasCardsLeft: true) },
                     deeper: self.memoryCardDeeperSteps(),
-                    answerCheck: self.memoryCardAnswerCheck()
+                    answerCheck: self.memoryCardAnswerCheck(),
+                    cardLinks: self.memoryCardLinksStep()
                 )
                 self.enterMemoryCardFocus(session, in: window)
             } catch {
@@ -370,7 +371,8 @@ extension StudioViewModel {
             // The chosen cards are the whole deal: nothing follows them.
             followup: { MemoryCardSessionModel.Followup(cards: [], dayHasCardsLeft: true) },
             deeper: memoryCardDeeperSteps(),
-            answerCheck: memoryCardAnswerCheck()
+            answerCheck: memoryCardAnswerCheck(),
+            cardLinks: memoryCardLinksStep()
         )
         enterMemoryCardFocus(session, in: window)
         return ChosenCardPracticeStart(
@@ -441,7 +443,8 @@ extension StudioViewModel {
                         StudioViewModel.cardReviewAnsweredFirstDeal(isCommitted: isCommitted, dayHasCardsLeft: dayHasCardsLeft)
                     },
                     deeper: self.memoryCardDeeperSteps(),
-                    answerCheck: self.memoryCardAnswerCheck()
+                    answerCheck: self.memoryCardAnswerCheck(),
+                    cardLinks: self.memoryCardLinksStep()
                 )
                 self.enterMemoryCardFocus(session, in: window)
             } catch {

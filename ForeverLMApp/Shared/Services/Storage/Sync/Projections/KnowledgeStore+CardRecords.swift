@@ -547,6 +547,8 @@ extension KnowledgeStore {
         """, [
             .text(newID), .text(held?.deck ?? anchor), .text(held?.origin), .text(held?.seed), .integer(held?.alwaysAsk == true ? 1 : 0), .text(oldID),
         ])
+        // The revision takes the old card's place as overview and as detail.
+        try moveCardLinks(from: oldID, to: newID)
     }
 
     /// A retired card's Card says so at once.

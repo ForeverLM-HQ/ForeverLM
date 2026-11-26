@@ -34,6 +34,9 @@ extension MCPDataStore {
             throw MCPError.invalidInput("Nothing was saved. One call takes at most \(Self.maxCardDraftsPerCall) cards; send the rest in another call.")
         }
 
+        // A card's `ref`, which another card's `detail_of` may name.
+        let refs = try Self.cardRefs(rawCards)
+
         // Every source first: an id the library does not hold refuses the
         // whole call, before anything is written.
         let store = try knowledgeStore()
@@ -61,6 +64,8 @@ extension MCPDataStore {
         var order: [String] = []
         var bySource: [String: [Flashcard]] = [:]
         var incomplete: [[String: Any]] = []
+        var detailRequests: [CardDetailRequest] = []
+        var mintedIndex: [String: Int] = [:]
         for (index, entry) in rawCards.enumerated() {
             let sourceID = Self.trimmedOrNil(entry["source_id"] as? String) ?? ""
             let front = Self.trimmedOrNil(entry["front"] as? String)
@@ -90,6 +95,8 @@ extension MCPDataStore {
                 alsoFrom: alsoFrom,
                 at: now
             )
+            if let request = try Self.cardDetailRequest(entry, index: index, front: front) { detailRequests.append(request) }
+            mintedIndex[card.id] = index
             if bySource[sourceID] == nil { order.append(sourceID) }
             bySource[sourceID, default: []].append(card)
         }
@@ -201,6 +208,18 @@ extension MCPDataStore {
         }
         if !refusedOnly.isEmpty {
             payload["not_standalone"] = refusedOnly
+        }
+        // An overview's details, once every card is saved: by ref within the call, or by card_id.
+        if !detailRequests.isEmpty {
+            var savedIDs: [Int: String] = [:]
+            for (_, _, result) in saved {
+                for card in result.added {
+                    if let index = mintedIndex[result.givenID(of: card)] { savedIDs[index] = card.id }
+                }
+            }
+            let links = await linkSavedCardDetails(detailRequests, refs: refs, savedIDs: savedIDs)
+            if !links.linked.isEmpty { payload["details_linked"] = links.linked }
+            if !links.notLinked.isEmpty { payload["details_not_linked"] = links.notLinked }
         }
         if reworded.values.contains(where: { !$0.isEmpty }) || notStandalone.values.contains(where: { !$0.isEmpty }) {
             payload["wording_guidance"] = "A card is asked weeks later, away from its source: it never points at \u{201C}this lecture\u{201D}, \u{201C}the paper\u{201D} or \u{201C}the speaker\u{201D} without naming it. ForeverLM reworded the cards under reworded, and refused those under not_standalone; ask about the subject itself, or name the source."
@@ -353,6 +372,7 @@ extension MCPDataStore {
                 !excluded.contains(card.sourceID) && (onlySource.map { card.sourceIDs.contains($0) } ?? true)
             }
             payload["to_check_count"] = cards.count
+            let links = try cardLinksPayload(ids: cards.prefix(limit).map { [$0.cardID] }, store: store)
             payload["to_check"] = cards.prefix(limit).map { card in
                 var entry: [String: Any] = [
                     "card_id": card.cardID,
@@ -372,6 +392,7 @@ extension MCPDataStore {
                 entry["sources"] = Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded)
                 if let seed = card.seed { entry["seed"] = seed }
                 if let draftedAt = card.draftedAt { entry["drafted_at"] = KnowledgeStore.iso8601Formatter.string(from: draftedAt) }
+                for (key, value) in links[card.cardID] ?? [:] { entry[key] = value }
                 return entry
             }
             if let line = MemoryCardTriage.summary(cards) { payload["to_check_summary"] = line }
@@ -382,6 +403,7 @@ extension MCPDataStore {
                 !card.sourceIDs.contains(where: excluded.contains) && (onlySource.map { card.sourceIDs.contains($0) } ?? true)
             }
             payload["kept_count"] = kept.count
+            let links = try cardLinksPayload(ids: kept.prefix(limit).map { [$0.itemID, $0.face.cardID] }, store: store)
             payload["kept"] = kept.prefix(limit).map { card in
                 let state = (card.face.deckID ?? card.sourceIDs.first.map(MemoryCard.draftDeckID(sourceID:))).flatMap {
                     MemoryCardStateStore.state(cardID: card.face.cardID, deckID: $0, defaults: cardStateDefaults)
@@ -409,6 +431,7 @@ extension MCPDataStore {
                     entry["schedule"] = "scheduled"
                     entry["next_due_at"] = KnowledgeStore.iso8601Formatter.string(from: card.schedule.dueAt)
                 }
+                for (key, value) in links[card.itemID] ?? [:] { entry[key] = value }
                 return entry
             }
         }
@@ -765,6 +788,7 @@ extension MCPDataStore {
             if let source = try store.loadSourceWithoutContent(sourceID) { titles[sourceID] = source.title }
         }
         let iso = KnowledgeStore.iso8601Formatter
+        let links = try cardLinksPayload(ids: dealt.prefix(limit).map { [$0.card.itemID, $0.card.cardID] }, store: store)
         let cards: [[String: Any]] = dealt.prefix(limit).map { entry, card in
             var payload: [String: Any] = [
                 "item_id": card.itemID,
@@ -788,6 +812,7 @@ extension MCPDataStore {
             if let notebookID = entry.notebookID { payload["needed_soon_in_notebook_id"] = notebookID }
             if card.isVariant { payload["reworded"] = true }
             if card.isFirstVariedServe { payload["say_first"] = "Worded differently on purpose \u{2014} same answer." }
+            for (key, value) in links[card.itemID] ?? [:] { payload[key] = value }
             return payload
         }
         let day = MemoryReviewGoal.dayKey(for: now)

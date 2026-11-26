@@ -72,6 +72,11 @@ extension MCPToolRegistry {
                 alwaysAsk: arguments["always_ask"],
                 retire: arguments["retire"]
             )
+        case "set_card_details":
+            return try await store.setCardDetails(
+                cardID: arguments["card_id"] as? String,
+                details: arguments["details"]
+            )
         case "list_practices":
             return try store.listPractices(status: arguments["status"] as? String)
         case "decide_practice":

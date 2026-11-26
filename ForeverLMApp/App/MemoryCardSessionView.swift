@@ -146,6 +146,9 @@ struct MemoryCardSessionView: View {
                     endCard
                 } else if let card = sitting.current {
                     roundHeader
+                    if let overview = session.zoomedOverview {
+                        MemoryCardZoomBar(overviewFront: overview.front) { session.zoomOut() }
+                    }
                     deck(card)
                     answerBar
                 }
@@ -352,11 +355,19 @@ struct MemoryCardSessionView: View {
                     .padding(.bottom, 16)
             }
             let back = CardVisualization.split(card.back)
-            CardFaceText(back.words)
-                .font(MemoryCardMetrics.backFont)
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("memory.cards.back")
+            // A card whose points have cards of their own: each such point asks its card now.
+            let details = sitting.zoom == nil ? session.details(of: card) : []
+            Group {
+                if details.isEmpty {
+                    CardFaceText(back.words)
+                } else {
+                    MemoryCardPointsView(back: back.words, details: details) { session.zoomIn(to: $0) }
+                }
+            }
+            .font(MemoryCardMetrics.backFont)
+            .lineSpacing(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("memory.cards.back")
             if let html = back.html {
                 MemoryCardVisualizationView(html: html)
                     .padding(.top, 16)
@@ -367,6 +378,11 @@ struct MemoryCardSessionView: View {
             }
             if !card.why.isEmpty {
                 MemoryCardWhyLine(why: card.why)
+                    .padding(.top, 14)
+            }
+            let overviews = session.overviewFronts(of: card)
+            if sitting.zoom == nil, !overviews.isEmpty {
+                MemoryCardPartOfLine(fronts: overviews)
                     .padding(.top, 14)
             }
             // Every source the card stands on, its own first.

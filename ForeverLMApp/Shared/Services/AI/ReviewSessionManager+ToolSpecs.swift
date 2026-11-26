@@ -119,6 +119,8 @@ extension ReviewSessionManager {
         // A card also stands on the other sources that state it: the chat
         // that drafts cards finds them and names them with each card.
         "find_card_sources",
+        // An argument's card and its steps' cards, linked after they were saved.
+        "set_card_details",
         "practice_cards",
         // "Make a mnemonic reading of this book" is said in the chat about
         // the book: ForeverLM writes the questions, priced first
