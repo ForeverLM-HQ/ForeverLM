@@ -232,6 +232,59 @@ struct SemanticArticleExtractionTests {
         #expect(rewritten.contains("href=\"https://example.com/paper\""))
     }
 
+    @Test("Unquoted links and image sources are read, as minified pages write them")
+    func readsUnquotedAttributes() throws {
+        let base = try #require(URL(string: "https://example.com/writing/longevity/"))
+        let html = #"<p><a href=/about>About</a> <img src=paul_et_al_2020_fig_2.webp alt=alt_text title="Figure 2"> <img data-src="lazy.png" src='fig3.png'></p>"#
+
+        let sources = SourceService.attributeValues("src", ofTag: "img", in: html).map(\.value)
+        #expect(sources == ["paul_et_al_2020_fig_2.webp", "fig3.png"])
+
+        let rewritten = SourceService.absolutizingLinks(in: html, baseURL: base)
+        #expect(rewritten.contains(#"href="https://example.com/about""#))
+
+        let images = SourceService.rewritingAttribute("src", ofTag: "img", in: html) { src in
+            SourceService.resolvedImageURL(src, baseURL: base)?.absoluteString
+        }
+        #expect(images.contains(#"src="https://example.com/writing/longevity/paul_et_al_2020_fig_2.webp" alt=alt_text"#))
+        #expect(images.contains(#"data-src="lazy.png""#))
+        #expect(images.contains("src='https://example.com/writing/longevity/fig3.png'"))
+    }
+
+    @Test("An archived image keeps the one picture it downloads, never a srcset that outranks it")
+    func collapsesSourceSets() {
+        let html = """
+        <p><img alt="Hit rate" srcSet="/_next/image?url=%2Ffig1.png&amp;w=640&amp;q=75 640w, /_next/image?url=%2Ffig1.png&amp;w=1080&amp;q=75 1080w" src="/_next/image?url=%2Ffig1.png&amp;w=1080&amp;q=75" sizes="100vw">
+        <img alt="" srcset="https://cdn.example.org/a.jpg 1x, https://cdn.example.org/a@2x.jpg 2x">
+        <img src="data:image/gif;base64,R0lGOD" srcset="real-400.png 400w, real-800.png 800w">
+        <img data-srcset="lazy.jpg 2x" src=plain.png></p>
+        """
+
+        let collapsed = SourceService.collapsingSourceSets(in: html)
+
+        #expect(!collapsed.lowercased().contains(" srcset="))
+        #expect(!collapsed.contains("sizes="))
+        #expect(collapsed.contains(#"<img alt="Hit rate" src="/_next/image?url=%2Ffig1.png&amp;w=1080&amp;q=75">"#))
+        #expect(collapsed.contains(#"<img src="https://cdn.example.org/a@2x.jpg" alt="">"#))
+        #expect(collapsed.contains(#"<img src="real-800.png">"#))
+        #expect(collapsed.contains(#"<img data-srcset="lazy.jpg 2x" src=plain.png>"#))
+    }
+
+    @Test("A srcset's candidates read as the HTML standard reads them, commas in URLs included")
+    func readsSourceSetCandidates() {
+        let substack = "https://cdn.example.org/image/fetch/w_424,c_limit,f_auto/pic.png 424w, https://cdn.example.org/image/fetch/w_848,c_limit,f_auto/pic.png 848w"
+        let candidates = SourceService.sourceSetCandidates(substack)
+        #expect(candidates.map(\.url) == [
+            "https://cdn.example.org/image/fetch/w_424,c_limit,f_auto/pic.png",
+            "https://cdn.example.org/image/fetch/w_848,c_limit,f_auto/pic.png",
+        ])
+        #expect(candidates.map(\.descriptor) == ["424w", "848w"])
+        #expect(SourceService.widestSourceSetCandidate(substack) == "https://cdn.example.org/image/fetch/w_848,c_limit,f_auto/pic.png")
+        #expect(SourceService.widestSourceSetCandidate("small.png, large.png 3x, mid.png 2x") == "large.png")
+        #expect(SourceService.widestSourceSetCandidate("only.png") == "only.png")
+        #expect(SourceService.widestSourceSetCandidate("  ") == nil)
+    }
+
     @Test("Relative links resolve against a declared base href")
     func resolvesAgainstDeclaredBase() throws {
         let pageURL = try #require(URL(string: "https://example.com/blog/post"))

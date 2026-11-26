@@ -1694,14 +1694,17 @@ actor SourceService {
         var cleaned = Self.readerHTML(from: rawHTML)
 
         // Point relative links back at the site — they resolve against the
-        // archive folder once the document lives on disk.
-        cleaned = Self.absolutizingLinks(
-            in: cleaned,
-            baseURL: Self.linkResolutionBase(forRawHTML: rawHTML, pageURL: baseURL)
-        )
+        // archive folder once the document lives on disk. Images resolve
+        // against the same base, the page's own `<base href>` when it has one.
+        let resolutionBase = Self.linkResolutionBase(forRawHTML: rawHTML, pageURL: baseURL)
+        cleaned = Self.absolutizingLinks(in: cleaned, baseURL: resolutionBase)
+
+        // One picture per image: the archive keeps the `src` it downloads,
+        // which a page's responsive `srcset` would otherwise outrank.
+        cleaned = Self.collapsingSourceSets(in: cleaned)
 
         // Download images and rewrite src attributes
-        cleaned = await downloadAndRewriteImages(in: cleaned, baseURL: baseURL, imagesDir: imagesDir)
+        cleaned = await downloadAndRewriteImages(in: cleaned, baseURL: resolutionBase, imagesDir: imagesDir)
 
         // Wrap in a standalone HTML document with basic styling
         let document = """
@@ -1927,27 +1930,58 @@ actor SourceService {
     /// `href="/team"` would resolve against the archive folder and dead-end.
     /// Fragments and links that already carry a scheme are left untouched.
     nonisolated static func absolutizingLinks(in html: String, baseURL: URL) -> String {
-        // Both quote styles appear in the wild, and a missed one is a dead link.
-        [#"""#, "'"].reduce(html) { absolutizingLinks(in: $0, baseURL: baseURL, quote: $1) }
+        rewritingAttribute("href", ofTag: "a", in: html) { href in
+            let trimmed = href.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { return nil }
+            guard URL(string: trimmed)?.scheme == nil else { return nil }
+            return URL(string: trimmed, relativeTo: baseURL)?.absoluteURL.absoluteString
+        }
     }
 
-    private nonisolated static func absolutizingLinks(in html: String, baseURL: URL, quote: String) -> String {
-        let pattern = #"(<a\b[^>]*\bhref\s*=\s*\#(quote))([^\#(quote)]*)(\#(quote))"#
+    /// One attribute's value on every `<tag>` in `html`, with where the value
+    /// sits. Pages write it double-quoted, single-quoted, or bare (minified
+    /// sites such as Hugo's drop the quotes: `<img src=fig.webp>`); a reader
+    /// that knew only one style left the others' images and links dead.
+    nonisolated static func attributeValues(
+        _ attribute: String,
+        ofTag tag: String,
+        in html: String
+    ) -> [(value: String, range: NSRange, quote: String)] {
+        // The attribute must follow whitespace, so `data-src` is not `src`.
+        let pattern = #"<\#(tag)\b[^>]*?\s\#(attribute)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return html
+            return []
         }
-
         let nsHTML = html as NSString
-        var result = html as NSString
-        let matches = regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length))
-        for match in matches.reversed() where match.numberOfRanges >= 4 {
-            let hrefRange = match.range(at: 2)
-            let href = nsHTML.substring(with: hrefRange)
-            let trimmed = href.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
-            guard URL(string: trimmed)?.scheme == nil else { continue }
-            guard let absolute = URL(string: trimmed, relativeTo: baseURL)?.absoluteURL else { continue }
-            result = result.replacingCharacters(in: hrefRange, with: absolute.absoluteString) as NSString
+        return regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length)).compactMap { match in
+            for (group, quote) in [(1, "\""), (2, "'"), (3, "")] {
+                let range = match.range(at: group)
+                guard range.location != NSNotFound else { continue }
+                return (nsHTML.substring(with: range), range, quote)
+            }
+            return nil
+        }
+    }
+
+    /// Replace one attribute's value on every `<tag>` with what `transform`
+    /// returns for it; nil leaves that one as it was. A bare value gains
+    /// double quotes, since the new one may hold characters a bare value cannot.
+    nonisolated static func rewritingAttribute(
+        _ attribute: String,
+        ofTag tag: String,
+        in html: String,
+        transform: (String) -> String?
+    ) -> String {
+        let result = NSMutableString(string: html)
+        for found in attributeValues(attribute, ofTag: tag, in: html).reversed() {
+            guard let replacement = transform(found.value), replacement != found.value else { continue }
+            if found.quote.isEmpty {
+                let escaped = replacement.replacingOccurrences(of: "\"", with: "&quot;")
+                result.replaceCharacters(in: found.range, with: "\"\(escaped)\"")
+            } else {
+                let escaped = replacement.replacingOccurrences(of: found.quote, with: found.quote == "\"" ? "&quot;" : "&#39;")
+                result.replaceCharacters(in: found.range, with: escaped)
+            }
         }
         return result as String
     }
@@ -2056,25 +2090,13 @@ actor SourceService {
     }
 
     /// Find all <img> tags in HTML, download images to disk, rewrite src to local relative paths.
+    /// An image that could not be downloaded points at the site, never at a
+    /// relative path that resolves inside the archive folder and shows nothing.
     private func downloadAndRewriteImages(in html: String, baseURL: URL, imagesDir: String) async -> String {
-        var result = html
-
-        // Match img tags and capture src attribute
-        let imgPattern = #"<img\b[^>]*\bsrc\s*=\s*"([^"]+)"[^>]*>"#
-        guard let regex = try? NSRegularExpression(pattern: imgPattern, options: .caseInsensitive) else {
-            return html
-        }
-
-        let nsHTML = html as NSString
-        let matches = regex.matches(in: html, range: NSRange(location: 0, length: nsHTML.length))
-
         // Collect unique image URLs
         var imageURLs: [(original: String, resolved: URL)] = []
         var seen = Set<String>()
-        for match in matches {
-            guard match.numberOfRanges >= 2 else { continue }
-            let srcRange = match.range(at: 1)
-            let src = nsHTML.substring(with: srcRange)
+        for src in Self.attributeValues("src", ofTag: "img", in: html).map(\.value) {
             guard !seen.contains(src) else { continue }
             seen.insert(src)
 
@@ -2082,10 +2104,11 @@ actor SourceService {
             if src.hasPrefix("data:") { continue }
 
             // Resolve relative URLs against the page base URL
-            if let resolved = URL(string: src, relativeTo: baseURL)?.absoluteURL {
+            if let resolved = Self.resolvedImageURL(src, baseURL: baseURL) {
                 imageURLs.append((original: src, resolved: resolved))
             }
         }
+        var localPaths: [String: String] = [:]
 
         // Download every image with bounded concurrency. Limiting active requests
         // protects the network without dropping images from long articles.
@@ -2128,7 +2151,7 @@ actor SourceService {
             var nextIndex = initialCount
             while let (originalSrc, localPath) = await group.next() {
                 if let localPath {
-                    result = result.replacingOccurrences(of: originalSrc, with: localPath)
+                    localPaths[originalSrc] = localPath
                 }
                 if nextIndex < imageURLs.count {
                     let idx = nextIndex
@@ -2141,7 +2164,120 @@ actor SourceService {
             }
         }
 
-        return result
+        let resolved = Dictionary(imageURLs.map { ($0.original, $0.resolved.absoluteString) }, uniquingKeysWith: { first, _ in first })
+        return Self.rewritingAttribute("src", ofTag: "img", in: html) { src in
+            localPaths[src] ?? resolved[src]
+        }
+    }
+
+    /// Where an image's `src` points on the web: relative ones resolve
+    /// against the page, entity-encoded ampersands decoded first.
+    nonisolated static func resolvedImageURL(_ src: String, baseURL: URL) -> URL? {
+        let trimmed = src.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "&amp;", with: "&")
+        guard !trimmed.isEmpty else { return nil }
+        return URL(string: trimmed, relativeTo: baseURL)?.absoluteURL
+    }
+
+    /// Every `<img>` left with the one picture the archive downloads: its
+    /// `srcset` and `sizes` go, and an image whose `src` is missing or only a
+    /// `data:` placeholder takes the widest `srcset` candidate as its `src`.
+    ///
+    /// WebKit takes a `srcset` over `src` and never falls back to `src` when
+    /// the candidate it chose fails. In a saved page a site-relative
+    /// candidate (`/_next/image?url=…`, as every Next.js site writes them)
+    /// resolves inside the archive folder, so the picture stayed blank beside
+    /// the copy downloaded for it; an absolute one loaded from the web, so the
+    /// picture was gone offline.
+    nonisolated static func collapsingSourceSets(in html: String) -> String {
+        guard html.range(of: "srcset", options: .caseInsensitive) != nil,
+              let tags = try? NSRegularExpression(pattern: #"<img\b[^>]*>"#, options: [.caseInsensitive]),
+              let responsive = try? NSRegularExpression(
+                pattern: #"\s(?:srcset|sizes)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+)"#,
+                options: [.caseInsensitive]
+              ) else { return html }
+        let nsHTML = html as NSString
+        let result = NSMutableString(string: html)
+        for match in tags.matches(in: html, range: NSRange(location: 0, length: nsHTML.length)).reversed() {
+            let tag = nsHTML.substring(with: match.range)
+            guard let sourceSet = attributeValues("srcset", ofTag: "img", in: tag).first else { continue }
+            var collapsed = responsive.stringByReplacingMatches(
+                in: tag,
+                range: NSRange(location: 0, length: (tag as NSString).length),
+                withTemplate: ""
+            )
+            let source = attributeValues("src", ofTag: "img", in: collapsed).first?.value
+            let isPlaceholder = source.map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("data:")
+            } ?? true
+            if isPlaceholder, let widest = widestSourceSetCandidate(sourceSet.value) {
+                if source == nil {
+                    let escaped = widest.replacingOccurrences(of: "\"", with: "&quot;")
+                    collapsed = "<img src=\"\(escaped)\"" + collapsed.dropFirst("<img".count)
+                } else {
+                    collapsed = rewritingAttribute("src", ofTag: "img", in: collapsed) { _ in widest }
+                }
+            }
+            result.replaceCharacters(in: match.range, with: collapsed)
+        }
+        return result as String
+    }
+
+    /// The candidate a `srcset` offers at its largest width, or its highest
+    /// density when it gives densities, else its first.
+    nonisolated static func widestSourceSetCandidate(_ value: String) -> String? {
+        let candidates = sourceSetCandidates(value)
+        func measure(_ descriptor: String, unit: String) -> Double? {
+            guard let token = descriptor.split(whereSeparator: \.isWhitespace).first,
+                  token.lowercased().hasSuffix(unit) else { return nil }
+            return Double(token.dropLast())
+        }
+        for unit in ["w", "x"] {
+            let measured = candidates.compactMap { candidate in
+                measure(candidate.descriptor, unit: unit).map { (candidate.url, $0) }
+            }
+            if let largest = measured.max(by: { $0.1 < $1.1 }) { return largest.0 }
+        }
+        return candidates.first?.url
+    }
+
+    /// A `srcset`'s candidates as the HTML standard reads them: a URL runs to
+    /// the next whitespace and may hold commas (image CDNs write
+    /// `w_424,c_limit`), and its descriptors run to the next comma.
+    nonisolated static func sourceSetCandidates(_ value: String) -> [(url: String, descriptor: String)] {
+        let characters = Array(value)
+        var candidates: [(url: String, descriptor: String)] = []
+        var index = 0
+        while index < characters.count {
+            while index < characters.count, characters[index].isWhitespace || characters[index] == "," {
+                index += 1
+            }
+            guard index < characters.count else { break }
+            let urlStart = index
+            while index < characters.count, !characters[index].isWhitespace { index += 1 }
+            var url = String(characters[urlStart..<index])
+            var descriptor = ""
+            if url.hasSuffix(",") {
+                while url.hasSuffix(",") { url.removeLast() }
+            } else {
+                let descriptorStart = index
+                var depth = 0
+                while index < characters.count {
+                    let character = characters[index]
+                    if character == "(" {
+                        depth += 1
+                    } else if character == ")" {
+                        depth -= 1
+                    } else if character == ",", depth <= 0 {
+                        break
+                    }
+                    index += 1
+                }
+                descriptor = String(characters[descriptorStart..<index]).trimmingCharacters(in: .whitespaces)
+            }
+            if !url.isEmpty { candidates.append((url, descriptor)) }
+        }
+        return candidates
     }
 
     /// Determine appropriate file extension for a downloaded image.
