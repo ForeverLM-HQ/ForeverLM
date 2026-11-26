@@ -34,7 +34,7 @@ extension MCPToolRegistry {
                     "type": "object",
                     "properties": [
                         "title": ["type": "string", "description": "Short name shown in the Tasks list."],
-                        "instruction": ["type": "string", "description": "The message to send when the task runs, e.g. \"Quiz me on what I read yesterday\"."],
+                        "instruction": ["type": "string", "description": "The message to send when the task runs, e.g. \"Quiz me on what I read the day before\". It stands on its own and says how the run should work: for a visual review, that each question opens with a picture of one idea (a source figure when one fits, otherwise a drawing with no label that gives the answer away)."],
                         "cadence": [
                             "type": "string",
                             "enum": ["once", "daily", "weekdays", "weekly", "monthly"],

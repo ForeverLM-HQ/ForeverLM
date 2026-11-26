@@ -44,8 +44,9 @@ struct ScheduledTasksReaderPane: View {
     }
 
     /// Quiet chrome (docs/ui-design.md): **+** (a new task, in
-    /// Chat) and the ⋯, which holds Keep This Mac Awake for Tasks (there is
-    /// no cup button on the line).
+    /// Chat) and the ⋯, which holds Daily Visual Review… (a new task with its
+    /// request typed) and Keep This Mac Awake for Tasks (there is no cup
+    /// button on the line).
     private var toolbar: some View {
         HStack(spacing: 8) {
             Spacer()
@@ -59,6 +60,15 @@ struct ScheduledTasksReaderPane: View {
             .accessibilityIdentifier("studio.tasks.new")
 
             Menu {
+                // A ready-made request, typed into the new-task chat unsent.
+                Button {
+                    vm.requestVisualDailyReviewTaskChat()
+                } label: {
+                    Label("Daily Visual Review…", systemImage: "photo.on.rectangle.angled")
+                }
+                .help("A task that quizzes you each morning on the day before, question by question, each with a picture")
+                .accessibilityIdentifier("studio.tasks.visualDailyReviewMenu")
+                Divider()
                 // `ScheduledTaskWakePolicy`: a run in progress always holds
                 // off idle sleep; this also covers the hours before one, on
                 // power.
@@ -108,6 +118,10 @@ struct ScheduledTasksReaderPane: View {
                 Button("New Task in Chat") {
                     vm.requestNewScheduledTaskChat()
                 }
+                Button("Daily Visual Review") {
+                    vm.requestVisualDailyReviewTaskChat()
+                }
+                .accessibilityIdentifier("studio.tasks.visualDailyReview")
             }
         } else {
             ScrollView {

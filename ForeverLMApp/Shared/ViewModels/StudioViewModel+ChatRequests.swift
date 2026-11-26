@@ -202,6 +202,19 @@ extension StudioViewModel {
         requestBlankReviewChat()
     }
 
+    /// The Tasks pane's Daily Visual Review: the new-task chat with a whole
+    /// request typed, unsent, so the learner changes the hour or the wording
+    /// and presses Return (product owner, 2026-11-25: "a daily quiz where
+    /// XYZ ... takes what I've learned from yesterday and does an image-based,
+    /// very visual review"). How a run reviews is said in the instruction, as
+    /// for any task; the chat that creates it carries the form over.
+    func requestVisualDailyReviewTaskChat() {
+        pendingReviewChatDraft = Self.visualDailyReviewTaskDraft
+        requestBlankReviewChat()
+    }
+
+    static let visualDailyReviewTaskDraft = "Make this a scheduled task, every day at 8:00: quiz me on what I learned the day before, mostly in pictures. Each question opens with a picture of one idea, a figure from my sources when one fits, otherwise a plain drawing of it with no label that gives the answer away, and asks me to explain what it shows. One question at a time; tell me what I missed after each answer."
+
     /// Open a fresh chat that makes an animation. With a source, the chat
     /// starts with that source in context and the request typed but unsent —
     /// the source menu's Animate…; without one, the Animations home's button

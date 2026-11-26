@@ -566,6 +566,27 @@ struct ScheduleChatNavigationTests {
         #expect(vm.pendingReviewChatNotebookID == nil)
     }
 
+    @Test("Daily Visual Review opens Chat with a whole picture-led review task typed, unsent")
+    func visualDailyReviewTaskChatSeedsTheComposer() {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let vm = makeViewModel()
+        vm.centerTabGroups = .defaultLayout
+        vm.isChatTabActive = false
+
+        vm.requestVisualDailyReviewTaskChat()
+
+        #expect(vm.isChatTabActive == true)
+        #expect(vm.reviewChatPanelMode == .chat)
+        let draft = vm.pendingReviewChatDraft ?? ""
+        #expect(draft == StudioViewModel.visualDailyReviewTaskDraft)
+        #expect(draft.contains("scheduled task"))
+        #expect(draft.contains("picture"))
+        // Relative to each run, never a date fixed at creation.
+        #expect(draft.contains("the day before"))
+        #expect(vm.pendingReviewChatNotebookID == nil)
+    }
+
     @Test("Open Chat (⇧⌘K) expands and focuses docked Chat")
     func assistantShortcutFocusesDockedChat() {
         let restoreLayout = capturedCenterTabLayout()
