@@ -341,10 +341,10 @@ const GATEWAY_OWNED_TOOLS: ToolDefinition[] = [
     },
     _meta: {
       ui: {
-        resourceUri: "ui://foreverlm/home-v8.html",
+        resourceUri: "ui://foreverlm/home-v9.html",
         visibility: ["app"],
       },
-      "openai/outputTemplate": "ui://foreverlm/home-v8.html",
+      "openai/outputTemplate": "ui://foreverlm/home-v9.html",
       "openai/ui": {
         entrypoints: [{ type: "global" }],
       },
