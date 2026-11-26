@@ -1078,6 +1078,15 @@ extension AppUpdateController: UNUserNotificationCenterDelegate {
 
         guard isDefaultAction else { return }
 
+        // A publisher check opens the paper's page in a Browser tab, where
+        // the learner passes the check and the PDF they download attaches.
+        if identifier.hasPrefix(PublisherCheckNotifications.identifierPrefix) {
+            let info = response.notification.request.content.userInfo
+            guard let pageURL = info[PublisherCheckNotifications.pageURLKey] as? String else { return }
+            Task { @MainActor in PublisherCheckNotifications.open(pageURL: pageURL) }
+            return
+        }
+
         // The daily "review is ready" reminder opens the Memory pane: today's
         // cards were selected for this click, so a click that only brought
         // the window forward would leave the learner hunting for them, and

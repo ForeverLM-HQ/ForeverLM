@@ -6,10 +6,10 @@ import WebKit
 enum ScienceDirectService {
     private static let canonicalHost = "www.sciencedirect.com"
 
-    /// Shared Safari user-agent for every ScienceDirect WebView. The interactive
-    /// challenge window and the silent downloader MUST use the same UA: Cloudflare
-    /// binds the `cf_clearance` cookie to the user-agent, so a mismatch would make
-    /// the cookie the user just earned invalid for the follow-up silent download.
+    /// Shared Safari user-agent for every ScienceDirect WebView. The Browser, where
+    /// the learner passes a check, and the silent downloader MUST use the same UA:
+    /// Cloudflare binds the `cf_clearance` cookie to the user-agent, so a mismatch
+    /// would make the cookie the learner just earned invalid for later downloads.
     static let browserUserAgent = SharedWebKit.desktopSafariUserAgent
 
     static func isScienceDirectURL(_ urlString: String) -> Bool {
@@ -62,7 +62,8 @@ enum ScienceDirectService {
     static func downloadPDFWithAuthenticatedWebSession(
         from urlString: String,
         to destinationPath: String,
-        label: String? = nil
+        label: String? = nil,
+        pageURL: String? = nil
     ) async throws {
         guard let pdfURL = pdfURL(from: urlString),
               let url = URL(string: pdfURL) else {
@@ -77,11 +78,12 @@ enum ScienceDirectService {
         let warmupURL = abstractURL(from: urlString).flatMap(URL.init(string:))
 
         // The downloader runs headless: it opens the article page, requests the
-        // PDF, and captures the download in an off-screen WebView. It only asks
-        // for a window — through `WebVerificationRequests`, and only if the user
-        // accepts — when a page needs a human (Cloudflare, CAPTCHA, MFA, or a
-        // sign-in that the stored credentials cannot complete).
-        let downloader = ScienceDirectAuthenticatedPDFDownloader(label: label)
+        // PDF, and captures the download in an off-screen WebView. A page that
+        // needs a human (Cloudflare, CAPTCHA, MFA, or a sign-in the stored
+        // credentials cannot complete) ends the attempt with a notification
+        // whose click opens the paper's page in the Browser.
+        let notifyPage = pageURL.flatMap(URL.init(string:)) ?? warmupURL ?? url
+        let downloader = ScienceDirectAuthenticatedPDFDownloader(label: label, pageURL: notifyPage)
         let tempURL = try await downloader.downloadPDF(from: url, warmupFrom: warmupURL)
         try await installDownloadedPDF(from: tempURL, to: destinationPath)
     }
@@ -130,14 +132,14 @@ enum ScienceDirectService {
 /// the download without ever taking over the screen.
 ///
 /// A Cloudflare / CAPTCHA / MFA challenge or a sign-in the stored credentials
-/// cannot complete is the one thing this cannot do unattended. Rather than
-/// popping a window into the user's face, it parks a request in
-/// `WebVerificationRequests`; Studio offers it as a banner, and the window is
-/// built only if the user takes it up. The WebView shares
-/// `WKWebsiteDataStore.default()`, so a challenge cleared once carries its
-/// `cf_clearance` cookie into every later download.
+/// cannot complete is the one thing this cannot do unattended. It never opens
+/// a window: once a check has had its grace to clear by itself, the attempt
+/// ends and `PublisherCheckNotifications` says so; the click opens the paper's
+/// page in the Browser. The WebView shares `WKWebsiteDataStore.default()`, the
+/// Browser's Library jar, so a check cleared there carries its `cf_clearance`
+/// cookie into every later download.
 @MainActor
-private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigationDelegate, WKDownloadDelegate, NSWindowDelegate {
+private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigationDelegate, WKDownloadDelegate {
     private struct Credentials {
         let username: String
         let password: String
@@ -166,23 +168,20 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
     private var phase: Phase = .pdf
     private var loginAttempts = 0
     private let maxLoginAttempts = 4
-    // Generous: the user may need time to work through a CAPTCHA in the window.
-    private let overallDeadlineSeconds: UInt64 = 300
+    // Nobody is at this WebView, so the deadline is sized for an unattended fetch.
+    private let overallDeadlineSeconds: UInt64 = 120
 
-    private var window: NSWindow?
-    private var statusLabel: NSTextField?
-    /// Last narration line, kept so a window built later opens already captioned.
-    private var statusText = "Opening the article page…"
-    /// Human-readable name of the paper, for the verification banner.
+    /// Human-readable name of the paper, for the notification.
     private let label: String?
-    /// Identifier of the parked `WebVerificationRequests` entry, if any.
-    private var verificationRequestID: UUID?
-    /// Grace period before a challenge is escalated to the user — most
-    /// Cloudflare managed checks clear themselves within a few seconds.
+    /// The paper's page, which the notification's click opens in the Browser.
+    private let pageURL: URL
+    /// Grace period before a challenge ends the attempt — most Cloudflare
+    /// managed checks clear themselves within a few seconds.
     private var verificationEscalationTask: Task<Void, Never>?
 
-    init(label: String?) {
+    init(label: String?, pageURL: URL) {
         self.label = label
+        self.pageURL = pageURL
         super.init()
     }
 
@@ -212,17 +211,9 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
         loadContinuation = nil
         timeoutTask?.cancel()
         timeoutTask = nil
-        clearVerificationRequest()
-        window?.delegate = nil
-        window?.close()
-        window = nil
+        cancelVerificationEscalation()
         webView = nil
         continuation.resume(with: result)
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        // User closed the window before the download completed.
-        finish(.failure(SourceError.accessDenied))
     }
 
     func downloadPDF(from url: URL, warmupFrom warmupURL: URL?) async throws -> URL {
@@ -248,114 +239,34 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
         return try await startDownload(in: webView)
     }
 
-    /// Builds the browser window around the running WebView and shows it. Called
-    /// only when the user accepts a parked verification request, never on its own.
-    private func presentWindow() {
-        guard window == nil, let webView else { return }
-        let contentWidth: CGFloat = 920
-        let contentHeight: CGFloat = 820
-        let headerHeight: CGFloat = 60
-
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight))
-
-        let header = NSView(frame: NSRect(x: 0, y: contentHeight - headerHeight, width: contentWidth, height: headerHeight))
-        header.autoresizingMask = [.width, .minYMargin]
-
-        let statusField = NSTextField(labelWithString: statusText)
-        statusField.frame = NSRect(x: 16, y: 20, width: contentWidth - 300, height: 20)
-        statusField.autoresizingMask = [.width]
-        statusField.lineBreakMode = .byTruncatingTail
-        statusField.textColor = .secondaryLabelColor
-        header.addSubview(statusField)
-        statusLabel = statusField
-
-        let downloadButton = NSButton(title: "Download PDF", target: self, action: #selector(downloadTapped))
-        downloadButton.frame = NSRect(x: contentWidth - 16 - 140, y: 14, width: 140, height: 32)
-        downloadButton.autoresizingMask = [.minXMargin]
-        downloadButton.bezelStyle = .rounded
-        header.addSubview(downloadButton)
-
-        let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelTapped))
-        cancelButton.frame = NSRect(x: contentWidth - 16 - 140 - 8 - 90, y: 14, width: 90, height: 32)
-        cancelButton.autoresizingMask = [.minXMargin]
-        cancelButton.bezelStyle = .rounded
-        cancelButton.keyEquivalent = "\u{1b}"
-        header.addSubview(cancelButton)
-
-        webView.frame = NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight - headerHeight)
-        webView.autoresizingMask = [.width, .height]
-
-        container.addSubview(webView)
-        container.addSubview(header)
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: contentWidth, height: contentHeight),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Downloading paper PDF"
-        window.contentView = container
-        window.delegate = self
-        window.isReleasedWhenClosed = false
-        window.center()
-        self.window = window
-
-        // No `NSApp.activate(ignoringOtherApps:)`: the user reached this window by
-        // clicking the banner, so the app is already frontmost, and grabbing focus
-        // is the behaviour this whole path exists to stop.
-        window.makeKeyAndOrderFront(nil)
-
-        // The clock restarts when a human takes over: the headless deadline was
-        // sized for an unattended fetch, not for working through a CAPTCHA.
-        restartDeadline()
-    }
-
-    private func setStatus(_ text: String) {
-        statusText = text
-        statusLabel?.stringValue = text
-    }
-
-    /// Parks a request for the user instead of stealing the screen.
+    /// Ends the attempt with a notification instead of a window.
     ///
     /// `grace` gives an automatic challenge time to clear itself first — most
-    /// Cloudflare managed checks pass in a few seconds with nobody watching, and
-    /// a banner for those would be exactly the interruption we are removing. A
-    /// dead end that will never self-clear (a manual sign-in) passes `.zero`.
-    private func requestVerification(reason: String, grace: Duration) {
-        setStatus(reason)
-        // Already escalated, already visible, or already waiting out the grace.
-        guard window == nil, verificationRequestID == nil, verificationEscalationTask == nil else { return }
-
+    /// Cloudflare managed checks pass in a few seconds with nobody watching,
+    /// and a notification for those would be exactly the interruption this
+    /// avoids. A dead end that will never self-clear (a manual sign-in)
+    /// passes `.zero`.
+    private func requestVerification(grace: Duration) {
+        guard verificationEscalationTask == nil else { return }
         verificationEscalationTask = Task { @MainActor [weak self] in
             if grace > .zero {
                 try? await Task.sleep(for: grace)
             }
-            guard !Task.isCancelled, let self, self.loadContinuation != nil, self.window == nil else { return }
+            guard !Task.isCancelled, let self, self.loadContinuation != nil else { return }
             self.verificationEscalationTask = nil
-            let detail = self.label
-            self.verificationRequestID = WebVerificationRequests.shared.request(
-                message: "ScienceDirect needs a quick verification to download this paper.",
-                detail: detail,
-                open: { [weak self] in
-                    self?.verificationRequestID = nil
-                    self?.presentWindow()
-                },
-                skip: { [weak self] in
-                    self?.verificationRequestID = nil
-                    self?.finish(.failure(SourceError.accessDenied))
-                }
+            PublisherCheckNotifications.post(
+                publisher: "ScienceDirect",
+                paperTitle: self.label,
+                pageURL: self.pageURL
             )
+            self.finish(.failure(SourceError.accessDenied))
         }
     }
 
-    /// Withdraws a parked request and cancels a pending escalation. Called when
-    /// the challenge clears on its own and when the download ends either way.
-    private func clearVerificationRequest() {
+    /// Called when the challenge clears on its own and when the download ends.
+    private func cancelVerificationEscalation() {
         verificationEscalationTask?.cancel()
         verificationEscalationTask = nil
-        WebVerificationRequests.shared.withdraw(verificationRequestID)
-        verificationRequestID = nil
     }
 
     private func restartDeadline() {
@@ -369,17 +280,6 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
         }
     }
 
-    @objc private func downloadTapped() {
-        guard let webView, let targetPDFURL else { return }
-        phase = .pdf
-        setStatus("Fetching the PDF…")
-        load(targetPDFURL, in: webView, preferPDF: true)
-    }
-
-    @objc private func cancelTapped() {
-        finish(.failure(SourceError.accessDenied))
-    }
-
     private func startDownload(in webView: WKWebView) async throws -> URL {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             loadContinuation = continuation
@@ -388,11 +288,9 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
             restartDeadline()
             if let warmupURL {
                 phase = .warmup
-                setStatus("Opening the article page…")
                 load(warmupURL, in: webView, preferPDF: false)
             } else if let targetPDFURL {
                 phase = .pdf
-                setStatus("Fetching the PDF…")
                 load(targetPDFURL, in: webView, preferPDF: true)
             } else {
                 finish(.failure(SourceError.invalidURL))
@@ -430,7 +328,6 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
                 finish(.failure(SourceError.accessDenied))
                 return
             }
-            setStatus("Signing in…")
             do {
                 let result = try await submitLoginStep(credentials: credentials, in: webView)
                 if result.attempted {
@@ -453,21 +350,15 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
         if loginAttempts > 0, let targetPDFURL {
             loginAttempts += 1
             if loginAttempts <= maxLoginAttempts {
-                setStatus("Fetching the PDF…")
                 load(targetPDFURL, in: webView, preferPDF: true)
                 return
             }
         }
 
         if Self.pageLooksLikeLogin(lower) {
-            // Automatic sign-in is exhausted, so offer the user the window rather
-            // than failing outright. This one will never clear itself, so there is
-            // no grace period. A completed sign-in navigates and re-enters this
-            // handler; the overall deadline bounds the wait.
-            requestVerification(
-                reason: "Sign in to your institution here to download, or close this window.",
-                grace: .zero
-            )
+            // Automatic sign-in is exhausted. This will never clear itself, so
+            // there is no grace: the learner signs in from the Browser.
+            requestVerification(grace: .zero)
             return
         }
         finish(.failure(SourceError.fetchFailed))
@@ -630,29 +521,25 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
             let title = (webView.title ?? "").lowercased()
 
             // A Cloudflare / CAPTCHA / MFA challenge can appear on either the landing
-            // page or the PDF request. It can't be solved headlessly, but the window
-            // is visible — narrate and wait. Completing the check triggers a fresh
-            // navigation (another didFinish), which re-evaluates from the top.
+            // page or the PDF request. A managed check that clears itself navigates
+            // again (another didFinish), which re-evaluates from the top; one that
+            // needs a human ends the attempt after the grace.
             if title.contains("just a moment") || title.contains("attention required")
                 || lower.contains("are you a robot") || lower.contains("verify you are human")
                 || lower.contains("checking your browser")
                 || Self.pageRequiresImmediateHumanIntervention(lower) {
-                requestVerification(
-                    reason: "Complete the verification shown here to continue…",
-                    grace: .seconds(6)
-                )
+                requestVerification(grace: .seconds(6))
                 return
             }
 
-            // Past the challenge — withdraw any banner still offering to show it.
-            clearVerificationRequest()
+            // Past the challenge before its grace ran out.
+            cancelVerificationEscalation()
 
             if phase == .warmup {
                 // The article page loaded and set its session cookies. Now request the
                 // PDF endpoint, which should resolve straight to the file.
                 guard let targetPDFURL else { finish(.failure(SourceError.invalidURL)); return }
                 phase = .pdf
-                setStatus("Fetching the PDF…")
                 load(targetPDFURL, in: webView, preferPDF: true)
                 return
             }
@@ -726,7 +613,6 @@ private final class ScienceDirectAuthenticatedPDFDownloader: NSObject, WKNavigat
         suggestedFilename: String,
         completionHandler: @escaping (URL?) -> Void
     ) {
-        setStatus("Downloading the PDF…")
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScienceDirect-\(UUID().uuidString)")
             .appendingPathExtension("pdf")

@@ -690,7 +690,8 @@ extension StudioViewModel {
                     try await ScienceDirectService.downloadPDFWithAuthenticatedWebSession(
                         from: pdfURL,
                         to: destPath,
-                        label: articles.first(where: { $0.id == articleId })?.title
+                        label: articles.first(where: { $0.id == articleId })?.title,
+                        pageURL: url
                     )
                     guard await Self.canOpenPDF(at: destPath) else {
                         await Self.removeItem(at: destPath)

@@ -994,7 +994,7 @@ enum SourceDiscovery {
     }
 
 @MainActor
-final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, NSWindowDelegate {
+final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
     private struct PageCandidate: Codable {
         let id: String
         let tag: String
@@ -1100,13 +1100,11 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
     private var pendingDownload: DownloadedPDF?
     private var completedDownload: DownloadedPDF?
     private var verificationContinuation: CheckedContinuation<Void, Error>?
-    private var verificationPresentationTask: Task<Void, Never>?
     private var verificationTimeoutTask: Task<Void, Never>?
-    private var verificationWindow: NSWindow?
-    /// Identifier of the parked `WebVerificationRequests` entry, if any.
-    private var verificationRequestID: UUID?
-    /// Title of the paper currently being fetched, for the verification banner.
+    /// Title of the paper currently being fetched, for the notification.
     private var currentSourceLabel: String?
+    /// The paper's own page, which the notification's click opens in the Browser.
+    private var currentPageURL: URL?
 
     init(aiService: AIService) {
         self.aiService = aiService
@@ -1159,8 +1157,8 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
         let webView = makeWebView()
         self.webView = webView
         currentSourceLabel = article.title
+        currentPageURL = url
         defer {
-            dismissVerificationWindow()
             self.webView = nil
         }
         progress("Opening paper page...")
@@ -1387,47 +1385,25 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
 
     /// Cloudflare and similar publisher checks are an intermediate browser state,
     /// not evidence that no PDF exists. Keep them out of the model's decision and
-    /// surface the existing WebView so an interactive check can be completed when
-    /// the automatic JavaScript challenge does not clear on its own.
+    /// give an automatic JavaScript challenge a moment to clear on its own. One
+    /// that needs a human ends the attempt with a notification whose click opens
+    /// the paper's page in the Browser — never a window of its own.
     private func waitForSecurityVerification(in webView: WKWebView) async throws {
         try await withCheckedThrowingContinuation { continuation in
             verificationContinuation = continuation
-            verificationPresentationTask?.cancel()
-            // Most managed challenges clear themselves unattended, so wait before
-            // involving the user at all — and then only offer the window through
-            // the Studio banner rather than throwing it on screen.
-            verificationPresentationTask = Task { @MainActor [weak self, weak webView] in
-                try? await Task.sleep(for: .seconds(6))
-                guard !Task.isCancelled,
-                      let self,
-                      let webView,
-                      self.verificationContinuation != nil,
-                      self.verificationWindow == nil,
-                      self.verificationRequestID == nil else { return }
-                self.verificationRequestID = WebVerificationRequests.shared.request(
-                    message: "A publisher check needs you before this paper can download.",
-                    detail: self.currentSourceLabel,
-                    open: { [weak self, weak webView] in
-                        guard let self else { return }
-                        self.verificationRequestID = nil
-                        guard let webView else { return }
-                        self.presentVerificationWindow(hosting: webView)
-                    },
-                    skip: { [weak self] in
-                        guard let self else { return }
-                        self.verificationRequestID = nil
-                        self.finishSecurityVerification(
-                            .failure(BrowserAgentError.verificationFailed("The publisher check was skipped."))
-                        )
-                    }
-                )
-            }
             verificationTimeoutTask?.cancel()
             verificationTimeoutTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(300))
-                guard !Task.isCancelled else { return }
-                self?.finishSecurityVerification(
-                    .failure(BrowserAgentError.verificationFailed("Timed out waiting for the publisher check."))
+                try? await Task.sleep(for: .seconds(8))
+                guard !Task.isCancelled, let self, self.verificationContinuation != nil else { return }
+                if let page = self.currentPageURL {
+                    PublisherCheckNotifications.post(
+                        publisher: Self.publisherName(for: page),
+                        paperTitle: self.currentSourceLabel,
+                        pageURL: page
+                    )
+                }
+                self.finishSecurityVerification(
+                    .failure(BrowserAgentError.verificationFailed("The publisher check needs you in the Browser."))
                 )
             }
             Task { @MainActor [weak self, weak webView] in
@@ -1437,51 +1413,17 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
         }
     }
 
-    private func presentVerificationWindow(hosting webView: WKWebView) {
-        if let verificationWindow {
-            verificationWindow.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        let contentSize = NSSize(width: 920, height: 820)
-        webView.frame = NSRect(origin: .zero, size: contentSize)
-        webView.autoresizingMask = [.width, .height]
-
-        let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: contentSize),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Verify publisher access"
-        window.contentView = webView
-        window.delegate = self
-        window.isReleasedWhenClosed = false
-        window.center()
-        verificationWindow = window
-        // No `NSApp.activate(ignoringOtherApps:)`: the user opened this from the
-        // banner, so the app is already frontmost.
-        window.makeKeyAndOrderFront(nil)
-        // Restart the clock — the remaining headless budget was not sized for a
-        // human working through a CAPTCHA.
-        verificationTimeoutTask?.cancel()
-        verificationTimeoutTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(300))
-            guard !Task.isCancelled else { return }
-            self?.finishSecurityVerification(
-                .failure(BrowserAgentError.verificationFailed("Timed out waiting for the publisher check."))
-            )
-        }
+    /// "cell.com" for https://www.cell.com/…, the name a notification gives.
+    nonisolated static func publisherName(for page: URL) -> String {
+        guard let host = page.host?.lowercased(), !host.isEmpty else { return "A publisher" }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
     }
 
     private func finishSecurityVerification(_ result: Result<Void, Error>) {
         guard let continuation = verificationContinuation else { return }
         verificationContinuation = nil
-        verificationPresentationTask?.cancel()
-        verificationPresentationTask = nil
         verificationTimeoutTask?.cancel()
         verificationTimeoutTask = nil
-        dismissVerificationWindow()
         continuation.resume(with: result)
     }
 
@@ -1498,17 +1440,6 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
         } catch {
             finishSecurityVerification(.failure(error))
         }
-    }
-
-    private func dismissVerificationWindow() {
-        WebVerificationRequests.shared.withdraw(verificationRequestID)
-        verificationRequestID = nil
-        guard let window = verificationWindow else { return }
-        window.delegate = nil
-        webView?.removeFromSuperview()
-        window.contentView = nil
-        window.close()
-        verificationWindow = nil
     }
 
     nonisolated static func isSecurityVerificationPage(
@@ -1808,18 +1739,6 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
             guard let self, let webView else { return }
             await self.finishSecurityVerificationIfResolved(in: webView)
         }
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard let closingWindow = notification.object as? NSWindow,
-              closingWindow === verificationWindow else { return }
-        closingWindow.delegate = nil
-        webView?.removeFromSuperview()
-        closingWindow.contentView = nil
-        verificationWindow = nil
-        finishSecurityVerification(
-            .failure(BrowserAgentError.verificationFailed("The verification window was closed."))
-        )
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

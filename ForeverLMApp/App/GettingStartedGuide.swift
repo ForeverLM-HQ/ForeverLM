@@ -1608,7 +1608,7 @@ struct GettingStartedGuide: View {
             // reopened later leaves the window as the learner had it.
             if isFirstFinish {
                 // Publisher checks from setup's imports wait quietly.
-                WebVerificationRequests.shared.holdBanners(for: .seconds(600))
+                PublisherCheckNotifications.hold(for: .seconds(600))
                 vm.revealCenterTab(.reader, beside: .reader)
             }
             isPresented = false

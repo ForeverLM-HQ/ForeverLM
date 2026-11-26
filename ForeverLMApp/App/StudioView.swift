@@ -1645,20 +1645,9 @@ private struct StudioToastOverlay: ViewModifier {
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
                     // Background work is an icon in the strip, never a stack
-                    // of banners here (StudioWorkButton). What follows asks the learner for
-                    // something, so keeps its own card.
-
-                    // A warning label is never filmed: screen record mode keeps
-                    // the publisher check waiting off screen (Settings › Data & Privacy
-                    // or the app menu turns the mode off to answer it).
-                    if let verification = WebVerificationRequests.shared.latest,
-                       !vm.isScreenRecordModeActive {
-                        StudioWebVerificationBanner(
-                            request: verification,
-                            waiting: WebVerificationRequests.shared.pending.count
-                        )
-                        .transition(cardTransition)
-                    }
+                    // of banners here (StudioWorkButton), and a publisher check
+                    // is a notification (PublisherCheckNotifications). What
+                    // follows asks the learner for something, so keeps its own card.
                     if let deletion = vm.pendingDeletionNotices.last(where: { vm.isRequestTarget($0.windowID, windowState) }) {
                         StudioDeletionUndoBanner(message: deletion.message) {
                             Task { await vm.undoPendingDeletion(deletion.id) }
@@ -1669,52 +1658,6 @@ private struct StudioToastOverlay: ViewModifier {
                 .padding(.bottom, 20)
             }
             .animation(.easeInOut(duration: 0.3), value: vm.pendingDeletionNotices.last?.id)
-            .animation(.easeInOut(duration: 0.3), value: WebVerificationRequests.shared.latest?.id)
-    }
-}
-
-/// Offers the browser window for a download that hit a publisher check, instead
-/// of that window opening itself over whatever the user was doing. Papers
-/// download headless; this is the only thing that surfaces when one cannot.
-private struct StudioWebVerificationBanner: View {
-    let request: WebVerificationRequests.Request
-    /// Total parked requests, so a batch of blocked downloads says so once.
-    let waiting: Int
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "hand.raised")
-                .zoomedSystemFont(size: 12, weight: .semibold)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(request.message)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(2)
-                if let detail = request.detail, !detail.isEmpty {
-                    Text(waiting > 1 ? "\(detail) · \(waiting - 1) more waiting" : detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else if waiting > 1 {
-                    Text("\(waiting - 1) more waiting")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Button("Skip") { WebVerificationRequests.shared.skip(request.id) }
-                .font(.subheadline)
-                .buttonStyle(.hoverWash(tint: Color.accentColor))
-
-            Button("Open") { WebVerificationRequests.shared.open(request.id) }
-                .font(.subheadline.weight(.semibold))
-                .buttonStyle(.hoverWash(tint: Color.accentColor))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(radius: 4)
     }
 }
 

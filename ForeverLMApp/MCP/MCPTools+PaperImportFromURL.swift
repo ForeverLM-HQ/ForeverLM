@@ -466,7 +466,8 @@ extension MCPDataStore {
                 try await ScienceDirectService.downloadPDFWithAuthenticatedWebSession(
                     from: pdfURL,
                     to: destination.path,
-                    label: label
+                    label: label,
+                    pageURL: sourceURL
                 )
                 return
             }
