@@ -9,9 +9,10 @@ import Foundation
 /// aloud word for word, gathers the audio, and answers the speech clients as a
 /// speech endpoint does, with 24 kHz 16-bit mono PCM. OpenAI's own transcript
 /// of what the model said comes back beside the audio, and a reading that
-/// strays from the text is refused with a 422 (`fidelity`), so a conversational
-/// model cannot slip a greeting, a summary or a skipped paragraph into a paper;
-/// the speech clients answer a 422 by reading the section again in halves.
+/// strays from the text is never played (`fidelity`), so a conversational
+/// model cannot slip a greeting, a summary or a skipped paragraph into a paper:
+/// the section is read again, then in halves (`faithfulAudio`), and only a
+/// section no reading follows is refused, with a 422.
 ///
 /// The speech clients (`CloudArticleTTS`, `MacArticleTTSClient`) build an
 /// ordinary request to `requestURL` and send it with
@@ -92,26 +93,14 @@ enum OpenAIRealtimeNarration {
             return answer(status: 400, code: "bad_request", message: "OpenAI has no voice called \(body.voice).")
         }
         do {
-            let result = try await narrate(model: body.model, voice: body.voice, text: text, apiKey: key)
-            record(result.usage, model: body.model)
-            let measured = fidelity(text: text, transcript: result.transcript)
-            guard isFaithful(measured) else {
-                return answer(
-                    status: 422,
-                    code: "narration_not_verbatim",
-                    message: "OpenAI didn't read this section word for word."
-                )
-            }
-            guard !result.audio.isEmpty else {
-                return answer(status: 502, code: "upstream_error", message: "OpenAI sent no audio for this section.")
-            }
+            let audio = try await faithfulAudio(model: body.model, voice: body.voice, text: text, apiKey: key)
             let http = HTTPURLResponse(
                 url: requestURL,
                 statusCode: 200,
                 httpVersion: "HTTP/1.1",
                 headerFields: ["Content-Type": "audio/pcm"]
             )!
-            return (result.audio, http)
+            return (audio, http)
         } catch let failure as Failure {
             return answer(status: failure.status, code: failure.code, message: failure.message)
         } catch is CancellationError {
@@ -124,6 +113,58 @@ enum OpenAIRealtimeNarration {
                 message: "The narration session with OpenAI failed: \(error.localizedDescription)"
             )
         }
+    }
+
+    /// The code of the 422 a section gets when no reading of it, whole or in
+    /// parts, followed the text. It is about this section, not the model: the
+    /// Mac's client lets the rest of the source go on.
+    static let notVerbatimCode = "narration_not_verbatim"
+
+    /// True when `data` is the body of the not-verbatim refusal.
+    static func isNotVerbatimRefusal(_ data: Data) -> Bool {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let error = object["error"] as? [String: Any] else { return false }
+        return error["code"] as? String == notVerbatimCode
+    }
+
+    /// How many times a section that keeps straying is halved.
+    private static let maxSplitDepth = 2
+
+    /// Reads `text` until a reading follows it. The model strays only now and
+    /// then (one section in a 246-section book stopped the whole book,
+    /// 2026-11-26), so a stray reading is first read again as it is, and a
+    /// section that strays twice is read in halves, split at the sentence
+    /// nearest the middle, each half read the same way and their audio joined
+    /// in order (raw PCM at one rate joins as it is). Every reading is
+    /// checked; nothing unchecked is ever played.
+    static func faithfulAudio(
+        model: String,
+        voice: String,
+        text: String,
+        apiKey: String,
+        depth: Int = 0
+    ) async throws -> Data {
+        for _ in 0..<2 {
+            let result = try await narrate(model: model, voice: voice, text: text, apiKey: apiKey)
+            record(result.usage, model: model)
+            guard isFaithful(fidelity(text: text, transcript: result.transcript)) else { continue }
+            guard !result.audio.isEmpty else {
+                throw Failure(status: 502, code: "upstream_error", message: "OpenAI sent no audio for this section.")
+            }
+            return result.audio
+        }
+        guard depth < maxSplitDepth, let halves = CloudArticleTTS.split(text) else {
+            throw Failure(
+                status: 422,
+                code: notVerbatimCode,
+                message: "OpenAI didn't read this section word for word, even read again and in parts."
+            )
+        }
+        var audio = Data()
+        for half in halves {
+            audio.append(try await faithfulAudio(model: model, voice: voice, text: half, apiKey: apiKey, depth: depth + 1))
+        }
+        return audio
     }
 
     private static func answer(status: Int, code: String, message: String) -> (Data, URLResponse) {

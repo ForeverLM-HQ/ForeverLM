@@ -301,6 +301,13 @@ enum MacArticleTTSClient {
                         attempt += 1
                         continue
                     }
+                    // A section OpenAI would not read word for word, even
+                    // again and in halves, is this section's failure: the
+                    // model reads the rest, so the source goes on and the
+                    // model is not put to the test again.
+                    if http.statusCode == 422, OpenAIRealtimeNarration.isNotVerbatimRefusal(data) {
+                        throw MacArticleTTSError.badResponse(reason)
+                    }
                     if isModelRefusal(statusCode: http.statusCode) {
                         throw MacArticleTTSError.modelRefused(
                             model: model,
@@ -791,8 +798,9 @@ enum MacArticleTTSError: LocalizedError {
             return "\(provider) rejected the text-to-speech request (HTTP \(statusCode)): \(reason) "
                 + "Check your OpenRouter key in AI Usage (the sidebar's OpenRouter button)."
         case .modelRefused(let model, let statusCode, let reason):
-            let name = ArticleSpeechCatalog.model(id: model)?.name ?? model
-            return "OpenRouter refused \(name) (HTTP \(statusCode)): \(reason)"
+            let option = ArticleSpeechCatalog.model(id: model)
+            let provider = option?.speaksThroughOpenAI == true ? "OpenAI" : "OpenRouter"
+            return "\(provider) refused \(option?.name ?? model) (HTTP \(statusCode)): \(reason)"
         case .unplayableAudio(_, let message):
             return message
         case .networkUnavailable:

@@ -1222,6 +1222,25 @@ extension ArticleSpeechContentTests {
         let unplayable = MacArticleTTSError.unplayableAudio(model: "x/y", message: "The returned audio could not be decoded.")
         #expect(!unplayable.abortsGeneration)
         #expect(!unplayable.suggestsProviderSwitch)
+
+        // An OpenAI voice is OpenAI's refusal, not OpenRouter's.
+        let openAI = MacArticleTTSError.modelRefused(
+            model: ArticleSpeechCatalog.openAIRealtimeModelID,
+            statusCode: 400,
+            reason: "No."
+        )
+        #expect(openAI.errorDescription?.hasPrefix("OpenAI refused ") == true)
+    }
+
+    /// One section OpenAI would not read word for word stopped a 246-section
+    /// book (2026-11-26): that refusal is told apart from a model refusal.
+    @Test("a section read off the text is told apart from a refused model")
+    func notVerbatimRefusalIsRecognised() {
+        let body = Data(#"{"error":{"code":"narration_not_verbatim","message":"x"}}"#.utf8)
+        #expect(OpenAIRealtimeNarration.isNotVerbatimRefusal(body))
+        let other = Data(#"{"error":{"code":"bad_request","message":"x"}}"#.utf8)
+        #expect(!OpenAIRealtimeNarration.isNotVerbatimRefusal(other))
+        #expect(!OpenAIRealtimeNarration.isNotVerbatimRefusal(Data("not json".utf8)))
     }
 
     /// With every interface down, loopback still answers while the path
