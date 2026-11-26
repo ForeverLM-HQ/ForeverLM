@@ -673,7 +673,9 @@ enum AIEffort: String, CaseIterable, Codable, Identifiable {
 
 /// Output-speed request. On the OpenRouter rail, `fast` routes the request to
 /// the lab's separately priced fast endpoint (`openai/fast`, `anthropic/fast`)
-/// via `provider.order`; see `OpenRouterSpeedTier`. The direct first-party
+/// via `provider.order`, and `ultrafast` to the faster one above it
+/// (`openai/ultrafast`, three times the standard price on GPT-6.2 Sol); see
+/// `OpenRouterSpeedTier`. The direct first-party
 /// rails offer no speed until their premium tiers are on the managed rate card.
 /// Declared cheapest-and-slowest first: the Speed menu lists cases in this
 /// order, so a learner reads it as a price ladder.
@@ -682,6 +684,7 @@ enum AISpeed: String, CaseIterable, Codable, Identifiable {
     case flex
     case standard
     case fast
+    case ultrafast
 
     var id: String { rawValue }
 
@@ -690,6 +693,7 @@ enum AISpeed: String, CaseIterable, Codable, Identifiable {
         case .flex: return "Flex"
         case .standard: return "Standard"
         case .fast: return "Fast"
+        case .ultrafast: return "Ultrafast"
         }
     }
 }

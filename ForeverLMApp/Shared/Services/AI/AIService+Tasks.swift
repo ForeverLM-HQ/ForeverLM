@@ -218,6 +218,8 @@ struct OpenRouterEndpointTier: Sendable, Equatable {
 enum OpenRouterSpeedTier {
     /// The suffix OpenRouter puts on a lab's fast-processing endpoint tag.
     static let fastSuffix = "/fast"
+    /// The suffix on a lab's tier above fast (`openai/ultrafast`).
+    static let ultrafastSuffix = "/ultrafast"
     /// The suffix on a lab's flex (lower-priority, cheaper) endpoint tag.
     static let flexSuffix = "/flex"
 
@@ -237,6 +239,12 @@ enum OpenRouterSpeedTier {
         return tiers.first { $0.tag.lowercased() == vendor + fastSuffix }
     }
 
+    /// The lab's ultrafast endpoint for this slug, or nil when OpenRouter lists none.
+    static func ultrafastTier(for slug: String, in tiers: [OpenRouterEndpointTier]) -> OpenRouterEndpointTier? {
+        guard let vendor = vendor(ofSlug: slug) else { return nil }
+        return tiers.first { $0.tag.lowercased() == vendor + ultrafastSuffix }
+    }
+
     /// The lab's flex endpoint for this slug, or nil when OpenRouter lists none.
     static func flexTier(for slug: String, in tiers: [OpenRouterEndpointTier]) -> OpenRouterEndpointTier? {
         guard let vendor = vendor(ofSlug: slug) else { return nil }
@@ -254,7 +262,7 @@ enum OpenRouterSpeedTier {
     /// routes a standard request to.
     static func isServiceTier(_ tag: String) -> Bool {
         let lowered = tag.lowercased()
-        return [fastSuffix, flexSuffix, "/priority"].contains { lowered.hasSuffix($0) }
+        return [fastSuffix, ultrafastSuffix, flexSuffix, "/priority"].contains { lowered.hasSuffix($0) }
     }
 
     /// The standard endpoints a request should be confined to so that its
@@ -287,6 +295,7 @@ enum OpenRouterSpeedTier {
         case .flex: return flexTier(for: slug, in: tiers)
         case .standard: return standardTier(for: slug, in: tiers)
         case .fast: return fastTier(for: slug, in: tiers)
+        case .ultrafast: return ultrafastTier(for: slug, in: tiers)
         }
     }
 
@@ -458,7 +467,7 @@ enum OpenRouterModelSpeed {
     /// takes the fastest endpoint, so a thin sample would always win.
     static let minimumRequests = 20
 
-    /// The speed a pick at this speed tier gets. Fast and Flex name their tier
+    /// The speed a pick at this speed tier gets. Fast, Ultrafast and Flex name their tier
     /// endpoint, so theirs is that endpoint's median. A Standard request is
     /// sorted by throughput (`OpenRouterRoutePreference`), so its figure is the
     /// fastest standard endpoint's. Nil when no endpoint has enough traffic.
@@ -469,10 +478,14 @@ enum OpenRouterModelSpeed {
     ) -> Double? {
         let measured = endpoints.filter { $0.requestCount >= minimumRequests }
         switch speed {
-        case .fast, .flex:
+        case .fast, .ultrafast, .flex:
             guard let vendor = OpenRouterSpeedTier.vendor(ofSlug: slug) else { return nil }
-            let tag = vendor + (speed == .fast ? OpenRouterSpeedTier.fastSuffix : OpenRouterSpeedTier.flexSuffix)
-            return measured.first { $0.tag.lowercased() == tag }?.medianTokensPerSecond
+            let suffix = switch speed {
+            case .fast: OpenRouterSpeedTier.fastSuffix
+            case .ultrafast: OpenRouterSpeedTier.ultrafastSuffix
+            default: OpenRouterSpeedTier.flexSuffix
+            }
+            return measured.first { $0.tag.lowercased() == vendor + suffix }?.medianTokensPerSecond
         case .standard:
             return measured
                 .filter { !OpenRouterSpeedTier.isServiceTier($0.tag) }

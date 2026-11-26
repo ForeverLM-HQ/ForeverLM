@@ -296,6 +296,36 @@ struct OpenRouterSpeedTierTests {
         #expect(OpenRouterSpeedTier.vendor(ofSlug: "Anthropic/claude-opus-5") == "anthropic")
     }
 
+    @Test("Ultrafast is the lab's tier above fast, and never a standard host")
+    func ultrafastTier() throws {
+        // Trimmed from OpenRouter's live `/models/openai/gpt-6.2-sol/endpoints`
+        // answer on 2026-11-25: fast at twice the standard price, ultrafast at three times.
+        let tiers = [
+            OpenRouterEndpointTier(tag: "openai", providerName: "OpenAI",
+                                   inputUSDPerMTokens: 2, outputUSDPerMTokens: 10,
+                                   cachedInputUSDPerMTokens: 0.1, discount: nil),
+            OpenRouterEndpointTier(tag: "openai/fast", providerName: "OpenAI",
+                                   inputUSDPerMTokens: 4, outputUSDPerMTokens: 20,
+                                   cachedInputUSDPerMTokens: 0.2, discount: nil),
+            OpenRouterEndpointTier(tag: "openai/ultrafast", providerName: "OpenAI",
+                                   inputUSDPerMTokens: 6, outputUSDPerMTokens: 30,
+                                   cachedInputUSDPerMTokens: 0.3, discount: nil),
+        ]
+        let slug = "openai/gpt-6.2-sol"
+        let ultrafast = try #require(OpenRouterSpeedTier.tier(for: .ultrafast, slug: slug, in: tiers))
+        #expect(ultrafast.tag == "openai/ultrafast")
+        #expect(OpenRouterSpeedTier.tier(for: .fast, slug: slug, in: tiers)?.tag == "openai/fast")
+        #expect(OpenRouterSpeedTier.isServiceTier("openai/ultrafast"))
+        #expect(OpenRouterSpeedTier.tier(for: .ultrafast, slug: "openai/gpt-5.6-sol", in: Self.solTiers) == nil)
+        #expect(AISpeed.allCases == [.flex, .standard, .fast, .ultrafast])
+        let speeds = [
+            OpenRouterEndpointSpeed(tag: "openai", medianTokensPerSecond: 90, requestCount: 50),
+            OpenRouterEndpointSpeed(tag: "openai/ultrafast", medianTokensPerSecond: 400, requestCount: 50),
+        ]
+        #expect(OpenRouterModelSpeed.tokensPerSecond(for: .ultrafast, slug: slug, in: speeds) == 400)
+        #expect(OpenRouterModelSpeed.tokensPerSecond(for: .standard, slug: slug, in: speeds) == 90)
+    }
+
     @Test("Promotion labels name whole percents only")
     func promotionLabels() {
         #expect(OpenRouterSpeedTier.promotionLabel(discount: 0.5) == "50% off")
