@@ -16,6 +16,11 @@ struct ArticleRow: View {
     let article: StudioArticle
     let metadataVisibility: MetadataVisibilitySettings
     var hidesBookContext: Bool = false
+    /// A chapter names its book even while the window's Sources panel is on
+    /// Books, where its rows sit under their book's header. For a list drawn
+    /// outside that panel (the chat's "In context" popover), which reads the
+    /// key window's tab and would otherwise list chapters with no book.
+    var alwaysShowsBookContext: Bool = false
     /// Grouped rows can let their collection header carry the shared artwork.
     /// Keeping this opt-in at the call site preserves thumbnails everywhere else.
     var showsThumbnail: Bool = true
@@ -73,7 +78,7 @@ struct ArticleRow: View {
         if type == .book,
            let group = article.parentGroup,
            !hidesBookContext,
-           (sidebar?.sidebarTab ?? vm.sidebarTab) != .books {
+           alwaysShowsBookContext || (sidebar?.sidebarTab ?? vm.sidebarTab) != .books {
             parts.append("Book: \(vm.bookDisplayName(group))")
         }
 

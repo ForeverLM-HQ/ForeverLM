@@ -85,7 +85,7 @@ struct ContextSourceCard: View {
 
     var body: some View {
         Button(action: onOpen) {
-            ArticleRow(article: source, metadataVisibility: metadataVisibility)
+            ArticleRow(article: source, metadataVisibility: metadataVisibility, alwaysShowsBookContext: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
         }
