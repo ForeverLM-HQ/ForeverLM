@@ -150,6 +150,24 @@ struct SubstackAppLinkTests {
         #expect(appLinks == [filed.id: [appLink, other]])
     }
 
+    @Test("Substack's reader is never taken as a post's text")
+    func readerShellIsRefused() {
+        // What "More Stories We'd Like to Publish" was saved as on 2026-10-06.
+        let shell = "More Stories We'd Like to Publish - Asimov Press\n\nHomeSubscriptionsChatActivityExploreDashboardProfileCreateMoreWhat's on your mind?For you"
+        #expect(SubstackAppLink.isReaderShell(shell))
+        #expect(SubstackAppLink.isReaderShell("Home Subscriptions Chat Activity Explore Dashboard Profile Create More"))
+        let post = "A post about home, subscriptions and chat. " + String(repeating: "Biology needs instruments that keep up with a cell. ", count: 40)
+        #expect(!SubstackAppLink.isReaderShell(post))
+        let longPostUnderTheBar = "Home Subscriptions Chat Activity Explore\n" + String(repeating: "word ", count: 400)
+        #expect(!SubstackAppLink.isReaderShell(longPostUnderTheBar))
+    }
+
+    @Test("a URL that is no app link is read where it is")
+    func ownAddressIsReadInPlace() async throws {
+        let url = try #require(URL(string: postAddress))
+        #expect(await SubstackAppLink.readingAddress(for: url) == url)
+    }
+
     @Test("a link typed without a title takes the post's host as its placeholder title")
     func placeholderTitleFollowsTheAddress() {
         let typed = StudioArticle(url: appLink, title: "substack.com", sourceType: .article)

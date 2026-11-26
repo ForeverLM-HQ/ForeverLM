@@ -96,6 +96,29 @@ enum SubstackAppLink {
         }
     }
 
+    /// The address to read a post's text from: the post's own address when
+    /// `url` is an app link Substack answers for, else `url` itself. Read
+    /// with the learner's Substack sign-in, an app link is Substack's reader,
+    /// whose text is its navigation bar ("Home Subscriptions Chat Activity
+    /// Explore…"), and seven posts saved from the reader before 2026-11-12
+    /// were stored as that bar (2026-11-26).
+    static func readingAddress(for url: URL) async -> URL {
+        guard isAppLink(url.absoluteString),
+              let address = await resolvePostAddress(url.absoluteString),
+              let postURL = URL(string: address) else { return url }
+        return postURL
+    }
+
+    /// Whether a page's text is Substack's reader rather than a post: its
+    /// navigation bar, with no article under it. Such text is never stored as
+    /// a source's content.
+    static func isReaderShell(_ text: String) -> Bool {
+        let squeezed = text.filter { !$0.isWhitespace }
+        guard squeezed.contains("HomeSubscriptionsChatActivityExplore") else { return false }
+        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        return words < SourceService.scriptRenderedPageWordThreshold
+    }
+
     private static let signedOutSession: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil

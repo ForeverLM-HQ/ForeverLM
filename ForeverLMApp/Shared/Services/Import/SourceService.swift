@@ -78,10 +78,11 @@ actor SourceService {
     // MARK: - Web Content
     
     private func fetchWebContent(_ urlString: String) async throws -> String {
-        guard let url = URL(string: urlString) else {
+        guard let givenURL = URL(string: urlString) else {
             throw SourceError.invalidURL
         }
-        try await OutboundAddressPolicy.check(url)
+        try await OutboundAddressPolicy.check(givenURL)
+        let url = await SubstackAppLink.readingAddress(for: givenURL)
 
         if let resource = Self.googleDocsResource(from: url) {
             return try await fetchGoogleDocsText(resource: resource)
@@ -139,7 +140,9 @@ actor SourceService {
         
         // Fallback: use WKWebView to render JS-heavy / bot-protected pages (macOS only)
         #if os(macOS)
-        return try await WebViewContentExtractor.shared.extractContent(from: url)
+        let rendered = try await WebViewContentExtractor.shared.extractContent(from: url)
+        if SubstackAppLink.isReaderShell(rendered) { throw SourceError.insufficientContent }
+        return rendered
         #else
         throw SourceError.accessDenied
         #endif
@@ -1201,15 +1204,18 @@ actor SourceService {
             }
         }
 
+        // A Substack app link is read at the post's own address: signed in,
+        // the app link is the reader, not the post (`SubstackAppLink`).
+        let pageURL = await SubstackAppLink.readingAddress(for: url)
         guard let rawHTML = try await fetchPageHTML(
-            url: url,
+            url: pageURL,
             preferAuthenticatedBrowser: preferAuthenticatedBrowser
         ) else {
             throw SourceError.fetchFailed
         }
         return try await archiveWebPageHTML(
             rawHTML,
-            url: url,
+            url: pageURL,
             cacheKey: urlString,
             sourceId: sourceId,
             attributionSourceId: attributionSourceId
@@ -1274,7 +1280,8 @@ actor SourceService {
         )
 
         let plainText = extractTextFromHTML(readableHTML)
-        guard !plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !SubstackAppLink.isReaderShell(plainText) else {
             throw SourceError.insufficientContent
         }
 

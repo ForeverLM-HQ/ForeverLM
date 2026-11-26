@@ -355,6 +355,8 @@ class StudioViewModel {
     @ObservationIgnored var didRepairPublishedDOIWorkKeys = false
     /// Whether this launch has asked for the post address of the sources saved under a Substack app link.
     @ObservationIgnored var didGivePostAddressesToSubstackAppLinkSources = false
+    /// Whether this launch has re-read the Substack app-link sources saved as the reader's navigation bar.
+    @ObservationIgnored var didRereadSubstackReaderShellSources = false
     /// Asks Substack which post an app link names (`SubstackAppLink`); a test
     /// answers for it.
     @ObservationIgnored var substackPostAddress: @Sendable (String) async -> String? = {

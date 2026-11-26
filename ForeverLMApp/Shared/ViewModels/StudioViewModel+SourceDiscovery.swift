@@ -936,6 +936,25 @@ extension StudioViewModel {
         }
     }
 
+    /// Once a launch: each article saved under a Substack app link whose text
+    /// is Substack's reader, its navigation bar and nothing else, is read again
+    /// from the post's own address (Refresh from Website, which now reads an
+    /// app link there). Seven posts saved from the reader before 2026-11-12
+    /// held only "Home Subscriptions Chat Activity Explore…" (2026-11-26). One
+    /// Substack does not answer for keeps its text and is tried next launch.
+    func rereadSubstackReaderShellSources() async {
+        guard !didRereadSubstackReaderShellSources else { return }
+        didRereadSubstackReaderShellSources = true
+        let appLinkArticles = articles.filter { SubstackAppLink.isAppLink($0.url) }
+        for article in appLinkArticles {
+            guard let saved = try? await storage.savedArticleCopy(article.id),
+                  let text = saved.text ?? saved.stagedRaw,
+                  SubstackAppLink.isReaderShell(text) else { continue }
+            let outcome = await refreshArticleFromWebsiteOutcome(article.id)
+            logger.info("Re-read Substack reader-shell source \(article.id, privacy: .public): \(String(describing: outcome), privacy: .public)")
+        }
+    }
+
     /// Files each discovered Substack app link under the post's own address
     /// (`SubstackAppLink`), before it is classified or saved. Returns, by the
     /// re-filed source's id, the app link it came as, which the insert keeps as

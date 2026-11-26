@@ -310,6 +310,7 @@ extension StudioViewModel {
 
             await self.convergePaperIdentityDuplicates()
             await self.givePostAddressesToSubstackAppLinkSources()
+            await self.rereadSubstackReaderShellSources()
             await self.drainPendingWebCourseImports()
             await self.drainPendingWebBookImports()
             await self.runDeferredBookFileMerge()
