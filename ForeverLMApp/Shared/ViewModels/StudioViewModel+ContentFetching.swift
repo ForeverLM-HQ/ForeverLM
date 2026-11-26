@@ -830,6 +830,7 @@ extension StudioViewModel {
             if archivedLocalPath == nil {
                 await ensureSavedPage(for: articleId)
             }
+            await settleSameText(for: articleId)
         } catch SourceError.linkIsPDF {
             // The address looked like a page but serves a PDF (a `/download`
             // link, a landing page that redirects to the file): keep the file
@@ -1479,6 +1480,7 @@ extension StudioViewModel {
         isFetchingContent = false
         queueSourceEmbeddingRefreshIfReady(articleId)
         showToast("Saved the article from the page you're reading")
+        await settleSameText(for: articleId)
         return .adoptedArticle
     }
 

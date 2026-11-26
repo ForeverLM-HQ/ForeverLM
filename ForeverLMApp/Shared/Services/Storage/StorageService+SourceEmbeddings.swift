@@ -462,6 +462,13 @@ extension StorageService {
     /// as the extraction took while every chat send, sync hop and reader open
     /// queued behind it (see `ChatSendPreparationTrace`). A stale derived copy
     /// is refreshed by the ingestion paths that replace the file, not by reads.
+    /// The stored text of several sources at once, by id; a source with none
+    /// is absent. A plain read of `source_content`, for comparing texts.
+    func loadSourceContents(for sourceIDs: [String]) async -> [String: String] {
+        guard !sourceIDs.isEmpty, let ks = try? knowledgeStore() else { return [:] }
+        return (try? ks.loadSourceContents(for: sourceIDs)) ?? [:]
+    }
+
     func loadSourceContent(_ sourceId: String) async -> String? {
         guard let ks = try? knowledgeStore() else { return nil }
 

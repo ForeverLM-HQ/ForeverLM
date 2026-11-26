@@ -1013,6 +1013,130 @@ extension StudioViewModel {
         }
     }
 
+    // MARK: - The same text in two sources (`DuplicateArticleText`)
+
+    /// After an article's text is saved: when another article holds the same
+    /// text, the two are one work at two addresses, and this one takes the
+    /// other's address as a work key so duplicate resolution folds them; or
+    /// one of them was saved with the other's page, and that one is read
+    /// again.
+    func settleSameText(for articleId: String) async {
+        guard let article = articles.first(where: { $0.id == articleId }),
+              Self.canRefreshArticleFromWebsite(article) else { return }
+        var text = article.content
+        if text?.isEmpty ?? true { text = await storage.loadSourceContent(articleId) }
+        guard let text, let fingerprint = DuplicateArticleText.fingerprint(text) else { return }
+        let nearby = articles.filter {
+            $0.id != articleId && Self.canRefreshArticleFromWebsite($0)
+                && ($0.wordCount ?? 0) > 0
+                && Double(max($0.wordCount ?? 0, fingerprint.wordCount)) <= Double(min($0.wordCount ?? 0, fingerprint.wordCount)) * 1.4
+        }
+        guard !nearby.isEmpty else { return }
+        let texts = await storage.loadSourceContents(for: nearby.map(\.id))
+        let mine = DuplicateArticleText.Copy(id: articleId, title: article.title, text: text)
+        for other in nearby {
+            guard let otherText = texts[other.id],
+                  let otherPrint = DuplicateArticleText.fingerprint(otherText),
+                  DuplicateArticleText.isSameText(fingerprint, otherPrint) else { continue }
+            let verdict = DuplicateArticleText.verdict(
+                sameText: mine,
+                DuplicateArticleText.Copy(id: other.id, title: other.title, text: otherText)
+            )
+            await act(on: verdict, between: article, and: other)
+            return
+        }
+    }
+
+    private func act(on verdict: DuplicateArticleText.Verdict, between a: StudioArticle, and b: StudioArticle) async {
+        switch verdict {
+        case .sameWork:
+            do {
+                try await storage.addAddresses([(sourceID: a.id, address: b.url)])
+                logger.info("\(a.id, privacy: .public) and \(b.id, privacy: .public) hold one article's text: filed as one work")
+            } catch {
+                logger.error("Could not file \(a.id, privacy: .public) with \(b.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        case .holdsOthersText(let wrongID):
+            let right = wrongID == a.id ? b : a
+            logger.info("\(wrongID, privacy: .public) held the text of \(right.id, privacy: .public); reading it again")
+            await rereadSourceHoldingOthersText(wrongID, othersTitle: right.title)
+        case .undecided, .different:
+            break
+        }
+    }
+
+    /// A source saved with another article's page: its text and saved page are
+    /// cleared and it is fetched again. When the fetch fails it says why.
+    func rereadSourceHoldingOthersText(_ articleId: String, othersTitle: String) async {
+        // Once a launch: a fetch that brings the other's text again must not
+        // start another read.
+        guard sameTextRereadIDs.insert(articleId).inserted,
+              let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+        await storage.clearSourceDerivedData(articleId)
+        articles[idx].content = nil
+        articles[idx].wordCount = 0
+        articles[idx].localFilePath = nil
+        articles[idx].state = .queued
+        articles[idx].errorMessage = nil
+        await persistSource(articles[idx], context: "Clear another article's text", showErrorToast: false)
+        await fetchContent(for: articleId)
+        if let after = articles.firstIndex(where: { $0.id == articleId }), articles[after].state == .error {
+            articles[after].errorMessage = "Its saved page was “\(othersTitle)”. Open it to read it again."
+        }
+    }
+
+    /// Once: every pair of web articles in the library that hold the same text
+    /// is settled as `settleSameText` settles a new one. Recorded as done in
+    /// the library folder, so it runs again only after a launch that did not
+    /// finish it.
+    func settleArticlesSharingText() async {
+        let marker = (StorageService.libraryRootPath as NSString).appendingPathComponent(".repairs/same-text-v1")
+        guard !FileManager.default.fileExists(atPath: marker) else { return }
+        let web = articles.filter { Self.canRefreshArticleFromWebsite($0) && ($0.wordCount ?? 0) >= DuplicateArticleText.minimumWords / 2 }
+        let texts = await storage.loadSourceContents(for: web.map(\.id))
+        let copies = web.compactMap { article in
+            texts[article.id].map { DuplicateArticleText.Copy(id: article.id, title: article.title, text: $0) }
+        }
+        // A plain nonisolated async function, not `Task.detached(...).value`:
+        // under the 6.4 stdlib the caller of that `value` resumed off the main
+        // actor, and the article writes below then raced SwiftUI (the unit
+        // test host crashed drawing the chat panel).
+        let pairs = await Self.sameTextPairsOffMain(copies)
+        let byID = Dictionary(web.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for pair in pairs {
+            guard let a = byID[pair.a], let b = byID[pair.b] else { continue }
+            await act(on: pair.verdict, between: a, and: b)
+        }
+        try? FileManager.default.createDirectory(atPath: (marker as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: marker, contents: Data("\(pairs.count) pair(s)\n".utf8))
+        logger.info("Settled \(pairs.count) pair(s) of articles holding the same text")
+    }
+
+    nonisolated static func sameTextPairsOffMain(
+        _ copies: [DuplicateArticleText.Copy]
+    ) async -> [(a: String, b: String, verdict: DuplicateArticleText.Verdict)] {
+        sameTextPairs(copies)
+    }
+
+    /// Every pair of copies holding the same text, with its verdict. Copies
+    /// are compared only with those of a similar length.
+    nonisolated static func sameTextPairs(
+        _ copies: [DuplicateArticleText.Copy]
+    ) -> [(a: String, b: String, verdict: DuplicateArticleText.Verdict)] {
+        let printed = copies.compactMap { copy in DuplicateArticleText.fingerprint(copy.text).map { (copy, $0) } }
+            .sorted { $0.1.wordCount < $1.1.wordCount }
+        var pairs: [(a: String, b: String, verdict: DuplicateArticleText.Verdict)] = []
+        for (index, first) in printed.enumerated() {
+            for second in printed[(index + 1)...] {
+                guard DuplicateArticleText.lengthsCouldMatch(first.1.wordCount, second.1.wordCount) else { break }
+                guard DuplicateArticleText.isSameText(first.1, second.1) else { continue }
+                let verdict = DuplicateArticleText.verdict(sameText: first.0, second.0)
+                if verdict != .undecided { pairs.append((first.0.id, second.0.id, verdict)) }
+            }
+        }
+        return pairs
+    }
+
     /// Files each discovered Substack app link under the post's own address
     /// (`SubstackAppLink`), before it is classified or saved. Returns, by the
     /// re-filed source's id, the app link it came as, which the insert keeps as

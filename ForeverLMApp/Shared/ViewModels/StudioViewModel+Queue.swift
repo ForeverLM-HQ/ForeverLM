@@ -312,6 +312,7 @@ extension StudioViewModel {
             await self.givePostAddressesToSubstackAppLinkSources()
             await self.repairSourcesHoldingNonArticlePages()
             await self.saveMissingArticlePages()
+            await self.settleArticlesSharingText()
             await self.drainPendingWebCourseImports()
             await self.drainPendingWebBookImports()
             await self.runDeferredBookFileMerge()
