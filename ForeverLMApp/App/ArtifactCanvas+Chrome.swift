@@ -128,6 +128,9 @@ extension ArtifactCanvas {
                 .help("Back")
             }
             listToggle
+            if isSpaceCanvas, showsPage, let place = spaceSidebarSelection {
+                spaceBackButton(to: place)
+            }
             if let selectedArtifact, showsPage {
                 if selectedArtifact.isLinked {
                     linkedDocMenu(for: selectedArtifact)
@@ -170,6 +173,16 @@ extension ArtifactCanvas {
         // menu sits close to the sidebar's edge, as ChatGPT's does.
         .padding(.leading, showsSpaceSidebar ? 12 : StudioDesign.Metrics.pageMargin)
         .padding(.trailing, StudioDesign.Metrics.pageMargin)
+    }
+
+    /// A Space page's way back to the list it is in, as Codex draws it: ‹ and
+    /// the place's name, quiet until hovered (product owner, 2026-11-26: "i
+    /// need a more intuitive back button here; you can copy from the codex
+    /// app design in spaces"). The page menu's glyph alone never read as
+    /// the way out.
+    private func spaceBackButton(to place: SpaceDestination) -> some View {
+        let title = place == .all ? StudioCenterTab.artifacts.title : vm.spacePlaceTitle(place)
+        return SpaceBackButton(title: title) { showSpacePlace(place) }
     }
 
     /// The way to a notebook's Pages list beside the page while it is out of
@@ -1199,5 +1212,39 @@ extension ArtifactCanvas {
             get: { formatting.activeFormats.contains(command) },
             set: { _ in formatting.run(command) }
         )
+    }
+}
+
+/// ‹ Pages: Codex's back control, the chevron and where it goes in one
+/// hover-washed capsule.
+struct SpaceBackButton: View {
+    let title: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left")
+                    .zoomedSystemFont(size: 11, weight: .semibold)
+                Text(title)
+                    .zoomedSystemFont(size: 13, weight: .medium)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isHovered ? Color.primary : Color.secondary)
+            .padding(.leading, 6)
+            .padding(.trailing, 8)
+            .frame(height: StudioDesign.Metrics.chromeButtonHeight)
+            .background(
+                RoundedRectangle(cornerRadius: StudioDesign.Radius.control, style: .continuous)
+                    .fill(StudioDesign.selectionFill(isSelected: false, isHovered: isHovered))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: StudioDesign.Radius.control, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("Back to \(title)")
+        .accessibilityLabel("Back to \(title)")
+        .onHover { isHovered = $0 }
     }
 }
