@@ -176,4 +176,62 @@ struct ChatReviewPlanTests {
         #expect(Self.samplePlan().totalPoints == 4)
         #expect(Self.samplePlan().donePoints == 2)
     }
+
+    @Test("A point keeps its answer and picture, and a stored line without them still reads")
+    func answersRoundTrip() throws {
+        var plan = Self.samplePlan()
+        plan.topics[0].points[0].answer = "ATP is only one output; the same machinery makes building blocks and signals."
+        plan.topics[0].points[0].image = "foreverlm://image/generated/img_1"
+        let parsed = try #require(ChatReviewPlan.parse(line: plan.markdownLine))
+        #expect(parsed == plan)
+        #expect(parsed.topics[0].points[0].hasAnswer)
+        #expect(!parsed.topics[0].points[1].hasAnswer)
+        // A line written before points had answers is the same bytes it was.
+        #expect(!Self.samplePlan().markdownLine.contains("answer"))
+        let context = plan.turnContext
+        #expect(context.contains("     answer: ATP is only one output"))
+        #expect(context.contains("     picture: foreverlm://image/generated/img_1"))
+    }
+
+    @Test("The tool takes an answer and a picture address, bare or as a Markdown line")
+    func answersFromTool() throws {
+        let plan = try ChatReviewPlan.fromToolArguments([
+            "title": "T",
+            "topics": [["title": "A", "status": "active", "points": [
+                ["text": "p1", "status": "done", "answer": "  Settled.  ", "image": "![Figure 2](foreverlm://image/source/src_1?page=3)"],
+                ["text": "p2", "status": "partial", "answer": "  ", "image": "https://example.org/x.png"],
+            ]]],
+        ])
+        #expect(plan.topics[0].points[0].answer == "Settled.")
+        #expect(plan.topics[0].points[0].image == "foreverlm://image/source/src_1?page=3")
+        #expect(plan.topics[0].points[1].answer == nil)
+        #expect(plan.topics[0].points[1].image == nil, "only the app's own picture addresses are kept")
+        let long = String(repeating: "a", count: ChatReviewPlan.maxAnswerLength + 1)
+        #expect((try? ChatReviewPlan.fromToolArguments([
+            "title": "T",
+            "topics": [["title": "A", "status": "active", "points": [["text": "p", "status": "done", "answer": long]]]],
+        ])) == nil)
+    }
+
+    @Test("A rewrite that leaves an answer off keeps the one the point had")
+    func answersKeptAcrossRewrites() {
+        var before = Self.samplePlan()
+        before.topics[0].points[0].answer = "First answer."
+        before.topics[0].points[0].image = "foreverlm://image/generated/img_1"
+        before.topics[1].points[0].answer = "Threshold answer."
+        var after = Self.samplePlan()
+        after.topics[0].points[1].status = .done
+        after.topics[0].points[1].answer = "New answer."
+        after.topics[1].title = "Spare capacity"
+        let kept = after.keepingAnswers(from: before)
+        #expect(kept.topics[0].points[0].answer == "First answer.")
+        #expect(kept.topics[0].points[0].image == "foreverlm://image/generated/img_1")
+        #expect(kept.topics[0].points[1].answer == "New answer.")
+        #expect(kept.topics[1].points[0].answer == "Threshold answer.", "a renamed topic still finds its point by text")
+        #expect(kept.topics[0].points[2].answer == nil)
+        var replaced = after
+        replaced.topics[0].points[0].answer = "Rewritten."
+        #expect(replaced.keepingAnswers(from: before).topics[0].points[0].answer == "Rewritten.")
+        #expect(after.keepingAnswers(from: nil) == after)
+    }
 }

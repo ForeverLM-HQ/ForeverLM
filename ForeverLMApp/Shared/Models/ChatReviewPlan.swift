@@ -36,9 +36,48 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
         case skipped
     }
 
+    /// A point and, once the learner has answered it, the answer: the step
+    /// of the argument settled in a sentence or three, and a picture from the
+    /// chat that shows it. The popover lays the answers out under their
+    /// points, so the review reads as the argument it built (product owner,
+    /// 2026-11-25: "show the answer underneath there … expandable … add
+    /// images in there … I just see the argument laid out").
     struct Point: Codable, Equatable, Sendable {
         var text: String
         var status: Status
+        /// The point's answer as the argument now stands, in the tutor's
+        /// words from the learner's answer and its corrections. Nil until the
+        /// learner has answered it.
+        var answer: String?
+        /// A picture shown in the chat that captures the point: its
+        /// `foreverlm://image/…` address.
+        var image: String?
+
+        init(text: String, status: Status, answer: String? = nil, image: String? = nil) {
+            self.text = text
+            self.status = status
+            self.answer = answer
+            self.image = image
+        }
+
+        /// Whether the popover has anything to open under the point.
+        var hasAnswer: Bool { answer != nil || image != nil }
+    }
+
+    static let maxAnswerLength = 1200
+
+    /// The picture address a point may carry: a `foreverlm://image/…` URL,
+    /// given bare or as the Markdown image line the picture tools return.
+    /// Anything else is nil.
+    static func imageAddress(_ text: String) -> String? {
+        var candidate = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if candidate.hasPrefix("!["), let open = candidate.range(of: "]("), candidate.hasSuffix(")") {
+            candidate = String(candidate[open.upperBound..<candidate.index(before: candidate.endIndex)])
+        }
+        guard let components = URLComponents(string: candidate),
+              components.scheme == StudioEntityLink.productScheme,
+              components.host == "image" else { return nil }
+        return candidate
     }
 
     struct Topic: Codable, Equatable, Sendable {
@@ -206,7 +245,15 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
                     title: Self.withoutLeadingNumber(clean(topic.title)),
                     status: topic.status,
                     points: topic.points
-                        .map { Point(text: clean($0.text), status: $0.status) }
+                        .map { point in
+                            let answer = point.answer.map(clean).flatMap { $0.isEmpty ? nil : $0 }
+                            return Point(
+                                text: clean(point.text),
+                                status: point.status,
+                                answer: answer,
+                                image: point.image.flatMap(Self.imageAddress)
+                            )
+                        }
                         .filter { !$0.text.isEmpty }
                 )
             },
@@ -232,13 +279,54 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
             guard topic.points.count <= Self.maxPointsPerTopic else {
                 throw ToolError.invalid("topic \(index + 1) has more than \(Self.maxPointsPerTopic) points: split it")
             }
-            for point in topic.points where !pointStatuses.contains(point.status) {
-                throw ToolError.invalid("a point's status in topic \(index + 1) must be todo, partial or done")
+            for point in topic.points {
+                guard pointStatuses.contains(point.status) else {
+                    throw ToolError.invalid("a point's status in topic \(index + 1) must be todo, partial or done")
+                }
+                if let answer = point.answer, answer.count > Self.maxAnswerLength {
+                    throw ToolError.invalid("the answer to \"\(point.text)\" is longer than \(Self.maxAnswerLength) characters: settle it in a sentence or three")
+                }
             }
         }
         guard topics.filter({ $0.status == .active }).count <= 1 else {
             throw ToolError.invalid("more than one topic is active: only the one being worked on is")
         }
+    }
+
+    // MARK: Keeping answers across rewrites
+
+    /// The plan with the answers and pictures of `previous` kept on points
+    /// this plan sends without them. The tutor sends the whole plan every
+    /// time, and a rewrite that ticks the next point must not drop the
+    /// argument the earlier points built. A point is the same point when its
+    /// text is, under a topic of the same title first, anywhere else after.
+    func keepingAnswers(from previous: ChatReviewPlan?) -> ChatReviewPlan {
+        guard let previous else { return self }
+        func key(_ text: String) -> String {
+            text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        var byTopic: [String: Point] = [:]
+        var anywhere: [String: Point] = [:]
+        for topic in previous.topics {
+            for point in topic.points where point.hasAnswer {
+                byTopic[key(topic.title) + "\u{1F}" + key(point.text)] = point
+                if anywhere[key(point.text)] == nil { anywhere[key(point.text)] = point }
+            }
+        }
+        guard !anywhere.isEmpty else { return self }
+        var kept = self
+        for topicIndex in kept.topics.indices {
+            let topicKey = key(kept.topics[topicIndex].title)
+            for pointIndex in kept.topics[topicIndex].points.indices {
+                var point = kept.topics[topicIndex].points[pointIndex]
+                guard point.answer == nil || point.image == nil else { continue }
+                guard let earlier = byTopic[topicKey + "\u{1F}" + key(point.text)] ?? anywhere[key(point.text)] else { continue }
+                if point.answer == nil { point.answer = earlier.answer }
+                if point.image == nil { point.image = earlier.image }
+                kept.topics[topicIndex].points[pointIndex] = point
+            }
+        }
+        return kept
     }
 
     // MARK: The stored line
@@ -363,6 +451,8 @@ struct ChatReviewPlan: Codable, Equatable, Sendable {
             lines.append("\(index + 1). [\(Self.mark(topic.status))] \(topic.title)")
             for point in topic.points {
                 lines.append("   - [\(Self.mark(point.status))] \(point.text)")
+                if let answer = point.answer { lines.append("     answer: \(answer)") }
+                if let image = point.image { lines.append("     picture: \(image)") }
             }
         }
         lines.append("Marks: [>] active, [x] done, [~] partly covered, [-] skipped, [ ] not yet.")

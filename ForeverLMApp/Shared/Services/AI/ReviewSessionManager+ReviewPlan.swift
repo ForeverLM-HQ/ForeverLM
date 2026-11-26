@@ -18,7 +18,7 @@ extension ReviewSessionManager {
         }
         return AIToolSpec(
             name: ChatReviewPlan.toolName,
-            description: "Keep the review plan the learner sees beside the composer. Call it whenever you quiz the learner on a source, an episode or a set of points: once to set the plan when the review starts, and again whenever it changes — after each answer you grade (tick only the points the learner's own answer covered: done when it was right, partial when only part was; a point you explained and the learner has not yet answered stays todo), when you move to another topic, when you ask a new question (open_question), when the learner leaves the plan for a side question or a tangent (push a few words for it onto detours) or comes back (pop it; a return to the plan empties detours), and when something is promised for later (parked). Send the whole plan every time; it replaces the last one. List every point a topic has to cover, so a topic is done only when its points are, and never mark a topic done while points under it are not. Do not write the plan out as a checklist in the reply: the learner sees it beside the composer; say in a sentence where you are instead. When the learner says \"back to the plan\", empty detours and ask the open question again.",
+            description: "Keep the review plan the learner sees beside the composer. Call it whenever you quiz the learner on a source, an episode or a set of points: once to set the plan when the review starts, and again whenever it changes — after each answer you grade (tick only the points the learner's own answer covered: done when it was right, partial when only part was; a point you explained and the learner has not yet answered stays todo, and give every point you tick an answer: the point settled as a step of the argument, in a sentence or three, from the learner's answer with your corrections, so the plan reads as the argument laid out), when you move to another topic, when you ask a new question (open_question), when the learner leaves the plan for a side question or a tangent (push a few words for it onto detours) or comes back (pop it; a return to the plan empties detours), and when something is promised for later (parked). Send the whole plan every time; it replaces the last one (an answer or picture you leave off a point that had one is kept). List every point a topic has to cover, so a topic is done only when its points are, and never mark a topic done while points under it are not. Do not write the plan out as a checklist in the reply: the learner sees it beside the composer; say in a sentence where you are instead. When the learner says \"back to the plan\", empty detours and ask the open question again.",
             inputSchema: [
                 "type": "object",
                 "properties": [
@@ -42,6 +42,14 @@ extension ReviewSessionManager {
                                         "properties": [
                                             "text": ["type": "string"],
                                             "status": status("partial when the learner got only part of it.", ["todo", "partial", "done"]),
+                                            "answer": [
+                                                "type": "string",
+                                                "description": "Once the learner has answered the point: the point settled as a step of the argument, in a sentence or three, in plain words from their answer with your corrections. What the learner opens under the point to see the argument laid out. Omit while the point is todo.",
+                                            ],
+                                            "image": [
+                                                "type": "string",
+                                                "description": "A picture already shown in this chat that captures the point: its foreverlm://image/… address from show_source_image or generate_image. The learner sees it under the answer. Omit when none fits.",
+                                            ],
                                         ] as [String: Any],
                                         "required": ["text", "status"],
                                     ] as [String: Any],
@@ -88,7 +96,7 @@ extension ReviewSessionManager {
            earlierReviewPlanTitles.last != current.title {
             earlierReviewPlanTitles.append(current.title)
         }
-        reviewPlan = plan
+        reviewPlan = plan.keepingAnswers(from: reviewPlan)
         return AppToolResult(
             text: "Plan saved and shown beside the composer (\(plan.progressLabel)). Do not repeat it as a list in the reply.",
             isError: false

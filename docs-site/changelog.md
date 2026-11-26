@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The review plan lays out the argument.** As you answer, each point in a chat's review plan gets its answer underneath, settled in a sentence or three from what you said and what the tutor corrected, with a picture from the chat when one shows it. Click a point to open its answer, or choose **Show All Answers** from the plan's **⋯** menu to read the whole argument top to bottom.
 - **A daily review in pictures, on a schedule.** **Tasks** › **⋯** › **Daily Visual Review…** (or the button on an empty Tasks page) opens a chat with the request typed: every morning at 8:00, a quiz on what you learned the day before, each question opening with a figure from your sources or a plain drawing of one idea, and asking you to explain it. Change the time or the wording and press Return. Any task you describe in chat can ask for pictures the same way. Each drawing is charged to your image model.
 - **A picture in a chat has no buttons over it.** **Copy** and **Open beside** no longer appear when you point at a figure; right-click it for **Copy Image** and **Open Beside** instead. A picture the app drew still shows **Redraw**.
 - **The Feynman Technique draws when your sources have no picture.** Every question now comes with a picture: a figure from your sources when one fits, otherwise a plain diagram of that one idea, drawn without labels that give the answer away, and shown again when the idea comes back. Each drawing is charged to your image model.

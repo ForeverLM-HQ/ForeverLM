@@ -531,6 +531,13 @@ extension InternalReviewPanelContent {
                         },
                         onClear: {
                             Task { await manager.clearReviewPlan() }
+                        },
+                        resolveImage: { [vm = self.vm] address in
+                            await ChatSourceImage.resolved(
+                                token: address,
+                                articleForSourceID: { sourceID in await vm.persistedArticle(forLinkToken: sourceID) },
+                                contentForSourceID: { sourceID in await vm.storage.loadSourceContent(sourceID) }
+                            )
                         }
                     )
                 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The review plan's chip in the composer's tray, beside "in context", and
@@ -25,6 +26,9 @@ struct ReviewPlanChip: View {
     let onGoToTopic: (Int, String) -> Void
     /// Takes the plan out of the chat (`ReviewSessionManager.clearReviewPlan`).
     let onClear: () -> Void
+    /// Draws a point's picture from its `foreverlm://image/…` address, as
+    /// the transcript draws the chat's pictures.
+    let resolveImage: @MainActor (String) async -> ChatSourceImage?
 
     @State private var isPresented = false
     @State private var isHovering = false
@@ -73,7 +77,8 @@ struct ReviewPlanChip: View {
                 onClear: {
                     isPresented = false
                     onClear()
-                }
+                },
+                resolveImage: resolveImage
             )
         }
     }
@@ -108,9 +113,43 @@ struct ReviewPlanPopover: View {
     let onBackToPlan: () -> Void
     let onGoToTopic: (Int, String) -> Void
     let onClear: () -> Void
+    let resolveImage: @MainActor (String) async -> ChatSourceImage?
 
     /// Topics opened by hand; the active one is always open.
     @State private var opened: Set<Int> = []
+    /// Answers opened under their points, by "topic.point".
+    @State private var openAnswers: Set<String> = []
+
+    private var answeredPointKeys: [String] {
+        plan.topics.enumerated().flatMap { topicIndex, topic in
+            topic.points.enumerated().compactMap { pointIndex, point in
+                point.hasAnswer ? Self.answerKey(topicIndex, pointIndex) : nil
+            }
+        }
+    }
+
+    private static func answerKey(_ topic: Int, _ point: Int) -> String { "\(topic).\(point)" }
+
+    private var allAnswersOpen: Bool {
+        let keys = answeredPointKeys
+        return !keys.isEmpty && keys.allSatisfy(openAnswers.contains)
+    }
+
+    /// Opens every answer, and the topics that hold them, so the whole
+    /// argument reads top to bottom; or closes them all again.
+    private func toggleAllAnswers() {
+        withAnimation(.easeOut(duration: 0.15)) {
+            if allAnswersOpen {
+                openAnswers = []
+            } else {
+                let keys = answeredPointKeys
+                openAnswers = Set(keys)
+                for (index, topic) in plan.topics.enumerated() where topic.points.contains(where: \.hasAnswer) {
+                    opened.insert(index)
+                }
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -141,8 +180,8 @@ struct ReviewPlanPopover: View {
                 .padding(.vertical, 8)
             }
         }
-        .frame(width: 372)
-        .frame(maxHeight: 520)
+        .frame(width: 392)
+        .frame(maxHeight: 600)
     }
 
     // MARK: Header
@@ -155,6 +194,10 @@ struct ReviewPlanPopover: View {
                     .lineLimit(2)
                 Spacer(minLength: 8)
                 Menu {
+                    if !answeredPointKeys.isEmpty {
+                        Button(allAnswersOpen ? "Hide All Answers" : "Show All Answers", action: toggleAllAnswers)
+                        Divider()
+                    }
                     Button("Clear Plan", role: .destructive, action: onClear)
                 } label: {
                     Image(systemName: "ellipsis")
@@ -276,8 +319,8 @@ struct ReviewPlanPopover: View {
             )
             if open {
                 VStack(alignment: .leading, spacing: 5) {
-                    ForEach(Array(topic.points.enumerated()), id: \.offset) { _, point in
-                        pointRow(point)
+                    ForEach(Array(topic.points.enumerated()), id: \.offset) { pointIndex, point in
+                        pointRow(point, key: Self.answerKey(index, pointIndex))
                     }
                 }
                 .padding(.leading, 40)
@@ -292,7 +335,29 @@ struct ReviewPlanPopover: View {
         )
     }
 
-    private func pointRow(_ point: ChatReviewPlan.Point) -> some View {
+    /// A point, and under it, when it has one and is opened, its answer and
+    /// picture. A point with an answer opens with a click anywhere on it.
+    private func pointRow(_ point: ChatReviewPlan.Point, key: String) -> some View {
+        let isOpen = openAnswers.contains(key)
+        return VStack(alignment: .leading, spacing: 6) {
+            pointLine(point, hasAnswer: point.hasAnswer, isOpen: isOpen)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard point.hasAnswer else { return }
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        if isOpen { openAnswers.remove(key) } else { openAnswers.insert(key) }
+                    }
+                }
+            if isOpen {
+                ReviewPlanPointAnswer(point: point, resolveImage: resolveImage)
+                    .padding(.leading, 18)
+                    .padding(.bottom, 4)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func pointLine(_ point: ChatReviewPlan.Point, hasAnswer: Bool, isOpen: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Group {
                 switch point.status {
@@ -309,11 +374,22 @@ struct ReviewPlanPopover: View {
             .accessibilityHidden(true)
             Text(point.text)
                 .font(.callout)
-                .foregroundStyle(point.status == .done ? .secondary : .primary)
+                .foregroundStyle(point.status == .done && !isOpen ? .secondary : .primary)
                 .fixedSize(horizontal: false, vertical: true)
+            if hasAnswer {
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(isOpen ? 90 : 0))
+                    .accessibilityHidden(true)
+            }
         }
+        .help(hasAnswer ? (isOpen ? "Hide the answer" : "Show the answer") : "")
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(point.text), \(point.status == .done ? "done" : point.status == .partial ? "partly done" : "not yet")")
+        .accessibilityAddTraits(hasAnswer ? .isButton : [])
+        .accessibilityHint(hasAnswer ? (isOpen ? "Hides the answer" : "Shows the answer") : "")
     }
 
     // MARK: Footer
@@ -423,6 +499,74 @@ private struct ReviewPlanTopicHeader: View {
                     .font(.system(size: 10, weight: .semibold).monospacedDigit())
                     .foregroundStyle(topic.status == .active ? Color.accentColor : .secondary)
             }
+        }
+    }
+}
+
+/// A point's answer under it: the step of the argument in the tutor's words,
+/// and the picture that shows it. A click on the picture opens it full-window,
+/// as the chat's pictures open.
+private struct ReviewPlanPointAnswer: View {
+    let point: ChatReviewPlan.Point
+    let resolveImage: @MainActor (String) async -> ChatSourceImage?
+
+    @State private var picture: ChatSourceImage?
+    @State private var nsImage: NSImage?
+    @State private var pictureMissing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let answer = point.answer {
+                Text(answer)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if point.image != nil {
+                pictureView
+            }
+        }
+        .padding(.leading, 10)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.12))
+                .frame(width: 2)
+        }
+        .task(id: point.image) {
+            guard let address = point.image else { return }
+            let resolved = await resolveImage(address)
+            picture = resolved
+            nsImage = resolved.flatMap { NSImage(data: $0.data) }
+            pictureMissing = nsImage == nil
+        }
+    }
+
+    @ViewBuilder
+    private var pictureView: some View {
+        if let nsImage, let picture {
+            Image(nsImage: nsImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: 180, alignment: .leading)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    ChatImageLightbox.present(picture, title: point.text, over: NSApp.keyWindow)
+                }
+                .contextMenu {
+                    Button("Copy Picture") { _ = picture.copyToPasteboard() }
+                }
+                .help("Open the picture")
+                .accessibilityLabel("Picture for \(point.text)")
+        } else if pictureMissing {
+            Label("Picture unavailable", systemImage: "photo")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        } else {
+            ProgressView()
+                .controlSize(.small)
+                .frame(height: 40)
         }
     }
 }
