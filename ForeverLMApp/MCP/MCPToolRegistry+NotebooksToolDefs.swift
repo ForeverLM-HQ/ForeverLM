@@ -242,15 +242,15 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "list_notebook_tasks",
-                description: "List a Notebook's tasks with every field: status (todo, doing, done), notes, due date, assignee, and the source or Doc a task is about. When the Notebook is a team's, the response also carries the team and its roster so a member's name can be resolved to the user_record_name an assignee carries. A personal Notebook's tasks have no assignee.",
+                description: "List a Notebook's tasks with every field: status (todo, doing, done), notes, due date, assignee, and the source or Doc a task is about. With no notebook_id it lists the learner's Board (Space > Board): use that to find a card on \"my board\" or \"my to-do list\" before update_notebook_task. When the Notebook is a team's, the response also carries the team and its roster so a member's name can be resolved to the user_record_name an assignee carries. A personal Notebook's tasks have no assignee.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "notebook_id": ["type": "string", "description": "Notebook ID from list_notebooks."],
+                        "notebook_id": ["type": "string", "description": "Optional Notebook ID from list_notebooks. Leave it out for the learner's Board."],
                         "status": ["type": "string", "enum": ["todo", "doing", "done"], "description": "Only tasks in this status."],
                         "assignee": ["type": "string", "description": "Only tasks assigned to this member: a user_record_name from the team roster, or \"me\" for this account. Team Notebooks only."],
                     ],
-                    "required": ["notebook_id"],
+                    "required": [] as [String],
                 ]
             ),
             MCPToolDef(
@@ -430,7 +430,7 @@ extension MCPToolRegistry {
                     "properties": [
                         "date": ["type": "string", "description": "YYYY-MM-DD or \"today\". Defaults to today. The live bout is returned whatever day it started on."],
                     ],
-                    "required": [],
+                    "required": [] as [String],
                 ]
             ),
             MCPToolDef(
@@ -446,7 +446,7 @@ extension MCPToolRegistry {
                         "notebook_id": ["type": "string", "description": "Optional Notebook, from list_notebooks."],
                         "source_ids": ["type": "array", "items": ["type": "string"], "description": "Optional sources the bout is for."],
                     ],
-                    "required": [],
+                    "required": [] as [String],
                 ]
             ),
             MCPToolDef(

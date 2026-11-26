@@ -581,7 +581,28 @@ extension MCPDataStore {
 
     func listNotebookTasks(notebookID: String?, status rawStatus: String?, assignee rawAssignee: String?) async throws -> String {
         let store = try knowledgeStore()
-        let notebook = try resolveMCPNotebookGoal(notebookID: notebookID, store: store)
+        // No Notebook named means the learner's own Board, as for
+        // create_notebook_task (product owner, 2026-11-26: a chat asked to add
+        // links to a Board card answered "Couldn't list notebook tasks").
+        let namedNotebook = notebookID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        // A read: a Board not made yet has no cards, and is not made here.
+        let notebook: LearningGoalRecord
+        if namedNotebook.isEmpty {
+            guard let board = try store.loadLearningGoal(TeamContentIdentity.personalBoardNotebookID) else {
+                return try jsonString([
+                    "notebook_id": TeamContentIdentity.personalBoardNotebookID,
+                    "notebook_title": KnowledgeStore.boardNotebookTitle,
+                    "count": 0,
+                    "tasks": [] as [Any],
+                    "lists": [] as [Any],
+                    "team": NSNull(),
+                    "guidance": "The learner's Board has no cards yet. create_notebook_task with no notebook_id adds one.",
+                ] as [String: Any])
+            }
+            notebook = board
+        } else {
+            notebook = try resolveMCPNotebookGoal(notebookID: namedNotebook, store: store)
+        }
         let statusFilter = try rawStatus.map { try parseTaskStatus($0) }
         let team = try await teamContext(for: notebook)
         var tasks = try await notebookFileStorage.loadNotebookTasks(notebookID: notebook.id)
