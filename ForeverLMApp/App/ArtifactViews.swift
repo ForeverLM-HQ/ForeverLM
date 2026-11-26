@@ -388,13 +388,10 @@ struct ArtifactCanvas: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .studioChromeLineHeader {
                 HStack(spacing: 0) {
-                    // Over the sidebar, only the window's own controls: the
-                    // sidebar's top line is its first row.
-                    if showsSpaceSidebar {
-                        SpaceSidebarChromeSpace()
-                        // The sidebar's divider, on the chrome line.
-                        StudioChromeLineDivider()
-                    }
+                    // Over the sidebar, only the window's own controls, or
+                    // the pane's sidebar toggle: the sidebar's top line is its
+                    // first row.
+                    SpaceSidebarChromeLead(showsSidebar: showsSpaceSidebar, fitsSidebar: spaceSidebarFitsPane)
                     // The controls run the row's full width here, so there is no
                     // draggable remainder to protect — back the whole thing and
                     // AppKit's titlebar drag stops eating the toolbar's clicks.

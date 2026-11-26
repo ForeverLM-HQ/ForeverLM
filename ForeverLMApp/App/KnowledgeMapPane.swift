@@ -70,7 +70,12 @@ struct KnowledgeMapPane: View {
     /// The sidebar shows unless the learner hid it or the pane is too narrow
     /// for it beside the canvas (and the Library, when that shows).
     private var showsSpaceSidebar: Bool {
-        guard !spaceSidebarHiddenByLearner else { return false }
+        !spaceSidebarHiddenByLearner && spaceSidebarFits
+    }
+
+    /// Whether the pane has room for the sidebar beside the canvas (and the
+    /// Library, when that shows).
+    private var spaceSidebarFits: Bool {
         guard paneWidth > 0 else { return true }
         let beside = SpaceSidebarMetrics.width + 1 + (showsLibrarySidebar ? Self.librarySidebarWidth + 1 : 0)
         return paneWidth >= SpaceSidebarMetrics.minimumPaneWidth && paneWidth - beside >= Self.minimumPlaneWidth
@@ -336,14 +341,12 @@ struct KnowledgeMapPane: View {
     }
 
     /// The chrome line: nothing over the sidebar but the window's own
-    /// controls (the sidebar's top line is its first row), then the canvas's
-    /// name as its menu, as a page's top line draws its name.
+    /// controls or the pane's sidebar toggle (the sidebar's top line is its
+    /// first row), then the canvas's name as its menu, as a page's top line
+    /// draws its name.
     private var header: some View {
         HStack(spacing: 0) {
-            if showsSpaceSidebar {
-                SpaceSidebarChromeSpace()
-                StudioChromeLineDivider()
-            }
+            SpaceSidebarChromeLead(showsSidebar: showsSpaceSidebar, fitsSidebar: spaceSidebarFits)
             canvasHistoryButtons
             canvasMenu
                 .padding(.horizontal, 10)

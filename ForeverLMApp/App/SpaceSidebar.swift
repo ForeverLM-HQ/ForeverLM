@@ -301,8 +301,9 @@ enum SpaceSidebarMetrics {
 /// it, as Codex's sidebar title does, so the band over the sidebar holds only
 /// the traffic lights, ‹ › and the sidebar toggle in every state (product
 /// owner, 2026-10-12: "make sure the top left looks clean at all times"). It
-/// has no hide control: the window's one sidebar toggle, by the traffic
-/// lights, folds this sidebar with the rail.
+/// has no hide control: the window's sidebar toggle, by the traffic lights,
+/// folds this sidebar with the rail, and a pane that toggle does not stand
+/// over has its own on the chrome line above (`SpaceSidebarPaneToggle`).
 struct SpaceSidebarHeader: View {
     @Environment(StudioViewModel.self) private var vm
     let onSearch: () -> Void
@@ -335,13 +336,14 @@ struct SpaceSidebarHeader: View {
     }
 }
 
-/// What the chrome line holds over the Space sidebar: nothing but the
-/// window's own controls, which the window draws over it — the traffic
-/// lights, ‹ › and the sidebar toggle. With no band (full screen) the line is
-/// in flow above the sidebar and takes its tone, back under the leading inset
-/// too, so the sidebar is one column from the card's top edge, as Codex's is
-/// (product owner, 2026-10-12: "this top left still looks a bit bad with
-/// colors").
+/// What the chrome line holds over the Space sidebar: the window's own
+/// controls, which the window draws over the first pane — the traffic
+/// lights, ‹ › and the sidebar toggle — and in a pane they do not stand over,
+/// the sidebar's own toggle (`SpaceSidebarPaneToggle`). With no band (full
+/// screen) the line is in flow above the sidebar and takes its tone, back
+/// under the leading inset too, so the sidebar is one column from the card's
+/// top edge, as Codex's is (product owner, 2026-10-12: "this top left still
+/// looks a bit bad with colors").
 struct SpaceSidebarChromeSpace: View {
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
@@ -357,6 +359,72 @@ struct SpaceSidebarChromeSpace: View {
                 }
             }
             .accessibilityHidden(true)
+            .overlay(alignment: .leading) {
+                SpaceSidebarPaneToggle()
+                    .padding(.leading, SpaceSidebarPaneToggle.leadingPadding)
+            }
+    }
+}
+
+/// The start of a Space pane's chrome line: over a shown sidebar, its space
+/// and its divider; over a sidebar the learner folded, the pane's own toggle
+/// in the same place, to bring it back (nothing in the first pane, where the
+/// window's toggle stands). A pane too narrow for the sidebar shows no
+/// toggle: the sidebar steps aside there by itself, and showing it would
+/// change nothing.
+struct SpaceSidebarChromeLead: View {
+    /// Whether the sidebar is on screen beside the pane's content.
+    let showsSidebar: Bool
+    /// Whether the pane has room for the sidebar beside its content.
+    let fitsSidebar: Bool
+
+    var body: some View {
+        if showsSidebar {
+            SpaceSidebarChromeSpace()
+            // The sidebar's divider, on the chrome line, as Codex draws the
+            // one between its sidebar and the thread.
+            StudioChromeLineDivider()
+        } else if fitsSidebar {
+            SpaceSidebarPaneToggle()
+                .padding(.leading, SpaceSidebarPaneToggle.leadingPadding)
+                .padding(.trailing, 4)
+        }
+    }
+}
+
+/// The Space sidebar's own toggle, in a pane the window's sidebar toggle
+/// does not stand over: a pane beside another, or any pane of a notebook's
+/// window, whose toggle folds its Sources (product owner, 2026-11-26: "allow
+/// me to collapse this spaces sidebar; even when we are in the right hand
+/// side panel"). It stands at the pane's leading edge on the chrome line, as
+/// the window's toggle stands over the first pane, and stays there while the
+/// sidebar is folded. It folds the sidebar the window's toggle and Show pages
+/// (⇧⌘E) fold, this window's (`StudioWindowState.spaceSidebarHidden`); Home's
+/// sidebar is not a pane's to fold.
+struct SpaceSidebarPaneToggle: View {
+    /// From the pane's leading edge to the toggle.
+    static let leadingPadding: CGFloat = 10
+
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
+    @Environment(\.studioPaneIsLeading) private var paneIsLeading
+
+    var body: some View {
+        if let windowState, !paneIsLeading || windowState.notebook != nil {
+            let isShown = !windowState.spaceSidebarHidden
+            // A `Button` on the chrome line hands its mouse-down to the
+            // titlebar's window drag; see `TitlebarBandHitSurfaceView`.
+            TitlebarBandButton(
+                help: isShown ? "Hide sidebar" : "Show sidebar",
+                accessibilityIdentifier: "space.sidebar.paneToggle",
+                action: {
+                    withAnimation(.easeInOut(duration: 0.18)) { windowState.spaceSidebarHidden.toggle() }
+                }
+            ) {
+                Image(systemName: "sidebar.left")
+                    .zoomedSystemFont(size: 12.5, weight: .medium)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -1598,8 +1666,13 @@ struct SpaceFrame<Content: View>: View {
         self.content = content()
     }
 
+    /// Whether the pane has room for the sidebar beside its content.
+    private var fitsSidebar: Bool {
+        paneWidth <= 0 || paneWidth >= SpaceSidebarMetrics.minimumPaneWidth
+    }
+
     private var showsSidebar: Bool {
-        !sidebarHiddenByLearner && (paneWidth <= 0 || paneWidth >= SpaceSidebarMetrics.minimumPaneWidth)
+        !sidebarHiddenByLearner && fitsSidebar
     }
 
     var body: some View {
@@ -1635,11 +1708,8 @@ struct SpaceFrame<Content: View>: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .studioChromeLineHeader {
             HStack(spacing: 0) {
-                if showsSidebar {
-                    // The sidebar's top line is its first row.
-                    SpaceSidebarChromeSpace()
-                    StudioChromeLineDivider()
-                }
+                // The sidebar's top line is its first row.
+                SpaceSidebarChromeLead(showsSidebar: showsSidebar, fitsSidebar: fitsSidebar)
                 Spacer(minLength: 0)
             }
         }

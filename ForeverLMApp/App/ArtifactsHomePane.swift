@@ -48,7 +48,12 @@ struct ArtifactsHomePane: View {
     /// The sidebar shows unless the learner hid it or the pane is too narrow
     /// for it beside a readable list.
     private var showsSidebar: Bool {
-        !sidebarHiddenByLearner && (paneWidth <= 0 || paneWidth >= SpaceSidebarMetrics.minimumPaneWidth)
+        !sidebarHiddenByLearner && fitsSidebar
+    }
+
+    /// Whether the pane has room for the sidebar beside a readable list.
+    private var fitsSidebar: Bool {
+        paneWidth <= 0 || paneWidth >= SpaceSidebarMetrics.minimumPaneWidth
     }
 
     var body: some View {
@@ -94,16 +99,12 @@ struct ArtifactsHomePane: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         // Over the sidebar the chrome line holds nothing but the window's
-        // own controls: the sidebar's top line is its first row
-        // (`SpaceSidebar.onSearch`). Over the list it holds nothing either.
+        // own controls, or the pane's sidebar toggle: the sidebar's top line
+        // is its first row (`SpaceSidebar.onSearch`). Over the list it holds
+        // nothing either.
         .studioChromeLineHeader {
             HStack(spacing: 0) {
-                if showsSidebar {
-                    SpaceSidebarChromeSpace()
-                    // The sidebar's divider, on the chrome line, as Codex
-                    // draws the one between its sidebar and the thread.
-                    StudioChromeLineDivider()
-                }
+                SpaceSidebarChromeLead(showsSidebar: showsSidebar, fitsSidebar: fitsSidebar)
                 Spacer(minLength: 0)
             }
         }

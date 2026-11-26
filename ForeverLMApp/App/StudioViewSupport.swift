@@ -949,6 +949,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                         tabContent(tab)
                             .environment(\.studioPaneGroupID, group.id)
                             .environment(\.studioPaneTabIsShown, isShown)
+                            .environment(\.studioPaneIsLeading, isLeading)
                             .modifier(StudioKeptPaneTabVisibility(isShown: isShown))
                     }
                 }

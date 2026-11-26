@@ -440,6 +440,11 @@ in the page, in any case and with or without accents. The magnifier at the
 top of the Space's sidebar searches every place at once: it opens **All**
 with its search ready.
 
+The sidebar toggle at the window's top left folds the Space's sidebar with the
+rest of the sidebar. With the Space in a pane beside another, that pane has a
+toggle of its own at its top left, over the sidebar: it folds the Space's
+sidebar out of the pane's way and, from the same place, brings it back.
+
 Goals belong to [Plan](/plan): each appears under the quarter that contains
 its deadline, and `/goal` sets one. Ideas may be kept in lists in the Space.
 

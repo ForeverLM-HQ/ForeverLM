@@ -532,6 +532,12 @@ private struct StudioPaneTabIsShownKey: EnvironmentKey {
     static let defaultValue = true
 }
 
+/// Whether a pane stands at the window's leading edge. True outside the tab
+/// layout, where no pane stands beside another.
+private struct StudioPaneIsLeadingKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 /// The places a pane keeps mounted, hidden, while another of its tabs shows,
 /// so coming back to one is instant. Pages first (product owner, 2026-11-08:
 /// "if i go from pages to space and then back to pages; pages has to reload
@@ -597,6 +603,16 @@ extension EnvironmentValues {
     var studioPaneTabIsShown: Bool {
         get { self[StudioPaneTabIsShownKey.self] }
         set { self[StudioPaneTabIsShownKey.self] = newValue }
+    }
+
+    /// Whether this pane stands at the window's leading edge, under the
+    /// window's own controls (the traffic lights, ‹ › and the sidebar
+    /// toggle): the first pane, or the one in full screen. A pane beside
+    /// another is not, so a sidebar in it draws its own toggle
+    /// (`SpaceSidebarPaneToggle`).
+    var studioPaneIsLeading: Bool {
+        get { self[StudioPaneIsLeadingKey.self] }
+        set { self[StudioPaneIsLeadingKey.self] = newValue }
     }
 
     var studioCenterPaneHeaderLeadingInset: CGFloat {
