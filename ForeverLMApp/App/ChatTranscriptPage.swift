@@ -472,7 +472,7 @@ struct ChatTranscriptPage: NSViewRepresentable {
     }()
 
     static let messageNames = [
-        "ready", "action", "sourceCards", "sourceImages", "copySourceImage", "zoomSourceImage",
+        "ready", "action", "sourceCards", "sourceImages", "zoomSourceImage",
         "openSourceImageBeside", "openSource", "webLinks", "selectionAction", "momentFrames",
     ]
 
@@ -640,13 +640,6 @@ struct ChatTranscriptPage: NSViewRepresentable {
                 resolveSourceCards(message.body, resolver: parent.resolvers.sourceCard)
             case "sourceImages":
                 resolveSourceImages(message.body, resolver: parent.resolvers.sourceImage)
-            case "copySourceImage":
-                guard let token = (message.body as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !token.isEmpty else { return }
-                let resolver = parent.resolvers.sourceImage
-                Task { @MainActor in
-                    await resolver(token)?.copyToPasteboard()
-                }
             case "zoomSourceImage", "openSourceImageBeside":
                 guard let body = message.body as? [String: Any],
                       let token = (body["token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -907,8 +900,12 @@ struct ChatTranscriptPage: NSViewRepresentable {
         @objc(unionRectInVisibleSelectedRange)
         var unionRectInVisibleSelectedRange: NSRect { SharedWebKit.unionRectInVisibleSelectedRange(in: self) }
 
+        /// Open Beside's target, held until the next menu opens.
+        private var pictureMenuTarget: MenuActionTarget?
+
         override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
             super.willOpenMenu(menu, with: event)
+            pictureMenuTarget = ChatPictureMenu.insertOpenBeside(in: menu, webView: self)
             guard menu.items.contains(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierCopy" }) else { return }
             let hadItems = !menu.items.isEmpty
             for (index, action) in ChatReplySelectionAction.allCases.enumerated() {

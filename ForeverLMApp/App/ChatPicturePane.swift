@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import WebKit
 
 /// A chat's picture, popped out beside the conversation it came from.
 ///
@@ -104,5 +105,29 @@ enum ChatPictureWindow {
         window.setAccessibilityIdentifier("chat.pictureWindow")
         window.makeKeyAndOrderFront(nil)
         current = window
+    }
+}
+
+/// Open Beside in a chat picture's right-click menu. The figure carries no
+/// buttons for it (or for Copy, which WebKit's own Copy Image already does);
+/// the page remembers the picture the menu was raised over
+/// (`mac-picture-menu.js`) and posts `openSourceImageBeside` for it.
+@MainActor
+enum ChatPictureMenu {
+    /// Adds Open Beside under WebKit's Copy Image, which is there only when
+    /// the pointer is over a picture. Returns the item's target, which the
+    /// caller holds until the next menu opens (`NSMenuItem.target` is weak).
+    static func insertOpenBeside(in menu: NSMenu, webView: WKWebView) -> MenuActionTarget? {
+        guard let copyIndex = menu.items.firstIndex(where: {
+            $0.identifier?.rawValue == "WKMenuItemIdentifierCopyImage"
+        }) else { return nil }
+        let target = MenuActionTarget { [weak webView] in
+            webView?.evaluateJavaScript("window.openContextPictureBeside && window.openContextPictureBeside(); undefined;")
+        }
+        let item = NSMenuItem(title: "Open Beside", action: #selector(MenuActionTarget.fire), keyEquivalent: "")
+        item.image = NSImage(systemSymbolName: "rectangle.righthalf.inset.filled", accessibilityDescription: "Open Beside")
+        item.target = target
+        menu.insertItem(item, at: copyIndex + 1)
+        return target
     }
 }

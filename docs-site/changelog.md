@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A picture in a chat has no buttons over it.** **Copy** and **Open beside** no longer appear when you point at a figure; right-click it for **Copy Image** and **Open Beside** instead. A picture the app drew still shows **Redraw**.
 - **The Feynman Technique draws when your sources have no picture.** Every question now comes with a picture: a figure from your sources when one fits, otherwise a plain diagram of that one idea, drawn without labels that give the answer away, and shown again when the idea comes back. Each drawing is charged to your image model.
 - **Ultrafast, above Fast.** Where a lab offers a tier faster than Fast on OpenRouter (OpenAI's `ultrafast` for GPT-6.2 Sol, at three times the Standard price), the chat's Speed submenu lists **Ultrafast** after Fast, priced from that tier's own endpoint, and a pick names it on the wire the way Fast does. It no longer shows among the model's hosts, where it could be pinned as if it were a standard one.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.

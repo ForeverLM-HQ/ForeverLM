@@ -119,13 +119,8 @@ export function createChatRenderer({
   katex = () => globalThis.katex,
   requestSourceCards = null,
   requestSourceImages = null,
-  copySourceImage = null,
   openSourceImage = null,
   zoomSourceImage = null,
-  // Open beside: the picture takes a pane next to the conversation, so the
-  // question stays readable while the figure is big. A host with no such place
-  // leaves it null and the figure carries no button for it.
-  openSourceImageBeside = null,
   // Redraw: a picture the app drew can be drawn again with another image
   // model, chosen from a menu the host raises. A host that cannot leaves it
   // null, and the figure carries no button for it.
@@ -320,40 +315,17 @@ export function createChatRenderer({
           zoomSourceImage(token, img);
         });
       }
-      if (copySourceImage && actions && !actions.querySelector(".source-image-copy")) {
-        const copy = actionButton(document_, "Copy", "Copy image");
-        copy.addEventListener("click", async (event) => {
+      // Copy and Open beside are in the right-click menu, not over the
+      // picture; only a picture the app drew carries a button, to draw it again.
+      if (redrawSourceImage && resolved.redrawable && actions && !actions.querySelector(".source-image-redraw")) {
+        const redraw = actionButton(document_, "Redraw", "Draw this picture again with another model");
+        redraw.classList.add("source-image-redraw");
+        redraw.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          const copied = await copySourceImage(token, img);
-          copy.textContent = copied === false ? "Copy failed" : "Copied";
-          copy.classList.add("source-image-copied");
-          document_.defaultView?.setTimeout(() => {
-            copy.textContent = "Copy";
-            copy.classList.remove("source-image-copied");
-          }, 1400);
+          redrawSourceImage(token, img);
         });
-        actions.append(copy);
-        if (openSourceImageBeside) {
-          const beside = actionButton(document_, "Open beside", "Open beside the chat");
-          beside.classList.add("source-image-beside");
-          beside.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            openSourceImageBeside(token, img);
-          });
-          actions.append(beside);
-        }
-        if (redrawSourceImage && resolved.redrawable) {
-          const redraw = actionButton(document_, "Redraw", "Draw this picture again with another model");
-          redraw.classList.add("source-image-redraw");
-          redraw.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            redrawSourceImage(token, img);
-          });
-          actions.append(redraw);
-        }
+        actions.append(redraw);
       }
       paintSlidePapers(figure, token, resolved.citedPapers);
       return;

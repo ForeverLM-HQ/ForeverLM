@@ -16,8 +16,15 @@
 
 import { createChatRenderer } from "./chat-render.js";
 import { installSelectionActions } from "./mac-selection-actions.js";
+import { installPictureMenu } from "./mac-picture-menu.js";
 
 const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
+
+/// Open Beside, from the picture's right-click menu: the app docks the same
+/// bytes in a pane next to the chat or, with no such place, a picture window.
+installPictureMenu({
+  openBeside: (token, img) => post("openSourceImageBeside", { token, alt: img.alt ?? "" }),
+});
 
 const headRoot = document.getElementById("head");
 const blocksRoot = document.getElementById("blocks");
@@ -181,12 +188,7 @@ const renderer = createChatRenderer({
   mathOutput: document.documentElement.dataset.mathOutput || "html",
   requestSourceCards: (tokens) => post("sourceCards", tokens),
   requestSourceImages: (tokens) => post("sourceImages", tokens),
-  copySourceImage: (token) => {
-    post("copySourceImage", token);
-    return true;
-  },
   zoomSourceImage: (token, img) => post("zoomSourceImage", { token, alt: img.alt ?? "" }),
-  openSourceImageBeside: (token, img) => post("openSourceImageBeside", { token, alt: img.alt ?? "" }),
   openSource: (token, { seconds = null, passage = null, page = null } = {}) =>
     post("openSource", { token, seconds, passage, page }),
   openWebLink: (url, title) => post("webLinks", { url, title }),

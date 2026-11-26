@@ -566,12 +566,10 @@
   box-shadow: 0 1px 4px color-mix(in srgb, var(--chat-fg, CanvasText) 18%, transparent);
 }
 .chat-rendered .source-image-figure:hover .source-image-copy,
-.chat-rendered .source-image-copy:focus-visible,
-.chat-rendered .source-image-copy.source-image-copied { opacity: 1; }
+.chat-rendered .source-image-copy:focus-visible { opacity: 1; }
 .chat-rendered .source-image-copy:hover {
   background: color-mix(in srgb, var(--chat-bg, Canvas) 72%, var(--chat-fg, CanvasText) 28%);
 }
-.chat-rendered .source-image-copy.source-image-copied { color: var(--chat-accent, AccentColor); }
 /* A picture with the link to its place in the same source as its caption: one
  * card, the picture on top and the link along its foot. Sized to the picture,
  * like the papers below. */

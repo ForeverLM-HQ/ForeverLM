@@ -4,7 +4,7 @@ import WebKit
 @testable import ForeverLM
 
 /// A chat's picture popped out beside the conversation: the picture and the
-/// figure's Open beside button.
+/// right-click menu's Open Beside.
 @Suite("Chat picture beside the chat")
 struct ChatPictureDockTests {
     private static let token = "foreverlm://image/ch3/page/9"
@@ -22,7 +22,7 @@ struct ChatPictureDockTests {
         #expect(first != second)
     }
 
-    // MARK: - The button
+    // MARK: - The menu
 
     /// Records what the page posts on `openSourceImageBeside`.
     @MainActor
@@ -35,9 +35,9 @@ struct ChatPictureDockTests {
         }
     }
 
-    @Test("A resolved figure offers Open beside next to Copy, and its click posts the token and caption")
+    @Test("A resolved figure carries no Copy or Open beside button; Open Beside acts on the right-clicked picture")
     @MainActor
-    func figureOffersOpenBeside() async throws {
+    func rightClickedPictureOpensBeside() async throws {
         let recorder = BesideRecorder()
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(recorder, name: "openSourceImageBeside")
@@ -52,10 +52,6 @@ struct ChatPictureDockTests {
         let markdown = String(data: try JSONEncoder().encode("![Figure 2a](\(Self.token))"), encoding: .utf8)!
         _ = try await webView.evaluateJavaScript("window.setMarkdown(\(markdown)); true")
 
-        let beside = "document.querySelector('figure.source-image-figure .source-image-beside')"
-        // Nothing to pop out until the bytes are here.
-        #expect(try await webView.evaluateJavaScript("\(beside) === null") as? Bool == true)
-
         let json = try #require(await ChatMarkdownView.sourceImageLookupJSON(
             tokens: [Self.token],
             sourceImageForToken: { _ in
@@ -63,23 +59,25 @@ struct ChatPictureDockTests {
             }
         ))
         _ = try await webView.evaluateJavaScript("window.setSourceImages(\(json)); true")
-        #expect(try await webView.evaluateJavaScript("\(beside).textContent") as? String == "Open beside")
         #expect(try await webView.evaluateJavaScript(
-            "document.querySelectorAll('.source-image-actions .source-image-beside').length"
-        ) as? Int == 1)
+            "document.querySelectorAll('.source-image-actions button').length"
+        ) as? Int == 0)
 
-        _ = try await webView.evaluateJavaScript("\(beside).click(); true")
+        // With no picture under the last right-click, Open Beside does nothing.
+        _ = try await webView.evaluateJavaScript("window.openContextPictureBeside(); true")
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(recorder.opens.isEmpty)
+
+        _ = try await webView.evaluateJavaScript("""
+            document.querySelector('figure.source-image-figure img')
+                .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+            window.openContextPictureBeside(); true
+            """)
         for _ in 0..<50 where recorder.opens.isEmpty {
             try await Task.sleep(for: .milliseconds(50))
         }
         #expect(recorder.opens.count == 1)
         #expect(recorder.opens.first?.token == Self.token)
         #expect(recorder.opens.first?.alt == "Figure 2a")
-
-        // Drawing the same picture again adds no second button.
-        _ = try await webView.evaluateJavaScript("window.setSourceImages(\(json)); true")
-        #expect(try await webView.evaluateJavaScript(
-            "document.querySelectorAll('.source-image-actions .source-image-beside').length"
-        ) as? Int == 1)
     }
 }

@@ -8,9 +8,16 @@
 
 import { createChatRenderer, normalizeLatexDisplayBlocks, renderChatMarkdownToHTML } from "./chat-render.js";
 import { installSelectionActions } from "./mac-selection-actions.js";
+import { installPictureMenu } from "./mac-picture-menu.js";
 
 const content = document.getElementById("content");
 const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
+
+/// Open Beside, from the picture's right-click menu: the app docks the same
+/// bytes in a pane next to the chat or, with no such place, a picture window.
+installPictureMenu({
+  openBeside: (token, img) => post("openSourceImageBeside", { token, alt: img.alt ?? "" }),
+});
 
 /// Selecting words in the reply offers to add them to the composer as a quote,
 /// to have the tutor expand on them, or to ask about them in a small chat that
@@ -57,20 +64,11 @@ const renderer = createChatRenderer({
   mathOutput: document.documentElement.dataset.mathOutput || "html",
   requestSourceCards: (tokens) => post("sourceCards", tokens),
   requestSourceImages: (tokens) => post("sourceImages", tokens),
-  // The app owns the pasteboard: it writes the original bytes under their own
-  // type alongside a bitmap, which a canvas round-trip in the page could not.
-  copySourceImage: (token) => {
-    post("copySourceImage", token);
-    return true;
-  },
   // A click on a picture opens it full-window, above the whole transcript.
   // Each row is its own web view, so a backdrop drawn in the page could cover
   // only the row; the app draws it over the window and reads the same bytes
   // it resolved for the figure.
   zoomSourceImage: (token, img) => post("zoomSourceImage", { token, alt: img.alt ?? "" }),
-  // Open beside: the app docks the same bytes in a pane next to the chat (a
-  // notebook's document slot) or, with no such place, in a picture window.
-  openSourceImageBeside: (token, img) => post("openSourceImageBeside", { token, alt: img.alt ?? "" }),
   // Redraw: the app raises a menu of image models under the button and draws
   // the picture again, from its kept prompt, with the one chosen.
   redrawSourceImage: (token) => post("redrawSourceImage", { token }),

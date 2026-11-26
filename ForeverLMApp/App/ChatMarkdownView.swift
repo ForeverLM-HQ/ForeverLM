@@ -361,7 +361,7 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// Every channel the page posts on. One list, so a pooled web view is
     /// rewired for its next row with exactly the handlers a fresh one gets.
     private static let scriptMessageNames = [
-        "height", "sourceCards", "sourceImages", "copySourceImage", "zoomSourceImage", "openSourceImageBeside",
+        "height", "sourceCards", "sourceImages", "zoomSourceImage", "openSourceImageBeside",
         "redrawSourceImage", "addSlideCitedPaper",
         "openSource", "webLinks", "selectionAction", contextLinkMessageName, contextPictureMessageName,
     ]
@@ -721,10 +721,6 @@ struct ChatMarkdownView: NSViewRepresentable {
                 resolveSourceImages(for: message)
                 return
             }
-            if message.name == "copySourceImage" {
-                copySourceImage(for: message)
-                return
-            }
             if message.name == "zoomSourceImage" {
                 zoomSourceImage(for: message)
                 return
@@ -846,19 +842,6 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
         }
 
-        /// The Copy button on a picture. Resolution is cached, so this is the
-        /// same bytes the web view is showing, placed on the general pasteboard
-        /// as an image other apps can paste.
-        private func copySourceImage(for message: WKScriptMessage) {
-            guard let token = (message.body as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !token.isEmpty else { return }
-            let resolver = sourceImageForToken
-            Task { @MainActor in
-                guard let image = await resolver(token) else { return }
-                image.copyToPasteboard()
-            }
-        }
-
         /// A click on a picture. The same cached bytes the figure shows open
         /// full-window over the transcript's own window — a pop-out chat or a
         /// deep-link window as much as the Studio window — with the alt text
@@ -876,7 +859,7 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
         }
 
-        /// Open beside on a picture: the same cached bytes the figure shows go
+        /// Open Beside, from a picture's right-click menu: the same cached bytes the figure shows go
         /// where the chat says (a pane of the notebook's window) or, with no such
         /// place, into a picture window, with the alt text as the caption.
         private func openSourceImageBeside(for message: WKScriptMessage) {
@@ -1411,6 +1394,9 @@ struct ChatMarkdownView: NSViewRepresentable {
             menuTargets.removeAll()
             adoptLinkItems(in: menu)
             insertPictureItems(in: menu)
+            if let target = ChatPictureMenu.insertOpenBeside(in: menu, webView: self) {
+                menuTargets.append(target)
+            }
             // WebKit offers Copy only over a selection; without one there is
             // nothing to act on and the items would do nothing.
             guard menu.items.contains(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierCopy" }) else {
