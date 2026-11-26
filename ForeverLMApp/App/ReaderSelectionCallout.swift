@@ -409,8 +409,18 @@ enum ReaderSelectionCalloutJavaScript {
             host.setAttribute('data-foreverlm-selection-callout', '');
             // width:max-content so the shadow buttons lay out at their natural
             // size instead of shrink-to-fitting inside a zero-width host.
+            //
+            // will-change gives the bar a layer of its own. Painted into the
+            // page instead, its shadow and its entry transform made WebKit
+            // repaint the band of page the bar had covered whenever it moved or
+            // hid, and that repaint skipped the selection's fill between two
+            // lines: a selection grown or redrawn under where the bar had been
+            // showed a white line through the blue, as wide as the bar and its
+            // shadow (product owner, 2026-11-26: "why do i randomly get this
+            // white line when highlighting stuff? i don't want that"). On its
+            // own layer the bar never repaints the page under it.
             host.style.cssText = 'position:fixed;top:0;left:0;width:max-content;height:auto;' +
-                'margin:0;padding:0;border:0;z-index:2147483647;display:none;';
+                'margin:0;padding:0;border:0;z-index:2147483647;display:none;will-change:transform;';
             var root = host.attachShadow({ mode: 'open' });
             root.innerHTML =
                 '<style>' +
