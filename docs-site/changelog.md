@@ -6,11 +6,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **The review plan lays out the argument.** As you answer, each point in a chat's review plan gets its answer underneath, settled in a sentence or three from what you said and what the tutor corrected, with a picture from the chat when one shows it. Click a point to open its answer, or choose **Show All Answers** from the plan's **⋯** menu to read the whole argument top to bottom.
-- **A daily review in pictures, on a schedule.** **Tasks** › **⋯** › **Daily Visual Review…** (or the button on an empty Tasks page) opens a chat with the request typed: every morning at 8:00, a quiz on what you learned the day before, each question opening with a figure from your sources or a plain drawing of one idea, and asking you to explain it. Change the time or the wording and press Return. Any task you describe in chat can ask for pictures the same way. Each drawing is charged to your image model.
-- **A picture in a chat has no buttons over it.** **Copy** and **Open beside** no longer appear when you point at a figure; right-click it for **Copy Image** and **Open Beside** instead. A picture the app drew still shows **Redraw**.
-- **The Feynman Technique draws when your sources have no picture.** Every question now comes with a picture: a figure from your sources when one fits, otherwise a plain diagram of that one idea, drawn without labels that give the answer away, and shown again when the idea comes back. Each drawing is charged to your image model.
-- **Ultrafast, above Fast.** Where a lab offers a tier faster than Fast on OpenRouter (OpenAI's `ultrafast` for GPT-6.2 Sol, at three times the Standard price), the chat's Speed submenu lists **Ultrafast** after Fast, priced from that tier's own endpoint, and a pick names it on the wire the way Fast does. It no longer shows among the model's hosts, where it could be pinned as if it were a standard one.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
@@ -37,6 +32,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 1.0.12 (build 330) — 2026-11-26
+
+**Highlights:**
+- **Articles are never saved as a bot check, a 404 or Substack's menu bar,** and the ones that were are repaired.
+- **The review plan lays out the argument,** and the Feynman Technique draws when your sources have no picture.
+
+- **The review plan lays out the argument.** As you answer, each point in a chat's review plan gets its answer underneath, settled in a sentence or three from what you said and what the tutor corrected, with a picture from the chat when one shows it. Click a point to open its answer, or choose **Show All Answers** from the plan's **⋯** menu to read the whole argument top to bottom.
+- **A daily review in pictures, on a schedule.** **Tasks** › **⋯** › **Daily Visual Review…** (or the button on an empty Tasks page) opens a chat with the request typed: every morning at 8:00, a quiz on what you learned the day before, each question opening with a figure from your sources or a plain drawing of one idea, and asking you to explain it. Change the time or the wording and press Return. Any task you describe in chat can ask for pictures the same way. Each drawing is charged to your image model.
+- **A picture in a chat has no buttons over it.** **Copy** and **Open beside** no longer appear when you point at a figure; right-click it for **Copy Image** and **Open Beside** instead. A picture the app drew still shows **Redraw**.
+- **The Feynman Technique draws when your sources have no picture.** Every question now comes with a picture: a figure from your sources when one fits, otherwise a plain diagram of that one idea, drawn without labels that give the answer away, and shown again when the idea comes back. Each drawing is charged to your image model.
+- **Ultrafast, above Fast.** Where a lab offers a tier faster than Fast on OpenRouter (OpenAI's `ultrafast` for GPT-6.2 Sol, at three times the Standard price), the chat's Speed submenu lists **Ultrafast** after Fast, priced from that tier's own endpoint, and a pick names it on the wire the way Fast does. It no longer shows among the model's hosts, where it could be pinned as if it were a standard one.
+- **An article is never saved as something that is not the article.** A Substack post saved from Substack's reader is read at the post's own address, so it is no longer stored as the reader's menu bar ("Home Subscriptions Chat Activity…"); a publisher's bot check, a "not found" page or a page with almost no words is refused rather than kept as the article, and a page captured from the Reader is always the page it was captured for. Articles already saved that way are read again once at launch; one the website still refuses is cleared and shows why, and opening it lets the Reader fill it in.
+- **A publisher check no longer opens a window.** When a publisher asks whether you are a robot while a paper's PDF is being fetched, a notification names the paper, and clicking it opens the article in a Browser tab, where the PDF you download attaches to the paper.
+- **Open on a saved-cards row goes straight to To Check,** where the cards a chat just saved are waiting.
+- **A paper you keep is one chip in a chat,** whether the chat cites the paper or its web page.
 
 ## 1.0.11 (build 329) — 2026-11-25
 

@@ -777,6 +777,7 @@
 		5387361AAB9F2F582D7FEE86 /* KnowledgeStore+MemorySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97A2BFF08381C0E04C27A9BC /* KnowledgeStore+MemorySync.swift */; };
 		5389BD3177F60B4B6ACFA1EF /* MobileVoiceSourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3D8E9F280C5F0826F23AFC /* MobileVoiceSourceResolver.swift */; };
 		53A5C2300CC31610CDB897B7 /* StudioViewModel+ChatMarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42D016A328BCF1B4A23376D /* StudioViewModel+ChatMarks.swift */; };
+		543DA339D4D3CB673EB78782 /* PublisherCheckNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3BAD1D54FD2FDFCC05AA730 /* PublisherCheckNotifications.swift */; };
 		543F36F51C0520F9D6CC0BC0 /* Prefs+AIPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33330A66845F80E5F0272DE9 /* Prefs+AIPolicy.swift */; };
 		54528C2FA8CA525E5DA05FEE /* CardScheduleFold.swift in Sources */ = {isa = PBXBuildFile; fileRef = E230C7C1474770C0DD2EEFC3 /* CardScheduleFold.swift */; };
 		54562B5F7043B9B21B97D97B /* MobileSpaceSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3BC4DF401DDFCDF38E9F26 /* MobileSpaceSharing.swift */; };
@@ -1518,7 +1519,6 @@
 		9F28E26604792F7C0C53EF9F /* KnowledgeStore+NotebookSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBD8D5C604EF139A0FA7FE0 /* KnowledgeStore+NotebookSidebar.swift */; };
 		9F42CD68240FB4F790215842 /* MemoryReviewSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D998CE85F8D570C95DDA06 /* MemoryReviewSession.swift */; };
 		9F535B96B6683A9E09E20BD9 /* MobileWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92953CFA404E092E528EE957 /* MobileWidgetSnapshot.swift */; };
-		9F60A1F38340EDAFEA5AE297 /* PublisherCheckNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA8B235FF41116342969AA56 /* PublisherCheckNotifications.swift */; };
 		9F8AA3858AE9ED829EC3FA1C /* ChatBrowserAgentLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD5D9E1C5351EEA9F38EA8F /* ChatBrowserAgentLiveTests.swift */; };
 		9F96E97F7EB2B47B546540AF /* Prefs+Imaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF13B10988CD2FF41E83E13 /* Prefs+Imaging.swift */; };
 		9FA7E1F216BBD6F2A063EAD5 /* StudioAssistantSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D76C33C467592F4BD7783F9 /* StudioAssistantSessionStoreTests.swift */; };
@@ -1532,7 +1532,6 @@
 		A0EE0A69E6D52A229F463B2B /* Prompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20E3FC4C405676CE11CAC7A /* Prompts.swift */; };
 		A0F42D6E336AA5B5D65E63F4 /* ArtifactBodyPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A695F8035C6772E13804E85 /* ArtifactBodyPackage.swift */; };
 		A102E63DA7065A8DA48957E5 /* ReaderPDFLinkHitTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD54E4541DA53AE528DDF3A /* ReaderPDFLinkHitTest.swift */; };
-		A123AD42AEB81ABD78A55F90 /* PublisherCheckNotificationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575071DB93BAFCCB2B34B56C /* PublisherCheckNotificationsTests.swift */; };
 		A133356F8EB572F75CF268E5 /* Secrets.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFCE15DAA1142225FD58D26A /* Secrets.generated.swift */; };
 		A1342E374FD550F5BF30A067 /* MCPSourceAudioToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF5336995EEA825274EDEE5 /* MCPSourceAudioToolsTests.swift */; };
 		A16B34F0664CCD1AC5839D07 /* KnowledgeStore+LearningGoalSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B9A7AA0EAC5ECAFA1EB762 /* KnowledgeStore+LearningGoalSettings.swift */; };
@@ -2281,6 +2280,7 @@
 		F8C93B614501ACB82E118850 /* KnowledgeMapCanvases.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6364D3508382BE7AFB36603 /* KnowledgeMapCanvases.swift */; };
 		F8CC75DA025D2EF14698B8F9 /* InternalReviewPanel+Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80CC7DDE7C157F71B9954A7C /* InternalReviewPanel+Composer.swift */; };
 		F90230A67541BCAAAE2CF816 /* MCPTools+SourceGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A64D138F44F4A5C320492B /* MCPTools+SourceGroups.swift */; };
+		F95983CE15A43E39B78E665F /* PublisherCheckNotificationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E28D91BA5042AF14E4C2AB3 /* PublisherCheckNotificationsTests.swift */; };
 		F979A0B97E32C739456AD515 /* KnowledgeMapCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F731CF5D64AE35690854B2A5 /* KnowledgeMapCanvasView.swift */; };
 		F981B915C128091694FC4065 /* AIService+AudioOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8019F2F90F8D86C9017569D9 /* AIService+AudioOverview.swift */; };
 		F99850D0EA01C5A7E761125F /* SourceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F51405FEE0BB55F9E475924 /* SourceError.swift */; };
@@ -2707,6 +2707,7 @@
 		1DC45A66C2DACD57DAF3DF36 /* ReviewChatSourceCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewChatSourceCards.swift; sourceTree = "<group>"; };
 		1DCF1C57B1258A5B7443DE1A /* SituatedCardDrafter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SituatedCardDrafter.swift; sourceTree = "<group>"; };
 		1DF337232DDB2B82DDF32F2E /* MobileAudioReviewViewModel+TextToSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MobileAudioReviewViewModel+TextToSpeech.swift"; sourceTree = "<group>"; };
+		1E28D91BA5042AF14E4C2AB3 /* PublisherCheckNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublisherCheckNotificationsTests.swift; sourceTree = "<group>"; };
 		1E29FD0BFD6709F5D591901F /* MCPTools+NotebookCollections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+NotebookCollections.swift"; sourceTree = "<group>"; };
 		1E3FCE2B1E028332DEAFAC26 /* ManagedAIAccountModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedAIAccountModel.swift; sourceTree = "<group>"; };
 		1E704CB20F768845A4B297C5 /* MobileShareInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileShareInbox.swift; sourceTree = "<group>"; };
@@ -3193,7 +3194,6 @@
 		5671F00EDED1B266E3332599 /* SourceIdeaDrafting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceIdeaDrafting.swift; sourceTree = "<group>"; };
 		56FCCDB61F955FD59FAED09D /* KnowledgeStore+NotebookStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+NotebookStates.swift"; sourceTree = "<group>"; };
 		572FB0756E65CEC96FB2493A /* ScannedPageProofreading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannedPageProofreading.swift; sourceTree = "<group>"; };
-		575071DB93BAFCCB2B34B56C /* PublisherCheckNotificationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublisherCheckNotificationsTests.swift; sourceTree = "<group>"; };
 		57691FF043C76368B587FE16 /* AddTextbookSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTextbookSheet.swift; sourceTree = "<group>"; };
 		5770F64AD4AD0288A4847466 /* MobileTextIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileTextIndex.swift; sourceTree = "<group>"; };
 		578CE08AFB7949A99CE01764 /* MobileSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSiriIntents.swift; sourceTree = "<group>"; };
@@ -3844,6 +3844,7 @@
 		A37CEDEE22E92A3B11ECBC32 /* StorageService+Family.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorageService+Family.swift"; sourceTree = "<group>"; };
 		A38FD31C6A9196F3DD4479B4 /* TranscriptSlideAnchoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSlideAnchoringTests.swift; sourceTree = "<group>"; };
 		A3B71C7DFBF3AEED4B033D67 /* ReviewSessionManager+ToolSpecs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReviewSessionManager+ToolSpecs.swift"; sourceTree = "<group>"; };
+		A3BAD1D54FD2FDFCC05AA730 /* PublisherCheckNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublisherCheckNotifications.swift; sourceTree = "<group>"; };
 		A3F2C923A8F0CBC802120123 /* SourcePersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePersistenceTests.swift; sourceTree = "<group>"; };
 		A3FD887D3F36FC93A8306FCD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A4017C9FA806E7620B7F9CEB /* KnowledgeStore+PersonalStateSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+PersonalStateSchema.swift"; sourceTree = "<group>"; };
@@ -4559,7 +4560,6 @@
 		FA6ED2775EAE0C990A351AF1 /* DayPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlan.swift; sourceTree = "<group>"; };
 		FA6EFE860F9560A9FEBDB00C /* Prefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Prefs.swift; sourceTree = "<group>"; };
 		FA71D89CA3A437FDC272C3ED /* MeetingActionItemExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingActionItemExtractor.swift; sourceTree = "<group>"; };
-		FA8B235FF41116342969AA56 /* PublisherCheckNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublisherCheckNotifications.swift; sourceTree = "<group>"; };
 		FAA78C7C7D23DFC4E053019D /* FocusJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusJudge.swift; sourceTree = "<group>"; };
 		FAB2C5409BAAE6C8C9B7D8DA /* EPUBBookScheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EPUBBookScheme.swift; sourceTree = "<group>"; };
 		FAB36D9DCDC08DA87A26B978 /* TeachableCourseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeachableCourseService.swift; sourceTree = "<group>"; };
@@ -5517,6 +5517,7 @@
 				321A5964D3FD92222C948612 /* PreferenceSyncTests.swift */,
 				4CFCFA2A575EC731824043B3 /* PrintedFigureMentionTests.swift */,
 				A1A005C39904DE611872AF5A /* PublishedPageRendererTests.swift */,
+				1E28D91BA5042AF14E4C2AB3 /* PublisherCheckNotificationsTests.swift */,
 				DB8D6D133C58D33E8194F94A /* QuickAssistantShortcutTests.swift */,
 				054A8DB9BE6F549D22828119 /* ReadableMathPreviewTests.swift */,
 				03FAA7A3AD5BC14F478D6768 /* ReaderClipTests.swift */,
@@ -5631,7 +5632,6 @@
 				FAC6A94E53E2678D6CD11A2B /* WebPageReaderTests.swift */,
 				983C860A274B3C52030DCB84 /* WebSessionCookieKeeperTests.swift */,
 				F7F693714476832B0B2D0FFC /* WebSourceDiscoveryTests.swift */,
-				575071DB93BAFCCB2B34B56C /* PublisherCheckNotificationsTests.swift */,
 				D6D3F5474AFE52EEF2EB86B0 /* WorkingNoteTests.swift */,
 				44C8720EE348D5501DDEAA1C /* WrittenCardTests.swift */,
 				02A21A3BC1FFB12F7DD4F07A /* XAccountsTests.swift */,
@@ -6531,6 +6531,7 @@
 				DEAA6B29317AFEB851CC316A /* PodcastFinderService.swift */,
 				9D9BA6156BB9E61A29E17B27 /* PodcastPublicEpisodeResolver.swift */,
 				435B3EFDE4BC130DAB7F324D /* PodcastTranscriptCompleteness.swift */,
+				A3BAD1D54FD2FDFCC05AA730 /* PublisherCheckNotifications.swift */,
 				65227BC35900455EBAD93500 /* PublisherPagePDFRenderer.swift */,
 				BCB87406E5EA6A9916F38796 /* ReadLaterExportImportService.swift */,
 				FFD61B17614426EBF28BFA1B /* RecordingSlideExtractionService.swift */,
@@ -6547,7 +6548,6 @@
 				54404A32A6D16ED8DDDC2138 /* SourceWebSession.swift */,
 				7DC90E28189597661E8610CB /* SubstackAppLink.swift */,
 				FAB36D9DCDC08DA87A26B978 /* TeachableCourseService.swift */,
-				FA8B235FF41116342969AA56 /* PublisherCheckNotifications.swift */,
 				1BCCF00E277F222F834DF3C3 /* XAccounts.swift */,
 				AB7A3D6995120E5D80BF9D32 /* XBookmarkService.swift */,
 				24E48185C3DF6754755BB6BA /* XPostThreadService.swift */,
@@ -8136,6 +8136,7 @@
 				D6AA185AC3661B23D19B7896 /* PrivateChatKindTests.swift in Sources */,
 				C6B278B9E7D41763097F6E08 /* PrivateSyncEngineTests.swift in Sources */,
 				BD37341E17C5E2FAC68E3127 /* PublishedPageRendererTests.swift in Sources */,
+				F95983CE15A43E39B78E665F /* PublisherCheckNotificationsTests.swift in Sources */,
 				D672BC3E38D64A7923C6E438 /* PurgeHandlingTests.swift in Sources */,
 				97C34C6D9ED2C183EEE417E9 /* QuickAssistantShortcutTests.swift in Sources */,
 				538522EAAAA1D40477C88805 /* QuizRevisionTests.swift in Sources */,
@@ -8297,7 +8298,6 @@
 				516FA7943304529A23ED5011 /* WebPageReaderTests.swift in Sources */,
 				11DCF59A6A692A5F5216D3F5 /* WebSessionCookieKeeperTests.swift in Sources */,
 				D05E4B0AA75B57E24708B559 /* WebSourceDiscoveryTests.swift in Sources */,
-				A123AD42AEB81ABD78A55F90 /* PublisherCheckNotificationsTests.swift in Sources */,
 				C504661A44CE905721F0A3AB /* WorkKeyLookupTests.swift in Sources */,
 				B14E5F2622E614A90330198D /* WorkKeyTests.swift in Sources */,
 				1533FD352BD4378636B96DE2 /* WorkingNoteTests.swift in Sources */,
@@ -9573,6 +9573,7 @@
 				9329CA68DB7BE8C3536D14D7 /* Prompts+SituatedCards.swift in Sources */,
 				F384C151C5A96AA51B6B9682 /* Prompts.swift in Sources */,
 				793073AB1A9CF83F2B699803 /* PublishedPageRenderer.swift in Sources */,
+				543DA339D4D3CB673EB78782 /* PublisherCheckNotifications.swift in Sources */,
 				CE8FEBDBCE82C85300D6E6B5 /* PublisherPagePDFRenderer.swift in Sources */,
 				E1F887DD96ACAC9C81F95281 /* PurgeHandler.swift in Sources */,
 				20D4AFDA325597018FAF1D10 /* QuickAssistantPanel.swift in Sources */,
@@ -10047,7 +10048,6 @@
 				1F19C1B016A4D1A76700E405 /* WebPageReader.swift in Sources */,
 				9F2648FFF85FA2B0783F9740 /* WebSessionCookieKeeper.swift in Sources */,
 				E911B94F66AAA3AB9ED8BD4B /* WebSourceDiscovery.swift in Sources */,
-				9F60A1F38340EDAFEA5AE297 /* PublisherCheckNotifications.swift in Sources */,
 				A86581611CC079E44A29BD33 /* WebViewReader.swift in Sources */,
 				C3192112B2B49153876D7447 /* WelcomeStory.swift in Sources */,
 				294C53338A2E4BB5A6197352 /* WhatsNewSheet.swift in Sources */,
@@ -10321,7 +10321,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 329;
+				CURRENT_PROJECT_VERSION = 330;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (Dev)";
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
@@ -10334,7 +10334,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -10357,7 +10357,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 329;
+				CURRENT_PROJECT_VERSION = 330;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = ForeverLM;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
@@ -10370,7 +10370,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -10532,7 +10532,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 329;
+				CURRENT_PROJECT_VERSION = 330;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (First Run)";
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
@@ -10545,7 +10545,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev.firstrun;
 				PRODUCT_MODULE_NAME = ForeverLM;
