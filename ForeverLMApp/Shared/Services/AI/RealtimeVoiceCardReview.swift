@@ -205,7 +205,7 @@ enum RealtimeVoiceCardReview {
     /// A face as the voice reads it: its words, never a visualization's
     /// HTML (`CardVisualization`), on one line and within the budget.
     static func clipped(_ text: String) -> String {
-        let flat = CardVisualization.words(text)
+        let flat = CardVisualization.words(text).cardPlainText()
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard flat.count > fieldBudget else { return flat }

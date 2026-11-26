@@ -1193,7 +1193,7 @@ private struct ReviewChatReferencedCardChip: View {
                     Image(systemName: "rectangle.on.rectangle")
                         .zoomedSystemFont(size: 10, weight: .medium)
                         .foregroundStyle(.secondary)
-                    Text(card.question)
+                    Text(card.question.cardFaceText())
                         .zoomedSystemFont(size: 11, weight: .medium)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -1204,7 +1204,7 @@ private struct ReviewChatReferencedCardChip: View {
             }
             .buttonStyle(.hoverWash(cornerRadius: 5, inset: -2, opacity: 0.08))
             .help("Show this card")
-            .accessibilityLabel("Flashcard: \(card.question). Show card")
+            .accessibilityLabel("Flashcard: \(card.question.cardPlainText()). Show card")
             .popover(isPresented: $showsCard, arrowEdge: .top) {
                 ReviewChatReferencedCardFace(card: card)
             }

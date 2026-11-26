@@ -1122,11 +1122,11 @@ struct MobileCardReviewScreen: View {
                     .padding(.bottom, 14)
             }
             let back = CardVisualization.split(card.back)
-            Text(back.words.cardFaceText())
+            CardFaceText(back.words)
                 .font(.system(size: backSize))
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel("Answer: \(back.words)")
+                .accessibilityLabel("Answer: \(back.words.cardPlainText())")
                 .accessibilityFocused($spoken, equals: .back)
                 .accessibilityIdentifier("memory.cards.back")
             if let html = back.html {

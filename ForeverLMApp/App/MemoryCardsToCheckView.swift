@@ -1137,7 +1137,7 @@ private struct MemoryCardToCheckFace: View {
                     .padding(.bottom, 16)
             }
             let back = CardVisualization.split(card.face.back)
-            Text(back.words.cardFaceText())
+            CardFaceText(back.words)
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)

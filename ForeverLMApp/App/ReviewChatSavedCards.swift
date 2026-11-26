@@ -269,7 +269,7 @@ struct ReviewChatSavedCardsView: View {
             MemoryCardFold()
                 .padding(.vertical, 10)
             let back = CardVisualization.split(card.face.back)
-            Text(back.words.cardFaceText())
+            CardFaceText(back.words)
                 .font(.system(size: 13))
                 .foregroundStyle(Color.primary.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)

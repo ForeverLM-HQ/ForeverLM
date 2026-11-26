@@ -24,7 +24,7 @@ extension String {
     /// "Figure 4f", clickable, and `**Donor origin:**` becomes bold. Line
     /// breaks are kept. Text with no Markdown mark comes back as it was.
     func cardFaceText() -> AttributedString {
-        let folded = foldingMathSpans()
+        let folded = CardFaceMarkdown.flatteningTables(foldingMathSpans())
         guard folded.contains(where: { $0 == "[" || $0 == "*" || $0 == "_" || $0 == "`" }) else {
             return AttributedString(folded)
         }
@@ -33,6 +33,139 @@ extension String {
             failurePolicy: .returnPartiallyParsedIfPossible
         )
         return (try? AttributedString(markdown: folded, options: options)) ?? AttributedString(folded)
+    }
+
+    /// A card's face as plain words, for whatever cannot draw a link: the
+    /// voice review reads "Jacoby et al., Figure 4f" rather than spelling out
+    /// `foreverlm://source/src_…?page=6`, and the watch shows the same words.
+    func cardPlainText() -> String {
+        String(cardFaceText().characters)
+    }
+}
+
+/// A card's face read as blocks: prose, and the Markdown pipe tables a card
+/// may carry (a back that lists seven interventions with their lifespan
+/// gains). `CardFaceText` draws a table as a grid; whatever draws a face as
+/// one `Text` (a row's preview, the voice, the watch) gets each row on its
+/// own line, cells joined by " · ", never the pipes and the `|---|` rule.
+enum CardFaceMarkdown {
+    enum Alignment: Equatable, Sendable { case leading, center, trailing }
+
+    struct Table: Equatable, Sendable {
+        let header: [String]
+        let rows: [[String]]
+        let alignments: [Alignment]
+    }
+
+    enum Block: Equatable, Sendable {
+        case text(String)
+        case table(Table)
+    }
+
+    /// The face cut into prose and tables, in order. A table is a header
+    /// line and a `|---|` rule with as many columns, then every following
+    /// line that has a pipe. Prose blocks keep their line breaks, minus the
+    /// blank lines at their ends.
+    static func blocks(_ text: String) -> [Block] {
+        guard text.contains("|") else { return [.text(text)] }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var blocks: [Block] = []
+        var prose: [String] = []
+        func flushProse() {
+            let joined = prose.joined(separator: "\n").trimmingCharacters(in: .newlines)
+            if !joined.trimmingCharacters(in: .whitespaces).isEmpty { blocks.append(.text(joined)) }
+            prose.removeAll()
+        }
+        var index = 0
+        while index < lines.count {
+            if index + 1 < lines.count,
+               lines[index].contains("|"),
+               let alignments = rule(lines[index + 1]) {
+                let header = cells(lines[index])
+                if header.count == alignments.count {
+                    var rows: [[String]] = []
+                    var next = index + 2
+                    while next < lines.count, lines[next].contains("|"),
+                          !lines[next].trimmingCharacters(in: .whitespaces).isEmpty {
+                        var row = cells(lines[next])
+                        if row.count < header.count { row += Array(repeating: "", count: header.count - row.count) }
+                        rows.append(Array(row.prefix(header.count)))
+                        next += 1
+                    }
+                    flushProse()
+                    blocks.append(.table(Table(header: header, rows: rows, alignments: alignments)))
+                    index = next
+                    continue
+                }
+            }
+            prose.append(lines[index])
+            index += 1
+        }
+        flushProse()
+        return blocks.isEmpty ? [.text("")] : blocks
+    }
+
+    /// The face with each table written out a row a line, cells joined by
+    /// " · ". Text with no table comes back as it was.
+    static func flatteningTables(_ text: String) -> String {
+        let parts = blocks(text)
+        guard parts.contains(where: { if case .table = $0 { return true } else { return false } }) else { return text }
+        return parts.map { block -> String in
+            switch block {
+            case .text(let words): return words
+            case .table(let table):
+                return ([table.header] + table.rows)
+                    .map { $0.filter { !$0.isEmpty }.joined(separator: " · ") }
+                    .joined(separator: "\n")
+            }
+        }
+        .joined(separator: "\n\n")
+    }
+
+    /// The cells of one table line: split at unescaped pipes, the outer
+    /// pipes dropped, each cell trimmed.
+    static func cells(_ line: String) -> [String] {
+        var trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("|") { trimmed.removeFirst() }
+        if trimmed.hasSuffix("|"), !trimmed.hasSuffix("\\|") { trimmed.removeLast() }
+        var cells: [String] = []
+        var current = ""
+        var escaped = false
+        for character in trimmed {
+            if escaped {
+                current.append(character == "|" ? "|" : "\\")
+                if character != "|" { current.append(character) }
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "|" {
+                cells.append(current.trimmingCharacters(in: .whitespaces))
+                current = ""
+            } else {
+                current.append(character)
+            }
+        }
+        if escaped { current.append("\\") }
+        cells.append(current.trimmingCharacters(in: .whitespaces))
+        return cells
+    }
+
+    /// A `|---|:--:|--:|` rule's column alignments, or nil when the line is
+    /// not one.
+    static func rule(_ line: String) -> [Alignment]? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.contains("-"), trimmed.contains("|") else { return nil }
+        let columns = cells(trimmed)
+        guard !columns.isEmpty else { return nil }
+        var alignments: [Alignment] = []
+        for column in columns {
+            guard column.count >= 1,
+                  column.allSatisfy({ $0 == "-" || $0 == ":" }),
+                  column.contains("-") else { return nil }
+            let left = column.hasPrefix(":"), right = column.hasSuffix(":")
+            alignments.append(left && right ? .center : right ? .trailing : .leading)
+        }
+        return alignments
     }
 }
 

@@ -340,6 +340,86 @@ extension AnyTransition {
 /// sandboxed without `allow-same-origin` under a policy that lets no request
 /// out, as a chat reply's does, and takes the height the frame asks for,
 /// between 80 and 720 points.
+/// A card's face as the review draws it: prose through `cardFaceText`
+/// (links, bold, math) and each Markdown table as a grid, its header in
+/// semibold over a hairline, its columns aligned as the `|---:|` rule says,
+/// so a back that is a table reads as one rather than as pipes. Takes the
+/// font, colour and line spacing the call site sets.
+struct CardFaceText: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        let blocks = CardFaceMarkdown.blocks(text)
+        if blocks.count == 1, case .text(let words) = blocks[0] {
+            Text(words.cardFaceText())
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                    switch block {
+                    case .text(let words):
+                        Text(words.cardFaceText())
+                            .fixedSize(horizontal: false, vertical: true)
+                    case .table(let table):
+                        CardFaceTable(table: table)
+                    }
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+private struct CardFaceTable: View {
+    let table: CardFaceMarkdown.Table
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+            GridRow {
+                ForEach(table.header.indices, id: \.self) { column in
+                    cell(table.header[column], column: column)
+                        .fontWeight(.semibold)
+                        .gridColumnAlignment(alignment(column))
+                }
+            }
+            Divider()
+                .gridCellUnsizedAxes(.horizontal)
+            ForEach(table.rows.indices, id: \.self) { row in
+                GridRow {
+                    ForEach(table.rows[row].indices, id: \.self) { column in
+                        cell(table.rows[row][column], column: column)
+                    }
+                }
+            }
+        }
+    }
+
+    private func cell(_ words: String, column: Int) -> some View {
+        Text(words.cardFaceText())
+            .multilineTextAlignment(textAlignment(column))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func alignment(_ column: Int) -> HorizontalAlignment {
+        switch table.alignments[column] {
+        case .leading: return .leading
+        case .center: return .center
+        case .trailing: return .trailing
+        }
+    }
+
+    private func textAlignment(_ column: Int) -> TextAlignment {
+        switch table.alignments[column] {
+        case .leading: return .leading
+        case .center: return .center
+        case .trailing: return .trailing
+        }
+    }
+}
+
 struct MemoryCardVisualizationView: View {
     let html: String
     @State private var height = CGFloat(CardVisualization.minimumHeight)

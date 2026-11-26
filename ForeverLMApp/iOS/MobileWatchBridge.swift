@@ -105,8 +105,8 @@ final class MobileWatchBridge: NSObject {
         let cards = deal.cards.prefix(Self.cardLimit).map { card in
             WatchCard(
                 itemID: card.itemID,
-                prompt: CardVisualization.words(card.prompt),
-                back: CardVisualization.words(card.back),
+                prompt: CardVisualization.words(card.prompt).cardPlainText(),
+                back: CardVisualization.words(card.back).cardPlainText(),
                 why: card.why,
                 sourceTitle: card.sourceID.flatMap { deal.sourceTitles[$0] },
                 isNew: card.isNew

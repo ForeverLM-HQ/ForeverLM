@@ -352,7 +352,7 @@ struct MemoryCardSessionView: View {
                     .padding(.bottom, 16)
             }
             let back = CardVisualization.split(card.back)
-            Text(back.words.cardFaceText())
+            CardFaceText(back.words)
                 .font(MemoryCardMetrics.backFont)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -692,11 +692,11 @@ struct MemoryCardSessionView: View {
         VStack(alignment: .leading, spacing: 0) {
             // The card it is about: its front muted, its back.
             VStack(alignment: .leading, spacing: 6) {
-                Text(CardVisualization.words(deeper.card.prompt))
+                Text(CardVisualization.words(deeper.card.prompt).cardFaceText())
                     .font(.system(size: 15, weight: .regular, design: .serif))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(CardVisualization.words(deeper.card.back))
+                Text(CardVisualization.words(deeper.card.back).cardFaceText())
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

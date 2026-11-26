@@ -210,13 +210,13 @@ private struct KeptCardRow: View {
             Task { await vm.revealSourceInReader(sourceID) }
         } label: {
             VStack(alignment: .leading, spacing: 3) {
-                Text(card?.front ?? item.target)
+                Text((card?.front ?? item.target).cardFaceText())
                     .zoomedSystemFont(size: 13, weight: .medium)
                     .foregroundStyle(.primary)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
-                if let back = card?.back {
-                    Text(back)
+                if let back = card?.backWords {
+                    Text(back.cardFaceText())
                         .zoomedSystemFont(size: 12)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)

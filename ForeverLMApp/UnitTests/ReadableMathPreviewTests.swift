@@ -192,3 +192,47 @@ struct InlineTitleMarkupTests {
         #expect("$$\\frac{a}{b}$$ then \\[x^2\\]".foldingMathSpans() == "a/b then x²")
     }
 }
+
+/// A card's back may be a Markdown table or carry a link; the review draws the
+/// table as a grid and everything that reads a face as plain words gets rows
+/// and link words, never pipes, the `|---|` rule or a foreverlm:// address.
+@Suite("Card face Markdown")
+struct CardFaceMarkdownTests {
+    static let tableBack = """
+    | Category | Example | Median lifespan increase |
+    |---|---|---:|
+    | Diet | Calorie restriction + lard | 32% |
+    | Small-molecule drug | Rapamycin | 27% |
+
+    These are separate mouse studies.
+    """
+
+    @Test("A pipe table becomes a table block with its alignments, and the prose after it a text block")
+    func tableBlocks() {
+        let blocks = CardFaceMarkdown.blocks(Self.tableBack)
+        #expect(blocks == [
+            .table(.init(header: ["Category", "Example", "Median lifespan increase"],
+                         rows: [["Diet", "Calorie restriction + lard", "32%"], ["Small-molecule drug", "Rapamycin", "27%"]],
+                         alignments: [.leading, .leading, .trailing])),
+            .text("These are separate mouse studies."),
+        ])
+    }
+
+    @Test("Plain words write a table a row a line and a link as its words")
+    func plainWords() {
+        #expect(Self.tableBack.cardPlainText() == """
+        Category · Example · Median lifespan increase
+        Diet · Calorie restriction + lard · 32%
+        Small-molecule drug · Rapamycin · 27%
+
+        These are separate mouse studies.
+        """)
+        let linked = "Overlap is not fusion. [Jacoby et al., Figure 1g](foreverlm://source/src_abc?page=3)."
+        #expect(linked.cardPlainText() == "Overlap is not fusion. Jacoby et al., Figure 1g.")
+    }
+
+    @Test("A pipe in prose with no rule under it stays prose")
+    func pipeInProse() {
+        #expect(CardFaceMarkdown.blocks("Either a | b holds.\nNext line.") == [.text("Either a | b holds.\nNext line.")])
+    }
+}

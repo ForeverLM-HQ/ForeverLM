@@ -304,7 +304,7 @@ private struct KnowledgeMapReviewCard: View {
                     MemoryCardVerdictLine(check: check)
                 }
                 let back = CardVisualization.split(card.back)
-                Text(back.words.cardFaceText())
+                CardFaceText(back.words)
                     .font(.system(size: 14.5))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("knowledgeMap.review.back")
