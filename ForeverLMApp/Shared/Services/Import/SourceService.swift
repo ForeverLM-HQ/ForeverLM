@@ -1464,7 +1464,8 @@ actor SourceService {
     ///
     /// Returns the archived path, or nil when the page could not be archived.
     func refreshArchivedArticleHTML(url urlString: String, sourceId: String) async throws -> String? {
-        guard let url = URL(string: urlString) else { throw SourceError.invalidURL }
+        guard let givenURL = URL(string: urlString) else { throw SourceError.invalidURL }
+        let url = await SubstackAppLink.readingAddress(for: givenURL)
         guard let rawHTML = try await fetchPageHTML(url: url) else { throw SourceError.fetchFailed }
 
         let decodedHTML = rawHTML.repairingUTF8Mojibake()
@@ -1477,11 +1478,52 @@ actor SourceService {
         )
         // A page that now answers with a consent wall or an error shell would
         // otherwise replace a good archive with nothing.
-        guard !extractTextFromHTML(readableHTML)
-            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let pageText = extractTextFromHTML(readableHTML)
+        guard !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SourceError.insufficientContent
         }
+        if let refusal = Self.notTheArticle(pageText: pageText) { throw refusal }
+        if SourceDiscovery.isSecurityVerificationContent(text: pageText, title: pageMetadata?.title ?? "", url: url.absoluteString) {
+            throw SourceError.accessDenied
+        }
         return await archiveHTMLToDisk(rawHTML: readableHTML, sourceId: sourceId, baseURL: url)
+    }
+
+    /// A reading copy made from a source's stored text, for an article whose
+    /// page could not be saved (the Mac was offline, the site refused, or the
+    /// text arrived without its page). Headings, lists and paragraphs are laid
+    /// out the way the saved page of any article is, so the Reader never shows
+    /// the text as one block (product owner, 2026-11-26: "i am not going to
+    /// read a wall of text like this"). A line of its own is a paragraph of its
+    /// own: stored text keeps one paragraph a line.
+    func archiveStoredText(_ text: String, title: String, sourceId: String, pageURL: URL) async -> String? {
+        let body = MarkdownHTML.body(Self.paragraphPerLine(text))
+        let page = "<html><head><title>\(title.htmlEscaped)</title></head><body><article>\(body)</article></body></html>"
+        return await archiveHTMLToDisk(rawHTML: page, sourceId: sourceId, baseURL: pageURL)
+    }
+
+    /// Stored text with a blank line after every line that is not a list
+    /// item, table row or code: Markdown joins lines that touch into one
+    /// paragraph, and stored article text has one paragraph a line.
+    nonisolated static func paragraphPerLine(_ text: String) -> String {
+        var out: [String] = []
+        var inFence = false
+        let lines = text.replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false)
+        for (index, raw) in lines.enumerated() {
+            let line = String(raw)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            out.append(line)
+            if trimmed.hasPrefix("```") { inFence.toggle(); continue }
+            guard !inFence, !trimmed.isEmpty, index + 1 < lines.count else { continue }
+            let next = lines[index + 1].trimmingCharacters(in: .whitespaces)
+            let isListOrTable: (String) -> Bool = { l in
+                l.hasPrefix("- ") || l.hasPrefix("* ") || l.hasPrefix("+ ") || l.hasPrefix("|")
+                    || l.range(of: #"^\d+[.)] "#, options: .regularExpression) != nil
+            }
+            if isListOrTable(trimmed) && isListOrTable(next) { continue }
+            if !next.isEmpty { out.append("") }
+        }
+        return out.joined(separator: "\n")
     }
 
     /// Fetch a page as HTML, falling back to a real browser for JS-heavy or

@@ -825,6 +825,11 @@ extension StudioViewModel {
                 isFetchingContent = false
                 return false
             }
+            // The archive is best-effort in the fetch; an article is never
+            // left as text alone (`ensureSavedPage`).
+            if archivedLocalPath == nil {
+                await ensureSavedPage(for: articleId)
+            }
         } catch SourceError.linkIsPDF {
             // The address looked like a page but serves a PDF (a `/download`
             // link, a landing page that redirects to the file): keep the file
@@ -839,6 +844,52 @@ extension StudioViewModel {
             if await recoverFromWebFetchFailure(error, articleId: articleId, idx: currentIdx) == false { return false }
         }
         return true
+    }
+
+    /// Gives a web article that holds its text but no saved page one: the page
+    /// read again and saved for offline reading, or, when that cannot be had
+    /// (offline, a site that refuses, a page that is no longer the article),
+    /// a reading copy laid out from the stored text. The text itself is left
+    /// as it is, so search, chat and cards read what they read before.
+    ///
+    /// Without a saved page the Reader, which shows only what is on this Mac
+    /// (fc612a40), showed the stored text as one block. 63 of 856 web articles
+    /// were like that on 2026-11-26: the archive is written best-effort during
+    /// a fetch, and text that arrives some other way (another Mac, a connector)
+    /// comes without one.
+    func ensureSavedPage(for articleId: String) async {
+        guard let article = articles.first(where: { $0.id == articleId }),
+              Self.canRefreshArticleFromWebsite(article),
+              !article.cachedIsArchivedArticle,
+              !savedPageAttemptedIDs.contains(articleId),
+              let pageURL = URL(string: article.url) else { return }
+        savedPageAttemptedIDs.insert(articleId)
+        var text = article.content
+        if text?.isEmpty ?? true { text = await storage.loadSourceContent(articleId) }
+        guard let text, Self.nonArticleReason(text: text, title: article.title, url: article.url) == nil else { return }
+        var path: String?
+        do {
+            path = try await sourceService.refreshArchivedArticleHTML(url: article.url, sourceId: articleId)
+        } catch {
+            logger.info("Saving the page of \(articleId, privacy: .public) failed (\(error.localizedDescription, privacy: .public)); laying out its stored text instead")
+        }
+        if path == nil {
+            path = await sourceService.archiveStoredText(text, title: article.title, sourceId: articleId, pageURL: pageURL)
+        }
+        guard let path, let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
+        articles[idx].localFilePath = path
+        await persistSource(articles[idx], context: "Save the article's page", showErrorToast: false)
+    }
+
+    /// Once a launch: every web article that holds its text and no saved page
+    /// gets one (`ensureSavedPage`), one at a time.
+    func saveMissingArticlePages() async {
+        guard !didSaveMissingArticlePages else { return }
+        didSaveMissingArticlePages = true
+        let ids = articles.filter {
+            Self.canRefreshArticleFromWebsite($0) && !$0.cachedIsArchivedArticle && ($0.wordCount ?? 0) > 0
+        }.map(\.id)
+        for id in ids { await ensureSavedPage(for: id) }
     }
 
     /// Settles a source whose web fetch threw: keeps a bookmarked X post readable,

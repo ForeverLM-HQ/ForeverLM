@@ -671,3 +671,18 @@ struct NotTheArticleTests {
         #expect(StudioViewModel.nonArticleReason(text: "x\n\n# 404\nNot Found", title: "x", url: "https://example.org/x") == "a \"not found\" page")
     }
 }
+
+/// An article whose page could not be saved is laid out from its stored text.
+@Suite("Reading copy from stored text")
+struct StoredTextReadingCopyTests {
+    @Test("Each stored line is its own paragraph; list items stay one list")
+    func linesBecomeParagraphs() {
+        let text = "# Stories We'd Like to Publish\nIt's been a year.\nDuring that time, we released four issues.\n- one\n- two\n## A Brief History\nNSAIDs are common."
+        let html = MarkdownHTML.body(SourceService.paragraphPerLine(text))
+        #expect(html.contains("<h1>"))
+        #expect(html.contains("<h2>"))
+        #expect(html.components(separatedBy: "<p>").count - 1 == 3)
+        #expect(html.components(separatedBy: "<ul>").count - 1 == 1)
+        #expect(html.components(separatedBy: "<li>").count - 1 == 2)
+    }
+}

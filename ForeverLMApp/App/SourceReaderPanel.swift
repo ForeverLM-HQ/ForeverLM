@@ -48,6 +48,10 @@ struct SourceReaderPanel: View {
     @PreferenceStorage(Prefs.Readers.originalPageColors) private var originalPageColors
     private let dragVisibility = StudioDragVisibility.shared
     @State private var selectedText = ""
+    /// The web article whose page this Reader has asked to be saved
+    /// (`StudioViewModel.ensureSavedPage`); until then it shows "Saving…"
+    /// rather than the stored text as one block.
+    @State private var savedPageRequestedFor: String?
     /// Go to Page, open from the overflow menu or its shortcut.
     @State private var isGoToPagePresented = false
     /// The displayed source's cited sources — a paper's cited papers, an article's linked
@@ -1669,6 +1673,18 @@ struct SourceReaderPanel: View {
                 zoomOutAction: { setReaderZoomScale(readerZoomScale - ArticleReaderZoom.step) },
                 resetZoomAction: resetReaderZoom
             )
+        } else if StudioViewModel.canRefreshArticleFromWebsite(article),
+                  article.content?.isEmpty == false,
+                  savedPageRequestedFor != article.id {
+            // A web article with its text but no saved page gets one before it
+            // is shown: the page read again for offline reading, or its text
+            // laid out as one (`ensureSavedPage`). Only when neither can be
+            // written does the stored text show as it is, below.
+            ReaderLoadingView(title: "Saving the page…", subtitle: "It will be readable offline.")
+                .task(id: article.id) {
+                    await vm.ensureSavedPage(for: article.id)
+                    savedPageRequestedFor = article.id
+                }
         } else if let content = article.content, !content.isEmpty {
             TranscriptReaderView(
                 article: article,

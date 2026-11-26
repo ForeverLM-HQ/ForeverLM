@@ -357,6 +357,10 @@ class StudioViewModel {
     @ObservationIgnored var didGivePostAddressesToSubstackAppLinkSources = false
     /// Whether this launch has re-read the articles whose saved text is not the article.
     @ObservationIgnored var didRepairSourcesHoldingNonArticlePages = false
+    /// Whether this launch has given every web article without a saved page one.
+    @ObservationIgnored var didSaveMissingArticlePages = false
+    /// Articles this launch has tried to give a saved page (`ensureSavedPage`).
+    @ObservationIgnored var savedPageAttemptedIDs: Set<String> = []
     /// Asks Substack which post an app link names (`SubstackAppLink`); a test
     /// answers for it.
     @ObservationIgnored var substackPostAddress: @Sendable (String) async -> String? = {
