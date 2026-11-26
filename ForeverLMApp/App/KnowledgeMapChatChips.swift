@@ -95,8 +95,7 @@ struct KnowledgeMapChatChipRow: View {
 /// and an × that takes it out of the chat. The × is built only under the
 /// pointer, its glyph's room kept, so a chip does not shift under the cursor
 /// and a row of chips does not read as a row of buttons. The canvas's chips
-/// and the chips for what is open beside the chat
-/// (`InternalReviewPanel.openBesideChatRows`) are drawn by it.
+/// are drawn by it.
 struct ComposerRemovableChip: View {
     let symbol: String
     let title: String

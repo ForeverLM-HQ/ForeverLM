@@ -644,37 +644,47 @@ extension InternalReviewPanelContent {
                 )
                 .accessibilityIdentifier("chat.onScreenChip")
             } else {
-                openBesideChatChip(symbol: "doc", title: source.title, key: source.id)
+                openBesideChatChip(symbol: "doc", title: source.title, kind: "Source", key: source.id)
                     .accessibilityIdentifier("chat.onScreenChip")
             }
         }
         if let card = chips.card {
-            openBesideChatChip(symbol: "rectangle.on.rectangle", title: card.question, key: card.id)
+            openBesideChatChip(symbol: "rectangle.on.rectangle", title: card.question, kind: "Card", key: card.id)
                 .accessibilityIdentifier("chat.onScreenCardChip")
         }
         ForEach(chips.open, id: \.key) { item in
             openBesideChatChip(
                 symbol: Self.openItemSymbol(item.kind),
                 title: item.title.isEmpty ? (item.url ?? item.kind) : item.title,
+                kind: Self.openItemKindName(item.kind),
                 key: item.key
             )
             .accessibilityIdentifier("chat.openItemChip")
         }
     }
 
-    private func openBesideChatChip(symbol: String, title: String, key: String) -> some View {
-        ComposerRemovableChip(
-            symbol: symbol,
-            title: title,
-            maxTitleWidth: contextSourcesPopoverWidth - 60,
+    /// What is open beside the chat, drawn in the same row shape as every
+    /// other item of the "In context" list (`ContextRow`).
+    private func openBesideChatChip(symbol: String, title: String, kind: String, key: String) -> some View {
+        ContextRow(
             help: "Open beside this chat, so the chat sees it",
             removeHelp: "Leave \u{201C}\(title)\u{201D} out of this chat while it is open",
-            accessibilityLabel: "Open beside the chat: \(title)",
             open: nil,
             remove: { manager.leaveOutOnScreenSource(key) }
-        )
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        ) {
+            ContextItemLabel(symbol: symbol, title: title, kind: kind)
+                .accessibilityLabel("Open beside the chat: \(title)")
+        }
+    }
+
+    /// The kind an open item's row names under its title.
+    private static func openItemKindName(_ kind: String) -> String {
+        switch kind {
+        case "animation": return "Animation"
+        case "web page": return "Web page"
+        case "course": return "Course"
+        default: return kind.prefix(1).uppercased() + kind.dropFirst()
+        }
     }
 
     private static func openItemSymbol(_ kind: String) -> String {

@@ -21,6 +21,10 @@ struct ArticleRow: View {
     /// outside that panel (the chat's "In context" popover), which reads the
     /// key window's tab and would otherwise list chapters with no book.
     var alwaysShowsBookContext: Bool = false
+    /// A read source's title is grey in the library. A list where being read
+    /// says nothing (the chat's "In context" popover) keeps every title at
+    /// full strength.
+    var dimsReadTitle: Bool = true
     /// Grouped rows can let their collection header carry the shared artwork.
     /// Keeping this opt-in at the call site preserves thumbnails everywhere else.
     var showsThumbnail: Bool = true
@@ -315,7 +319,7 @@ struct ArticleRow: View {
             // transition drew "October 25" and "October 18" on top of each other.
             Text(displayTitle)
                 .zoomedSystemFont(size: 13)
-                .foregroundStyle(trackingStatus == .unread ? .primary : .secondary)
+                .foregroundStyle(trackingStatus == .unread || !dimsReadTitle ? .primary : .secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .layoutPriority(1)
@@ -455,7 +459,7 @@ struct ArticleRow: View {
                         // elsewhere the title stays at its normal source-row size.
                         .zoomedSystemFont(size: showsChapterNumber ? 12 : 13,
                                           weight: showsChapterNumber ? .regular : .medium)
-                        .foregroundStyle(trackingStatus == .unread ? .primary : .secondary)
+                        .foregroundStyle(trackingStatus == .unread || !dimsReadTitle ? .primary : .secondary)
                         .lineLimit(2)
 
                     // Row controls live at the trailing edge, not inline after the
