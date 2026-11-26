@@ -275,7 +275,13 @@ extension ReviewSessionManager {
     }
 
     /// `linkingLibrarySources(in:sourceID:)` against the library: a page counts
-    /// when an active source has its normalized URL.
+    /// when an active source has its normalized URL, or, for a paper, when the
+    /// library holds that paper under another address — its DOI, arXiv id or
+    /// journal article id (`librarySourceIDs(forReferenceURLs:)`). A reply
+    /// cites a paper's journal page while the library keeps it under doi.org
+    /// or PMC; matched only by address, the same paper read as two citations,
+    /// the library's chip and the web page's (product owner, 2026-11-26: "both
+    /// 10 and 2 ... point to the same paper; why?").
     func linkingLibrarySources(in text: String) async -> String {
         let targets = Self.webLinkTargets(in: text)
         guard !targets.isEmpty else { return text }
@@ -286,8 +292,45 @@ extension ReviewSessionManager {
                 ids[target] = record.id
             }
         }
+        let unmatched = targets.filter { ids[$0] == nil }
+        if !unmatched.isEmpty {
+            ids.merge(await storage.librarySourceIDs(forReferenceURLs: unmatched)) { held, _ in held }
+        }
         guard !ids.isEmpty else { return text }
         return Self.linkingLibrarySources(in: text) { ids[$0] }
+    }
+
+    /// The app's own lookup of a web address in the library (the Mac's
+    /// `StudioViewModel.librarySourceID(forURL:)`: address, then DOI), set once
+    /// by the app's view model. A reply saved before its web links were
+    /// matched to the library — or matched only by address — still shows a
+    /// paper the learner keeps as that paper's citation, not as a second chip
+    /// for its web page. Nil leaves replies as they were saved.
+    static var librarySourceIDForWebAddress: (@MainActor (String) -> String?)?
+
+    /// `linkingLibrarySources(in:sourceID:)` for a reply about to be shown,
+    /// against `librarySourceIDForWebAddress`. The Web sources footer is left
+    /// alone: it stays the list a page is kept from, and its parser reads only
+    /// web addresses. Cheap when a reply links no web page, which is most.
+    static func linkingLibraryHeldWebPagesForDisplay(_ text: String) -> String {
+        guard let lookup = librarySourceIDForWebAddress else { return text }
+        return linkingLibraryHeldWebPages(in: text, lookup: lookup)
+    }
+
+    /// The display pass against any lookup: the reply's body linked, the Web
+    /// sources footer as it was.
+    static func linkingLibraryHeldWebPages(in text: String, lookup: (String) -> String?) -> String {
+        guard text.contains("](http") else { return text }
+        let footer = text.range(of: "\n\n\(webSourcesFooterHeading)\n", options: .backwards)
+        let body = footer.map { String(text[..<$0.lowerBound]) } ?? text
+        var ids: [String: String] = [:]
+        for target in webLinkTargets(in: body) {
+            if let id = lookup(target) { ids[target] = id }
+        }
+        guard !ids.isEmpty else { return text }
+        let linked = linkingLibrarySources(in: body) { ids[$0] }
+        guard linked != body else { return text }
+        return linked + (footer.map { String(text[$0.lowerBound...]) } ?? "")
     }
 
     /// The inverse of `appendingWebSourcesFooter`: the reply body without the

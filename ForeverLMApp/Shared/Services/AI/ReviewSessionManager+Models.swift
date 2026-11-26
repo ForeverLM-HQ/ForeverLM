@@ -570,7 +570,9 @@ extension ReviewSessionManager {
         guard let text = AIStreamDeltaExtractor.text(fromRawDelta: content) else { return nil }
         // A reply saved before its printed source ids were repaired, or still
         // streaming, shows them as citations all the same.
-        return visibleAssistantText(from: text).map { ChatSourceIDCitations.linking($0) }
+        return visibleAssistantText(from: text).map {
+            linkingLibraryHeldWebPagesForDisplay(ChatSourceIDCitations.linking($0))
+        }
     }
 
     static func copiedConversationText(from messages: [Message]) -> String {

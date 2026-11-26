@@ -2548,6 +2548,14 @@ class StudioViewModel {
         // A plain defaults read of a small dictionary, before any window
         // registers and asks which notebook it opens in.
         notebookRecency = NotebookRecency.load(from: notebookRecencyDefaults)
+        // The app's one view model answers which library source a chat's web
+        // link is, so a paper cited by its web page shares the paper's chip.
+        // Only the app's: a test's model must not leave its library behind.
+        if usesStudioWindowRegistry {
+            ReviewSessionManager.librarySourceIDForWebAddress = { [weak self] address in
+                self?.librarySourceID(forURL: address)
+            }
+        }
     }
 
 }

@@ -184,6 +184,25 @@ extension ChatRobustnessTests {
         #expect(ReviewSessionManager.linkingLibrarySources(in: reply) { _ in nil } == reply)
     }
 
+    @Test("A shown reply cites a kept paper by the paper, not its web page; the Web sources footer stays web")
+    func shownReplyLinksKeptPaperButNotFooter() {
+        let reply = """
+        Scores were compared with fibroblast respiration ([nature.com](https://www.nature.com/articles/s41467-025-0001-x)). \
+        Another lab disagrees ([example.org](https://example.org/rebuttal)).
+
+        **Web sources**
+        1. [Mitotyping](https://www.nature.com/articles/s41467-025-0001-x)
+        2. [Rebuttal](https://example.org/rebuttal)
+        """
+        let library = ["https://www.nature.com/articles/s41467-025-0001-x": "src_monzel"]
+        let shown = ReviewSessionManager.linkingLibraryHeldWebPages(in: reply) { library[$0] }
+        #expect(shown.contains("([nature.com](foreverlm://source/src_monzel))"))
+        #expect(shown.contains("([example.org](https://example.org/rebuttal))"))
+        #expect(shown.contains("1. [Mitotyping](https://www.nature.com/articles/s41467-025-0001-x)"))
+        #expect(ReviewSessionManager.splitWebSourcesFooter(shown).citations.count == 2)
+        #expect(ReviewSessionManager.linkingLibraryHeldWebPages(in: reply) { _ in nil } == reply)
+    }
+
     @Test("A 【Title】 citation becomes the source's link; one that names nothing keeps its words")
     func bracketMarkerCitationsBecomeSourceLinks() {
         var index = ChatSourceTitleIndex()

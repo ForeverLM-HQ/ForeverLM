@@ -511,7 +511,13 @@ export function unwrapBracketedSiteCitations(content) {
     for (const separator of separators) separator.nodeValue = "";
     closer.nodeValue = String(closer.nodeValue ?? "").replace(/^\s*\)/, "");
     for (const link of links) {
-      if (!/^https?:\/\//i.test(link.getAttribute("href") ?? "")) continue;
+      // A site's name the app pointed at the library copy is that paper's
+      // citation: the chip alone, never "nature.com" left in the sentence
+      // (`keepTitleWrittenIntoSentence` keeps lower-case link text as words).
+      if (!/^https?:\/\//i.test(link.getAttribute("href") ?? "")) {
+        link.dataset.sourceWords ??= "dropped";
+        continue;
+      }
       link.dataset.webCitation = "true";
       link.dataset.webTitle = String(link.textContent ?? "").trim();
     }
