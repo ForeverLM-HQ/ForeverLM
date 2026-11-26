@@ -353,10 +353,11 @@ extension ScheduleChatNavigationTests {
         #expect(vm.centerTabGroups.groups[0].activeTab == .library)
         #expect(vm.centerTabGroups.groups[0].openTabs == [.library])
 
-        // The last tab closes the way the pane's × does: onto the Space.
+        // The last tab closes the way the pane's × does: onto Home's new
+        // chat (product owner, 2026-11-21), with no tab left behind it.
         vm.closeCenterTab(.library)
-        #expect(vm.centerTabGroups.groups[0].activeTab == .artifacts)
-        #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts])
+        #expect(vm.centerTabGroups.groups[0].activeTab == .chat)
+        #expect(vm.centerTabGroups.groups[0].openTabs == [.chat])
     }
 
     @Test("Pages can stand in two panes, once in each, and round-trips")

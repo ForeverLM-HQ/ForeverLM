@@ -185,6 +185,7 @@ extension ChatRobustnessTests {
     }
 
     @Test("A shown reply cites a kept paper by the paper, not its web page; the Web sources footer stays web")
+    @MainActor
     func shownReplyLinksKeptPaperButNotFooter() {
         let reply = """
         Scores were compared with fibroblast respiration ([nature.com](https://www.nature.com/articles/s41467-025-0001-x)). \

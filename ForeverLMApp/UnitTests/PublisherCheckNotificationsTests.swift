@@ -39,7 +39,7 @@ struct PublisherCheckNotificationsTests {
     func publisherName() throws {
         let cell = try #require(URL(string: "https://www.cell.com/cell/fulltext/S0092-8674(24)00123-4"))
         let nature = try #require(URL(string: "https://nature.com/articles/s41586-024-00001-1"))
-        #expect(PaperAIBrowserDownloadService.publisherName(for: cell) == "cell.com")
-        #expect(PaperAIBrowserDownloadService.publisherName(for: nature) == "nature.com")
+        #expect(SourceDiscovery.PaperAIBrowserDownloadService.publisherName(for: cell) == "cell.com")
+        #expect(SourceDiscovery.PaperAIBrowserDownloadService.publisherName(for: nature) == "nature.com")
     }
 }

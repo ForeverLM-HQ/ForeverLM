@@ -258,8 +258,12 @@ extension StudioViewModel {
         inWindow(destination) { requestNewChat() }
         guard !destination.centerTabGroups.groups.isEmpty else { return }
         var layout = destination.centerTabGroups
+        guard layout.groups[0].openTabs.contains(tab) else { return }
         layout.groups[0].openTabs.removeAll { $0 == tab }
-        if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
+        // Assigned unconditionally: `==` compares what the panes show, not
+        // their strips, so a guard on it threw this removal away and the
+        // closed surface stayed a tab behind the new chat.
+        destination.centerTabGroups = layout
     }
 
     /// Moves a tab into the pane at `groupIndex`, as its strip's tab at
