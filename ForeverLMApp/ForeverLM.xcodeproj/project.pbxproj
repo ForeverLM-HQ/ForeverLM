@@ -10218,7 +10218,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10244,7 +10244,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10290,7 +10290,7 @@
 				CODE_SIGN_ENTITLEMENTS = Watch/Complications/ForeverLMWatchComplications.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/Complications/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10389,7 +10389,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -10422,7 +10422,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10469,7 +10469,7 @@
 				CODE_SIGN_ENTITLEMENTS = Watch/App/ForeverLMWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/App/Info.plist;
 				MARKETING_VERSION = 1.0.4;
@@ -10564,7 +10564,7 @@
 				CODE_SIGN_ENTITLEMENTS = Watch/App/ForeverLMWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/App/Info.plist;
 				MARKETING_VERSION = 1.0.4;
@@ -10623,7 +10623,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -10655,7 +10655,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10780,7 +10780,7 @@
 				CODE_SIGN_ENTITLEMENTS = Watch/Complications/ForeverLMWatchComplications.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/Complications/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10808,7 +10808,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOSDevelopment.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Development;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -10841,7 +10841,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10888,7 +10888,7 @@
 				CODE_SIGN_ENTITLEMENTS = Watch/Complications/ForeverLMWatchComplications.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/Complications/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -10984,7 +10984,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -11009,7 +11009,7 @@
 				CODE_SIGN_ENTITLEMENTS = Watch/App/ForeverLMWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 52;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Watch/App/Info.plist;
 				MARKETING_VERSION = 1.0.4;
