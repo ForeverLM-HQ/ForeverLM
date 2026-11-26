@@ -304,24 +304,51 @@ extension ReviewSessionManager {
     }
     /// What the chat's window and the other windows have open, less what the
     /// learner left out of this chat. Nil for a chat outside a Studio window.
+    /// While Settings › Chat › Chat sees what's open is off, only what the
+    /// learner brought in with Add What's Open (`onScreenBroughtIn`) is left.
     func openPanesForThisChat() -> ChatOpenPanes? {
         openPanesProvider.map { provider in
             var panes = provider()
             panes.pinnedCard = pinnedCard
-            return panes.leavingOut(onScreenSourcesLeftOut)
+            panes = panes.leavingOut(onScreenSourcesLeftOut)
+            return Self.chatSeesWhatIsOpen ? panes : panes.keepingOnly(onScreenBroughtIn)
         }
+    }
+
+    /// Settings › Chat › Chat sees what's open.
+    static var chatSeesWhatIsOpen: Bool {
+        Preferences.value(Prefs.Studio.chatSeesWhatIsOpen)
+    }
+
+    /// Whether the chat is told of the open item with this key: everything
+    /// not left out while the setting is on, only what was brought in while
+    /// it is off.
+    func chatSeesOpenItem(_ key: String) -> Bool {
+        guard !onScreenSourcesLeftOut.contains(key) else { return false }
+        return Self.chatSeesWhatIsOpen || onScreenBroughtIn.contains(key)
     }
 
     /// The chip's ×: this chat stops seeing the source while it stays open.
     func leaveOutOnScreenSource(_ sourceID: String) {
         onScreenSourcesLeftOut.insert(sourceID)
+        onScreenBroughtIn.remove(sourceID)
     }
 
-    /// Forgets the left-out sources no longer on screen in the chat's window,
-    /// so the × lasts as long as the learner keeps that source open.
+    /// Add What's Open: the chat sees these open items from now on, for as
+    /// long as each stays open.
+    func bringInOpenItems(_ keys: [String]) {
+        onScreenBroughtIn.formUnion(keys)
+        onScreenSourcesLeftOut.subtract(keys)
+    }
+
+    /// Forgets the left-out and brought-in items no longer on screen in the
+    /// chat's window, so the × and Add What's Open last as long as the learner
+    /// keeps that item open.
     func keepOnScreenSourcesLeftOut(within onScreenIDs: Set<String>) {
         let kept = onScreenSourcesLeftOut.intersection(onScreenIDs)
         if kept != onScreenSourcesLeftOut { onScreenSourcesLeftOut = kept }
+        let broughtIn = onScreenBroughtIn.intersection(onScreenIDs)
+        if broughtIn != onScreenBroughtIn { onScreenBroughtIn = broughtIn }
     }
 
     /// True when a Reader beside this chat has `sourceID` on screen, so the

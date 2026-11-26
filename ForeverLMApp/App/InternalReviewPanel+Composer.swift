@@ -519,6 +519,7 @@ extension InternalReviewPanelContent {
                 if chips.context {
                     attachedSourcesChip
                 }
+                addOpenItemsChip
                 if let plan = manager.reviewPlan, manager.offersReviewPlanTool {
                     ReviewPlanChip(
                         plan: plan,
@@ -563,7 +564,63 @@ extension InternalReviewPanelContent {
         let card = onScreenCardChipCard
         let open = openItemChipItems
         let plan = manager.reviewPlan != nil && manager.offersReviewPlanTool
-        return (notebook, context, onScreen, card, open, notebook || context || plan || manager.canvasContext != nil)
+        return (notebook, context, onScreen, card, open, notebook || context || plan || manager.canvasContext != nil || !openNotYetInContext.isEmpty)
+    }
+
+    /// Whether the chat is told of the open item with this key, as
+    /// `ReviewSessionManager.chatSeesOpenItem` decides, reading the setting
+    /// through the view so a change redraws the tray.
+    private func seesOpenItem(_ key: String) -> Bool {
+        guard !manager.onScreenSourcesLeftOut.contains(key) else { return false }
+        return chatSeesWhatIsOpen || manager.onScreenBroughtIn.contains(key)
+    }
+
+    /// What is open beside the chat that it is not told of: everything open
+    /// while Settings › Chat › Chat sees what's open is off, until Add What's
+    /// Open brings it in, and anything a chip's × left out. Less a source the
+    /// chat has read in already, or a Page attached by identity.
+    var openNotYetInContext: [(key: String, title: String)] {
+        let loaded = manager.loadedSourceIDs
+        let attachedDocs = Set(manager.contextDocs.map(\.id))
+        var items: [(key: String, title: String)] = []
+        for source in sourcesOnScreenBesideChat where !loaded.contains(source.id) && !seesOpenItem(source.id) {
+            items.append((source.id, source.title))
+        }
+        if let card = cardOnScreenBesideChat, card.id != manager.pinnedCard?.id, !seesOpenItem(card.id) {
+            items.append((card.id, card.question))
+        }
+        for item in openItemsBesideChat where !attachedDocs.contains(item.id ?? "") && !seesOpenItem(item.key) {
+            items.append((item.key, item.title.isEmpty ? (item.url ?? item.kind) : item.title))
+        }
+        return items
+    }
+
+    /// Add What's Open: one click puts what is open right now in the chat's
+    /// context (product owner, 2026-11-26: "then you can click a button by
+    /// the chat to instantly put stuff in context that is open rn").
+    @ViewBuilder
+    private var addOpenItemsChip: some View {
+        let missing = openNotYetInContext
+        if !missing.isEmpty {
+            Button {
+                manager.bringInOpenItems(missing.map(\.key))
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus.circle")
+                        .font(.caption2.weight(.semibold))
+                    Text(missing.count == 1 ? "Add what's open" : "Add \(missing.count) open")
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.06))
+            .help("Put what is open in the chat\u{2019}s context: " + missing.map { "\u{201C}\($0.title)\u{201D}" }.joined(separator: ", "))
+            .accessibilityLabel("Add what's open to the chat's context")
+            .accessibilityIdentifier("chat.addOpenItems")
+        }
     }
 
     /// The Pages, Sites, web pages and courses on screen in any
@@ -589,7 +646,7 @@ extension InternalReviewPanelContent {
     private var openItemChipItems: [ChatContextAdditions.OpenItem] {
         let leftOut = manager.onScreenSourcesLeftOut
         let attachedDocs = Set(manager.contextDocs.map(\.id))
-        return openItemsBesideChat.filter { !leftOut.contains($0.key) && !attachedDocs.contains($0.id ?? "") }
+        return openItemsBesideChat.filter { !leftOut.contains($0.key) && seesOpenItem($0.key) && !attachedDocs.contains($0.id ?? "") }
     }
 
     /// The library sources on screen in this chat's window, read as a
@@ -607,7 +664,7 @@ extension InternalReviewPanelContent {
     private var onScreenChipSources: [ChatContextAdditions.OnScreen] {
         let leftOut = manager.onScreenSourcesLeftOut
         let loaded = manager.loadedSourceIDs
-        return sourcesOnScreenBesideChat.filter { !leftOut.contains($0.id) && !loaded.contains($0.id) }
+        return sourcesOnScreenBesideChat.filter { !leftOut.contains($0.id) && seesOpenItem($0.id) && !loaded.contains($0.id) }
     }
 
     /// The flashcard the Memory pane beside the chat has in front of the
@@ -622,6 +679,8 @@ extension InternalReviewPanelContent {
     private var onScreenCardChipCard: ChatContextAdditions.CardOnScreen? {
         guard let card = cardOnScreenBesideChat,
               !manager.onScreenSourcesLeftOut.contains(card.id) else { return nil }
+        // The card the chat was opened about is seen whatever the setting.
+        guard card.id == manager.pinnedCard?.id || seesOpenItem(card.id) else { return nil }
         return card
     }
 
@@ -789,6 +848,57 @@ extension InternalReviewPanelContent {
     @ViewBuilder
     private var attachedSourcesChip: some View {
         if contextPillCount > 0 {
+            HStack(spacing: 0) {
+                contextPillButton
+                clearAllContextButton
+            }
+        }
+    }
+
+    /// The pill's ×: everything "in context" out at once (product owner,
+    /// 2026-11-26: "make it easy with 1 button click to clear ALL that is
+    /// 'in context'"): the sources read in, the attached Docs, the canvas's
+    /// cards, and what is open beside the chat, each left out as its own ×
+    /// leaves it.
+    private var clearAllContextButton: some View {
+        Button {
+            clearAllContext()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 18, height: 18)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.hoverWash(in: Circle(), inset: 0, opacity: 0.08))
+        .help("Clear everything in this chat\u{2019}s context")
+        .accessibilityLabel("Clear everything in context")
+        .accessibilityIdentifier("chat.clearAllContext")
+    }
+
+    func clearAllContext() {
+        isContextSourcesPopoverPresented = false
+        let chips = composerContextChips
+        for source in chips.onScreen { manager.leaveOutOnScreenSource(source.id) }
+        if let card = chips.card { manager.leaveOutOnScreenSource(card.id) }
+        for item in chips.open { manager.leaveOutOnScreenSource(item.key) }
+        for doc in manager.contextDocs { manager.removeContextDoc(doc.id) }
+        manager.removeCanvasContext()
+        let sourceIDs = loadedSources.map(\.id)
+        guard !sourceIDs.isEmpty else { return }
+        adoptLiveNotebookSelection()
+        for id in sourceIDs { vm.removeSourceFromContext(id) }
+        let linked = Set(sourceIDs).intersection(manager.linkedSourceIDs)
+        Task {
+            if !linked.isEmpty {
+                await manager.removeContextSources(linked, availableArticles: vm.articles)
+            }
+            await vm.loadReviewSessionLinks()
+            await vm.loadLearningGoals()
+        }
+    }
+
+    private var contextPillButton: some View {
             Button {
                 isContextSourcesPopoverPresented.toggle()
             } label: {
@@ -826,7 +936,6 @@ extension InternalReviewPanelContent {
             .popover(isPresented: $isContextSourcesPopoverPresented, arrowEdge: .top) {
                 contextSourcesPopover
             }
-        }
     }
 
     /// Everything the chat is actually holding that no chip shows: sources

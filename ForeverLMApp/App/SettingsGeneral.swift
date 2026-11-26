@@ -225,6 +225,8 @@ struct SettingsDaySection: View {
 struct SettingsThinkFirstSection: View {
     @PreferenceStorage(Prefs.Planner.thinkFirstLevel, default: ThinkFirstLevel.off)
     private var thinkFirstLevel: ThinkFirstLevel
+    @PreferenceStorage(Prefs.Studio.chatSeesWhatIsOpen)
+    private var chatSeesWhatIsOpen: Bool
 
     var body: some View {
         SettingsSection(title: "Think first") {
@@ -241,6 +243,19 @@ struct SettingsThinkFirstSection: View {
                     .labelsHidden()
                     .frame(width: SettingsLayout.controlWidth, alignment: .trailing)
                     .accessibilityIdentifier("settings.general.thinkFirst")
+                }
+            }
+        }
+        SettingsSection(title: "Context") {
+            SettingsCard {
+                SettingsRow(
+                    "Chat sees what's open",
+                    detail: "Off, nothing open beside the chat reaches it until you press Add What's Open by the composer."
+                ) {
+                    Toggle("Chat sees what's open", isOn: $chatSeesWhatIsOpen)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.chat.seesWhatIsOpen")
                 }
             }
         }

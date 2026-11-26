@@ -1809,6 +1809,12 @@
       "synced": false
     },
     {
+      "name": "studio.chatSeesWhatIsOpen.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
       "name": "studio.courseOrder",
       "scope": "account",
       "synced": true,

@@ -207,6 +207,9 @@ struct InternalReviewPanelContent: View {
     /// asked to open rather than a second one being sent.
     @State var laneExpansionRequest: ReviewChatLaneExpansionRequest?
     @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) var metadataVisibility
+    /// Settings › Chat › Chat sees what's open; off, the composer offers Add
+    /// What's Open instead (`ReviewSessionManager.onScreenBroughtIn`).
+    @PreferenceStorage(Prefs.Studio.chatSeesWhatIsOpen) var chatSeesWhatIsOpen
     /// The Doc each answer went into with Save to note, by the answer's block
     /// id (a message id, so a reopened chat starts with none). In memory only.
     @State var answerNoteDocIDs: [UUID: String] = [:]

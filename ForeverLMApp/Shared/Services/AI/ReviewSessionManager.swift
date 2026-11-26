@@ -985,6 +985,7 @@ final class ReviewSessionManager {
         courseQuiz = nil
         // What the last chat left out of what is open is that chat's.
         onScreenSourcesLeftOut = []
+        onScreenBroughtIn = []
         pinnedCard = nil
 
         // Everything from here down is session setup, so hold `isSearching` for
@@ -1416,6 +1417,7 @@ final class ReviewSessionManager {
         contextDocs = []
         canvasContext = nil
         onScreenSourcesLeftOut = []
+        onScreenBroughtIn = []
         pinnedCard = nil
         discardPendingImages()
         sourceManifest = ""
@@ -1745,6 +1747,13 @@ final class ReviewSessionManager {
     /// so opening it again shows its chip again; a new or reopened chat
     /// starts with none left out.
     var onScreenSourcesLeftOut: Set<String> = []
+
+    /// What the learner brought into this chat with Add What's Open, by the
+    /// same keys: while Settings › Chat › Chat sees what's open is off
+    /// (the default), the only open items the chat is told of. An item leaves
+    /// the set when it leaves the window; a new or reopened chat starts with
+    /// none.
+    var onScreenBroughtIn: Set<String> = []
 
     /// The flashcard this chat was opened about (Ask in Chat on a card to
     /// check). The chat is told of it with every message whether or not the

@@ -1011,6 +1011,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `studio.navigationRailVisible` | bool | account | `set_app_setting` window.navigation_rail_visible | Whether the navigation rail shows. |
 | `studio.sourceTabBarLayout` | string | account | `set_app_setting` sources.tab_bar_layout | The source tab bar's layout (SourceTabBarLayout). |
 | `studio.showSourceTabLabels` | bool | account | `set_app_setting` sources.show_tab_labels | Whether source tabs show their labels; true when absent. |
+| `studio.chatSeesWhatIsOpen.v1` | bool | account | `set_app_setting` chat.sees_what_is_open | Whether the in-app chat is told, with every message, what is open beside it; false when absent, and the composer's Add What's Open brings it in instead. |
 | `studio.sourceTabIconSize` | string | account | `set_app_setting` sources.tab_icon_size | The source tabs' icon size. |
 | `studio.assistantIntegrationsEnabled` | bool | account | `set_app_setting` mcp.assistant_integrations_enabled | Whether assistants may reach ForeverLM over MCP (AssistantIntegrationSettings.enabledKey); true when absent. |
 | `studio.showMCPStatusLight` | bool | account | `set_app_setting` mcp.show_status_light | Whether the account button carries the MCP status light; true when absent. |

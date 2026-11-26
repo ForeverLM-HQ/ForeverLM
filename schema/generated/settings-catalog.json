@@ -106,6 +106,7 @@
     "studio.navigationRailVisible": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"window.navigation_rail_visible"},"doc":"Whether the navigation rail shows."},
     "studio.sourceTabBarLayout": {"type":"string","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"sources.tab_bar_layout"},"doc":"The source tab bar's layout (SourceTabBarLayout)."},
     "studio.showSourceTabLabels": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"sources.show_tab_labels"},"doc":"Whether source tabs show their labels; true when absent."},
+    "studio.chatSeesWhatIsOpen.v1": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"chat.sees_what_is_open"},"doc":"Whether the in-app chat is told, with every message, what is open beside it; false when absent, and the composer's Add What's Open brings it in instead."},
     "studio.sourceTabIconSize": {"type":"string","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"sources.tab_icon_size"},"doc":"The source tabs' icon size."},
     "studio.assistantIntegrationsEnabled": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"mcp.assistant_integrations_enabled"},"doc":"Whether assistants may reach ForeverLM over MCP (AssistantIntegrationSettings.enabledKey); true when absent."},
     "studio.showMCPStatusLight": {"type":"bool","scope":["account"],"mcp":{"tool":"set_app_setting","setting":"mcp.show_status_light"},"doc":"Whether the account button carries the MCP status light; true when absent."},

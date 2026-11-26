@@ -213,20 +213,35 @@ struct ChatOpenPanes: Equatable {
     /// with it, so typing beside it no longer pauses it.
     func leavingOut(_ sourceIDs: Set<String>) -> ChatOpenPanes {
         guard !sourceIDs.isEmpty else { return self }
+        return filtered { !sourceIDs.contains($0) }
+    }
+
+    /// The windows with only these items left (by the key `leavingOut`
+    /// takes): what a chat is told while Settings › Chat › Chat sees what's
+    /// open is off, once the learner pressed Add What's Open. The card the
+    /// chat was opened about (`pinnedCard`) stays, since the learner asked
+    /// about it.
+    func keepingOnly(_ keys: Set<String>) -> ChatOpenPanes {
+        var kept = filtered { keys.contains($0) }
+        kept.pinnedCard = pinnedCard
+        return kept
+    }
+
+    private func filtered(keeping keep: (String) -> Bool) -> ChatOpenPanes {
         func kept(_ contents: [Content]) -> [Content] {
             contents.filter { content in
                 switch content {
-                case let .source(id, _, _, _): return !sourceIDs.contains(id)
+                case let .source(id, _, _, _): return keep(id)
                 // The card chip's × is left out the same way, by the card's id.
-                case let .card(card): return !sourceIDs.contains(card.id)
-                case let .artifact(id, _, _): return !sourceIDs.contains(id)
-                case let .webPage(_, url): return !sourceIDs.contains(url)
-                case let .course(id, _): return !sourceIDs.contains(id)
+                case let .card(card): return keep(card.id)
+                case let .artifact(id, _, _): return keep(id)
+                case let .webPage(_, url): return keep(url)
+                case let .course(id, _): return keep(id)
                 default: return true
                 }
             }
         }
-        let pinned = pinnedCard.flatMap { sourceIDs.contains($0.id) ? nil : $0 }
+        let pinned = pinnedCard.flatMap { keep($0.id) ? $0 : nil }
         return ChatOpenPanes(windows: windows.map { window in
             var window = window
             window.panes = window.panes.map { pane in
@@ -240,7 +255,7 @@ struct ChatOpenPanes: Equatable {
                 return pane
             }
             window.alsoOnScreen = kept(window.alsoOnScreen)
-            window.videoPlayheads = window.videoPlayheads.filter { !sourceIDs.contains($0.key) }
+            window.videoPlayheads = window.videoPlayheads.filter { keep($0.key) }
             return window
         }, pinnedCard: pinned)
     }

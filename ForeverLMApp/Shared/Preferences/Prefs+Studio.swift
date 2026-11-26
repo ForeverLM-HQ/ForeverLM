@@ -23,6 +23,12 @@ extension Prefs {
         static let navigationRailVisible = AccountKey<Bool?>("studio.navigationRailVisible")
         static let sourceTabBarLayout = AccountKey<String?>("studio.sourceTabBarLayout")
         static let showSourceTabLabels = AccountKey<Bool>("studio.showSourceTabLabels", default: true)
+        /// Whether a chat is told, with every message, what is open beside it
+        /// (`ChatOpenPanes`). Off by default (product owner, 2026-11-26: "by
+        /// default; maybe don't put what's open in the context; but make this
+        /// a setting"): the composer's Add What's Open button brings in what is
+        /// open at that moment instead.
+        static let chatSeesWhatIsOpen = AccountKey<Bool>("studio.chatSeesWhatIsOpen.v1", default: false)
         static let sourceTabIconSize = AccountKey<String?>("studio.sourceTabIconSize")
         /// The one-time integration-tab unpin and its record of which unpins were
         /// Studio's own. They belong with `studio.hiddenTabs`: left device-local,
@@ -96,6 +102,7 @@ extension Prefs {
             navigationRailVisible.erased,
             sourceTabBarLayout.erased,
             showSourceTabLabels.erased,
+            chatSeesWhatIsOpen.erased,
             sourceTabIconSize.erased,
             integrationTabUnpinDefaultsApplied.erased,
             integrationTabsUnpinnedByDefault.erased,

@@ -331,6 +331,17 @@ extension MCPDataStore {
                 }
             ),
             AppSettingEntry(
+                id: "chat.sees_what_is_open",
+                pane: "Chat › Context",
+                title: "Chat sees what's open",
+                detail: "Whether the in-app chat is told, with every message, what is open beside it: the sources in the Reader, the card in the Memory pane, Pages, Sites, web pages and courses on screen (and list_open_panes reports them). Off by default: nothing open reaches the chat until the learner presses Add What's Open by the composer, which brings in what is open at that moment. A card opened with Ask in Chat is always seen. It follows the account to the learner's other Macs.",
+                reach: .account,
+                kind: .boolean,
+                preferenceKeys: [Prefs.Studio.chatSeesWhatIsOpen.name],
+                read: { Preferences.value(Prefs.Studio.chatSeesWhatIsOpen) },
+                write: { Preferences.set(try AppSettingEntry.bool($0, "chat.sees_what_is_open"), for: Prefs.Studio.chatSeesWhatIsOpen) }
+            ),
+            AppSettingEntry(
                 id: "working_notes.enabled",
                 pane: "Data & Privacy › Notes about your work",
                 title: "Keep notes about my work",
