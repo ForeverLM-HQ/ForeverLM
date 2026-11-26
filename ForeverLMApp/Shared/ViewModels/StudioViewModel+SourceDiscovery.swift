@@ -952,12 +952,26 @@ extension StudioViewModel {
             Self.canRefreshArticleFromWebsite($0)
                 && (($0.wordCount ?? 0) < SourceService.scriptRenderedPageWordThreshold || SubstackAppLink.isAppLink($0.url))
         }
+        // Cleared on an earlier launch: fetched again now, the way opening one does.
+        let cleared = articles.filter {
+            Self.canRefreshArticleFromWebsite($0) && $0.state == .error
+                && ($0.errorMessage?.hasPrefix(Self.clearedNonArticlePrefix) ?? false)
+        }.map(\.id)
+        for id in cleared { await fetchContent(for: id) }
         for candidate in candidates {
             guard let text = await storage.loadSourceContent(candidate.id),
                   let reason = Self.nonArticleReason(text: text, title: candidate.title, url: candidate.url) else { continue }
             let outcome = await refreshArticleFromWebsiteOutcome(candidate.id)
             if case .refreshed = outcome {
                 logger.info("Re-read \(candidate.id, privacy: .public), which held \(reason, privacy: .public)")
+                continue
+            }
+            // Offline, or the connection dropped: nothing was learned about
+            // the page, so the source is left as it is and tried next launch.
+            // At 2026-11-26's first launch of build 330 the network was down,
+            // and seven Substack posts were cleared that read fine a minute later.
+            if case .failed(_, let failure) = outcome, Self.isTransientNetworkFailure(failure) {
+                logger.info("Left \(candidate.id, privacy: .public) for next launch: \(failure, privacy: .public)")
                 continue
             }
             guard let idx = articles.firstIndex(where: { $0.id == candidate.id }) else { continue }
@@ -968,13 +982,22 @@ extension StudioViewModel {
             articles[idx].state = .error
             articles[idx].errorMessage = reason == Self.securityCheckReason
                 ? Self.securityChallengeFailureMessage
-                : "The saved page was \(reason), not the article. Open it to read it again."
+                : "\(Self.clearedNonArticlePrefix) \(reason), not the article. Open it to read it again."
             await persistSource(articles[idx], context: "Clear a saved page that was not the article", showErrorToast: false)
             logger.info("Cleared \(candidate.id, privacy: .public), which held \(reason, privacy: .public): \(String(describing: outcome), privacy: .public)")
         }
     }
 
     nonisolated private static let securityCheckReason = "a publisher bot check"
+    nonisolated static let clearedNonArticlePrefix = "The saved page was"
+
+    /// Whether a failed read says only that the network was not there.
+    nonisolated static func isTransientNetworkFailure(_ reason: String) -> Bool {
+        let lower = reason.lowercased()
+        return ["appears to be offline", "network connection was lost", "timed out",
+                "could not connect to the server", "dns", "not connected to the internet"]
+            .contains { lower.contains($0) }
+    }
 
     /// What a source's saved text is instead of its article, or nil when it
     /// may be the article. A placeholder written on purpose ("URL reference

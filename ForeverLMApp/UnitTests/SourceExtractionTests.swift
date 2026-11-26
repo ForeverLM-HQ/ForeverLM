@@ -662,6 +662,13 @@ struct NotTheArticleTests {
         #expect(SourceService.notTheArticle(pageText: "In 4040 BC " + realArticle) == nil)
     }
 
+    @Test("Being offline is not a verdict on the page")
+    func offlineIsTransient() {
+        #expect(StudioViewModel.isTransientNetworkFailure("The Internet connection appears to be offline."))
+        #expect(StudioViewModel.isTransientNetworkFailure("The request timed out."))
+        #expect(!StudioViewModel.isTransientNetworkFailure("The page had no article text to read"))
+    }
+
     @Test("The library repair names what a source holds, and leaves placeholders alone")
     func repairJudgesSavedText() {
         #expect(StudioViewModel.nonArticleReason(text: realArticle, title: "Constraints", url: "https://example.org/a") == nil)
