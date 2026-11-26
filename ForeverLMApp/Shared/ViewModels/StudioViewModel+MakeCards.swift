@@ -70,10 +70,10 @@ extension StudioViewModel {
         openCardsToCheckBesideReader(sourceID: sourceID, in: window)
     }
 
-    /// A `foreverlm://cards` link clicked outside the chat's own drawing of
-    /// it: To Check at the first of its cards still to check.
-    func openChatSavedCards(_ cards: ChatSavedCards) async {
-        let window = activeWindowState
+    /// A chat's saved cards, from its Open button or a `foreverlm://cards`
+    /// link: To Check at the first of its cards still to check.
+    func openChatSavedCards(_ cards: ChatSavedCards, in window: StudioWindowState? = nil) async {
+        let window = window ?? activeWindowState
         let read = await chatSavedCards(cards) ?? []
         let first = read.first { $0.toCheck != nil } ?? read.first
         guard let sourceID = first?.sourceID ?? cards.sourceIDs.first else {

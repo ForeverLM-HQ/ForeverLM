@@ -729,11 +729,11 @@ function drawCardPart(part, previous) {
     if (part.subtitle) words.append(element("div", "inline-card-body", part.subtitle));
     const button = element("button", "pill-button", "Open");
     button.type = "button";
-    button.title = "Check, keep and page through these cards";
+    button.title = "Open these cards in To Check";
     button.addEventListener("click", (event) => {
       event.preventDefault();
       const blockID = node.closest("[data-block-id]")?.dataset.blockId ?? null;
-      sendAction("openSavedCards", blockID, { partID: part.id, rect: rectOf(button) });
+      sendAction("openSavedCards", blockID, { partID: part.id });
     });
     node.append(glyph, words, button);
   }

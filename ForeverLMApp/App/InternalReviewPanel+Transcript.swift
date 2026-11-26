@@ -211,14 +211,17 @@ extension InternalReviewPanelContent {
                 title: vm.artifacts.first { $0.id == id }?.title ?? title,
                 content: .hosted(url: LinkedPage.localSiteURL(artifactID: id))
             )
-        case .openSavedCards(let blockID, let partID, let rect, let view):
+        case .openSavedCards(let blockID, let partID):
             guard let block = block(blockID) else { return }
             let saved = ReviewChatAnswerLayout.items(block.answerMessages).lazy.compactMap { item -> ChatSavedCards? in
                 guard case .entry(let entry) = item, entry.id == partID else { return nil }
                 return entry.savedCards
             }.first
             guard let saved else { return }
-            showSavedCards(saved, at: rect, in: view)
+            // Open goes straight to To Check at the first card still to check:
+            // the cards are checked there, drawn whole, never in a second
+            // preview over the chat (product owner, 2026-11-26).
+            Task { await vm.openChatSavedCards(saved, in: windowState) }
         case .pluginSetup(let blockID, let partID, let index):
             guard let block = block(blockID) else { return }
             for item in ReviewChatAnswerLayout.items(block.answerMessages) {
@@ -230,33 +233,6 @@ extension InternalReviewPanelContent {
         case .revealBrowser:
             revealChatBrowserTab()
         }
-    }
-
-    /// The cards a call saved, in a popover over their card on the page: the
-    /// same deck the transcript drew inline, to check, keep and page through.
-    @MainActor
-    private func showSavedCards(_ saved: ChatSavedCards, at rect: CGRect, in view: NSView) {
-        let popover = NSPopover()
-        var shownDeck = ReviewChatSavedCardsView(saved: saved)
-        shownDeck.onOpenedInMemory = { [weak popover] in popover?.close() }
-        let deck = shownDeck
-            .padding(16)
-            .frame(width: 520)
-            .fixedSize(horizontal: true, vertical: true)
-            .environment(vm)
-            .environment(windowState)
-        popover.behavior = .transient
-        let host = NSHostingController(rootView: deck)
-        // The popover takes the deck's own size, as the cards load in.
-        host.sizingOptions = .preferredContentSize
-        popover.contentViewController = host
-        let anchor = NSRect(
-            x: rect.minX,
-            y: view.isFlipped ? rect.minY : view.bounds.height - rect.maxY,
-            width: rect.width,
-            height: rect.height
-        )
-        popover.show(relativeTo: anchor, of: view, preferredEdge: .maxY)
     }
 
     /// A reply's ⋯ on the page: the same lines as the native footer's menu

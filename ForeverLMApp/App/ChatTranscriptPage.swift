@@ -268,8 +268,8 @@ struct ChatTranscriptPage: NSViewRepresentable {
         case openPage(id: String)
         /// An animation card's Enlarge: the animation played in a sheet.
         case enlargeAnimation(id: String, title: String)
-        /// A saved-cards card's Open: the deck, over where it was drawn.
-        case openSavedCards(blockID: UUID, partID: UUID, rect: CGRect, view: NSView)
+        /// A saved-cards card's Open: its cards in To Check.
+        case openSavedCards(blockID: UUID, partID: UUID)
         /// A plugin card's button, by its place among its steps' needs.
         case pluginSetup(blockID: UUID, partID: UUID, index: Int)
         case revealBrowser
@@ -755,10 +755,9 @@ struct ChatTranscriptPage: NSViewRepresentable {
                     parent.onAction(.enlargeAnimation(id: id, title: body["title"] as? String ?? ""))
                 }
             case "openSavedCards":
-                guard let blockID, let view,
-                      let partID = (body["partID"] as? String).flatMap(UUID.init(uuidString:)),
-                      let rect = ChatMarkdownView.Coordinator.selectionRect(in: body) else { return }
-                parent.onAction(.openSavedCards(blockID: blockID, partID: partID, rect: rect, view: view))
+                guard let blockID,
+                      let partID = (body["partID"] as? String).flatMap(UUID.init(uuidString:)) else { return }
+                parent.onAction(.openSavedCards(blockID: blockID, partID: partID))
             case "pluginSetup":
                 guard let blockID,
                       let partID = (body["partID"] as? String).flatMap(UUID.init(uuidString:)),

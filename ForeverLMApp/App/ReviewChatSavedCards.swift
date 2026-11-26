@@ -26,9 +26,6 @@ struct ReviewChatSavedCardsView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let saved: ChatSavedCards
-    /// Set when the deck is drawn in a popover: called once a card is opened in
-    /// the Memory pane, so the popover closes as its cards move there.
-    var onOpenedInMemory: (() -> Void)?
 
     /// The cards as storage read them, in the call's order; nil until read.
     @State private var cards: [ChatSavedCard]?
@@ -68,20 +65,16 @@ struct ReviewChatSavedCardsView: View {
                     .frame(maxWidth: .infinity, minHeight: 96)
             }
         }
-        // Inline, the deck sits in its own tinted box under the reply. In a
-        // popover the popover is the box: no second one inside it, so the
-        // header and card share one even margin and nothing runs past it.
-        .padding(onOpenedInMemory == nil ? 14 : 0)
-        .frame(maxWidth: onOpenedInMemory == nil ? Self.maxWidth : .infinity, alignment: .leading)
+        // The deck sits in its own tinted box under the reply.
+        .padding(14)
+        .frame(maxWidth: Self.maxWidth, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.primary.opacity(colorScheme == .dark ? 0.05 : 0.035))
-                .opacity(onOpenedInMemory == nil ? 1 : 0)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-                .opacity(onOpenedInMemory == nil ? 1 : 0)
         )
         .textSelection(.disabled)
         .task(id: reloadKey) { await load() }
@@ -121,19 +114,6 @@ struct ReviewChatSavedCardsView: View {
             Spacer(minLength: 8)
             if let cards, cards.count > 1 {
                 pager(count: cards.count, page: min(page, cards.count - 1))
-            }
-            if onOpenedInMemory != nil, let cards, !cards.isEmpty {
-                Button {
-                    let shown = cards[min(page, cards.count - 1)]
-                    open(shown.toCheck != nil ? shown : cards.first { $0.toCheck != nil } ?? shown)
-                } label: {
-                    Image(systemName: "arrow.up.forward.square")
-                        .font(.system(size: 13, weight: .medium))
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -5, tint: .accentColor))
-                .help("Move these cards into the Memory pane")
-                .accessibilityLabel("Open in Memory")
-                .accessibilityIdentifier("chat.savedCards.openInMemory")
             }
         }
     }
@@ -372,7 +352,6 @@ struct ReviewChatSavedCardsView: View {
             cardID: card.toCheck?.cardID,
             in: windowState ?? vm.activeWindowState
         )
-        onOpenedInMemory?()
     }
 
     /// Keeps the cards as drafted, as To Check's Keep All does; the read that
