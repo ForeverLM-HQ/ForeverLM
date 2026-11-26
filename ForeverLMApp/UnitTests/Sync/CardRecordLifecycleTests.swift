@@ -112,7 +112,8 @@ struct CardRecordLifecycleTests {
         defer { try? FileManager.default.removeItem(at: root) }
         _ = try await storage.saveCardDrafts([Self.draft(id: "old")], sourceID: "src-1", sourceTitle: "Mitochondria")
         let again = try await storage.saveCardDrafts([Self.draft("Couples what to what?", id: "fresh")], sourceID: "src-1", sourceTitle: "Mitochondria")
-        #expect(again.added.isEmpty && again.alreadyDrafted.map(\.id) == ["fresh"])
+        // Reported as the card that holds the seed, under its stored id, not the resent draft's (6a2e56b5).
+        #expect(again.added.isEmpty && again.alreadyDrafted.map(\.id) == [Self.seeded])
         #expect(try Self.row(store, Self.seeded, "draft_json") != nil)
         #expect(try F.count(store, "SELECT COUNT(*) FROM memory_card_states WHERE status = 'draft'") == 1)
     }
