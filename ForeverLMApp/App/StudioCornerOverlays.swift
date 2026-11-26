@@ -584,6 +584,13 @@ extension StudioViewModel {
         return pages
     }
 
+    /// The removals still inside their Undo window that this window lists
+    /// under the bell, newest first: those made here, or in a window since
+    /// closed.
+    func pendingRemovals(in window: StudioWindowState?) -> [PendingDeletionNotice] {
+        pendingDeletionNotices.reversed().filter { isRequestTarget($0.windowID, window) }
+    }
+
     /// What every notice is about now (`InboxSubjects`).
     func inboxSubjects(planDay: String?) -> InboxSubjects {
         InboxSubjects(
@@ -701,6 +708,12 @@ private struct CornerCardClose: View {
 /// activity, not a notification: it goes to the Activity pane's App Log and
 /// never lights the bell (product owner, 2026-11-25: "there should just be
 /// some kind of activity log … should never be under notifications").
+///
+/// A removal still inside its Undo window is listed first, with its Undo, and
+/// lights the bell's dot until it is undone or done. It used to be a card at
+/// the bottom of the window (product owner, 2026-11-26: "don't do any pop-up
+/// notifications in the bottom center of the screen anymore … should just go
+/// under the notifications tab").
 struct NotificationCenterButton: View {
     let kinds: [CornerNoticeKind]
     let planDay: String?
@@ -715,12 +728,20 @@ struct NotificationCenterButton: View {
         let subjects = vm.inboxSubjects(planDay: planDay)
         let unread = kinds.filter { !tray.isRead($0, subject: subjects.subject($0)) }
         let unreadChats = InboxChats.listed(vm: vm)
-        let unreadCount = unread.count + unreadChats.count
+        let removals = vm.pendingRemovals(in: windowState)
+        let unreadCount = unread.count + unreadChats.count + removals.count
         Button { isShown.toggle() } label: {
             Image(systemName: "bell")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 36, height: 30)
+                .overlay(alignment: .topTrailing) {
+                    if !removals.isEmpty {
+                        RailUnreadDot()
+                            .offset(x: -8, y: 6)
+                            .transition(.opacity)
+                    }
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
@@ -779,7 +800,8 @@ private struct NotificationCenterList: View {
         }
         let unread = marks.filter { !$0.isRead }
         let chats = InboxChats.listed(vm: vm)
-        let isEmpty = marks.isEmpty && chats.isEmpty
+        let removals = vm.pendingRemovals(in: windowState)
+        let isEmpty = marks.isEmpty && chats.isEmpty && removals.isEmpty
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
             HStack(alignment: .firstTextBaseline, spacing: StudioDesign.Spacing.small) {
                 Text("Notifications")
@@ -809,6 +831,11 @@ private struct NotificationCenterList: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.disabled)
                     .padding(.vertical, StudioDesign.Spacing.small)
+            }
+            ForEach(removals) { removal in
+                PendingRemovalRow(message: removal.message) {
+                    Task { await vm.undoPendingDeletion(removal.id) }
+                }
             }
             if !chats.isEmpty {
                 VStack(alignment: .leading, spacing: 1) {
@@ -865,6 +892,33 @@ private struct NotificationCenterList: View {
                 PluginReconnectNoticeCard(page: page, close: close)
             }
         }
+    }
+}
+
+/// A removal the learner can still take back ("Removed “Comp Bio Reading
+/// Group”"), with its Undo, until the grace period ends and the removal is
+/// written (`StudioViewModel.deferDeletion`).
+private struct PendingRemovalRow: View {
+    let message: String
+    let undo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "trash")
+                .zoomedSystemFont(size: 11)
+                .foregroundStyle(.secondary)
+                .frame(width: 14)
+            Text(message)
+                .zoomedSystemFont(size: 12.5)
+                .lineLimit(2)
+                .textSelection(.disabled)
+            Spacer(minLength: 0)
+            CornerCardAction(title: "Undo", identifier: "inbox.pendingRemoval.undo", perform: undo)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .accessibilityElement(children: .combine)
+        .accessibilityAction(named: "Undo", undo)
     }
 }
 

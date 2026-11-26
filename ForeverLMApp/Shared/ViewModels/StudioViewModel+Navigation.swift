@@ -916,8 +916,8 @@ extension StudioViewModel {
     // MARK: - What is being removed
 
     /// The keys the group removals register with `deferDeletion`, kept in one
-    /// place so the hidden-items lists ask about the same removal the Undo
-    /// banner is showing.
+    /// place so the hidden-items lists ask about the same removal the
+    /// bell is listing.
     nonisolated static func meetingRemovalKey(_ groupID: String) -> String { "meeting:\(groupID)" }
     nonisolated static func courseRemovalKey(_ courseID: String) -> String { "course:\(courseID)" }
     nonisolated static func bookRemovalKey(_ groupName: String) -> String { "book:\(groupName)" }
@@ -928,9 +928,9 @@ extension StudioViewModel {
     /// inside the Undo window, or its row is already off the sidebar while the
     /// writes that open that window drain.
     ///
-    /// A removal hides first and deletes when the banner expires, so for those
+    /// A removal hides first and deletes when its Undo window ends, so for those
     /// ten seconds the source (or its group) is hidden in every store. It is not
-    /// a hidden item, though — the learner did not hide it, and the Undo banner
+    /// a hidden item, though — the learner did not hide it, and the bell's Undo
     /// is its affordance — so the hidden-items footer and popover leave it out.
     /// A removal is not counted as "1 hidden item" at the foot of
     /// the list while it runs (product owner, 2026-09-20: a deleted meeting folder "still show[ed]

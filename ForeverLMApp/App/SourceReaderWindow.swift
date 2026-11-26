@@ -394,10 +394,6 @@ struct SourceReaderWindow: View {
         } message: {
             Text(speech.errorMessage ?? "")
         }
-        // This window's own actions (Download PDF, Copy source link, Attach PDF)
-        // raise toasts through vm; render the shared banner here so they appear on
-        // the reader window instead of only on the main Studio window.
-        .studioToast(vm)
     }
 
     /// Written out, not as a ternary in the toolbar: the type checker gave up

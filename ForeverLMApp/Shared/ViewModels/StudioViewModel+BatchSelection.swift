@@ -12,7 +12,7 @@ extension StudioViewModel {
     /// Remove sources with a short undo window.
     ///
     /// The original records are hidden first. The destructive archive/delete
-    /// workflow runs only after the Undo banner expires, so an immediate undo
+    /// workflow runs only after the Undo window ends, so an immediate undo
     /// restores the untouched source state.
     func removeSelected(_ ids: Set<String>) async {
         let removed = articles.filter {

@@ -9,7 +9,7 @@ import Foundation
 // generate more"). The Library's rows never name a source's cards (product
 // owner, 2026-11-22); a source's right-click menu carries a verdict on it: Make Cards (then Make More Cards, once
 // it has some) or Not Worth Keeping, which removes it like the Sources
-// list's Remove (`StudioViewModel.removeArticle`, with its Undo banner); its
+// list's Remove (`StudioViewModel.removeArticle`, with its Undo under the bell); its
 // **No Cards** pill lists what still waits for one. One list, the Library's
 // (product owner, 2026-10-16: "probably would be better if this was
 // integrated into the library tab instead?"). The verdict stores nothing of its own: the

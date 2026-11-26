@@ -579,10 +579,6 @@ struct StudioView: View {
             // Codex's command menu (⇧⌘P) and keyboard shortcuts sheet (⌘/),
             // and every shell command the menu bar sends this window.
             .shellCommandHost(reopen: reopenPlaceContent)
-            // The toast overlay is applied after every modal overlay
-            // (Settings and the getting-started guide) so errors and
-            // status messages are never hidden behind them.
-            .studioToast(vm)
             .sharingRightsPrompt()
             .reportOptionsSheet()
             .directionTakeSheet()
@@ -1593,74 +1589,6 @@ private struct CreditsEmptySheet: View {
     }
 }
 
-private struct StudioDeletionUndoBanner: View {
-    let message: String
-    let onUndo: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Text(message)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(2)
-
-            Button("Undo", action: onUndo)
-                .font(.subheadline.weight(.semibold))
-                .buttonStyle(.hoverWash(tint: Color.accentColor))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .shadow(radius: 4)
-    }
-}
-
-extension View {
-    /// Pins the cards that ask the learner for something to the bottom of
-    /// this view's window: a deletion's Undo and a publisher check.
-    ///
-    /// Plain notices (`StudioViewModel.showToast(_:)`) no longer pop up here:
-    /// they wait in the Notifications bell's Recent list, Undo and Open here
-    /// included (product owner, 2026-11-24: "I don't think we should have
-    /// these things pop up in the middle of the screen").
-    ///
-    /// The Undo card is stamped with the window that was key when it was
-    /// raised, and only that window draws it.
-    func studioToast(_ vm: StudioViewModel) -> some View {
-        modifier(StudioToastOverlay(vm: vm))
-    }
-}
-
-private struct StudioToastOverlay: ViewModifier {
-    let vm: StudioViewModel
-    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// With Reduce Motion on, a card fades in and out rather than sliding.
-    private var cardTransition: AnyTransition {
-        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
-    }
-
-    func body(content: Content) -> some View {
-        content
-            .overlay(alignment: .bottom) {
-                VStack(spacing: 8) {
-                    // Background work is an icon in the strip, never a stack
-                    // of banners here (StudioWorkButton), and a publisher check
-                    // is a notification (PublisherCheckNotifications). What
-                    // follows asks the learner for something, so keeps its own card.
-                    if let deletion = vm.pendingDeletionNotices.last(where: { vm.isRequestTarget($0.windowID, windowState) }) {
-                        StudioDeletionUndoBanner(message: deletion.message) {
-                            Task { await vm.undoPendingDeletion(deletion.id) }
-                        }
-                        .transition(cardTransition)
-                    }
-                }
-                .padding(.bottom, 20)
-            }
-            .animation(.easeInOut(duration: 0.3), value: vm.pendingDeletionNotices.last?.id)
-    }
-}
-
 private struct StudioAssistantPopoutWindowContent: View {
     let sessionStore: StudioAssistantSessionStore
     /// The Studio window this chat was popped out of; requests made in that
@@ -1684,10 +1612,6 @@ private struct StudioAssistantPopoutWindowContent: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .background(StudioWindowKeyAttachment.standing(for: ownerWindowState))
         .onExitCommand(perform: onClose)
-        // InternalReviewPanel raises toasts through the same shared vm;
-        // without this the pop-out's own messages would render only on the main
-        // Studio window and be missed here.
-        .studioToast(vm)
     }
 }
 

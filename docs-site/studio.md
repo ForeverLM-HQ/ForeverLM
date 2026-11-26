@@ -969,9 +969,10 @@ A video's row says how much of it you have watched, *42% watched* and then *Watc
 
 Any source can be hidden without being removed: right-click its row and choose **Hide**, or select it and press Delete, then **Hide Source**. Hiding one source is purely visual. A hidden podcast episode, paper, article or video leaves the sources list and nothing else: chat can still read and cite it, search still finds it, and reviews still draw on it. Hiding a whole podcast show or YouTube channel is stronger: its episodes are kept out of chat, search and reviews too, and unhiding one episode from Hidden Items brings that episode back into both. To keep a whole family of sources away from the AI, use the per-tab knowledge exclusion in Settings. The tab's quiet **hidden items** row at the foot of the list opens Hidden Items. Click a hidden source there to read it in the Reader without unhiding it, or click **Unhide** to bring it back to the list. Several selected rows hide together as **Hide N Sources**.
 
-After removing a source or collection, an **Undo** banner appears briefly.
-Undo before it expires to restore the untouched item. Once the banner expires,
-normal deletion finishes and re-ingestion may be required.
+After removing a source or collection, the bell (Notifications) at the foot of
+the strip shows a dot for ten seconds, and lists the removal with **Undo**. Undo
+in that time restores the untouched item; after it, normal deletion finishes and
+re-ingestion may be required. Nothing pops up over the window.
 
 ## Schedule
 
