@@ -1174,10 +1174,10 @@ extension MCPDataStore {
             changes.append("started over as a new card, first asked tomorrow; its answers so far stay with the old one")
         } else if await MemoryCardEditWriter.edit(listing, to: edit, defaults: defaults) {
             if edit.front != currentWording {
-                changes.append(edit.front == face.front ? "asked in the words it was kept with again" : "reworded: asked in the new front")
+                changes.append(edit.front == face.front ? "set to be asked in the words it was kept with again" : "reworded: asked in the new front")
             }
-            if edit.back != face.back || edit.why != face.why { changes.append("its answer changed") }
-            if edit.frontImages != face.frontImages || edit.backImages != face.backImages { changes.append("its pictures changed") }
+            if edit.back != face.back || edit.why != face.why { changes.append("given a new answer") }
+            if edit.frontImages != face.frontImages || edit.backImages != face.backImages { changes.append("given new pictures") }
             changes.append("edited in place: its schedule and answers so far are kept")
         }
         if let alwaysAsk, let deckID = MemoryCardEditWriter.stateDeckID(listing) {
@@ -1190,7 +1190,7 @@ extension MCPDataStore {
                     deckID: deckID,
                     defaults: defaults
                 )
-                changes.append(alwaysAsk ? "always asked in its own words" : "its wording may vary again")
+                changes.append(alwaysAsk ? "set to be asked in its own words every time" : "set so its wording may vary again")
             }
         }
         await PreferenceStore.flushPendingWrites()
@@ -1305,8 +1305,8 @@ extension MCPDataStore {
 
         var changes: [String] = []
         if let front, front != draft.front { changes.append("reworded") }
-        if (back != nil && back != draft.back) || why != nil { changes.append("its answer changed") }
-        if frontImages != nil || backImages != nil { changes.append("its pictures changed") }
+        if (back != nil && back != draft.back) || why != nil { changes.append("given a new answer") }
+        if frontImages != nil || backImages != nil { changes.append("given new pictures") }
         if rewordedByCheck {
             changes.append("reworded by ForeverLM so it names what it is about rather than pointing at its source unnamed")
         }
