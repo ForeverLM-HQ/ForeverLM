@@ -6853,6 +6853,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.13 (build 331) — 2026-11-26
+
+**Highlights:**
+- **Every saved article opens as a page, readable offline,** never as a block of plain text.
+
+- **Every saved article opens as a page, never a block of text.** An article that held its text but no saved page now gets one: the page is saved again for offline reading, or, when the site cannot be reached, its text is laid out with its headings, lists and paragraphs. Opening such an article shows **Saving the page…** for a moment; the rest are done in the background at launch. Its text stays searchable and in chat as before.
+
 ## 1.0.12 (build 330) — 2026-11-26
 
 **Highlights:**
