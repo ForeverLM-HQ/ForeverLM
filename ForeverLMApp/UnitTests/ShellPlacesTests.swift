@@ -59,6 +59,11 @@ struct ShellPlacesTests {
         #expect(StudioCenterTab.reader.stripSystemImage(readerShowsVideo: false) == "doc.text")
         for tab in StudioCenterTab.allCases where tab != .reader {
             #expect(tab.stripTitle(readerShowsVideo: true) == tab.title)
+        }
+        // A chat's tab draws one round bubble; every other tab its place's glyph.
+        #expect(StudioCenterTab.chat.stripSystemImage(readerShowsVideo: false) == "message")
+        #expect(StudioCenterTab.secondaryChat.stripSystemImage(readerShowsVideo: false) == "message")
+        for tab in StudioCenterTab.allCases where ![.reader, .chat, .secondaryChat].contains(tab) {
             #expect(tab.stripSystemImage(readerShowsVideo: true) == ShellPlaces.descriptor(for: tab).glyph)
         }
     }

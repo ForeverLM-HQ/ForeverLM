@@ -1243,7 +1243,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 }
             ) {
                 Image(systemName: "plus")
-                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .zoomedSystemFont(size: 14, weight: .light)
                     .foregroundStyle(.secondary)
                     .frame(
                         width: StudioPanelChrome.centerTabCloseButtonSize,

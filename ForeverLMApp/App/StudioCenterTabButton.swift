@@ -94,8 +94,10 @@ struct StudioCenterTabButton: View {
             .frame(width: tabWidth, height: Self.height)
 
             HStack(spacing: Self.iconSpacing) {
+                // Light strokes beside a regular title, as ChatGPT draws its
+                // tab icons.
                 Image(systemName: systemImage)
-                    .font(.system(size: max(10, tabTextSize - 1), weight: .regular))
+                    .font(.system(size: max(10, tabTextSize - 1), weight: .light))
                     .foregroundStyle(tint)
                     .frame(width: tabTextSize)
                 Text(title)
@@ -128,7 +130,7 @@ struct StudioCenterTabButton: View {
                 // closed nothing (product owner, 2026-11-15 and 2026-11-21:
                 // "clicking the X in these tabs doesn't actually close them").
                 Image(systemName: "xmark")
-                    .zoomedSystemFont(size: 10, weight: .medium)
+                    .zoomedSystemFont(size: 11, weight: .light)
                     .foregroundStyle(closeHovering ? Color.primary : Color.secondary)
                     .frame(width: Self.closeSize, height: Self.closeSize)
                     .background {

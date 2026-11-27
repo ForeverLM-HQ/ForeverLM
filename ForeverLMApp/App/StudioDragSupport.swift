@@ -446,9 +446,15 @@ extension StudioCenterTab {
     }
 
     /// The glyph a tab in a strip draws: the Reader draws a player while it
-    /// holds a video.
+    /// holds a video, and a chat one round bubble, which reads cleaner at a
+    /// tab's size than the registry's two (product owner, 2026-11-27, of
+    /// the strip beside ChatGPT's: "maybe the icons can look a bit nicer").
     func stripSystemImage(readerShowsVideo: Bool) -> String {
-        self == .reader && readerShowsVideo ? "play.rectangle" : ShellPlaces.descriptor(for: self).glyph
+        switch self {
+        case .reader where readerShowsVideo: return "play.rectangle"
+        case .chat, .secondaryChat: return "message"
+        default: return ShellPlaces.descriptor(for: self).glyph
+        }
     }
 }
 
