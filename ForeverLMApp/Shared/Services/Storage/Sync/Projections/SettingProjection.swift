@@ -103,10 +103,12 @@ struct SettingRow: Equatable, Sendable {
 /// Records are never deleted: a key removed here sends `value: null`, and an inbound `null` removes the
 /// row. A row whose value no build can read sends nothing.
 ///
-/// A space's Setting (§9.9) is the one space-scoped key the catalog lists, `follow.<collectionID>`
-/// (`SpaceFollows`): its row is `user_preferences`' `space.<spaceID>.follow.<collectionID>`, and its
-/// `ck_identity` row names the space's zone and the Setting's id, so the feeder sends it into the space
-/// and an inbound one lands on the same row. A space's Setting of any other key stays in the replica.
+/// A space's Settings (§9.9) are the two space-scoped keys the catalog lists: `follow.<collectionID>`
+/// (`SpaceFollows`), whose row is `user_preferences`' `space.<spaceID>.follow.<collectionID>`, and
+/// `pageLive.key`, the space's live key for live team Pages (`SpaceLiveKey`), whose row is
+/// `space.<spaceID>.pageLiveKey`. Each one's `ck_identity` row names the space's zone and the Setting's
+/// id, so the feeder sends it into the space and an inbound one lands on the same row. A space's Setting
+/// of any other key stays in the replica.
 ///
 /// An inbound Setting writes `user_preferences` under the guard; `UserDefaults` takes it when the store
 /// is hydrated after the apply (`PreferenceStore.hydrateFromStore`, called by the engine's apply).
@@ -144,7 +146,8 @@ struct SettingProjection: RecordProjection {
             "user_preferences", localKey: ["key"], keyColumns: ["key"], syncedColumns: ["value"], recordTypes: [.setting],
             record: { values in
                 guard let key = values["key"]?.textValue,
-                      SyncedPreferenceKeys.isSetting(key) || SpaceFollowKey.parse(localKey: key) != nil else { return nil }
+                      SyncedPreferenceKeys.isSetting(key) || SpaceFollowKey.parse(localKey: key) != nil
+                        || SpaceLiveKey.spaceID(localKey: key) != nil else { return nil }
                 return RowRecord(type: .setting, localID: key, personalID: key)
             },
             localIDSQL: { "\($0).key" }, personalIDSQL: { "\($0).key" }
@@ -169,6 +172,12 @@ struct SettingProjection: RecordProjection {
             // local key) is sent nowhere, never into `Library`.
             guard record.wireID != record.localID, SpaceFollowKey.collectionID(wireKey: record.wireID) != nil,
                   var row = try SettingRow.load(record.localID, connection: connection) else { return nil }
+            row.key = record.wireID
+            return row
+        }
+        if SpaceLiveKey.spaceID(localKey: record.localID) != nil {
+            // The same for a space's live key: sent only where its identity puts it.
+            guard record.wireID == SpaceLiveKey.wireKey, var row = try SettingRow.load(record.localID, connection: connection) else { return nil }
             row.key = record.wireID
             return row
         }
@@ -211,6 +220,7 @@ struct SettingProjection: RecordProjection {
     /// record. A `null` value removes the row and keeps the identity, so a later follow writes the
     /// same record again.
     private func applySpaceSetting(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, spaceID: String, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
+        if record.wireID == SpaceLiveKey.wireKey { return try applySpaceLiveKey(envelope, to: record, spaceID: spaceID, connection: connection) }
         guard let collectionID = SpaceFollowKey.collectionID(wireKey: record.wireID) else { return .projected }
         let key = SpaceFollowKey.localKey(spaceID: spaceID, collectionID: collectionID)
         let value = envelope.fields["value"] ?? .null
@@ -231,8 +241,32 @@ struct SettingProjection: RecordProjection {
         return .projected
     }
 
+    /// A space's `pageLive.key` (`SpaceLiveKey`): its row, a string, and its identity. A `null`, or a
+    /// value that is no key, removes the row, and the editor of an open team Page stops being live.
+    private func applySpaceLiveKey(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, spaceID: String, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
+        let key = SpaceLiveKey.localKey(spaceID: spaceID)
+        if let typed = envelope.fields["value"], let value = SettingValueCodec.plist(typed) as? String, SpaceLiveKey.isKey(value),
+           let xml = PreferenceStore.encodePlist(value) {
+            let editedAt = envelope.fields["editedAt"]?.int64Value.map { SyncTime.cocoaSeconds(milliseconds: $0) }
+            try connection.execute("""
+                INSERT INTO user_preferences (key, value, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            """, [.text(key), .text(xml), .real(editedAt ?? Date().timeIntervalSinceReferenceDate)])
+        } else {
+            try connection.execute("DELETE FROM user_preferences WHERE key = ?", [.text(key)])
+        }
+        try connection.recordIdentity(
+            zoneKey: record.zoneKey, recordType: SyncRecordType.setting.rawValue, wireID: record.wireID, localID: key
+        )
+        return .projected
+    }
+
     func applyDeletion(_ record: ProjectionRecordRef, connection: SQLiteConnection) throws {
         if case .space(let spaceID) = record.zone {
+            if record.wireID == SpaceLiveKey.wireKey {
+                try connection.execute("DELETE FROM user_preferences WHERE key = ?", [.text(SpaceLiveKey.localKey(spaceID: spaceID))])
+                return
+            }
             guard let collectionID = SpaceFollowKey.collectionID(wireKey: record.wireID) else { return }
             try connection.execute("DELETE FROM user_preferences WHERE key = ?", [.text(SpaceFollowKey.localKey(spaceID: spaceID, collectionID: collectionID))])
             return

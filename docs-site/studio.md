@@ -738,8 +738,8 @@ as `— Nature, 2024`, the site, and what your library says about it. A source y
 already have carries a filled check that opens it beside the page; one you don't
 offers **Add to Library**, which files it the same way pasting the address into
 the sidebar would, and turns into the check when it lands. The library a card
-asks is the page's: a page in My Library asks My Library, and a team page (or your
-draft of one) asks the team library and nothing else, so a paper only you hold
+asks is the page's: a page in My Library asks My Library, and a team page asks
+the team library and nothing else, so a paper only you hold
 privately still offers Add to Library on a team page, and adding it there puts
 it in the team library for everyone; only a team's editors can. Matching follows the
 library's own rules — the address, its DOI (including a saved preprint's journal

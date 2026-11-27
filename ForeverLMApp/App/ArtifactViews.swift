@@ -63,13 +63,6 @@ final class ArtifactDocChromeBridge {
     /// The editor's last failure; the header offers Reload while it stands.
     var errorMessage: String?
     var reloadGeneration = 0
-    /// The header asked for the open draft to be published to its team; the
-    /// editor flushes its text first, then writes.
-    var publishDraftRequest: ArtifactDraftPublishRequest?
-    /// The team copy changed since the draft began in a way the merge could
-    /// not combine; the writer says whether the draft replaces it.
-    var showDraftPublishConflict = false
-    var showDiscardDraftConfirmation = false
     /// The page menu's **Edit with AI**; each bump opens the editor's Edit with
     /// AI panel on the selection, or on the section at the caret.
     var aiEditOpenRequestID = 0
@@ -119,9 +112,6 @@ final class ArtifactDocChromeBridge {
         openCommentCount = 0
         errorMessage = nil
         reloadGeneration = 0
-        publishDraftRequest = nil
-        showDraftPublishConflict = false
-        showDiscardDraftConfirmation = false
         exportRequest = nil
         flushDraft = nil
         sideChatRequest = nil
@@ -133,13 +123,6 @@ final class ArtifactDocChromeBridge {
 enum PageSidePanel: Equatable {
     case comments
     case activity
-}
-
-/// One press of Publish on a draft. A fresh value each time, so a second press
-/// after a conflict is heard as its own request.
-struct ArtifactDraftPublishRequest: Equatable {
-    let id = UUID()
-    var overwrite = false
 }
 
 /// The Docs pane and the Sites pane: one canvas, two sections. Docs holds the

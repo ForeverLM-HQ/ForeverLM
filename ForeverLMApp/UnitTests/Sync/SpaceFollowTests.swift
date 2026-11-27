@@ -285,3 +285,65 @@ struct SpaceFollowGoneTests {
         #expect(try SpaceFollowTests.settings(store).keys.sorted() == pending, "a purge sends nothing")
     }
 }
+
+/// A space's live key for live team Pages (docs/teams-design.md, "Live team Pages"): `pageLive.key`, a
+/// space Setting kept like a follow, as `space.<spaceID>.pageLiveKey`. It is made once by a member who
+/// may write, sent into the space and never into `Library`, and an inbound one lands on the same row.
+@Suite("Space live key")
+struct SpaceLiveKeyTests {
+    typealias S = SpaceTestFixture
+    typealias F = NotebookSyncFixture
+
+    static func typedString(_ value: String) -> SyncJSON {
+        .object(["t": .string("string"), "v": .string(value)])
+    }
+
+    @Test("The local key round trips, is no preference, and a fresh key is 32 random bytes in base64url")
+    func keyForms() throws {
+        let local = SpaceLiveKey.localKey(spaceID: "s1")
+        #expect(local == "space.s1.pageLiveKey")
+        #expect(SpaceLiveKey.spaceID(localKey: local) == "s1")
+        #expect(SpaceLiveKey.spaceID(localKey: "space..pageLiveKey") == nil && SpaceLiveKey.spaceID(localKey: "space.s1.follow.c") == nil)
+        #expect(SpaceFollowKey.parse(localKey: local) == nil, "it is no follow")
+        #expect(!SyncedPreferenceKeys.isSynced(local) && !SyncedPreferenceKeys.isSetting(SpaceLiveKey.wireKey))
+        let one = try #require(SpaceLiveKey.makeKey())
+        let two = try #require(SpaceLiveKey.makeKey())
+        #expect(one.count == 43 && SpaceLiveKey.isKey(one) && one != two)
+        #expect(!SpaceLiveKey.isKey("short") && !SpaceLiveKey.isKey(String(repeating: "a", count: 42) + "="))
+    }
+
+    @Test("A writer's Mac makes the key once and sends it into the space, typed, and nothing into Library")
+    func writerMakesTheKeyOnce() throws {
+        let (root, store) = try F.makeStore("live-key-make")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try F.prepareReplica(store)
+        try S.holdSpace(store, spaceID: "s1")
+        let key = try #require(try SpaceLiveKey.ensure(spaceID: "s1", store: store))
+        #expect(try SpaceLiveKey.ensure(spaceID: "s1", store: store) == key, "the key stands once made")
+        let sent = try #require(try SpaceFollowTests.settings(store)[SpaceLiveKey.wireKey])
+        #expect(sent.zone == .space("s1") && sent.zoneKey == "private/Space-s1")
+        #expect(F.savedFields(sent)?["value"] == Self.typedString(key))
+        #expect(try SpaceFollowTests.settings(store).keys.filter { $0.hasPrefix("space.") }.isEmpty)
+    }
+
+    @Test("A reader makes no key but reads the one a writer made; a cleared key removes the row")
+    func readerReadsTheWritersKey() throws {
+        let (root, store) = try F.makeStore("live-key-reader")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try F.prepareReplica(store)
+        let zone = try S.holdSpace(store, spaceID: "s2", owner: "_alice", permission: "readOnly")
+        #expect(try SpaceLiveKey.ensure(spaceID: "s2", store: store) == nil)
+        let key = try #require(SpaceLiveKey.makeKey())
+        try F.apply(store, [try S.record(.setting, SpaceLiveKey.wireKey, [
+            "key": .string(SpaceLiveKey.wireKey), "value": Self.typedString(key),
+        ], zoneKey: zone)])
+        #expect(try SpaceLiveKey.key(spaceID: "s2", connection: store) == key)
+        #expect(try SpaceLiveKey.ensure(spaceID: "s2", store: store) == key)
+        #expect(try F.text(store, "SELECT local_id FROM ck_identity WHERE zone_key = ? AND record_type = 'Setting' AND wire_id = ?", [.text(zone), .text(SpaceLiveKey.wireKey)])
+                == "space.s2.pageLiveKey")
+        #expect(try SpaceFollowTests.settings(store).isEmpty, "an apply sends nothing back")
+
+        try F.apply(store, [try S.record(.setting, SpaceLiveKey.wireKey, ["key": .string(SpaceLiveKey.wireKey), "value": .null], zoneKey: zone, ms: 1_759_700_000_000)])
+        #expect(try F.count(store, "SELECT COUNT(*) FROM user_preferences WHERE key = 'space.s2.pageLiveKey'") == 0)
+    }
+}

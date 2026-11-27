@@ -142,9 +142,6 @@ extension ArtifactCanvas {
                     readingMenu(for: selectedArtifact)
                 } else {
                     pageMenu(for: selectedArtifact, toolPillShown: tier == .full && showsPageTools(for: selectedArtifact))
-                    if vm.teamArtifactID(forDraft: selectedArtifact.id) != nil {
-                        draftControls
-                    }
                     if tier == .full, showsPageTools(for: selectedArtifact) {
                         pageToolPill
                     }
@@ -441,23 +438,18 @@ extension ArtifactCanvas {
                 .help(errorMessage)
         }
         if docChrome.showsPage {
-            if artifact.teamID != nil, !vm.isActiveLibraryReadOnly {
-                editTeamDocButton(for: artifact)
-            } else {
-                Button {
-                    docChrome.togglePage()
-                } label: {
-                    chromeChipLabel("Edit", systemImage: "pencil", prominent: true)
-                }
-                .buttonStyle(.hoverWash)
-                .help(artifact.teamID != nil
-                      ? "Read the page's Markdown source"
-                      : "Edit the page; its published version is updated when you choose Update Page")
-                .accessibilityLabel("Edit")
+            // A team Page is written in place, live with everyone on it
+            // (docs/teams-design.md, "Live team Pages").
+            Button {
+                docChrome.togglePage()
+            } label: {
+                chromeChipLabel("Edit", systemImage: "pencil", prominent: true)
             }
-        } else if artifact.teamID != nil {
-            // A team Doc reads as a page; changes go through a draft.
-            if !vm.isActiveLibraryReadOnly { editTeamDocButton(for: artifact) }
+            .buttonStyle(.hoverWash)
+            .help(artifact.teamID != nil
+                  ? (vm.isActiveLibraryReadOnly ? "Read the page's Markdown source" : "Edit the page, live with everyone on it")
+                  : "Edit the page; its published version is updated when you choose Update Page")
+            .accessibilityLabel("Edit")
         } else if publishedStatuses[artifact.id] != nil {
             updatePageButton
         }
@@ -708,27 +700,6 @@ extension ArtifactCanvas {
         }
     }
 
-    /// The open Doc is a member's draft of a team Doc: say so, and offer to
-    /// publish it. The team sees the doc as it was until then.
-    private var draftControls: some View {
-        HStack(spacing: 2) {
-            Text("Draft")
-                .zoomedSystemFont(size: 9, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.primary.opacity(0.07), in: Capsule())
-            Button {
-                docChrome.publishDraftRequest = ArtifactDraftPublishRequest()
-            } label: {
-                chromeChipLabel("Publish", systemImage: "arrow.up.doc", prominent: true)
-            }
-            .buttonStyle(.hoverWash)
-            .help("Publish this draft to \(vm.activeLibraryTitle)")
-            .accessibilityLabel("Publish Draft")
-        }
-    }
-
     /// **Update Page** while a published doc is being edited: republish the
     /// current text at the page's address. The publish sheet does the work and
     /// the pane returns to the page when it is done.
@@ -741,22 +712,6 @@ extension ArtifactCanvas {
         .buttonStyle(.hoverWash)
         .help("Publish the current text to the page on foreverlm.com")
         .accessibilityLabel("Update Page")
-    }
-
-    /// Edit on a team Doc: take a private draft of it, or return to the one
-    /// already taken.
-    private func editTeamDocButton(for artifact: ArtifactRecord) -> some View {
-        let hasDraft = vm.teamDocDraftID(for: artifact.id) != nil
-        return Button {
-            Task { await vm.beginEditingTeamDoc(artifact.id) }
-        } label: {
-            chromeChipLabel(hasDraft ? "Continue Draft" : "Edit", systemImage: "square.and.pencil", prominent: true)
-        }
-        .buttonStyle(.hoverWash)
-        .help(hasDraft
-              ? "Open your draft of this page"
-              : "Edit a private draft; the team sees your changes when you publish")
-        .accessibilityLabel(hasDraft ? "Continue Draft" : "Edit")
     }
 
     /// The chrome line's glyph-only control: the chip's size and tone without
@@ -924,7 +879,7 @@ extension ArtifactCanvas {
                 Label("New Page", systemImage: "doc.badge.plus")
             }
         }
-        if isOwn, vm.teamArtifactID(forDraft: artifact.id) == nil {
+        if isOwn {
             Button {
                 duplicatePage(artifact)
             } label: {
@@ -1044,13 +999,6 @@ extension ArtifactCanvas {
         }
         AssignToMemberMenu { member in
             Task { await vm.assign(artifactID: artifact.id, to: member) }
-        }
-        if vm.teamArtifactID(forDraft: artifact.id) != nil {
-            Button(role: .destructive) {
-                docChrome.showDiscardDraftConfirmation = true
-            } label: {
-                Label("Discard Draft…", systemImage: "trash")
-            }
         }
         Divider()
         // Who can open the page is the Share popover's; the submenu names the

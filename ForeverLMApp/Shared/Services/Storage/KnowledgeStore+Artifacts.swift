@@ -338,13 +338,6 @@ extension KnowledgeStore {
     /// A server body this Mac could not merge into its own — the same passage
     /// changed on both sides — kept whole until the writer picks a version.
     private static let artifactHeldRemoteDocumentName = "document.remote.md"
-    /// A member's draft of a team Doc keeps the team body it was taken from:
-    /// the base its Publish merges against (docs/teams-design.md, decision
-    /// 11). It cannot be `document.base.md`. A draft is a Doc that syncs, so
-    /// every acknowledged upload makes the draft's own body that base, and a
-    /// Publish after one sync found no edit of its own and kept the team body
-    /// over every change the draft made.
-    private static let teamDraftPublishBaseDocumentName = "document.publish-base.md"
 
     func loadArtifactBaseMarkdown(_ artifactID: String) throws -> String? {
         try loadArtifactSidecar(artifactID, name: Self.artifactBaseDocumentName)
@@ -352,14 +345,6 @@ extension KnowledgeStore {
 
     func saveArtifactBaseMarkdown(_ markdown: String, artifactID: String) throws {
         try saveArtifactSidecar(markdown, artifactID: artifactID, name: Self.artifactBaseDocumentName)
-    }
-
-    func loadTeamDraftPublishBaseMarkdown(_ draftID: String) throws -> String? {
-        try loadArtifactSidecar(draftID, name: Self.teamDraftPublishBaseDocumentName)
-    }
-
-    func saveTeamDraftPublishBaseMarkdown(_ markdown: String, draftID: String) throws {
-        try saveArtifactSidecar(markdown, artifactID: draftID, name: Self.teamDraftPublishBaseDocumentName)
     }
 
     func loadArtifactHeldRemoteMarkdown(_ artifactID: String) throws -> String? {

@@ -218,12 +218,9 @@ extension StudioViewModel {
 
     // MARK: - Drafts of team Docs
 
-    /// The member's draft of a team Doc in the active library, if one exists.
-    func teamDocDraftID(for teamArtifactID: String) -> String? {
-        guard let activeTeamID else { return nil }
-        let draftID = TeamContentIdentity.draftArtifactID(teamID: activeTeamID, teamArtifactID: teamArtifactID)
-        return artifacts.contains { $0.id == draftID } ? draftID : nil
-    }
+    // A team Page is written in place, live (docs/teams-design.md, "Live team
+    // Pages"); drafts are no longer taken. One a member took before stays
+    // hidden in their library and still reads in the team's graph.
 
     /// The team Doc a draft in the active library belongs to. A draft's id is
     /// a hash of its team copy's, so the answer is one hash per team Doc.
@@ -233,49 +230,6 @@ extension StudioViewModel {
             candidate.teamID == activeTeamID
                 && TeamContentIdentity.draftArtifactID(teamID: activeTeamID, teamArtifactID: candidate.id) == artifactID
         }?.id
-    }
-
-    /// Edit a team Doc: take (or resume) a private draft of it and open that.
-    func beginEditingTeamDoc(_ teamArtifactID: String) async {
-        do {
-            let draftID = try await storage.beginTeamDocDraft(teamArtifactID: teamArtifactID)
-            await loadArtifacts()
-            revealArtifact(draftID)
-        } catch {
-            logger.error("Starting a draft of team doc \(teamArtifactID) failed: \(error.localizedDescription)")
-            showToast("Could not start a draft: \(error.localizedDescription)")
-        }
-    }
-
-    /// Publish a draft over its team copy and open the copy. Throws
-    /// `ArtifactError.conflict` when the team copy changed since the draft
-    /// began in a way the merge cannot combine; the caller asks before
-    /// publishing again with `overwrite`.
-    func publishTeamDocDraft(_ draftID: String, overwrite: Bool) async throws {
-        guard let teamArtifactID = teamArtifactID(forDraft: draftID) else {
-            throw ArtifactError.unavailable(draftID)
-        }
-        let published = try await storage.publishTeamDocDraft(
-            draftID: draftID,
-            teamArtifactID: teamArtifactID,
-            overwrite: overwrite
-        )
-        showToast("Published \(published.artifact.title) to \(activeLibraryTitle)")
-        await loadArtifacts()
-        revealArtifact(teamArtifactID)
-    }
-
-    /// Throw the draft away; the team copy stands as it is.
-    func discardTeamDocDraft(_ draftID: String) async {
-        let teamArtifactID = teamArtifactID(forDraft: draftID)
-        do {
-            try await storage.deleteArtifact(draftID)
-            await loadArtifacts()
-            if let teamArtifactID { revealArtifact(teamArtifactID) }
-        } catch {
-            logger.error("Discarding draft \(draftID) failed: \(error.localizedDescription)")
-            showToast("Could not discard the draft: \(error.localizedDescription)")
-        }
     }
 
     // MARK: - Lifecycle

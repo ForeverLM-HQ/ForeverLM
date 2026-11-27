@@ -68,6 +68,7 @@ import { joinPastedLines, mayBePrintedLines, pastedLines, writtenSpan } from './
 import { resolveAnchor, textIndex } from './comment-anchors.js'
 import { aliasedAddresses, isAddressStandIn, newAddressAliases, restoredAddresses, reviewWordMarks } from './ai-edit-proposal.js'
 import { renderInline, renderMarkdown } from './notes-markdown.js'
+import { LivePage, renderPeers } from './live-editor.js'
 import {
   closeNotesPanels,
   connectNotesGraph,
@@ -306,11 +307,16 @@ function inAppLink(href) {
   }
 }
 
+// The live room of a team Page, when one is open (setLive, below).
+let livePage = null
+
 function post(type, detail = {}) {
   const message = { type, ...detail }
   if ((type === 'markdownChanged' || type === 'saveRequested') && typeof detail.markdown === 'string') {
     rememberReportedMarkdown(detail.markdown)
     unreportedEdit = false
+    // A live team Page tells the room which bodies are its own (live-editor.js).
+    livePage?.noteSaved(detail.markdown)
     // The page the text is, so a host that has opened another page since
     // (a report sent on leaving arrives after the next page is up) can tell.
     if (foldDocumentKey != null && message.key == null) message.key = foldDocumentKey
@@ -8085,6 +8091,8 @@ const pageCodeTheme = [
 ]
 
 async function create(markdown, fontSize) {
+  // A new editor holds none of the live plugins; the host turns the page live again.
+  if (livePage) setLive(null)
   lastMarkdown = String(markdown ?? '')
   collapsedSectionKeys.clear()
   activeDocumentTabKey = 'document'
@@ -8367,9 +8375,70 @@ function performHistoryAction(action) {
   const focused = document.activeElement
   if (!view || (focused !== view.dom && !view.dom.contains(focused))) return false
   userHasInteracted = true
-  const handled = (action === 'redo' ? redoHistory : undoHistory)(view.state, view.dispatch)
+  // On a live team Page, Undo takes back this writer's own steps only.
+  const handled = livePage?.history(action, view) || (!livePage?.installed && (action === 'redo' ? redoHistory : undoHistory)(view.state, view.dispatch))
   if (handled) reportMarkdownNow()
   return handled
+}
+
+// ─── Live team Pages ────────────────────────────────────────────────────────
+// (docs/teams-design.md, "Live team Pages"; live-room.js, live-editor.js.)
+// The host turns a page live with `setLive({ spaceKey, pageID, relayURL, name,
+// color })` after it opens a team Page, and off with `setLive(null)`; another
+// page opening turns it off as well.
+let livePeersElement = null
+
+function ensureLivePeers() {
+  if (livePeersElement?.isConnected) return livePeersElement
+  livePeersElement = document.createElement('div')
+  livePeersElement.className = 'live-peers'
+  livePeersElement.hidden = true
+  document.body.append(livePeersElement)
+  return livePeersElement
+}
+
+/// A change from outside merged into a live page's words: put in by the
+/// blocks it changes, so everyone's carets stay, and reported to be saved.
+function setLiveMergedMarkdown(markdown) {
+  applyingExternalMarkdown = true
+  replaceDocument(markdownForEditor(markdown))
+  requestAnimationFrame(() => {
+    applyingExternalMarkdown = false
+    const merged = markdownForStorage(editor.getMarkdown())
+    lastMarkdown = merged
+    post('markdownChanged', { markdown: merged })
+  })
+}
+
+function setLive(config) {
+  livePage?.stop()
+  livePage = null
+  if (!config || !config.spaceKey || !config.pageID || !config.relayURL) {
+    if (livePeersElement) livePeersElement.hidden = true
+    post('livePeersChanged', { peers: [], status: 'off' })
+    return
+  }
+  const container = ensureLivePeers()
+  let peers = []
+  let status = 'connecting'
+  const page = new LivePage(config, {
+    getView: activeEditorView,
+    onPeers(next) {
+      peers = next
+      renderPeers(container, peers, status)
+      post('livePeersChanged', { peers: peers.map(({ name, color, self }) => ({ name, color, self })), status })
+    },
+    onStatus(next) {
+      status = next
+      renderPeers(container, peers, status)
+      post('livePeersChanged', { peers: peers.map(({ name, color, self }) => ({ name, color, self })), status })
+    },
+  })
+  livePage = page
+  page.start().catch((error) => {
+    if (livePage === page) livePage = null
+    post('liveFailed', { message: String(error?.message ?? error) })
+  })
 }
 
 function reportHistoryFocus() {
@@ -8418,6 +8487,21 @@ function setMarkdown(markdown, foldState = null) {
   const value = String(markdown ?? '')
   if (!editor) return
   const opensAnotherDoc = foldState != null && foldState.key !== foldDocumentKey
+  if (opensAnotherDoc && livePage) setLive(null)
+  // A live team Page takes a body from outside only when nobody in the room
+  // wrote it, and then on one member's editor, merged into the room's words
+  // (live-editor.js). A merge is a new body: this editor reports it.
+  if (!opensAnotherDoc && livePage?.installed) {
+    const decision = livePage.decide(value, markdownForStorage(editor.getMarkdown()), lastMarkdown)
+    if (decision.action === 'ignore') {
+      if (decision.conflict) post('liveChangeKept', {})
+      return
+    }
+    if (decision.markdown !== value) {
+      setLiveMergedMarkdown(decision.markdown)
+      return
+    }
+  }
   if (!opensAnotherDoc && hasUserChanges && isReportedBefore(value)) {
     // Only over words the host has not heard yet: a restore, Use theirs or an
     // Undo of a kept edit hands back text it was told before, on purpose,
@@ -12036,6 +12120,7 @@ window.foreverLMArtifactEditor = {
   create,
   setMarkdown,
   setEditable,
+  setLive,
   requestSave,
   dropSourcesAt,
   insertSourceCardsAtCaret,

@@ -38,6 +38,10 @@ struct ArtifactEditor: View {
     /// draft — the same passage changed on both sides. Held until the writer
     /// picks one; autosave waits with it.
     @State private var heldRemoteMarkdown: String?
+    /// The live room of a team Page (docs/teams-design.md, "Live team Pages"),
+    /// with the id of the page it is for, so a page just opened never joins
+    /// the last one's room.
+    @State private var livePage: (artifactID: String, page: ArtifactLivePage)?
     @State private var isUpdatingTitle = false
     @State private var pageHTML: String?
     @State private var pageError: String?
@@ -190,10 +194,20 @@ struct ArtifactEditor: View {
         save(draft)
     }
 
-    /// A team Doc reads as a page here; a member edits a private draft of it
-    /// (docs/teams-design.md, decision 11).
-    /// So does a Doc someone shared with this account to read only (`SharedDocState`).
-    private var isReadOnly: Bool { artifact.teamID != nil || vm.sharedDocs[artifact.id]?.canEdit == false }
+    /// A team Page is written in place by every member who may write the
+    /// team, live together (docs/teams-design.md, "Live team Pages"); one who
+    /// may only read reads it as a page. So does a Page someone shared with
+    /// this account to read only (`SharedDocState`).
+    private var isReadOnly: Bool {
+        if let shared = vm.sharedDocs[artifact.id] { return !shared.canEdit }
+        guard let teamID = artifact.teamID else { return false }
+        return vm.team(id: teamID)?.canEdit != true
+    }
+
+    /// This page's live room, once loaded; nil for a page of the learner's own library.
+    private var currentLivePage: ArtifactLivePage? {
+        livePage?.artifactID == artifact.id ? livePage?.page : nil
+    }
 
     /// The day this doc is the daily note for; nil for any other doc.
     private var dailyNoteDayKey: String? { DailyNote.dayKey(ofID: artifact.id) }
@@ -435,34 +449,17 @@ struct ArtifactEditor: View {
                 await refreshBodyAfterArtifactUpdate()
             }
         }
-        .onChange(of: chrome.publishDraftRequest) { _, request in
-            guard let request else { return }
-            chrome.publishDraftRequest = nil
-            Task { await publishDraft(overwrite: request.overwrite) }
-        }
-        .confirmationDialog(
-            "Someone else changed this page since your draft began",
-            isPresented: $chrome.showDraftPublishConflict,
-            titleVisibility: .visible
-        ) {
-            Button("Replace with My Draft", role: .destructive) {
-                chrome.publishDraftRequest = ArtifactDraftPublishRequest(overwrite: true)
+        // A team Page's live room: the space's key and the page's shared id.
+        // The space key reaching this Mac later (a teammate made it) opens
+        // the room then.
+        .task(id: artifact.id) {
+            let id = artifact.id
+            livePage = nil
+            if let page = await vm.storage.livePage(for: id) { livePage = (id, page) }
+            for await _ in NotificationCenter.default.notifications(named: .cloudKitSyncRemoteStoreDidChange) {
+                let page = await vm.storage.livePage(for: id)
+                if page != livePage?.page { livePage = page.map { (id, $0) } }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Their changes and yours touch the same passage, so they cannot be combined.")
-        }
-        .confirmationDialog(
-            "Discard this draft?",
-            isPresented: $chrome.showDiscardDraftConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Discard Draft", role: .destructive) {
-                Task { await vm.discardTeamDocDraft(artifact.id) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The team's page stays as it is.")
         }
         // The page menu's Export ▸ and Rename…, answered here, where the
         // text is (docs/docs-design.md).
@@ -1163,6 +1160,7 @@ struct ArtifactEditor: View {
                     }
                 },
                 isEditable: !isReadOnly,
+                live: currentLivePage,
                 foldDocumentID: artifact.id,
                 notesGraph: notesGraph.bridge,
                 findState: findState,
@@ -1668,7 +1666,7 @@ struct ArtifactEditor: View {
         }
         notesGraph.open(
             docID: artifact.id,
-            pageID: vm.teamArtifactID(forDraft: artifact.id) ?? artifact.id,
+            pageID: artifact.id,
             teamID: graphTeamID,
             vm: vm,
             window: windowState,
@@ -1724,7 +1722,13 @@ struct ArtifactEditor: View {
                 guard snapshot?.revision == openedSnapshot.revision,
                       !isSaving,
                       !isUpdatingTitle else { return }
-                if !hasUnsavedChanges {
+                if currentLivePage != nil {
+                    // A live page's editor holds the room's words and decides
+                    // itself what a body from iCloud changes (live-editor.js).
+                    // Typing not saved yet already holds the room's words and
+                    // is saved over the newer revision as it stands.
+                    if !hasUnsavedChanges { setDraft(latest.markdown) }
+                } else if !hasUnsavedChanges {
                     setDraft(latest.markdown)
                 } else {
                     switch ArtifactThreeWayMerge.merge(
@@ -1743,7 +1747,7 @@ struct ArtifactEditor: View {
                 titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: draft)
                 attachmentDataURLs = latestAttachmentURLs
             }
-            if let held, heldRemoteMarkdown == nil { heldRemoteMarkdown = held }
+            if let held, heldRemoteMarkdown == nil, currentLivePage == nil { heldRemoteMarkdown = held }
         } catch ArtifactError.downloading(_) {
             // Keep the intact local draft visible while iCloud materializes the
             // newer package. A later file-change event will advance updatedAt.
@@ -1783,20 +1787,6 @@ struct ArtifactEditor: View {
         save(draft)
     }
 
-    /// Publish this draft to its team: the text goes through first, so the
-    /// stored body is what publishes.
-    @MainActor
-    private func publishDraft(overwrite: Bool) async {
-        do {
-            try await flushDraft()
-            try await vm.publishTeamDocDraft(artifact.id, overwrite: overwrite)
-        } catch ArtifactError.conflict {
-            chrome.showDraftPublishConflict = true
-        } catch {
-            chrome.errorMessage = error.localizedDescription
-        }
-    }
-
     private func save(_ markdown: String) {
         guard let snapshot, markdown != snapshot.markdown else { return }
         if isSaving {
@@ -1825,6 +1815,13 @@ struct ArtifactEditor: View {
                 // queued behind this one has nothing more to add.
                 isSaving = false
                 saveQueued = false
+                if currentLivePage != nil, let latest = try? await vm.artifactMarkdown(artifact.id) {
+                    // A live page's words hold the room's already: they go
+                    // again over the newer revision, never merged or held.
+                    self.snapshot = latest
+                    save(draft)
+                    return
+                }
                 await refreshBodyAfterArtifactUpdate()
                 if hasUnsavedChanges, heldRemoteMarkdown == nil { save(draft) }
                 return

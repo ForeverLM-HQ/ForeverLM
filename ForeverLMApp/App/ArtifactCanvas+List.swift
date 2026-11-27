@@ -68,7 +68,7 @@ extension ArtifactCanvas {
                                         .lineLimit(2)
                                         .foregroundStyle(.primary)
                                     teamMembershipBadge(for: artifact)
-                                    if artifact.isDraft || vm.teamDocDraftID(for: artifact.id) != nil {
+                                    if artifact.isDraft {
                                         Text("Draft")
                                             .zoomedSystemFont(size: 8, weight: .semibold)
                                             .foregroundStyle(.secondary)
@@ -338,7 +338,7 @@ extension ArtifactCanvas {
         case .published: filtered = visibleArtifacts.filter { publishedStatuses[$0.id] != nil }
         // ForeverLM's own: a site made here (`save_site`).
         case .foreverlmPages: filtered = visibleArtifacts.filter { $0.linkedKind == .foreverlmSite }
-        case .drafts: filtered = visibleArtifacts.filter { $0.isDraft || vm.teamDocDraftID(for: $0.id) != nil }
+        case .drafts: filtered = visibleArtifacts.filter { $0.isDraft }
         case .claudeArtifacts: filtered = visibleArtifacts.filter { $0.linkedKind == .claudeArtifact }
         case .codexSites: filtered = visibleArtifacts.filter { $0.linkedKind == .codexSite }
         // `visibleArtifacts` is already the archived, or the hidden, set under
@@ -492,7 +492,7 @@ extension ArtifactCanvas {
                 Spacer(minLength: 0)
 
                 HStack(spacing: 6) {
-                    if artifact.isDraft || vm.teamDocDraftID(for: artifact.id) != nil {
+                    if artifact.isDraft {
                         homeBadge("Draft")
                     }
                     if artifact.isArchived {

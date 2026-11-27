@@ -3481,3 +3481,65 @@ body.is-resizing-page * {
 .milkdown .artifact-picture-caption::selection { background: Highlight; }
 .milkdown .artifact-picture img::selection,
 .milkdown .artifact-picture-frame::selection { background: transparent; }
+
+/* ─── Live team Pages (live-editor.js) ───────────────────────────────────── */
+/* A teammate's caret: a thin line in their colour with their name above it. */
+.live-caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid var(--live-color);
+  word-break: normal;
+  pointer-events: none;
+}
+
+.live-caret-name {
+  position: absolute;
+  bottom: 100%;
+  left: -2px;
+  padding: 1px 5px;
+  border-radius: 4px 4px 4px 0;
+  background: var(--live-color);
+  color: white;
+  font: 600 11px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  white-space: nowrap;
+  user-select: none;
+  opacity: 0.92;
+}
+
+/* Who else is on the page: quiet initials in the top right, nothing when alone. */
+.live-peers {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  z-index: 30;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.live-peers[hidden] {
+  display: none;
+}
+
+.live-peer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--live-color, color-mix(in srgb, CanvasText 40%, Canvas));
+  color: white;
+  font: 600 10px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  box-shadow: 0 0 0 2px Canvas;
+}
+
+.live-peer-more {
+  background: color-mix(in srgb, CanvasText 40%, Canvas);
+}
+
+.live-peers-offline {
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}

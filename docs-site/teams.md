@@ -156,12 +156,20 @@ asks nothing.
   and Goals, its sources, its Pages and the chats you had in it, each chat as a
   read-only transcript filed under the team's copy of the notebook.
 - **Pages.** A Page shared with a team needs no publishing and no reader list. The
-  team's copy syncs into every member's ForeverLM and opens there as a page. To
-  change a team's Page, **Edit** makes your own draft (**Continue Draft** goes
-  back to it) and **Publish** puts your changes into the team's Page; until then
-  the team reads it as it was, and **Discard Draft** drops yours. Publishing to
-  foreverlm.com remains the route for people outside the team, and the two
-  actions sit apart in the menu.
+  team's copy syncs into every member's ForeverLM and opens there as a page.
+  Every member who can change the team writes it in place, together and live:
+  what one of you types appears on everyone's screen as it is typed, each
+  teammate's caret shows in their colour with their name, and the initials of
+  who else is on the page sit in its top-right corner. Undo takes back only
+  your own typing, never a teammate's. A member who can only read the team sees
+  the page change as it is written. What everyone types is sealed on your Mac
+  with a key only the team's members hold before it passes through ForeverLM's
+  relay, so the relay can neither read the page nor tell which page it is. A
+  change made while you were away, or by a chat or an assistant, comes in
+  through iCloud and joins what is being typed. Live writing needs the Mac app
+  for now; on the iPhone and the web a team's Page shows what was last saved.
+  Publishing to foreverlm.com remains the route for people outside the team,
+  and the two actions sit apart in the menu.
 - **Sites, animations and linked pages.** A Claude artifact or a Codex site
   shared with a team is the page itself: the team's copy keeps the address
   and lists under the team's Sites, and sharing a page linked again updates

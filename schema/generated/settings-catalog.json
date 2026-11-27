@@ -204,6 +204,9 @@
     ],
     "follow.": [
       {"pattern":"follow.<collectionID>","type":"dict","scope":["space"],"origin":"spec","mcp":null,"doc":"A space's explicit refresh of a followed Collection: {autoImport, runnerDeviceID}, naming the one member's Mac that imports the feed (§3.5.5). The Mac writes it through SpaceFollows, not as a synced preference: the catalog's origin spec only says no preference key carries it."}
+    ],
+    "pageLive.": [
+      {"pattern":"pageLive.key","type":"string","scope":["space"],"origin":"spec","mcp":null,"doc":"The space's live key for live team Pages (docs/teams-design.md, \"Live team Pages\"): 32 random bytes, base64url. Every editor stretches it with HKDF over a Page's id into that Page's key, which seals what the members' editors send through the relay (live.foreverlm.com) and names the room by its SHA-256, so the relay learns neither. Made by the first member's Mac that opens a Page of the space with write access (SpaceLiveKey); the last writer wins. Written through SpaceLiveKey, not as a synced preference: origin spec only says no preference key carries it. Never set_app_setting."}
     ]
   },
   "records": {

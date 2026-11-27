@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Write a team's Page together, live.** Everyone who can change the team now types straight into a team's Page on the Mac, at the same time: each teammate's words appear as they type, with their caret and name in their colour, and the initials of who else is on the page in its top-right corner. Undo takes back only your own typing. A member who can only read sees the page being written. What you type is sealed with a key only the team holds before it passes through ForeverLM's relay. **Edit**, **Continue Draft**, **Publish** and **Discard Draft** are gone from team Pages.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.

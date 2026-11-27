@@ -833,9 +833,13 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     /// the host follows it with the title while it moves and keeps the last.
     /// A host that passes none keeps the edges still.
     var onPageWidthChange: ((CGFloat?, Bool) -> Void)? = nil
-    /// Off, the page reads without a caret: a team Doc, whose changes go
-    /// through a member's private draft rather than the shared copy.
+    /// Off, the page reads without a caret: a team Page this member may only
+    /// read, or a Page shared with them to read.
     var isEditable = true
+    /// A team Page's live room (docs/teams-design.md, "Live team Pages"):
+    /// everyone on the page writes it at once and sees each other's carets.
+    /// Nil for a page of the learner's own library.
+    var live: ArtifactLivePage? = nil
     /// The doc's id, under which its folds are kept (`ArtifactOutlineFolds`);
     /// `nil` keeps none, and every doc opens unfolded.
     var foldDocumentID: String? = nil
@@ -1049,6 +1053,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             onError: onError,
             in: webView
         )
+        context.coordinator.useLive(live, in: webView)
         context.coordinator.useComments(commentAnchors, activeID: activeCommentID, in: webView)
         context.coordinator.performFindIfNeeded(in: webView, revision: findRevision, state: findState)
     }
@@ -1304,11 +1309,42 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         }
 
         func detach() {
+            // A pooled web view must not stay in the page's room.
+            if deliveredLive != nil { webView?.evaluateJavaScript(Self.liveScript(nil)) }
+            deliveredLive = nil
+            live = nil
             (webView as? ArtifactEditorWebView)?.pageDrag = nil
             notesGraph?.detach(self)
             webView = nil
             isReady = false
             initializationStarted = false
+        }
+
+        private var live: ArtifactLivePage?
+        private var deliveredLive: ArtifactLivePage?
+
+        /// Turns the open page live, or not (`setLive` in the editor). Another
+        /// page opening turns the last one's room off in the editor itself.
+        func useLive(_ page: ArtifactLivePage?, in webView: WKWebView) {
+            live = page
+            deliverLive(in: webView)
+        }
+
+        private func deliverLive(in webView: WKWebView) {
+            guard isReady, deliveredLive != live else { return }
+            deliveredLive = live
+            webView.evaluateJavaScript(Self.liveScript(live))
+        }
+
+        static func liveScript(_ page: ArtifactLivePage?) -> String {
+            guard let page,
+                  let data = try? JSONSerialization.data(withJSONObject: [
+                      "spaceKey": page.spaceKey, "pageID": page.pageID, "relayURL": page.relayURL, "name": page.name,
+                  ]),
+                  let json = String(data: data, encoding: .utf8) else {
+                return "window.foreverLMArtifactEditor.setLive(null);"
+            }
+            return "window.foreverLMArtifactEditor.setLive(\(json));"
         }
 
         /// The pane handed over another bridge — it never does for one doc,
@@ -1508,6 +1544,9 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 foldDocumentChanged = false
                 webView.evaluateJavaScript(setMarkdownScript())
                 if opensAnotherDoc {
+                    // The editor left the last page's room; this page's room,
+                    // if it has one, is joined after its body is in.
+                    deliveredLive = nil
                     // The editor forgets the last page's threads when another
                     // opens; this page's go in after its body.
                     deliverCommentAnchors(in: webView)
@@ -1912,6 +1951,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             lastEditorMarkdown = latestSwiftMarkdown
             foldDocumentChanged = false
             webView.evaluateJavaScript(setMarkdownScript())
+            deliveredLive = nil
+            deliverLive(in: webView)
             deliverCommentAnchors(in: webView)
             deliverActiveComment(in: webView, reveal: false)
             deliverAttachmentURLs(in: webView)

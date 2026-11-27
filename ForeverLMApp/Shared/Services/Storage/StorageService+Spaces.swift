@@ -117,6 +117,23 @@ extension StorageService {
         }
     }
 
+    // MARK: Live team Pages (docs/teams-design.md, "Live team Pages")
+
+    /// The live room of a Page that lives in a space (a team's, or a Page shared through its Doc
+    /// space), or nil for a page of the learner's own library. The first member's Mac that opens a
+    /// Page of the space with write access makes the space's key (`SpaceLiveKey.ensure`).
+    func livePage(for artifactID: String) async -> ArtifactLivePage? {
+        let account = SyncCoordinator.current?.shares.accountName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = account.flatMap { $0.isEmpty ? nil : $0 } ?? "Teammate"
+        do {
+            return try SpaceLiveKey.livePage(artifactID: artifactID, name: name, store: try notebookFilesKnowledgeStore())
+        } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Teams")
+                .error("A team page's live room could not be opened: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
     // MARK: A Doc shared through its Doc space (§9.1 `doc`, D5)
 
     /// Every Doc this Mac holds a shared Doc space for, by the Doc's id: the ones this account shares

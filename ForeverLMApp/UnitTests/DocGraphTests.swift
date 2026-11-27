@@ -612,11 +612,7 @@ struct DocGraphStorageTests {
         #expect(try await storage.docGraphResolvedMarkdown("See ((teamb0001)).", teamID: nil) == "See ((teamb0001)).")
         #expect(try await storage.docGraphResolvedMarkdown("See ((teamb0001)).", teamID: nexus.id) == "See Parkin in the team.")
 
-        // A member's draft of a team Doc reads in the team's graph.
-        let draftID = try await storage.beginTeamDocDraft(teamArtifactID: teamParkin.id)
-        #expect(try await storage.docGraphTeamID(forDoc: draftID) == nexus.id)
         #expect(try await storage.docGraphTeamID(forDoc: newer.id) == nil)
-        #expect(try await storage.docGraphLinkedReferences(to: .doc(draftID), teamID: nexus.id).map(\.id) == [teamNotes.id])
     }
 
     @Test("Giving another Doc's block an id saves it, keeps an id it has, finds a moved block by its text, and refuses a block that is gone")
