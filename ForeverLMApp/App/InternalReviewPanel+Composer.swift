@@ -420,6 +420,7 @@ extension InternalReviewPanelContent {
         } label: {
             Label("Add Sources…", systemImage: "books.vertical")
         }
+        addOpenItemsMenuItem
         if offersDeepResearch {
             Divider()
             // A Toggle, so the item's own state column shows it is on.
@@ -519,7 +520,6 @@ extension InternalReviewPanelContent {
                 if chips.context {
                     attachedSourcesChip
                 }
-                addOpenItemsChip
                 if let plan = manager.reviewPlan, manager.offersReviewPlanTool {
                     ReviewPlanChip(
                         plan: plan,
@@ -564,7 +564,7 @@ extension InternalReviewPanelContent {
         let card = onScreenCardChipCard
         let open = openItemChipItems
         let plan = manager.reviewPlan != nil && manager.offersReviewPlanTool
-        return (notebook, context, onScreen, card, open, notebook || context || plan || manager.canvasContext != nil || !openNotYetInContext.isEmpty)
+        return (notebook, context, onScreen, card, open, notebook || context || plan || manager.canvasContext != nil)
     }
 
     /// Whether the chat is told of the open item with this key, as
@@ -595,28 +595,20 @@ extension InternalReviewPanelContent {
         return items
     }
 
-    /// Add What's Open: one click puts what is open right now in the chat's
-    /// context (product owner, 2026-11-26: "then you can click a button by
-    /// the chat to instantly put stuff in context that is open rn").
+    /// Add What's Open, in the "+" menu under Add Sources…: one click puts
+    /// what is open right now in the chat's context (product owner,
+    /// 2026-11-26: "then you can click a button by the chat to instantly put
+    /// stuff in context that is open rn"; and later that day: "add what's
+    /// open should just be under this plus").
     @ViewBuilder
-    private var addOpenItemsChip: some View {
+    private var addOpenItemsMenuItem: some View {
         let missing = openNotYetInContext
         if !missing.isEmpty {
             Button {
                 manager.bringInOpenItems(missing.map(\.key))
             } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "plus.circle")
-                        .font(.caption2.weight(.semibold))
-                    Text(missing.count == 1 ? "Add what's open" : "Add \(missing.count) open")
-                }
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .contentShape(Capsule())
+                Label(missing.count == 1 ? "Add What\u{2019}s Open" : "Add \(missing.count) Open Items", systemImage: "plus.circle")
             }
-            .buttonStyle(.hoverWash(in: Capsule(), inset: 0, opacity: 0.06))
             .help("Put what is open in the chat\u{2019}s context: " + missing.map { "\u{201C}\($0.title)\u{201D}" }.joined(separator: ", "))
             .accessibilityLabel("Add what's open to the chat's context")
             .accessibilityIdentifier("chat.addOpenItems")
