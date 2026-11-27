@@ -760,7 +760,9 @@ source — a teammate on a team page, or you on a page an assistant wrote from
 another library — the card turns into a card for that web address. It shows the
 site, offers **Add to Library**, and opens the original page when you press it.
 A source with no web address, such as a PDF from your Mac or your own notes,
-still says your library doesn't have it. In Markdown the link reads
+still says your library doesn't have it. Pages saved before this came in get
+their addresses once, in the background, the first time the Mac opens after the
+update; only pages you can edit are changed. In Markdown the link reads
 `[Title](foreverlm://source/<id>?url=<address>)`.
 
 A link cited inside a sentence stays in the prose, with nothing drawn beside

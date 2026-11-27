@@ -663,6 +663,42 @@ extension StorageService {
         return SourceLinkOrigin.adding(origins, to: markdown)
     }
 
+    /// The one-time pass over the Pages already stored: each Page whose
+    /// source links do not carry their web address yet is saved once, which
+    /// writes the addresses in (`addingSourceLinkOrigins`). Only Pages this
+    /// account may change: not a linked page, a site, an animation or another
+    /// kind of record, not a Page shared with this account, not a read-only
+    /// team's. A Page whose body is not on this Mac, or whose links name only
+    /// sources with no address, is left as it is. Returns how many changed.
+    func stampSourceLinkOriginsInStoredPages() throws -> Int {
+        let store = try notebookFilesKnowledgeStore()
+        var stamped = 0
+        for id in try store.loadAllArtifactIDs() {
+            guard let artifact = try? store.loadArtifact(id),
+                  artifact.kind == nil, !artifact.isLinked else { continue }
+            if let teamID = artifact.teamID {
+                guard (try? store.loadTeam(teamID))??.canEdit == true else { continue }
+            }
+            guard (try? store.requireDocNotSharedWithMe(id)) != nil,
+                  let snapshot = try? artifactMarkdown(of: artifact),
+                  !SourceLinkOrigin.sourceIDsWithoutOrigin(in: snapshot.markdown).isEmpty,
+                  addingSourceLinkOrigins(to: snapshot.markdown) != snapshot.markdown else { continue }
+            do {
+                _ = try writeArtifactMarkdown(
+                    artifactID: id,
+                    markdown: snapshot.markdown,
+                    expectedRevision: snapshot.revision
+                )
+                stamped += 1
+            } catch {
+                // Typing or sync landed between the read and the write; the
+                // Page's next save writes the addresses in.
+                continue
+            }
+        }
+        return stamped
+    }
+
     func updateArtifact(
         artifactID: String,
         title rawTitle: String?,

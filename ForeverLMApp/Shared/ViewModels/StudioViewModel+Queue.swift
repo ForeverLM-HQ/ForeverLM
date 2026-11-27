@@ -326,6 +326,7 @@ extension StudioViewModel {
             await self.runDeferredSourceWordCountRepair()
             await self.runDeferredPaperFigureImageSweep()
             await self.runDeferredMemoryScheduleRebuild()
+            await self.runDeferredSourceLinkOriginStamp()
             self.scheduleBookCoverPathPopulation()
             // Long (a read of every paper's PDF the first time), so on a task
             // of its own: nothing below waits for it.

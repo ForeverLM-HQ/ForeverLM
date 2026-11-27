@@ -320,6 +320,25 @@ extension StudioViewModel {
         logger.notice("Figure index backfill read \(indexed) paper(s); \(failed) could not be read")
     }
 
+    /// Write each stored Page's source web addresses into its source links,
+    /// once per Mac, so a teammate whose library lacks a source the Page cites
+    /// is sent to where it came from (`SourceLinkOrigin`; product owner,
+    /// 2026-11-26). Pages saved from here on get them on every save; this is
+    /// for the Pages saved before. Done once the pass finishes; a quit before
+    /// that runs it again, and a Page already stamped is skipped.
+    func runDeferredSourceLinkOriginStamp() async {
+        let key = "sourceLinkOrigins.storedPagesStamped.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        do {
+            let stamped = try await storage.stampSourceLinkOriginsInStoredPages()
+            UserDefaults.standard.set(true, forKey: key)
+            logger.notice("Source link addresses written into \(stamped) stored page(s)")
+            if stamped > 0, let refreshed = try? await loadScopedArtifacts() { artifacts = refreshed }
+        } catch {
+            logger.error("Source link address pass failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Drain canonical cleanup and prepare already-eligible Listen derivatives
     /// concurrently. The listenable candidate query excludes anything still in
     /// canonical cleanup, so the two bounded stages never race on one source.
