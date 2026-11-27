@@ -123,8 +123,10 @@ extension StorageService {
     /// space), or nil for a page of the learner's own library. The first member's Mac that opens a
     /// Page of the space with write access makes the space's key (`SpaceLiveKey.ensure`).
     func livePage(for artifactID: String) async -> ArtifactLivePage? {
+        // The name the account goes by everywhere (`account.displayName`), else this Mac's user's.
+        let chosen = Preferences.value(Prefs.Account.displayName).trimmingCharacters(in: .whitespacesAndNewlines)
         let account = SyncCoordinator.current?.shares.accountName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = account.flatMap { $0.isEmpty ? nil : $0 } ?? "Teammate"
+        let name = [chosen, account ?? ""].first { !$0.isEmpty } ?? "Teammate"
         do {
             return try SpaceLiveKey.livePage(artifactID: artifactID, name: name, store: try notebookFilesKnowledgeStore())
         } catch {

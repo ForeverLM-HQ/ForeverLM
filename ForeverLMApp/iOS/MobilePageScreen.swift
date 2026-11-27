@@ -248,6 +248,7 @@ struct MobilePageScreen: View {
             markdown: model.text,
             textKey: model.textKey,
             isEditable: editable,
+            live: model.live,
             linkTargets: linkTargets,
             attachmentDataURLs: model.pictures,
             onMarkdownChange: { value in model.edited(value) },
@@ -464,6 +465,10 @@ final class MobilePageModel {
     private(set) var pictures: [String: String] = [:]
     private(set) var conflict: Conflict?
     private(set) var saveError: String?
+    /// A team Page's live room, once known (docs/teams-design.md, "Live team Pages"). The editor holds
+    /// the room's words and decides itself what a body from iCloud changes, so a save that meets a
+    /// newer revision is made again over it rather than held as a conflict.
+    private(set) var live: MobilePageLiveRoom?
     /// The `# ` heading the text opens with, which names the page when it is its title.
     private(set) var firstHeading: String?
 
@@ -493,6 +498,8 @@ final class MobilePageModel {
     /// that save as a conflict when it is written.
     func open(with store: MobileSpaceStore, revision current: String?) async {
         self.store = store
+        // The space's key may reach the phone after the page opened (a teammate made it).
+        if let room = await store.liveRoom(forPage: pageID), room != live { live = room }
         if phase == .ready {
             guard current != revision, !isSaving, !hasUnsavedText, conflict == nil else { return }
         }
@@ -591,6 +598,10 @@ final class MobilePageModel {
             revision = written
             saved = draft
             saveError = nil
+        } catch MobileSpaceError.conflict(_, let current) where live != nil {
+            // The live words hold the room's already: they go again over the newer revision.
+            revision = current
+            savesAgain = true
         } catch MobileSpaceError.conflict(let markdown, let current) {
             conflict = Conflict(markdown: markdown, revision: current)
         } catch {

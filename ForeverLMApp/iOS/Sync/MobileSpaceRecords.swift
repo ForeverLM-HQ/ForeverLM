@@ -174,7 +174,7 @@ enum MobileSpaceReadModel {
                 isDraft: row.integer(11) == 1, isTrashed: trashed, isHidden: marks.isHidden("art", id),
                 createdAt: created ?? edited ?? .distantPast, editedAt: edited ?? created ?? .distantPast, bodyRevision: row.text(10),
                 linkedURL: linkedURL, isDailyNote: teamID == nil && DailyNote.isDailyNoteID(id),
-                isEditableMarkdown: teamID == nil && writable && linkedURL == nil && kind != MobileSpaceListing.readingKind
+                isEditableMarkdown: writable && linkedURL == nil && kind != MobileSpaceListing.readingKind
             ))
         }
         return MobileSpaceListing.sorted(pages, by: .created)
@@ -253,8 +253,10 @@ extension MobileWrite {
     /// (`PrivateSyncEngine`), so a save over a moved body would lose one of the two texts unseen.
     mutating func writePageBody(_ id: String, body: FileRef, markdown: String, expectedRevision: String?) throws {
         let page = try requiredPage(id)
-        guard try page.zoneKey == Self.libraryKey || isInItsDocSpace(id, zoneKey: page.zoneKey) else {
-            throw MobileSpaceError.refused("A team’s page is edited on your Mac.")
+        // A team's Page is written in place by every member who may write the team, live together
+        // (docs/teams-design.md, "Live team Pages"); one who may only read cannot save it.
+        if page.zoneKey != Self.libraryKey, try spaceWriter(page.zoneKey)?.permission == .readOnly {
+            throw MobileSpaceError.refused("You can read this team’s page but not change it.")
         }
         let current = page.envelope.fields["body"].flatMap(FileRef.init(json:))?.hash
         guard current == expectedRevision else { throw MobileSpaceBodyMoved(currentRevision: current) }
@@ -322,5 +324,46 @@ extension MobileRecordWriter {
         else { throw MobileSpaceError.unavailable }
         return try await blobs.upload(package, owner: pageID, ownerType: .artifact, role: MobileSpaceBody.role, mime: MobileSpaceBody.packageMime,
                                       encoding: .identity, into: zone, keeping: existing)
+    }
+}
+
+// MARK: - Live team Pages (docs/teams-design.md, "Live team Pages")
+
+extension MobileWrite {
+    /// The space's live key (the Setting `pageLive.key` in its zone) as the phone holds it, its pending
+    /// write included; nil while the space has none.
+    func spaceLiveKey(in zoneKey: String) throws -> String? {
+        guard let value = try held(.setting, MobilePageLiveRoom.settingKey, in: zoneKey)?.fields["value"],
+              value["t"]?.stringValue == "string", let key = value["v"]?.stringValue, MobilePageLiveRoom.isKey(key) else { return nil }
+        return key
+    }
+
+    /// The space's live key, made now when the space has none and this member may write it, as the
+    /// Mac's `SpaceLiveKey.ensure`: the Setting's last writer wins, and an editor that hears the key
+    /// change joins the new room.
+    mutating func ensureSpaceLiveKey(in zoneKey: String) throws -> String? {
+        if let key = try spaceLiveKey(in: zoneKey) { return key }
+        guard try spaceWriter(zoneKey)?.permission == .readWrite, let key = MobilePageLiveRoom.makeKey() else { return nil }
+        var patch = RecordPatch(.setting, id: MobilePageLiveRoom.settingKey)
+        patch.changes["key"] = .value(.string(MobilePageLiveRoom.settingKey))
+        patch.changes["value"] = .value(.object(["t": .string("string"), "v": .string(key)]))
+        patch.changes["updatedBy"] = .value(.string(deviceID))
+        try write(patch, in: zoneKey)
+        return key
+    }
+
+    /// The editor's way into the live room of the page `id`; nil for a page of the learner's own library,
+    /// or a space a reader holds before any writer has made its key. The name teammates see is the one
+    /// the account goes by (`account.displayName`), else the one the learner's own spaces carry (their
+    /// Mac's), else "Teammate".
+    mutating func liveRoom(forPage id: String) throws -> MobilePageLiveRoom? {
+        guard let zoneKey = try pageZoneKey(id), zoneKey != Self.libraryKey, let key = try ensureSpaceLiveKey(in: zoneKey) else { return nil }
+        let chosen = try stringSetting(Prefs.Account.displayName.name)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let own = try MobileProjection.spaces(in: replica).lazy
+            .filter(\.isOwned)
+            .compactMap { $0.ownerName?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+        let name = [chosen ?? "", own ?? ""].first { !$0.isEmpty } ?? "Teammate"
+        return MobilePageLiveRoom(spaceKey: key, pageID: id, name: name)
     }
 }

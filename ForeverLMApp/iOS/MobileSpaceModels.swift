@@ -43,8 +43,9 @@ struct MobileSpacePage: Identifiable, Equatable, Sendable {
     var bodyRevision: String?
     var linkedURL: String?
     var isDailyNote: Bool
-    /// The learner's own Markdown page, which the phone edits: in My Library, not a linked Google Doc
-    /// or site, not a reading (the Mac's Markdown editor opens exactly these).
+    /// A Markdown page the phone edits: the learner's own, one shared with them to write, or a team's
+    /// Page the member may write (live with the team, "Live team Pages"); never a linked Google Doc or
+    /// site, nor a reading (the Mac's Markdown editor opens exactly these).
     var isEditableMarkdown: Bool
 
     /// Page, Google Doc, site or reading, as `SpaceCatalog` sorts a record: the kind first, then the

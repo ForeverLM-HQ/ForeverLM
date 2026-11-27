@@ -133,6 +133,17 @@ final class MobileSpaceStore {
         }
     }
 
+    // MARK: Live team Pages
+
+    /// The live room of a team Page or a Page shared on its own (docs/teams-design.md, "Live team
+    /// Pages"); nil for a page of the learner's own library, or while the Space is unavailable. A member
+    /// who may write makes the space's key when it has none.
+    func liveRoom(forPage pageID: String) async -> MobilePageLiveRoom? {
+        try? await act { backend in
+            try await backend.writer.transaction { write in try write.liveRoom(forPage: pageID) }
+        }
+    }
+
     // MARK: Writing a page
 
     /// Saves a page's Markdown over the revision the editor opened (`expectedRevision`, nil for a page

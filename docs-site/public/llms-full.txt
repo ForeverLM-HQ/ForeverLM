@@ -1779,8 +1779,11 @@ asks nothing.
   with a key only the team's members hold before it passes through ForeverLM's
   relay, so the relay can neither read the page nor tell which page it is. A
   change made while you were away, or by a chat or an assistant, comes in
-  through iCloud and joins what is being typed. Live writing needs the Mac app
-  for now; on the iPhone and the web a team's Page shows what was last saved.
+  through iCloud and joins what is being typed. It works the same on the Mac,
+  the iPhone and iPad, and in the web library, so a teammate on any of them
+  writes with you; your name on your caret is the one in **Settings**. A team's
+  Page goes live once someone who can change the team has opened it on a Mac,
+  iPhone or iPad.
   Publishing to foreverlm.com remains the route for people outside the team,
   and the two actions sit apart in the menu.
 - **Sites, animations and linked pages.** A Claude artifact or a Codex site
@@ -6856,7 +6859,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **Write a team's Page together, live.** Everyone who can change the team now types straight into a team's Page on the Mac, at the same time: each teammate's words appear as they type, with their caret and name in their colour, and the initials of who else is on the page in its top-right corner. Undo takes back only your own typing. A member who can only read sees the page being written. What you type is sealed with a key only the team holds before it passes through ForeverLM's relay. **Edit**, **Continue Draft**, **Publish** and **Discard Draft** are gone from team Pages.
+- **Write a team's Page together, live.** Everyone who can change the team now types straight into a team's Page on the Mac, the iPhone and iPad, or in the web library, at the same time: each teammate's words appear as they type, with their caret and name in their colour, and the initials of who else is on the page in its top-right corner. Undo takes back only your own typing. A member who can only read sees the page being written. What you type is sealed with a key only the team holds before it passes through ForeverLM's relay. **Edit**, **Continue Draft**, **Publish** and **Discard Draft** are gone from team Pages, and on the iPhone a team's Page is no longer read-only for members who can change the team.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.

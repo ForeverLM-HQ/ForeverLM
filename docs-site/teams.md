@@ -166,8 +166,11 @@ asks nothing.
   with a key only the team's members hold before it passes through ForeverLM's
   relay, so the relay can neither read the page nor tell which page it is. A
   change made while you were away, or by a chat or an assistant, comes in
-  through iCloud and joins what is being typed. Live writing needs the Mac app
-  for now; on the iPhone and the web a team's Page shows what was last saved.
+  through iCloud and joins what is being typed. It works the same on the Mac,
+  the iPhone and iPad, and in the web library, so a teammate on any of them
+  writes with you; your name on your caret is the one in **Settings**. A team's
+  Page goes live once someone who can change the team has opened it on a Mac,
+  iPhone or iPad.
   Publishing to foreverlm.com remains the route for people outside the team,
   and the two actions sit apart in the menu.
 - **Sites, animations and linked pages.** A Claude artifact or a Codex site

@@ -312,7 +312,7 @@ struct MobileSpaceStoreTests {
                 == .string(PageSpaces.nameKey(spaceID: id)))
     }
 
-    @Test("A team's page neither pins nor files in the learner's spaces")
+    @Test("A team's page neither pins nor files in the learner's spaces; a member who may write edits it, a reader cannot")
     func teamPagesStayTheTeams() async throws {
         let phone = try await Self.phone()
         try await MobileSyncFixture.holdSpace(phone.device.replica, zoneKey: Fixture.space, zoneName: "Space-s1", owned: true, name: "Acme Lab")
@@ -322,13 +322,25 @@ struct MobileSpaceStoreTests {
         ], salt: MobileSyncFixture.spaceSalt))])
         await phone.store.refresh()
         let page = try #require(phone.store.pages.first { $0.id == "team-page" })
-        #expect(page.teamID == "s1" && !page.isEditableMarkdown)
+        #expect(page.teamID == "s1" && page.isEditableMarkdown, "a team's Page is written in place, live with the team")
         #expect(phone.store.teams.contains(MobileSpaceTeam(id: "s1", name: "Acme Lab")), "listed under Spaces by its root's name")
         let space = try await phone.store.createSpace(named: "Lab")
         await #expect(throws: MobileSpaceError.self) { try await phone.store.setPinned(page.id, true) }
         await #expect(throws: MobileSpaceError.self) { try await phone.store.move(page.id, toSpace: space) }
-        await #expect(throws: MobileSpaceError.self) { try await phone.store.saveBody("x", of: page.id, expectedRevision: nil) }
         #expect(try await Self.setting(phone, PagePins.key(pageID: page.id)) == nil)
+
+        // A space this member may only read: its page reads as a page and never saves.
+        let readerZone = "shared/alice/Space-s2"
+        try await MobileSyncFixture.holdSpace(phone.device.replica, zoneKey: readerZone, zoneName: "Space-s2", owned: false, name: "Their Lab",
+                                              permission: "readOnly")
+        try await Fixture.apply(phone.device.replica, [(readerZone, try MobileSyncFixture.envelope(.artifact, "read-page", [
+            "kind": .string("doc"), "title": .string("Read page"), "status": .string("active"), "createdAt": SyncJSON(Int64(1)),
+            "editedAt": SyncJSON(Int64(1)),
+        ], salt: MobileSyncFixture.spaceSalt))])
+        await phone.store.refresh()
+        let read = try #require(phone.store.pages.first { $0.id == "read-page" })
+        #expect(read.teamID == "s2" && !read.isEditableMarkdown)
+        await #expect(throws: MobileSpaceError.self) { try await phone.store.saveBody("x", of: read.id, expectedRevision: nil) }
     }
 
     @Test("Subpages nest the learner's own pages; a cycle, the page itself and a daily note are refused, and Remove from Parent clears the row")
@@ -441,7 +453,7 @@ struct MobileSpaceStoreTests {
         #expect(pages["h1"]?.isHidden == true)
         #expect(pages["x1"]?.isTrashed == true)
         #expect(pages["daily-2026-10-07"]?.isDailyNote == true)
-        #expect(pages["t1"]?.teamID == "s1" && pages["t1"]?.isEditableMarkdown == false)
+        #expect(pages["t1"]?.teamID == "s1" && pages["t1"]?.isEditableMarkdown == true, "a member who may write the team edits its Page")
         #expect(MobileSpaceListing.pages(in: .team("s1"), from: snapshot.pages, organization: snapshot.organization).map(\.id) == ["t1"])
         #expect(snapshot.teams == [MobileSpaceTeam(id: "s1", name: "Acme Lab")])
     }

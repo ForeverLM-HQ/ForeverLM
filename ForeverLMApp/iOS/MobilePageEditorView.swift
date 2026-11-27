@@ -1,4 +1,5 @@
 import os
+import Security
 import SwiftUI
 import UIKit
 import WebKit
@@ -49,6 +50,44 @@ struct MobilePageCreationRequest: Equatable, Sendable {
     let isSubpage: Bool
 }
 
+/// A team Page's live room (docs/teams-design.md, "Live team Pages"): what the editor's `setLive`
+/// takes. The editor derives the page's own key and the room's name from the space's key and the
+/// page's id (`Web/ArtifactEditor/src/live-room.js`); the relay never sees the key. The Mac's twin is
+/// `ArtifactLivePage`.
+struct MobilePageLiveRoom: Equatable, Sendable {
+    static let relayURL = "wss://live.foreverlm.com"
+    /// The space Setting that holds the space's live key.
+    static let settingKey = "pageLive.key"
+
+    let spaceKey: String
+    let pageID: String
+    let name: String
+
+    /// A fresh key: 32 random bytes, base64url without padding.
+    static func makeKey() -> String? {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { return nil }
+        return Data(bytes).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    static func isKey(_ value: String) -> Bool {
+        value.count >= 43 && value.allSatisfy { ($0.isLetter && $0.isASCII) || $0.isNumber || $0 == "-" || $0 == "_" }
+    }
+
+    var script: String {
+        let config = ["spaceKey": spaceKey, "pageID": pageID, "relayURL": Self.relayURL, "name": name]
+        guard let data = try? JSONSerialization.data(withJSONObject: config), let json = String(data: data, encoding: .utf8) else {
+            return Self.offScript
+        }
+        return "window.foreverLMArtifactEditor.setLive(\(json));"
+    }
+
+    static let offScript = "window.foreverLMArtifactEditor.setLive(null);"
+}
+
 struct MobilePageEditorView: UIViewRepresentable {
     let pageID: String
     /// The page's text. Read when the page opens and whenever `textKey`
@@ -62,6 +101,9 @@ struct MobilePageEditorView: UIViewRepresentable {
     /// Off, the page reads as a page: no caret, a link opens on a tap, and no
     /// edit is ever reported.
     let isEditable: Bool
+    /// A team Page's live room: everyone on the page writes it at once and sees each other's carets.
+    /// Nil for a page of the learner's own library.
+    var live: MobilePageLiveRoom? = nil
     /// What `[[`, `@` and the Link field offer. The whole list goes to the
     /// editor whenever it changes; the editor filters as the writer types.
     var linkTargets: [MobilePageLinkTarget] = []
@@ -150,6 +192,8 @@ struct MobilePageEditorView: UIViewRepresentable {
         webView.navigationDelegate = nil
         // The last keystrokes can still be inside the editor's debounce.
         coordinator.flush(in: webView)
+        // The page leaves its room at once, not when the web view is let go of.
+        coordinator.leaveLive(in: webView)
         coordinator.detach()
     }
 
@@ -191,6 +235,8 @@ struct MobilePageEditorView: UIViewRepresentable {
         private var onCreatePage: ((MobilePageCreationRequest) async -> Bool)?
         private var onError: ((String) -> Void)?
         private var resignObserver: NSObjectProtocol?
+        private var live: MobilePageLiveRoom?
+        private var deliveredLive: MobilePageLiveRoom?
 
         init(_ view: MobilePageEditorView) {
             pageID = view.pageID
@@ -198,6 +244,7 @@ struct MobilePageEditorView: UIViewRepresentable {
             heldText = view.markdown
             sink = MarkdownSink(pageID: view.pageID, deliver: view.onMarkdownChange)
             isEditable = view.isEditable
+            live = view.live
             linkTargets = view.linkTargets
             attachmentDataURLs = view.attachmentDataURLs
             offersPages = view.onCreatePage != nil
@@ -283,6 +330,11 @@ struct MobilePageEditorView: UIViewRepresentable {
                 if isReady { webView.evaluateJavaScript(Self.editableScript(isEditable)) }
             }
 
+            if view.live != live {
+                live = view.live
+                if isReady { deliverLive(in: webView) }
+            }
+
             if (view.onCreatePage != nil) != offersPages {
                 offersPages = view.onCreatePage != nil
                 if isReady { webView.evaluateJavaScript(slashFeaturesScript) }
@@ -313,7 +365,14 @@ struct MobilePageEditorView: UIViewRepresentable {
             textKey = view.textKey
             heldText = view.markdown
             sink = MarkdownSink(pageID: view.pageID, deliver: view.onMarkdownChange)
-            if isReady { sendText(in: webView) }
+            // The editor leaves the last page's room when another opens; this
+            // page's room, if it has one, is joined after its body is in.
+            live = view.live
+            deliveredLive = nil
+            if isReady {
+                sendText(in: webView)
+                deliverLive(in: webView)
+            }
         }
 
         /// Hand the host the page as it stands, when that differs from what
@@ -445,8 +504,23 @@ struct MobilePageEditorView: UIViewRepresentable {
             // `create` took the body already; this names the page, which the
             // editor keys its folds by, and reads back its spelling.
             sendText(in: webView)
+            deliveredLive = nil
+            deliverLive(in: webView)
             deliverLinkTargets(in: webView)
             deliverAttachmentURLs(in: webView)
+        }
+
+        /// Turns the open page live, or not (`setLive` in the editor).
+        private func deliverLive(in webView: WKWebView) {
+            guard isReady, deliveredLive != live else { return }
+            deliveredLive = live
+            webView.evaluateJavaScript(live?.script ?? MobilePageLiveRoom.offScript)
+        }
+
+        func leaveLive(in webView: WKWebView) {
+            guard isReady, deliveredLive != nil else { return }
+            deliveredLive = nil
+            webView.evaluateJavaScript(MobilePageLiveRoom.offScript)
         }
 
         private func deliverLinkTargets(in webView: WKWebView) {
