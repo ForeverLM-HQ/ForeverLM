@@ -330,9 +330,16 @@ enum ArtifactMarkdownTitle {
     /// what a rename of a page named by its heading writes; nil when the body
     /// has no opening heading, the title is empty, or the heading already says
     /// it. A title that ran over several lines is one line in the heading.
+    ///
+    /// "Already says it" is word for word, spacing aside: the editor renames a
+    /// page after every save to the heading it just saved, and a heading caught
+    /// mid-typing (`# Takeaways from teh `) rewritten only to drop its trailing
+    /// space was a body write behind the editor's back, which its next save met
+    /// as "Changed elsewhere while you were editing" (2026-11-26).
     static func retitling(_ markdown: String, to title: String) -> String? {
         let words = title.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
         guard !words.isEmpty, let line = firstLine(in: markdown) else { return nil }
+        guard line.title.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ") != words else { return nil }
         let renamed = markdown.replacingCharacters(in: line.range, with: "# \(words)")
         return renamed == markdown ? nil : renamed
     }

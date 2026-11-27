@@ -635,6 +635,8 @@ enum MobilePageTitleRule {
         guard let index = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) else { return nil }
         let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("# "), !trimmed.dropFirst(2).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        // Spacing aside, a heading that already says it is left alone (the Mac's `retitling`).
+        guard trimmed.dropFirst(2).split(whereSeparator: { $0.isWhitespace }).joined(separator: " ") != words else { return nil }
         let renamed = "# \(words)"
         guard lines[index] != renamed else { return nil }
         lines[index] = renamed

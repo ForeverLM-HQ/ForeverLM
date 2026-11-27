@@ -305,6 +305,12 @@ struct ArtifactMarkdownEditorViewTests {
         #expect(ArtifactMarkdownTitle.retitling("# Old", to: "New\n  name") == "# New name")
         // Nothing to write: the heading already says it, there is none, or the title is empty.
         #expect(ArtifactMarkdownTitle.retitling("# Same\n\nText", to: "Same") == nil)
+        // Spacing alone is no rename: the editor renames to the heading it just saved,
+        // and rewriting a half-typed heading's trailing space raced the next save.
+        #expect(ArtifactMarkdownTitle.retitling("# Takeaways from teh \n\nText", to: "Takeaways from teh") == nil)
+        #expect(ArtifactMarkdownTitle.retitling("#  Two  spaces\n", to: "Two spaces") == nil)
+        // A change of case is still a rename.
+        #expect(ArtifactMarkdownTitle.retitling("# same", to: "Same") == "# Same")
         #expect(ArtifactMarkdownTitle.retitling("Text\n\n# Later", to: "New") == nil)
         #expect(ArtifactMarkdownTitle.retitling("## Section", to: "New") == nil)
         #expect(ArtifactMarkdownTitle.retitling("# Old", to: "  \n") == nil)
