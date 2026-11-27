@@ -1422,7 +1422,19 @@ struct StudioView: View {
                 // cannot honor the pane minima. AppKit may restore an older,
                 // narrower window frame; the content minimum repairs it before
                 // the user can resize the window into overlapping controls.
-                .frame(minWidth: StudioCenterTabGroupSizing.minimumWindowContentWidth)
+                //
+                // The scene sizes with `.contentMinSize`, so whatever minimum
+                // this root reports becomes the window's. With `maxWidth` and
+                // `maxHeight` given too, the frame reports these fixed minima
+                // instead of its content's, so switching tabs (Pages, a video
+                // reader) never changes the window's minimum. Otherwise macOS
+                // Split View and tiling moved the divider on every tab click.
+                .frame(
+                    minWidth: StudioCenterTabGroupSizing.minimumWindowContentWidth,
+                    maxWidth: .infinity,
+                    minHeight: StudioCenterTabGroupSizing.minimumWindowContentHeight,
+                    maxHeight: .infinity
+                )
         )
     }
 }
