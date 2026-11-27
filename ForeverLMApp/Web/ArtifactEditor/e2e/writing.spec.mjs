@@ -73,6 +73,32 @@ test('Tab nests a list item and does nothing in a paragraph', async ({ page }) =
   expect(await stored(page)).toContain('\nA paragraph.\n')
 })
 
+test('Tab nests the first item of a list that follows another list, and never types spaces', async ({ page }) => {
+  // A different marker starts a list of its own: two lists side by side.
+  await openEditor(page, '* one\n* two\n\n- three\n- four\n')
+  expect(await page.locator('.ProseMirror > ul').count()).toBe(2)
+  await caretIn(page, 'three', 0)
+  await page.keyboard.press('Tab')
+  await page.keyboard.type('x')
+  expect(await text(page)).toContain('onetwoxthreefour')
+  const outline = () => page.evaluate(() => {
+    const lines = []
+    window.__editorTest.view().state.doc.descendants((node, _pos, parent) => {
+      if (node.type.name === 'paragraph' && parent.type.name === 'list_item') {
+        let depth = 0
+        for (let el = window.__editorTest.view().domAtPos(_pos + 1).node; el; el = el.parentElement) if (el.tagName === 'LI') depth += 1
+        lines.push(`${depth}:${node.textContent}`)
+      }
+    })
+    return lines
+  })
+  expect(await outline()).toEqual(['1:one', '1:two', '2:xthree', '1:four'])
+  await caretIn(page, 'one', 0)
+  await page.keyboard.press('Tab')
+  expect(await outline()).toEqual(['1:one', '1:two', '2:xthree', '1:four'])
+  expect(await stored(page)).not.toMatch(/ {4}one|&#x20;/)
+})
+
 test('a nested list does not add a paragraph gap before the next parent bullet', async ({ page }) => {
   await openEditor(page, '* parent\n  * nested\n* next\n* last\n')
   const margins = await page.locator('.ProseMirror ul').evaluateAll((lists) => lists.map((list) => getComputedStyle(list).marginBottom))

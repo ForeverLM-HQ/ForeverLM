@@ -33,7 +33,7 @@ import { nodeRule } from '@milkdown/kit/prose'
 import { lift, setBlockType } from '@milkdown/kit/prose/commands'
 import { closeHistory, redo as redoHistory, undo as undoHistory } from '@milkdown/kit/prose/history'
 import { InputRule, inputRules, wrappingInputRule } from '@milkdown/kit/prose/inputrules'
-import { liftListItem } from '@milkdown/kit/prose/schema-list'
+import { liftListItem, sinkListItem } from '@milkdown/kit/prose/schema-list'
 import { DOMSerializer, Fragment, Slice } from '@milkdown/kit/prose/model'
 import { NodeSelection, Plugin, PluginKey, Selection, TextSelection } from '@milkdown/kit/prose/state'
 import { Mapping, Transform } from '@milkdown/kit/prose/transform'
@@ -4604,12 +4604,18 @@ function firstPastedBlock(event, slice) {
 /// four spaces there (over a selection too, after it), which Markdown cannot
 /// keep as an indent: the page stored "&#x20;   " and a published page drew
 /// none. Left to the browser, Tab would take the caret out of the page. A list
-/// item, a table cell and code keep their own Tab.
+/// item, a table cell and code keep their own Tab; a list item's Tab nests it
+/// (`indentListItem`).
 function withQuietTab(ctx) {
   ctx.update(editorViewOptionsCtx, (previous) => ({
     ...previous,
     handleKeyDown: (view, event) => {
-      if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey && !tabActsHere(view.state)) {
+      if (event.key !== 'Tab' || event.metaKey || event.ctrlKey || event.altKey) return previous.handleKeyDown?.(view, event) ?? false
+      if (!tabActsHere(view.state)) {
+        event.preventDefault()
+        return true
+      }
+      if (!event.shiftKey && indentListItem(view.state, view.dispatch)) {
         event.preventDefault()
         return true
       }
@@ -4745,6 +4751,55 @@ function blockFromFence(state, dispatch) {
   const tr = state.tr.delete(start, $from.end())
   tr.setBlockType(start, start, codeBlock, { language })
   tr.setSelection(TextSelection.create(tr.doc, start))
+  dispatch(tr.scrollIntoView())
+  return true
+}
+
+/// Tab in a list item nests it under the item above, as in Notes and Google
+/// Docs. Milkdown's Tab nests only an item with an earlier item in its own
+/// list. The first item of a list that sits right after another list (two
+/// lists side by side, as a paste or a blank line leaves them) fell through to
+/// Crepe's indent plugin, which typed four spaces before its words. Such an
+/// item now moves under the last item of the list above; with no item above to
+/// nest under, Tab does nothing. False outside a list item (a table cell or
+/// code inside one keeps its own Tab).
+function indentListItem(state, dispatch) {
+  const { $from, $to } = state.selection
+  if ($from.parent.type.spec.code) return false
+  let itemDepth = 0
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const name = $from.node(depth).type.name
+    if (name === 'table_cell' || name === 'table_header') return false
+    if (name === 'list_item') { itemDepth = depth; break }
+  }
+  if (!itemDepth) return false
+  const listItem = $from.node(itemDepth).type
+  if (sinkListItem(listItem)(state, dispatch)) return true
+  const listDepth = itemDepth - 1
+  if (listDepth < 1 || $from.index(listDepth) !== 0 || $to.pos > $from.end(itemDepth)) return true
+  const list = $from.node(listDepth)
+  const index = $from.index(listDepth - 1)
+  const above = index > 0 ? $from.node(listDepth - 1).child(index - 1) : null
+  const lastItem = above?.lastChild
+  if (!above || !['bullet_list', 'ordered_list'].includes(above.type.name) || lastItem?.type !== listItem) return true
+  if (!dispatch) return true
+  const item = $from.node(itemDepth)
+  const listStart = $from.before(listDepth)
+  const itemStart = $from.before(itemDepth)
+  // `listStart` is just past the list above: its last item's content ends two
+  // tokens back, and a list already nested at that item's end, one more.
+  const sublist = lastItem.lastChild
+  const joinsSublist = sublist?.type === list.type
+  const insertAt = joinsSublist ? listStart - 3 : listStart - 2
+  const newItemStart = joinsSublist ? insertAt : insertAt + 1
+  const tr = state.tr.insert(insertAt, joinsSublist ? item : list.type.create(list.attrs, item))
+  const onlyItem = list.childCount === 1
+  tr.delete(
+    tr.mapping.map(onlyItem ? listStart : itemStart),
+    tr.mapping.map(onlyItem ? $from.after(listDepth) : $from.after(itemDepth)),
+  )
+  const { anchor, head } = state.selection
+  tr.setSelection(TextSelection.create(tr.doc, newItemStart + (anchor - itemStart), newItemStart + (head - itemStart)))
   dispatch(tr.scrollIntoView())
   return true
 }
