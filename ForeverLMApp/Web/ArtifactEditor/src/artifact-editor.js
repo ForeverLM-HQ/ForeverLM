@@ -8397,6 +8397,22 @@ function ensureLivePeers() {
   return livePeersElement
 }
 
+/// A body the host hands the live team Page open now: true when the editor has
+/// dealt with it. A live page takes a body from outside only when nobody in the
+/// room wrote it, and then on one member's editor, merged into the room's words
+/// (live-editor.js); a merge is a new body, which this editor reports.
+function takeLiveMarkdown(value) {
+  if (!livePage?.installed) return false
+  const decision = livePage.decide(value, markdownForStorage(editor.getMarkdown()), lastMarkdown)
+  if (decision.action === 'ignore') {
+    if (decision.conflict) post('liveChangeKept', {})
+    return true
+  }
+  if (decision.markdown === value) return false
+  setLiveMergedMarkdown(decision.markdown)
+  return true
+}
+
 /// A change from outside merged into a live page's words: put in by the
 /// blocks it changes, so everyone's carets stay, and reported to be saved.
 function setLiveMergedMarkdown(markdown) {
@@ -8487,21 +8503,6 @@ function setMarkdown(markdown, foldState = null) {
   const value = String(markdown ?? '')
   if (!editor) return
   const opensAnotherDoc = foldState != null && foldState.key !== foldDocumentKey
-  if (opensAnotherDoc && livePage) setLive(null)
-  // A live team Page takes a body from outside only when nobody in the room
-  // wrote it, and then on one member's editor, merged into the room's words
-  // (live-editor.js). A merge is a new body: this editor reports it.
-  if (!opensAnotherDoc && livePage?.installed) {
-    const decision = livePage.decide(value, markdownForStorage(editor.getMarkdown()), lastMarkdown)
-    if (decision.action === 'ignore') {
-      if (decision.conflict) post('liveChangeKept', {})
-      return
-    }
-    if (decision.markdown !== value) {
-      setLiveMergedMarkdown(decision.markdown)
-      return
-    }
-  }
   if (!opensAnotherDoc && hasUserChanges && isReportedBefore(value)) {
     // Only over words the host has not heard yet: a restore, Use theirs or an
     // Undo of a kept edit hands back text it was told before, on purpose,
@@ -8512,6 +8513,7 @@ function setMarkdown(markdown, foldState = null) {
       return
     }
   }
+  if (!opensAnotherDoc && takeLiveMarkdown(value)) return
   // Another page always opens fresh, its own words and its own undo, even when
   // its text matches what is here: two empty pages, two empty daily notes.
   // `currentMarkdown` trails typing by Milkdown's pause, so a page opened
@@ -8537,6 +8539,8 @@ function setMarkdown(markdown, foldState = null) {
 
   const keptFolds = foldState == null ? null : opensAnotherDoc ? foldState.folds : foldsJSON(currentFolds())
   if (opensAnotherDoc) forgetCommentAnchors()
+  // Another page leaves the last one's live room; its host joins this one's.
+  if (opensAnotherDoc && livePage) setLive(null)
   // Another doc: a list open over the old one has nothing to point at, and
   // neither has a preview, a reference list or a menu.
   hideLinkPicker()
