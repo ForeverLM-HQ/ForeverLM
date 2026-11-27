@@ -341,6 +341,9 @@ enum StudioCenterTabGroupSizing {
     static let minimumWindowContentWidth = minimumChatContentWidth
         + minimumContentWidth
         + dividerWidth
+    /// The window's fixed minimum height. It never follows the open tab's
+    /// content, or a tab switch would resize the window.
+    static let minimumWindowContentHeight: CGFloat = 420
 
     static func minimumWidth(for groups: [StudioCenterTabGroups.Group]) -> CGFloat {
         guard !groups.isEmpty else { return 0 }
