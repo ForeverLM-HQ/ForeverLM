@@ -1236,7 +1236,7 @@ function withPrivateAddressPreviews(ctx) {
         const href = mark?.attrs?.href ?? ''
         const reference = referenceHref(href)
         const status = reference ? referenceStatus(reference) : null
-        if (reference && status?.state === 'inLibrary') {
+        if (reference && (status?.state === 'inLibrary' || isSourceFallback(reference))) {
           hide.call(tooltip)
           hideInAppLinkTooltip(true)
           // A card is already that row, and a press on it opens the source:
@@ -3002,11 +3002,65 @@ function referencePage(href) {
 /// The address a reference card stands for: a web URL, or the stored form of a
 /// library source's address for a line that is only a source link. The stored
 /// form is what the host is asked about and what its answer is keyed by.
+///
+/// A source link may carry where the source came from on the web
+/// (`foreverlm://source/<id>?url=<address>`, which the Mac writes into every
+/// source link a page saves). When the host answers that this library does
+/// not hold the source — a teammate's page citing a source only its writer
+/// has — the card stands for that address instead: an ordinary web
+/// reference, with the library asked about it, Add to Sources, and a press
+/// that opens the page (product owner, 2026-11-26: "it should fall back to an
+/// internet url where that source came from").
 function referenceHref(href) {
   const web = webReferenceHref(href)
   if (web) return web
   const id = sourceID(href)
-  return id ? `${sourceMarkdownPrefix}${encodeURIComponent(id)}` : null
+  if (!id) return null
+  const source = `${sourceMarkdownPrefix}${encodeURIComponent(id)}`
+  const origin = sourceLinkOrigin(href)
+  if (!origin) return source
+  sourceLinkOrigins.set(source, origin)
+  return sourceIsMissing(source) ? origin : source
+}
+
+// Each source address the page links with an origin → that origin, so the
+// host is asked about both (`scheduleReferencesChanged`) and a card can tell it
+// stands in for a source (`isSourceFallback`).
+const sourceLinkOrigins = new Map()
+
+/// The web address a source link carries in its `url` parameter, or null.
+function sourceLinkOrigin(href) {
+  if (!sourceID(href)) return null
+  try {
+    const value = new URL(String(href ?? '').trim()).searchParams.get('url')
+    return value ? webReferenceHref(value) : null
+  } catch {
+    return null
+  }
+}
+
+/// Whether the host answered that this library does not hold a source. No
+/// answer yet is not missing: the card waits as the source's.
+function sourceIsMissing(sourceHref) {
+  const state = referenceStatuses.get(sourceHref)?.state
+  return state != null && state !== 'inLibrary' && state !== 'unknown' && state !== 'adding'
+}
+
+/// Whether a card's web address stands in for a source this library lacks.
+function isSourceFallback(href) {
+  for (const [source, origin] of sourceLinkOrigins) {
+    if (origin === href && sourceIsMissing(source)) return true
+  }
+  return false
+}
+
+/// Open a page on the web: the host's browser in the app, a new tab on the web.
+function openWebAddress(href) {
+  if (window.webkit?.messageHandlers?.artifactEditor) {
+    post('openLinkRequested', { href })
+  } else {
+    window.open(href, '_blank', 'noopener')
+  }
 }
 
 /// Whether a card's address names a library source rather than the web.
@@ -3453,6 +3507,20 @@ function citedSourceRow(cited, status) {
         open()
       }
     })
+  } else if (isSourceFallback(cited.href)) {
+    // A source this library lacks, read where it came from.
+    row.classList.add('is-openable')
+    row.setAttribute('role', 'link')
+    row.tabIndex = 0
+    row.title = cited.href
+    const open = () => openWebAddress(cited.href)
+    row.addEventListener('click', open)
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        open()
+      }
+    })
   } else {
     row.title = isSourceReference(cited.href) ? '' : cited.href
   }
@@ -3648,9 +3716,11 @@ function referenceDecorations(state) {
     const status = referenceStatus(reference.href)
     const stateName = status?.state ?? 'unknown'
     const sourceCard = isSourceReference(reference.href)
+    const fallback = !sourceCard && isSourceFallback(reference.href)
     decorations.push(Decoration.node(block.position, block.position + block.node.nodeSize, {
       class: sourceCard ? 'artifact-reference artifact-source-card' : 'artifact-reference',
       'data-reference-state': stateName,
+      ...(fallback ? { 'data-reference-fallback': 'true' } : {}),
     }))
     if (reference.detailTo > reference.detailFrom) {
       decorations.push(Decoration.inline(reference.detailFrom, reference.detailTo, {
@@ -3723,7 +3793,16 @@ function appCardDecorations(reference) {
 /// a beat after the last change, so typing inside a title does not send a
 /// message per keystroke.
 function scheduleReferencesChanged(hrefs) {
-  const distinct = [...new Set(hrefs)]
+  // A source link with an origin is asked about twice: as the source, which
+  // decides whether the card falls back, and as its origin, which is what a
+  // fallen-back card shows. Whichever of the two the card stands for now, the
+  // other is asked too, so the answer that decides it never drops out.
+  const asked = new Set(hrefs)
+  for (const [source, origin] of sourceLinkOrigins) {
+    if (asked.has(source)) asked.add(origin)
+    else if (asked.has(origin) && isSourceFallback(origin)) asked.add(source)
+  }
+  const distinct = [...asked]
   const serialized = JSON.stringify(distinct)
   if (serialized === lastPostedReferenceHrefs) return
   if (referencePostTimer != null) clearTimeout(referencePostTimer)
@@ -3831,13 +3910,18 @@ document.addEventListener('click', (event) => {
   if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
   if (Math.hypot(event.clientX - press.x, event.clientY - press.y) >= cardDragSlop) return
   if (!(event.target instanceof Element) || event.target.closest('.artifact-reference-control')) return
-  const card = event.target.closest('p.artifact-reference[data-reference-state="inLibrary"], p.artifact-reference[data-reference-state="inApp"]')
+  const card = event.target.closest('p.artifact-reference[data-reference-state="inLibrary"], p.artifact-reference[data-reference-state="inApp"], p.artifact-reference[data-reference-fallback="true"]')
   const view = activeEditorView()
   if (!card || !view || !view.dom.contains(card)) return
   const selection = window.getSelection()
   if (selection && !selection.isCollapsed) return
   const href = cardHref(view, card)
   if (!href) return
+  // A source this library lacks opens where it came from on the web.
+  if (card.dataset.referenceFallback === 'true' && card.dataset.referenceState !== 'inLibrary') {
+    openWebAddress(href)
+    return
+  }
   // A page's, a notebook's, an Idea's or a chat's card opens it, as its
   // link's Open did.
   if (isAppReference(href)) {

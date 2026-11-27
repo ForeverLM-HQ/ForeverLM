@@ -752,6 +752,17 @@ site's icon. To move a card, drag it by its picture or by the line under its
 title: a line shows where it will go, between any two blocks of the page, and
 Escape puts it back. A card inside a list stays with its item.
 
+A card for one of your library's sources also remembers where that source came
+from on the web: when a page is saved on the Mac, each source link takes the
+source's web address with it (a podcast episode's page, a video, an article, or a
+paper's DOI). So when someone opens the page whose library doesn't have that
+source — a teammate on a team page, or you on a page an assistant wrote from
+another library — the card turns into a card for that web address. It shows the
+site, offers **Add to Library**, and opens the original page when you press it.
+A source with no web address, such as a PDF from your Mac or your own notes,
+still says your library doesn't have it. In Markdown the link reads
+`[Title](foreverlm://source/<id>?url=<address>)`.
+
 A link cited inside a sentence stays in the prose, with nothing drawn beside
 the paragraph. A citation is a footnote (see [Footnotes](#footnotes)): rest the
 pointer on its number and a card shows the papers it cites.

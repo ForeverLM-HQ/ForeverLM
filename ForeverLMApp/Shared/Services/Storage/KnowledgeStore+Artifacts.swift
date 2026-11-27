@@ -403,6 +403,26 @@ extension KnowledgeStore {
         return ids
     }
 
+    /// Each named source's web address (`SourceLinkOrigin.bestAddress`), for
+    /// the sources this library holds that have one.
+    func sourceWebAddresses(ids: [String]) throws -> [String: String] {
+        var addresses: [String: String] = [:]
+        let unique = Array(Set(ids))
+        for start in stride(from: 0, to: unique.count, by: 400) {
+            let chunk = Array(unique[start..<min(start + 400, unique.count)])
+            let placeholders = chunk.map { _ in "?" }.joined(separator: ", ")
+            try queryBind("SELECT id, url, doi, podcast_web_page_url FROM source_projection WHERE id IN (\(placeholders))", bind: { stmt in
+                for (index, id) in chunk.enumerated() { self.bind(stmt, index + 1, id) }
+            }) { stmt in
+                guard let id = self.string(stmt, 0),
+                      let address = SourceLinkOrigin.bestAddress(url: self.string(stmt, 1), doi: self.string(stmt, 2), podcastPage: self.string(stmt, 3))
+                else { return }
+                addresses[id] = address
+            }
+        }
+        return addresses
+    }
+
     func saveArtifactRecord(_ artifact: ArtifactRecord) throws {
         let title = artifact.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { throw ArtifactError.invalidTitle }
@@ -618,4 +638,100 @@ extension KnowledgeStore {
         return FileManager.default.fileExists(atPath: canonical.path) ? canonical : nil
     }
 
+}
+
+// MARK: - Where a page's source links came from
+
+
+/// Where a page's source links came from on the web.
+///
+/// A page links a library source as `[Title](foreverlm://source/<id>)`. The id
+/// means something only in a library that holds the source, so a page shared
+/// with a teammate who lacks it pointed nowhere. When a Mac saves a page, every
+/// source link that does not say yet gets the source's web address as a `url`
+/// parameter — `foreverlm://source/<id>?url=<address>` — and the page editor
+/// shows a reader whose library lacks the source that address instead
+/// (product owner, 2026-11-26: "it should fall back to an internet url where
+/// that source came from"). A source with no web address (a local file, notes)
+/// is left as it is. The parameter is ignored by every reader of the id, which
+/// takes the path.
+enum SourceLinkOrigin {
+    /// A source link's target, as Markdown writes it after `](`.
+    private static let target = try! NSRegularExpression(
+        pattern: #"(\]\(\s*<?)(foreverlm://source/[^\s)>]+)"#,
+        options: [.caseInsensitive]
+    )
+
+    /// The ids of the source links that carry no web address yet.
+    static func sourceIDsWithoutOrigin(in markdown: String) -> [String] {
+        guard markdown.range(of: "foreverlm://source/", options: .caseInsensitive) != nil else { return [] }
+        var ids: [String] = []
+        var seen = Set<String>()
+        let text = markdown as NSString
+        for match in target.matches(in: markdown, range: NSRange(location: 0, length: text.length)) {
+            let address = text.substring(with: match.range(at: 2))
+            guard let parsed = parse(address), parsed.origin == nil, seen.insert(parsed.id).inserted else { continue }
+            ids.append(parsed.id)
+        }
+        return ids
+    }
+
+    /// The Markdown with each source link that has no web address given the
+    /// one `origins` names for its id. Nothing else in the text changes.
+    static func adding(_ origins: [String: String], to markdown: String) -> String {
+        guard !origins.isEmpty else { return markdown }
+        let text = markdown as NSString
+        let result = NSMutableString(string: markdown)
+        for match in target.matches(in: markdown, range: NSRange(location: 0, length: text.length)).reversed() {
+            let range = match.range(at: 2)
+            let address = text.substring(with: range)
+            guard let parsed = parse(address), parsed.origin == nil,
+                  let origin = origins[parsed.id], let web = webAddress(origin) else { continue }
+            let separator = address.contains("?") ? "&" : "?"
+            result.replaceCharacters(in: range, with: "\(address)\(separator)url=\(encode(web))")
+        }
+        return result as String
+    }
+
+    /// The web address a source link carries, or nil.
+    static func origin(ofLink href: String) -> URL? {
+        parse(href)?.origin.flatMap(webAddress).flatMap(URL.init(string:))
+    }
+
+    /// The best web address for a source from what the library knows of it:
+    /// a podcast episode's page over its audio file, the item's own address,
+    /// else a paper's DOI. Nil for a source with none.
+    static func bestAddress(url: String?, doi: String?, podcastPage: String?) -> String? {
+        if let page = podcastPage.flatMap(webAddress) { return page }
+        if let url = url.flatMap(webAddress) { return url }
+        if let doi = doi?.trimmingCharacters(in: .whitespacesAndNewlines), !doi.isEmpty {
+            return webAddress("https://doi.org/\(doi)")
+        }
+        return nil
+    }
+
+    private static func parse(_ address: String) -> (id: String, origin: String?)? {
+        guard let components = URLComponents(string: address),
+              components.host?.lowercased() == "source" else { return nil }
+        let path = components.percentEncodedPath.split(separator: "/").first.map(String.init)
+        guard let id = path?.removingPercentEncoding?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty else { return nil }
+        let origin = components.queryItems?.first { $0.name == "url" }?.value
+        return (id, origin?.isEmpty == false ? origin : nil)
+    }
+
+    /// An `http(s)` address with a host, trimmed; nil for anything else.
+    private static func webAddress(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https", url.host?.isEmpty == false else { return nil }
+        return trimmed
+    }
+
+    /// Percent-encoded so the address stays one query value and one Markdown
+    /// link target: no space, parenthesis, `&`, `=`, `#`, `?` or `+` survives.
+    private static let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/")
+
+    private static func encode(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: unreserved) ?? value
+    }
 }

@@ -621,6 +621,7 @@ extension StorageService {
         guard current.revision.caseInsensitiveCompare(expectedRevision) == .orderedSame else {
             throw ArtifactError.conflict(current.artifact.title)
         }
+        let markdown = addingSourceLinkOrigins(to: markdown)
         let data = Data(markdown.utf8)
         guard data.count <= ArtifactRecord.markdownByteLimit else {
             throw NotebookMarkdownFileError.tooLarge(
@@ -649,6 +650,17 @@ extension StorageService {
             markdown: markdown,
             revision: Self.artifactRevision(data)
         )
+    }
+
+    /// Every source link the page saves carries the source's web address, so
+    /// a reader whose library lacks the source can still follow it
+    /// (`SourceLinkOrigin`). A lookup that fails leaves the text as written.
+    private func addingSourceLinkOrigins(to markdown: String) -> String {
+        let ids = SourceLinkOrigin.sourceIDsWithoutOrigin(in: markdown)
+        guard !ids.isEmpty,
+              let origins = try? notebookFilesKnowledgeStore().sourceWebAddresses(ids: ids),
+              !origins.isEmpty else { return markdown }
+        return SourceLinkOrigin.adding(origins, to: markdown)
     }
 
     func updateArtifact(

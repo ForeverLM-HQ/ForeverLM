@@ -1731,6 +1731,11 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                     } else {
                         onOpenSource(source.sourceID)
                     }
+                } else if let url = URL(string: href.trimmingCharacters(in: .whitespacesAndNewlines)),
+                          let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                    // A source card whose source this library lacks opens
+                    // where the source came from (`SourceLinkOrigin`).
+                    WebLinkOpening.open(url)
                 }
             case "referencesChanged":
                 onReferencesChange((payload["hrefs"] as? [String]) ?? [])
