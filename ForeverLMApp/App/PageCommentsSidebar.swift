@@ -46,6 +46,8 @@ struct PageCommentsSidebar: View {
     @State private var pendingDeletion: PageCommentDeletion?
     @State private var authorRecordName: String?
     @State private var isSending = false
+    /// The thread card or chat row under the pointer, which shows its Delete.
+    @State private var hoveredRowID: String?
     @FocusState private var focusedField: PageCommentField?
 
     private var threads: [ArtifactCommentThread] { ArtifactCommentThread.threads(from: comments) }
@@ -220,6 +222,17 @@ struct PageCommentsSidebar: View {
                 .buttonStyle(.hoverWash)
                 .help(thread.isResolved ? "Reopen" : "Resolve comment")
                 .accessibilityLabel(thread.isResolved ? "Reopen" : "Resolve comment")
+                if canDeleteThread(thread) {
+                    Button {
+                        pendingDeletion = .thread(thread.id)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.hoverWash)
+                    .opacity(hoveredRowID == thread.id || isSelected ? 1 : 0)
+                    .help("Delete comment")
+                    .accessibilityLabel("Delete comment")
+                }
             }
             message(thread.root, in: thread)
             if !thread.replies.isEmpty {
@@ -253,6 +266,7 @@ struct PageCommentsSidebar: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 9))
         .onTapGesture { selectedThreadID = isSelected ? nil : thread.id }
+        .onHover { hoveredRowID = $0 ? thread.id : (hoveredRowID == thread.id ? nil : hoveredRowID) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Comment thread")
         .accessibilityHint("Open comment on \(thread.root.anchorQuote)")
@@ -281,7 +295,8 @@ struct PageCommentsSidebar: View {
             HStack(spacing: 5) {
                 Text(isMine(comment) ? "You" : comment.authorDisplayName)
                     .zoomedSystemFont(size: 10, weight: .semibold)
-                Text(comment.createdAt, style: .relative)
+                // A fixed "5 minutes ago", not a seconds counter ticking beside the comment.
+                Text(comment.createdAt.formatted(.relative(presentation: .named)))
                     .zoomedSystemFont(size: 9)
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 4)
@@ -337,7 +352,7 @@ struct PageCommentsSidebar: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(comment.body, forType: .string)
             }
-            if comment.id == thread.id, isMine(thread.root) || thread.root.isByAssistant || authorRecordName == nil {
+            if comment.id == thread.id, canDeleteThread(thread) {
                 Divider()
                 Button("Delete thread", role: .destructive) {
                     pendingDeletion = .thread(thread.id)
@@ -402,10 +417,8 @@ struct PageCommentsSidebar: View {
                                 .zoomedSystemFont(size: 11, weight: .medium)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
-                            Spacer(minLength: 4)
-                            Text(entry.link.createdAt, style: .relative)
-                                .zoomedSystemFont(size: 9)
-                                .foregroundStyle(.tertiary)
+                            // Room for the row's × while the pointer is on it.
+                            Spacer(minLength: 18)
                         }
                         Text(entry.link.anchorQuote)
                             .zoomedSystemFont(size: 10)
@@ -431,15 +444,25 @@ struct PageCommentsSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .help("Open the chat that started on this passage")
+                .overlay(alignment: .topTrailing) {
+                    if hoveredRowID == entry.id {
+                        Button {
+                            removeChatLink(entry)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .zoomedSystemFont(size: 9, weight: .semibold)
+                        }
+                        .buttonStyle(.hoverWash)
+                        .padding(5)
+                        .help("Remove from this page (the chat stays)")
+                        .accessibilityLabel("Remove chat from this page")
+                    }
+                }
+                .onHover { hoveredRowID = $0 ? entry.id : (hoveredRowID == entry.id ? nil : hoveredRowID) }
                 .contextMenu {
                     OtherWindowMenuItem(.chat(entry.session.id))
                     Divider()
-                    Button("Forget This Link") {
-                        Task {
-                            await vm.forgetArtifactChatLink(entry.link.id)
-                            chatLinks = await vm.artifactChatLinks(artifactID)
-                        }
-                    }
+                    Button("Remove from This Page") { removeChatLink(entry) }
                 }
                 .accessibilityLabel("Chat \(entry.displayTitle), about: \(entry.link.anchorQuote)")
             }
@@ -451,6 +474,19 @@ struct PageCommentsSidebar: View {
     private func isMine(_ comment: ArtifactCommentRecord) -> Bool {
         guard let authorRecordName else { return false }
         return comment.authorRecordName == authorRecordName
+    }
+
+    private func canDeleteThread(_ thread: ArtifactCommentThread) -> Bool {
+        isMine(thread.root) || thread.root.isByAssistant || authorRecordName == nil
+    }
+
+    /// Takes a chat off this page's list; the chat itself stays in Chats.
+    private func removeChatLink(_ entry: ArtifactChatLink) {
+        if hoveredRowID == entry.id { hoveredRowID = nil }
+        Task {
+            await vm.forgetArtifactChatLink(entry.link.id)
+            chatLinks = await vm.artifactChatLinks(artifactID)
+        }
     }
 
     private func reload() async throws {
