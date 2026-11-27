@@ -382,6 +382,7 @@ struct NotebookTaskRow: View {
     @State private var notes: String
     @State private var showsNotes: Bool
     @State private var showsDatePicker = false
+    @State private var editingNotes = false
     @State private var hovering = false
     @FocusState private var titleFocused: Bool
     @FocusState private var notesFocused: Bool
@@ -479,17 +480,43 @@ struct NotebookTaskRow: View {
                 }
 
                 if showsNotes {
-                    TextField("Notes", text: $notes, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .zoomedSystemFont(size: 11)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1...8)
-                        .focused($notesFocused)
-                        .onChange(of: notesFocused) { wasFocused, isFocused in
-                            if wasFocused, !isFocused { commitNotes() }
-                        }
-                        .disabled(isReadOnly)
-                        .padding(.top, 2)
+                    // Notes read as text, a source link as its title; a click
+                    // beside a link edits them. Drawn as a field, the raw
+                    // `foreverlm://source/…` address showed and its unbroken
+                    // length widened the whole column past its neighbour.
+                    if editingNotes || notes.isEmpty {
+                        TextField("Notes", text: $notes, axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .zoomedSystemFont(size: 11)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1...8)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            .focused($notesFocused)
+                            .onChange(of: notesFocused) { wasFocused, isFocused in
+                                if wasFocused, !isFocused {
+                                    commitNotes()
+                                    editingNotes = false
+                                }
+                            }
+                            .disabled(isReadOnly)
+                            .padding(.top, 2)
+                    } else {
+                        Self.notesText(notes)
+                            .zoomedSystemFont(size: 11)
+                            .foregroundStyle(.secondary)
+                            .tint(Color.primary.opacity(0.75))
+                            .lineLimit(8)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                guard !isReadOnly else { return }
+                                editingNotes = true
+                                notesFocused = true
+                            }
+                            .padding(.top, 2)
+                    }
                 }
             }
 
@@ -550,7 +577,10 @@ struct NotebookTaskRow: View {
                 Menu("Link", systemImage: "link") { linkChoices }
                 Button(showsNotes ? "Hide Notes" : "Notes", systemImage: "text.alignleft") {
                     showsNotes.toggle()
-                    if showsNotes { notesFocused = true }
+                    if showsNotes {
+                        editingNotes = true
+                        notesFocused = true
+                    }
                 }
                 Divider()
                 Button(role: .destructive, action: delete) {
@@ -558,6 +588,19 @@ struct NotebookTaskRow: View {
                 }
             }
         }
+    }
+
+    /// A card's notes as inline markdown: a `[title](foreverlm://source/…)`
+    /// link draws as its title and opens the source through the window's
+    /// `openURL`.
+    static func notesText(_ notes: String) -> Text {
+        if let attributed = try? AttributedString(
+            markdown: notes,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            return Text(attributed)
+        }
+        return Text(notes)
     }
 
     /// A chip naming the chat the card was taken into; it opens that chat.
