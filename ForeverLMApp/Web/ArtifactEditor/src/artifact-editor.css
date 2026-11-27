@@ -526,14 +526,33 @@ body.ready #editor {
   background: color-mix(in srgb, CanvasText 8%, Canvas);
 }
 
-/* The ForeverLM mark that opens the model menu: the artwork itself, wider
-   than the close glyph, on the same hover wash. */
+/* The model chip that opens the model menu: the ForeverLM mark, the
+   model's name and a chevron, outlined at rest so it reads as a control. */
 .artifact-ai-edit-head button[data-action="model"] {
   width: auto;
-  padding: 0 5px;
+  max-width: 220px;
+  padding: 0 6px 0 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  font-weight: 500;
+  color: color-mix(in srgb, CanvasText 80%, transparent);
+}
+
+.artifact-ai-edit-head button[data-action="model"] [data-role="model-name"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-ai-edit-model-chevron {
+  font-size: 10px;
+  line-height: 1;
+  margin-top: -4px;
+  opacity: 0.7;
 }
 
 .artifact-ai-edit-head button[data-action="model"] img {

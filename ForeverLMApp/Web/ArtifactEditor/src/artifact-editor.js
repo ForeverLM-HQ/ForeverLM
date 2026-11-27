@@ -9740,9 +9740,10 @@ function ensureAIEditPanel() {
   close.setAttribute('aria-label', 'Close')
   close.textContent = '✕'
   close.addEventListener('click', () => closeAIEdit())
-  // The ForeverLM mark chooses the model the edit runs on. It shows only once
-  // the host names that model (`setAIEditModel`); a press asks the host for
-  // its model menu, anchored under the mark.
+  // The model chip chooses the model the edit runs on: the ForeverLM mark,
+  // the model's name and a chevron, so it reads as a picker rather than a
+  // logo. It shows only once the host names that model (`setAIEditModel`);
+  // a press asks the host for its model menu, anchored under the chip.
   const model = document.createElement('button')
   model.type = 'button'
   model.dataset.action = 'model'
@@ -9750,7 +9751,13 @@ function ensureAIEditPanel() {
   const mark = document.createElement('img')
   mark.src = foreverLMMarkURL
   mark.alt = ''
-  model.append(mark)
+  const modelName = document.createElement('span')
+  modelName.dataset.role = 'model-name'
+  const chevron = document.createElement('span')
+  chevron.className = 'artifact-ai-edit-model-chevron'
+  chevron.setAttribute('aria-hidden', 'true')
+  chevron.textContent = '\u2304'
+  model.append(mark, modelName, chevron)
   model.addEventListener('click', () => {
     const rect = model.getBoundingClientRect()
     post('aiEditModelMenuRequested', { x: rect.left, y: rect.top, width: rect.width, height: rect.height })
@@ -10014,13 +10021,14 @@ function openAIGenerate({ image = false, visualize = false, prompt = '', submit 
 }
 
 /// The model an edit runs on, named by the host, or null where the writer
-/// cannot choose one (Web Studio): the mark in the panel's head shows only
-/// with a name, which its tooltip gives.
+/// cannot choose one (Web Studio): the chip in the panel's head shows only
+/// with a name, which it reads out beside the mark.
 function setAIEditModel(state) {
   const button = ensureAIEditPanel().querySelector('[data-action="model"]')
   const name = typeof state?.name === 'string' ? state.name.trim() : ''
   button.hidden = !name
-  button.title = name ? `${name}. Choose the model for Pages` : ''
+  button.querySelector('[data-role="model-name"]').textContent = name
+  button.title = name ? 'Choose the model for Pages' : ''
   button.setAttribute('aria-label', name ? `Model: ${name}` : 'Model')
 }
 
