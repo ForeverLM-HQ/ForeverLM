@@ -523,7 +523,7 @@ struct StudioCenterTabStripFitTests {
     @Test("a crowded strip shares the room evenly, spacing included")
     func evenShare() {
         let width = StudioCenterTabStripFit.tabWidth(count: 4, available: 400)
-        #expect(width == 98)
+        #expect(width == 96)
         #expect(4 * (width + StudioCenterTabStripFit.spacing) <= 400)
     }
 

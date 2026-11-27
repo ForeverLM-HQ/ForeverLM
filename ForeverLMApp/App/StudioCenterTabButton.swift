@@ -70,6 +70,15 @@ struct StudioCenterTabButton: View {
 
     private var tint: Color { isActive ? Color.primary : Color.secondary }
 
+    /// Every tab stands on a fill, as ChatGPT's do (product owner,
+    /// 2026-11-27, of ChatGPT's strip beside ours: "Yes, fill them"); a tab
+    /// behind is fainter than the one in front, and darkens a little under
+    /// the pointer.
+    static func fill(isActive: Bool, isHovered: Bool) -> Color {
+        if isActive { return Color.primary.opacity(0.05) }
+        return Color.primary.opacity(isHovered ? 0.04 : 0.025)
+    }
+
     var body: some View {
         ZStack {
             // This AppKit surface is the actual laid-out tab, rather than a
@@ -142,11 +151,10 @@ struct StudioCenterTabButton: View {
             }
                 .padding(.horizontal, Self.horizontalPadding)
                 .frame(width: tabWidth, height: Self.height, alignment: .leading)
-                .background(StudioSelectionBackground(
-                    isSelected: isActive,
-                    isHovered: hovering,
-                    cornerRadius: Self.cornerRadius
-                ))
+                .background(
+                    RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                        .fill(Self.fill(isActive: isActive, isHovered: hovering))
+                )
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

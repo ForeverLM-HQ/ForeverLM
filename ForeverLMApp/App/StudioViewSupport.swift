@@ -688,8 +688,8 @@ struct StudioChromeLineHeader<Header: View>: ViewModifier {
 enum StudioCenterTabStripFit {
     /// The narrowest a crowded strip makes a tab.
     static let minimumTabWidth: CGFloat = 72
-    /// The space between two tabs.
-    static let spacing: CGFloat = 2
+    /// The space between two tabs: filled tabs need a visible gap.
+    static let spacing: CGFloat = 4
 
     /// What the strip spends besides its tabs: its two edges, + and the split
     /// button, and the spacing around them.
