@@ -205,14 +205,45 @@ final class StudioPaneSwapMenu: NSMenu {
         self.onSelect = onSelect
         super.init(title: "")
         autoenablesItems = false
+        let titles = destinations.map { title($0) ?? $0.title }
+        let shortcuts = destinations.map { Self.shortcut(for: $0.tab) }
+        let rowWidth = StudioMenuRowView.width(titles: titles, shortcuts: shortcuts)
         for (index, destination) in destinations.enumerated() {
-            let item = NSMenuItem(title: title(destination) ?? destination.title, action: #selector(pick(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: titles[index], action: #selector(pick(_:)), keyEquivalent: "")
             item.target = self
             item.tag = index
-            item.image = NSImage(systemSymbolName: destination.systemImage, accessibilityDescription: nil)
             item.state = current.map(destination.isShown(by:)) == true ? .on : .off
+            // Drawn as ChatGPT draws its menus: a soft grey row under the
+            // pointer instead of the system's blue, a muted icon, the place's
+            // key at the trailing edge (product owner, 2026-11-27: "how might
+            // you redesign these buttons to be more like codex app", "chatgpt
+            // app"). The item keeps its title, so typing a letter and VoiceOver
+            // still find it, and Return still fires its action.
+            item.view = StudioMenuRowView(
+                title: titles[index],
+                systemImage: destination.systemImage,
+                shortcut: shortcuts[index],
+                isTicked: item.state == .on,
+                width: rowWidth
+            )
             addItem(item)
+            // New Chat stands apart from the places under it.
+            if index == 0, destination.tab == .chat, destinations.count > 1 {
+                addItem(.separator())
+            }
         }
+    }
+
+    /// The key that opens `tab` from anywhere, as the menu bar writes it.
+    private static func shortcut(for tab: StudioCenterTab) -> String? {
+        let action: ShellAction?
+        switch tab {
+        case .chat: action = .newChat
+        case .library: action = .library
+        case .artifacts: action = .space
+        default: action = nil
+        }
+        return action?.key?.display
     }
 
     required init(coder: NSCoder) {
@@ -222,6 +253,109 @@ final class StudioPaneSwapMenu: NSMenu {
     @objc private func pick(_ sender: NSMenuItem) {
         guard destinations.indices.contains(sender.tag) else { return }
         onSelect(destinations[sender.tag])
+    }
+}
+
+/// One row of a ChatGPT-style menu, set as its `NSMenuItem`'s view: icon,
+/// title, and the row's key or tick at the trailing edge, on a rounded grey
+/// wash while the menu highlights it. A view-backed item gets no click from
+/// the menu, so the row fires its item itself.
+final class StudioMenuRowView: NSView {
+    static let height: CGFloat = 30
+    private static let outerInset: CGFloat = 5
+    private static let innerPadding: CGFloat = 9
+    private static let iconSlot: CGFloat = 18
+    private static let iconGap: CGFloat = 9
+    private static let trailingGap: CGFloat = 24
+    private static let titleFont = NSFont.systemFont(ofSize: 13)
+    private static let shortcutFont = NSFont.systemFont(ofSize: 12)
+
+    private let title: String
+    private let icon: NSImage?
+    private let shortcut: String?
+    private let isTicked: Bool
+
+    init(title: String, systemImage: String, shortcut: String?, isTicked: Bool, width: CGFloat) {
+        self.title = title
+        self.icon = NSImage(systemSymbolName: systemImage, accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
+        self.shortcut = shortcut
+        self.isTicked = isTicked
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: Self.height))
+        setAccessibilityElement(true)
+        setAccessibilityRole(.menuItem)
+        setAccessibilityLabel(title)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    /// Every row of one menu shares the widest row's width.
+    static func width(titles: [String], shortcuts: [String?]) -> CGFloat {
+        let title = titles.map { ($0 as NSString).size(withAttributes: [.font: titleFont]).width }.max() ?? 0
+        let key = shortcuts.compactMap { $0 }.map { ($0 as NSString).size(withAttributes: [.font: shortcutFont]).width }.max() ?? 12
+        return max(200, ceil(2 * (outerInset + innerPadding) + iconSlot + iconGap + title + trailingGap + key))
+    }
+
+    private var isHighlighted: Bool { enclosingMenuItem?.isHighlighted ?? false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let wash = bounds.insetBy(dx: Self.outerInset, dy: 1)
+        if isHighlighted {
+            NSColor.labelColor.withAlphaComponent(0.08).setFill()
+            NSBezierPath(roundedRect: wash, xRadius: 6, yRadius: 6).fill()
+        }
+        var x = wash.minX + Self.innerPadding
+        if let icon {
+            let tinted = icon.tinted(NSColor.secondaryLabelColor)
+            let size = tinted.size
+            tinted.draw(in: NSRect(
+                x: x + (Self.iconSlot - size.width) / 2,
+                y: bounds.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            ))
+        }
+        x += Self.iconSlot + Self.iconGap
+        let titleAttributes: [NSAttributedString.Key: Any] = [.font: Self.titleFont, .foregroundColor: NSColor.labelColor]
+        let titleSize = (title as NSString).size(withAttributes: titleAttributes)
+        (title as NSString).draw(at: NSPoint(x: x, y: bounds.midY - titleSize.height / 2), withAttributes: titleAttributes)
+
+        let trailing = wash.maxX - Self.innerPadding
+        if isTicked, let check = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))?
+            .tinted(NSColor.labelColor) {
+            let size = check.size
+            check.draw(in: NSRect(x: trailing - size.width, y: bounds.midY - size.height / 2, width: size.width, height: size.height))
+        } else if let shortcut {
+            let attributes: [NSAttributedString.Key: Any] = [.font: Self.shortcutFont, .foregroundColor: NSColor.tertiaryLabelColor]
+            let size = (shortcut as NSString).size(withAttributes: attributes)
+            (shortcut as NSString).draw(at: NSPoint(x: trailing - size.width, y: bounds.midY - size.height / 2), withAttributes: attributes)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        fire()
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        fire()
+        return true
+    }
+
+    private func fire() {
+        guard let item = enclosingMenuItem, let menu = item.menu else { return }
+        let index = menu.index(of: item)
+        menu.cancelTracking()
+        menu.performActionForItem(at: index)
+    }
+}
+
+private extension NSImage {
+    /// A symbol drawn in `color`, for drawing outside a control.
+    func tinted(_ color: NSColor) -> NSImage {
+        withSymbolConfiguration(.init(paletteColors: [color])) ?? self
     }
 }
 
