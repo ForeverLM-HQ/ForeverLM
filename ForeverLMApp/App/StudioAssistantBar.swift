@@ -612,6 +612,9 @@ final class StudioAssistantSessionStore {
             activeChatTabID = nil
             selectChatTab(next.id)
         }
+        // The closed tab's chat goes; the one coming forward is still a tab
+        // here, so it stays loaded until the pane picks it up.
+        pruneFinishedBackgroundManagers()
         if chatTabs.count == 1 {
             // One chat again: the pane's sole tab follows what it shows.
             chatTabs = []
@@ -666,8 +669,21 @@ final class StudioAssistantSessionStore {
         [activeManager] + backgroundManagers
     }
 
+    /// Whether `manager` stays alive when the pane shows another chat: a
+    /// turn still running or failed, or a chat another of the pane's tabs
+    /// holds. A tab's chat kept loaded is what makes closing or switching to
+    /// it instant: the pane swaps managers instead of reading the transcript
+    /// back from disk and building it again (product owner, 2026-11-27:
+    /// "closing a tab is still sometimes too slow; make sure it's always
+    /// super fast").
+    private func outlivesNavigation(_ manager: ReviewSessionManager) -> Bool {
+        if manager.mustOutliveNavigation { return true }
+        guard let sessionID = manager.currentSessionID else { return false }
+        return chatTabs.contains { $0.sessionID == sessionID }
+    }
+
     private func parkActiveManagerIfNeeded() {
-        guard activeManager.mustOutliveNavigation else {
+        guard outlivesNavigation(activeManager) else {
             activeManager.endSession()
             return
         }
@@ -684,7 +700,7 @@ final class StudioAssistantSessionStore {
     /// back as three bare messages).
     private func pruneFinishedBackgroundManagers() {
         backgroundManagers.removeAll { manager in
-            guard !manager.mustOutliveNavigation else { return false }
+            guard !outlivesNavigation(manager) else { return false }
             manager.endSession()
             return true
         }

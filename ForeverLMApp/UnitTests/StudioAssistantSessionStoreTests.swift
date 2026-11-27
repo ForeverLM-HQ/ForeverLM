@@ -1164,6 +1164,36 @@ struct StudioSideChatSplitTests {
         #expect(!store.closeChatTab(first.id))
     }
 
+    @Test("a chat another tab holds stays loaded, so closing the front tab swaps to it instead of reopening it")
+    func closingFrontTabSwapsToKeptChat() {
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())
+        let first = store.activeManager
+        first.configureNavigationStateForTesting(sessionID: "chat-a", generationInFlight: false)
+        store.addChatTab()
+        let second = store.chatTabs[1]
+
+        guard case .switched = store.prepareToOpen(sessionID: "chat-b") else {
+            Issue.record("Opening the second tab's chat did not switch managers")
+            return
+        }
+        let shown = store.activeManager
+        shown.configureNavigationStateForTesting(sessionID: "chat-b", generationInFlight: false)
+        store.noteShownSession("chat-b")
+        // Finished, but the first tab holds it: kept, not ended.
+        #expect(store.backgroundManagersForTesting.contains { $0 === first })
+
+        #expect(store.closeChatTab(second.id))
+        #expect(store.requestedSessionID == "chat-a")
+        #expect(store.backgroundManagersForTesting.contains { $0 === first })
+        guard case .switched = store.prepareToOpen(sessionID: "chat-a") else {
+            Issue.record("Closing the front tab did not swap to the kept chat")
+            return
+        }
+        #expect(store.activeManager === first)
+        // The closed tab's finished chat is let go.
+        #expect(store.backgroundManagersForTesting.isEmpty)
+    }
+
     @Test("a deleted chat's tab goes")
     func deletedChatTabGoes() {
         let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())

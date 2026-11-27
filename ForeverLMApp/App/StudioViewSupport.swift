@@ -1173,11 +1173,11 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                                 vm.activateCenterTab(tab, in: windowState)
                                 store.selectChatTab(chatTab.id)
                             },
+                            // A close is never animated: the pane swaps at
+                            // once, with no fade relaying out both surfaces.
                             onClose: {
                                 if !store.closeChatTab(chatTab.id) {
-                                    withAnimation(.easeInOut(duration: 0.16)) {
-                                        vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
-                                    }
+                                    vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
                                 }
                             },
                             onRename: chatTab.sessionID.map { sessionID -> () -> Void in
@@ -1201,9 +1201,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                             vm.activateCenterTab(tab, in: windowState)
                         },
                         onClose: {
-                            withAnimation(.easeInOut(duration: 0.16)) {
-                                vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
-                            }
+                            vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
                         }
                     )
                 }
