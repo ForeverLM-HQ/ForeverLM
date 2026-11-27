@@ -6862,6 +6862,19 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 1.0.17 (build 335) — 2026-11-26
+
+**Highlights:**
+- **A Board card's notes read as text.**
+- **Add What's Open is in the composer's + menu.**
+- **The Edit with AI panel names its model.**
+
+- **Tab nests a list item right after another list.** In a Page, Tab at the start of a list's first item, when another list sits just above it, moves it under that list's last item, where it typed four spaces before. Shift-Tab brings it back.
+- **The Edit with AI panel names its model.** Its head shows the model the edit runs on, with a chevron; click it to pick another.
+- **Add What's Open is in the composer's + menu,** under Add Sources…, whenever something open is not yet in the chat. The chip above the composer is gone.
+- **A Board card's notes read as text.** A source link in them shows as its title and opens the source, where the raw link showed and widened the whole To do column; click beside it to edit the notes.
+- **The ForeverLM view in Codex, Claude and ChatGPT has Pages:** your Pages and Sites, newest edit first, each opening as rendered text with Chat and Open in ForeverLM.
+
 ## 1.0.16 (build 334) — 2026-11-26
 
 **Highlights:**
