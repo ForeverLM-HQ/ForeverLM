@@ -20,6 +20,7 @@ extension Prefs {
         static let retiredDefaultsCleanupDone = DeviceKey<Any?>("retiredDefaultsCleanup.v1", coding: .any, reason: "one-shot cleanup marker: this Mac's preferences hold no retired keys")
         static let retiredProviderDataPurged = DeviceKey<Bool?>("retiredProviderDataPurged.v1", reason: "one-shot cleanup marker")
         static let retiredGoogleCalendarGrantsPurged = DeviceKey<Bool?>("retiredGoogleCalendarGrantsPurged.v1", reason: "one-shot cleanup marker")
+        static let sourceLinkOriginsStamped = DeviceKey<Bool?>("sourceLinkOrigins.storedPagesStamped.v1", reason: "one-shot marker: this Mac has written source web addresses into its stored Pages")
         /// One-shot markers and per-device bookkeeping. Resyncing one re-applies
         /// something the receiving Mac has already done or must do itself.
         static let syncLastContainerEnvironment = DeviceKey<Any?>("CloudKitSync.lastContainerEnvironment.v2", coding: .any, reason: "which container this Mac last synced against")
@@ -64,6 +65,7 @@ extension Prefs {
             retiredDefaultsCleanupDone.erased,
             retiredProviderDataPurged.erased,
             retiredGoogleCalendarGrantsPurged.erased,
+            sourceLinkOriginsStamped.erased,
             syncLastContainerEnvironment.erased,
             syncLastContainerIdentifier.erased,
             syncDidRepublishBookCovers.erased,

@@ -327,11 +327,10 @@ extension StudioViewModel {
     /// for the Pages saved before. Done once the pass finishes; a quit before
     /// that runs it again, and a Page already stamped is skipped.
     func runDeferredSourceLinkOriginStamp() async {
-        let key = "sourceLinkOrigins.storedPagesStamped.v1"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        guard Preferences.value(Prefs.Lifecycle.sourceLinkOriginsStamped) != true else { return }
         do {
             let stamped = try await storage.stampSourceLinkOriginsInStoredPages()
-            UserDefaults.standard.set(true, forKey: key)
+            Preferences.set(true, for: Prefs.Lifecycle.sourceLinkOriginsStamped)
             logger.notice("Source link addresses written into \(stamped) stored page(s)")
             if stamped > 0, let refreshed = try? await loadScopedArtifacts() { artifacts = refreshed }
         } catch {

@@ -1615,6 +1615,12 @@
       "synced": false
     },
     {
+      "name": "sourceLinkOrigins.storedPagesStamped.v1",
+      "reason": "one-shot marker: this Mac has written source web addresses into its stored Pages",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "space.boardLens",
       "reason": "which lens this Mac's Board shows",
       "scope": "device",
