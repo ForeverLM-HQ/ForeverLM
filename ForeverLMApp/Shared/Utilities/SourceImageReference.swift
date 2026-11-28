@@ -384,7 +384,10 @@ struct ChatLookedAtFigure: Hashable, Sendable {
     /// marker on its address.
     var line: String {
         var components = URLComponents(string: reference.urlString)
-        components?.queryItems = (components?.queryItems ?? []) + [URLQueryItem(name: Self.markerName, value: Self.markerValue)]
+        // Read the items into a local first: reading and setting them in one
+        // statement through the optional is an exclusivity violation.
+        let existing = components?.queryItems ?? []
+        components?.queryItems = existing + [URLQueryItem(name: Self.markerName, value: Self.markerValue)]
         let address = components?.string ?? reference.urlString
         return pictureLine.replacingOccurrences(of: "(\(reference.urlString))", with: "(\(address))")
     }
