@@ -226,21 +226,26 @@ extension ReviewSessionManager {
         return ([trimmed] + lines).filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 
-    /// The learner's turn for the provider. Attached pictures, and the frame
-    /// of a video moment the question was asked at (`VideoMomentFrames`),
-    /// become image parts and their lines leave the text; a picture this
-    /// device does not hold, or that the selected model cannot read, is named
-    /// in the text instead, so the model knows a picture was there rather than
-    /// seeing a bare reference or nothing at all.
+    /// The learner's turn for the provider. Attached pictures, the frame of a
+    /// video moment the question was asked at (`VideoMomentFrames`), and the
+    /// figures the chat looked at since (`ChatLookedAtFigure`) become image
+    /// parts and their lines leave the text; a picture this device does not
+    /// hold, or that the selected model cannot read, is named in the text
+    /// instead, so the model knows a picture was there rather than seeing a
+    /// bare reference or nothing at all. A figure is named either way, since
+    /// the learner did not send it.
     nonisolated static func userTurn(
         content: String,
         imagesReadable: Bool = true,
         imageForID: (String) -> AttachedImage? = { AttachedImageStore.cached(id: $0) },
-        momentFrame: (SourceImageReference) -> AttachedImage? = { VideoMomentFrames.cached($0) }
+        momentFrame: (SourceImageReference) -> AttachedImage? = { VideoMomentFrames.cached($0) },
+        lookedAtFigure: (SourceImageReference) -> AttachedImage? = { ChatLookedAtFigure.cached($0) }
     ) -> AIChatTurn {
-        let moments = VideoMomentFrames.split(content)
+        let figures = ChatLookedAtFigure.figures(in: content)
+        let words = figures.isEmpty ? content : ChatLookedAtFigure.prose(of: content)
+        let moments = VideoMomentFrames.split(words)
         let split = AttachedImageReference.split(moments.text)
-        guard !split.images.isEmpty || !moments.frames.isEmpty else { return .user(content) }
+        guard !split.images.isEmpty || !moments.frames.isEmpty || !figures.isEmpty else { return .user(content) }
         var images: [AIChatImage] = []
         var notes: [String] = []
         for occurrence in split.images {
@@ -265,6 +270,18 @@ extension ReviewSessionManager {
                 notes.append("[Frame \u{201C}\(occurrence.alt)\u{201D} is not available on this device]")
             }
         }
+        for figure in figures {
+            guard imagesReadable else {
+                notes.append("[\(figure.label), which you looked at with inspect_paper_figure: the selected model reads text only and cannot see it]")
+                continue
+            }
+            if let image = lookedAtFigure(figure.reference) {
+                images.append(AIChatImage(data: image.data, mediaType: image.mediaType))
+                notes.append("[The picture of \(figure.label) that you looked at with inspect_paper_figure is attached here: the figure itself, cut from the paper's page. The learner did not send it.]")
+            } else {
+                notes.append("[\(figure.label), which you looked at with inspect_paper_figure, cannot be drawn on this device]")
+            }
+        }
         let text = ([split.text] + notes).filter { !$0.isEmpty }.joined(separator: "\n")
         return .user(text, images: images)
     }
@@ -279,9 +296,19 @@ extension ReviewSessionManager {
             let attached = AttachedImageReference.textOnly(message.content) { occurrence in
                 "[Attached image \u{201C}\(occurrence.alt)\u{201D}: this route sends text only and cannot show it]"
             }
-            let content = VideoMomentFrames.textOnly(attached) { occurrence in
+            let framed = VideoMomentFrames.textOnly(attached) { occurrence in
                 "[Frame \u{201C}\(occurrence.alt)\u{201D}: this route sends text only and cannot show it]"
             }
+            guard !ChatLookedAtFigure.figures(in: framed).isEmpty else {
+                return (role: message.role, content: framed)
+            }
+            let content = ChatLookedAtFigure.split(framed).map { part -> String in
+                switch part {
+                case .text(let text): return text
+                case .figure(let figure):
+                    return "[\(figure.label), which you looked at with inspect_paper_figure: this route sends text only and cannot show it]"
+                }
+            }.joined(separator: "\n\n")
             return (role: message.role, content: content)
         }
     }

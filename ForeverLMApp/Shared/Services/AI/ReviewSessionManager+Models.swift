@@ -201,6 +201,12 @@ extension ReviewSessionManager {
             /// (`ChatWrittenPage.cardRowName`): the page, drawn as a card
             /// under the reply's "Worked for" line.
             var writtenPage: ChatWrittenPage? = nil
+            /// Set on an `inspect_paper_figure` row that drew its figure, and
+            /// on the row a reopened chat rebuilds from the reply's stored
+            /// line (`ChatLookedAtFigure`): the figure the chat looked at,
+            /// drawn small under the step, and sent to the model again with
+            /// every later turn.
+            var lookedAtFigure: ChatLookedAtFigure? = nil
 
             /// Whether this row is a step the chat took in the Browser.
             var isBrowserStep: Bool { kind == .tool && ChatBrowsing.isBrowserTool(toolName) }
@@ -238,12 +244,12 @@ extension ReviewSessionManager {
                 "Added": "add", "Attached": "attach", "Captured": "capture", "Checked": "check",
                 "Cleared": "clear", "Clicked": "click", "Created": "create", "Deleted": "delete", "Edited": "edit",
                 "Graded": "grade", "Imported": "import", "Let": "let", "Linked": "link",
-                "Listed": "list", "Loaded": "load", "Made": "make", "Marked": "mark",
+                "Listed": "list", "Loaded": "load", "Looked": "look", "Made": "make", "Marked": "mark",
                 "Merged": "merge", "Opened": "open", "Pointed": "point", "Prepared": "prepare",
                 "Pressed": "press", "Published": "publish",
                 "Queried": "query", "Read": "read", "Ran": "run", "Redrew": "redraw", "Removed": "remove",
                 "Reordered": "reorder", "Restored": "restore", "Retrieved": "retrieve", "Saved": "save", "Scheduled": "schedule",
-                "Scrolled": "scroll", "Searched": "search", "Set": "set", "Shared": "share", "Split": "split",
+                "Scrolled": "scroll", "Searched": "search", "Set": "set", "Shared": "share", "Showed": "show", "Split": "split",
                 "Started": "start", "Stopped": "stop", "Ticked": "tick", "Took": "take", "Typed": "type",
                 "Unlinked": "unlink",
                 "Unpublished": "unpublish", "Updated": "update", "Wrote": "write",
@@ -343,6 +349,8 @@ extension ReviewSessionManager {
                 case "forget_working_note": return "Forgot a note about your work"
                 case "delete_walkthrough": return "Removed walkthrough"
                 case "focus_source_anchor": return "Pointed at the source"
+                case "inspect_paper_figure": return "Looked at the figure"
+                case "show_source_image": return "Showed a picture"
                 case "update_review_plan": return "Updated the plan"
                 case "list_doc_chats": return "Listed page chats"
                 case "list_source_highlights": return "Read the highlights"
@@ -683,6 +691,9 @@ extension ReviewSessionManager {
         /// Pictures handed to the model with the text, so it sees what it is
         /// showing — a slide, or a frame it captured and may want to crop.
         var images: [AIChatImage] = []
+        /// The figure `inspect_paper_figure` looked at, which the chat keeps
+        /// (`ChatLookedAtFigure`); nil for every other tool.
+        var lookedAtFigure: ChatLookedAtFigure? = nil
     }
 
     /// One turn's tally of app-tool refusals, keyed by their wording. There

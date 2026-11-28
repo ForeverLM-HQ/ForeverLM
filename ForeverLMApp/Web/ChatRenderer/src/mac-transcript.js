@@ -571,13 +571,24 @@ function drawWork(part, previous) {
       row.append(mark, element("span", "work-step-title", step.title));
       if (step.summary) row.append(element("span", "work-step-summary", step.summary));
       card.append(row);
+      if (step.figure) card.append(figurePreview(step.figure));
       if (part.preview && index === part.previewStep) card.append(browserPreview(part));
     }
     add(steps);
-  } else if (part.preview && (!part.settled || part.running)) {
-    // Folded while the turn still runs: the learner watches the chat work
-    // in the Browser without opening the steps.
-    add(browserPreview(part));
+  } else {
+    if (part.preview && (!part.settled || part.running)) {
+      // Folded while the turn still runs: the learner watches the chat work
+      // in the Browser without opening the steps.
+      add(browserPreview(part));
+    }
+    // The figures the steps looked at stay under the line, folded or not,
+    // while the turn works and after: what the reply is looking at.
+    const figures = (part.steps ?? []).filter((step) => step.figure);
+    if (figures.length) {
+      const row = element("div", "figure-previews");
+      for (const step of figures) row.append(figurePreview(step.figure));
+      add(row);
+    }
   }
   if (part.settled) add(element("div", "work-rule"));
   (part.setup ?? []).forEach((need, index) => add(setupCard(need, index, part.id)));
@@ -587,6 +598,16 @@ function drawWork(part, previous) {
     wrapper.append(cards);
   }
   return { kind: "work", element: wrapper, json: JSON.stringify(part) };
+}
+
+/// A figure a step looked at, drawn small, as Codex shows what it is looking
+/// at. It goes through the reply renderer, which resolves the picture from
+/// the paper as it does a picture in a reply, and opens it full-window on a
+/// click.
+function figurePreview(picture) {
+  const preview = element("div", "figure-preview chat-rendered");
+  renderer.render(preview, picture, {});
+  return preview;
 }
 
 /// The newest browser step's picture; a click opens the tab in the Browser.

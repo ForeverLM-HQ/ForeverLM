@@ -707,6 +707,81 @@ struct ChatWrittenPageTests {
         #expect(next.last?.evaluation == "You're welcome.")
     }
 
+    @Test("A figure a turn looked at is stored at the head of its reply, is a step with the figure again when the chat reopens, and goes back to the model as a picture")
+    @MainActor
+    func turnStoresAndReopensTheFigureItLookedAt() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ChatLookedAtFigure_\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        try await storage.createReviewSession(id: "chat", topic: "Mitochondria", sourceIDs: [])
+        let manager = ReviewSessionManager(storage: storage)
+        manager.configureNavigationStateForTesting(sessionID: "chat", generationInFlight: false)
+        await manager.saveLearnerMessageForTesting("what does figure 1d show?")
+        manager.beginTurnForTesting()
+
+        let figure = ChatLookedAtFigure(
+            reference: SourceImageReference(
+                sourceID: "src-paper",
+                location: .page(2),
+                crop: PaperFigureRect(x: 0.1, y: 0.2, width: 0.5, height: 0.3)
+            ),
+            label: "Figure 1d"
+        )
+        // The step as the turn leaves it once inspect_paper_figure drew the figure.
+        manager.chatMessages.append(ReviewSessionManager.Message(
+            role: .tool,
+            content: "",
+            toolActivity: ReviewSessionManager.Message.ToolActivity(
+                toolName: "inspect_paper_figure",
+                detail: "Figure 1d",
+                state: .succeeded,
+                resultPreview: nil,
+                lookedAtFigure: figure
+            )
+        ))
+        manager.stagedLookedAtFigures = [figure]
+        let reply = try #require(try await manager.settleReplyForTesting("Each dot is one sample.", config: Self.config))
+        #expect(reply.content == "Each dot is one sample.")
+
+        let exchanges = try await storage.loadReviewSessionExchanges(sessionID: "chat")
+        let stored = try #require(exchanges.first?.evaluation)
+        #expect(stored == figure.line + "\n\nEach dot is one sample.")
+        #expect(figure.line.contains("seen=figure"))
+        // Stored as a picture any client draws: the marker rides on its address.
+        #expect(SourceImageReference.pictureAddresses(in: stored).count == 1)
+        #expect(ReviewSessionManager.storedProse(stored) == "Each dot is one sample.")
+
+        let reopened = manager.messages(from: exchanges)
+        #expect(reopened.map(\.role) == [.user, .tool, .assistant])
+        #expect(reopened[1].toolActivity?.lookedAtFigure == figure)
+        #expect(reopened[1].toolActivity?.toolName == "inspect_paper_figure")
+        #expect(reopened[2].content == "Each dot is one sample.")
+        #expect(ReviewChatToolRow.title(for: try #require(reopened[1].toolActivity)) == "Looked at Figure 1d")
+
+        // The next turn's history: the figure rides with the learner message
+        // it was looked at for, and the reply is the prose alone.
+        let history = ReviewSessionManager.providerMessagesForTesting(
+            from: reopened + [ReviewSessionManager.Message(role: .user, content: "but it shows no tissues")]
+        )
+        #expect(history.map(\.role) == ["user", "assistant", "user"])
+        #expect(history[0].content.hasPrefix("what does figure 1d show?"))
+        #expect(history[0].content.hasSuffix(figure.line))
+        #expect(history[1].content == "Each dot is one sample.")
+
+        let bytes = Data([7, 7, 7])
+        guard case .user(let text, let images) = ReviewSessionManager.userTurn(
+            content: history[0].content,
+            lookedAtFigure: { $0 == figure.reference ? AttachedImage(data: bytes, mediaType: "image/jpeg") : nil }
+        ) else {
+            Issue.record("expected a user turn")
+            return
+        }
+        #expect(images == [AIChatImage(data: bytes, mediaType: "image/jpeg")])
+        #expect(text.hasPrefix("what does figure 1d show?"))
+        #expect(text.contains("The picture of Figure 1d that you looked at with inspect_paper_figure is attached here"))
+        #expect(!text.contains("foreverlm://image"))
+    }
+
     @Test("A page its own turn moved to the Trash or hid keeps no card and no stored line")
     @MainActor
     func aPagePutAwayInItsTurnLeavesNoCard() async throws {

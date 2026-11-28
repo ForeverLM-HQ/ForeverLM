@@ -364,9 +364,11 @@ extension ReviewSessionManager {
         for part in MemoryReviewSourceTurn.split(displayable) {
             switch part {
             case .text(let prose):
-                // A page the turn wrote is drawn as its card, and a line of
-                // saved cards as the cards, where the turn drew them
-                // (`ChatWrittenPage.storing`, `ChatSavedCards.storing`).
+                // A page the turn wrote is drawn as its card, a line of saved
+                // cards as the cards, and a figure its steps looked at as the
+                // step with the figure under it, where the turn drew them
+                // (`ChatWrittenPage.storing`, `ChatSavedCards.storing`,
+                // `ChatLookedAtFigure.storing`).
                 for head in ChatWrittenPage.split(prose) {
                     switch head {
                     case .page(let page):
@@ -390,7 +392,28 @@ extension ReviewSessionManager {
                         for piece in ChatSavedCards.split(rest) {
                             switch piece {
                             case .text(let text):
-                                pendingProse.append(text)
+                                for figurePart in ChatLookedAtFigure.split(text) {
+                                    switch figurePart {
+                                    case .text(let words):
+                                        pendingProse.append(words)
+                                    case .figure(let figure):
+                                        flushProse()
+                                        messages.append(Message(
+                                            role: .tool,
+                                            content: "",
+                                            createdAt: createdAt,
+                                            exchangeID: exchangeID,
+                                            exchangeField: exchangeField,
+                                            toolActivity: Message.ToolActivity(
+                                                toolName: "inspect_paper_figure",
+                                                detail: figure.label,
+                                                state: .succeeded,
+                                                resultPreview: nil,
+                                                lookedAtFigure: figure
+                                            )
+                                        ))
+                                    }
+                                }
                             case .cards(let cards):
                                 flushProse()
                                 messages.append(Message(

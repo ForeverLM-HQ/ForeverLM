@@ -342,6 +342,131 @@ extension SourceImageReference {
     }
 }
 
+// MARK: - A figure the chat looked at
+
+/// A figure the chat looked at with `inspect_paper_figure`: the picture of it
+/// the model was handed, cut from the paper's own page, which stays in the
+/// chat the way a screenshot the learner attached does (product owner,
+/// 2026-11-27: "it should be the same as if I had taken a screenshot of figure
+/// 1D and put it into the context of the chat"). The Mac sends the picture
+/// again with every later turn, and the transcript shows it small under the
+/// step that looked at it, as Codex shows what it is looking at.
+///
+/// Tool rows are never stored, so the reply keeps one line per figure at its
+/// head, `![Figure 1d](foreverlm://image/<id>/page/2?crop=…&seen=figure)`, the
+/// way the pages a turn wrote keep theirs (`ChatWrittenPage`), and a reopened
+/// chat splits the line back into the step. The line is an ordinary picture
+/// reference, so the iPhone, Web Studio and MCP transcripts draw the figure;
+/// the `seen` query keeps it apart from a picture the reply put in its own
+/// words, which stays prose.
+struct ChatLookedAtFigure: Hashable, Sendable {
+    /// The page and the crop of the figure, or of the panel asked for.
+    let reference: SourceImageReference
+    /// The figure as the paper prints it, with its panel: "Figure 1d".
+    let label: String
+
+    static let markerName = "seen"
+    static let markerValue = "figure"
+
+    init(reference: SourceImageReference, label: String) {
+        self.reference = reference
+        self.label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The picture as the transcript draws it: an ordinary picture line, with
+    /// no marker, so it resolves and zooms as any picture in a reply does.
+    var pictureLine: String {
+        reference.markdown(alt: label.isEmpty ? "Figure" : label)
+    }
+
+    /// The line stored at the reply's head, and the line the model's history
+    /// carries where the figure was looked at: the picture line with the
+    /// marker on its address.
+    var line: String {
+        var components = URLComponents(string: reference.urlString)
+        components?.queryItems = (components?.queryItems ?? []) + [URLQueryItem(name: Self.markerName, value: Self.markerValue)]
+        let address = components?.string ?? reference.urlString
+        return pictureLine.replacingOccurrences(of: "(\(reference.urlString))", with: "(\(address))")
+    }
+
+    /// The reply as it is stored: a line per figure first, ahead of what the
+    /// reply says. A figure looked at twice is one line.
+    static func storing(_ reply: String, with figures: [ChatLookedAtFigure]) -> String {
+        var seen = Set<SourceImageReference>()
+        let lines = figures.filter { seen.insert($0.reference).inserted }.map(\.line)
+        guard !lines.isEmpty else { return reply }
+        return (lines + [reply]).joined(separator: "\n\n")
+    }
+
+    enum Part: Equatable, Sendable {
+        case text(String)
+        case figure(ChatLookedAtFigure)
+    }
+
+    /// The text split around its figure lines: a line that is nothing but a
+    /// picture of a page carrying the marker. A picture inside a sentence, or
+    /// one written without the marker, stays text. Text parts are trimmed and
+    /// never empty.
+    static func split(_ text: String) -> [Part] {
+        // Runs on every stored reply a chat reopens; most hold no such line.
+        guard text.contains("\(markerName)=\(markerValue)") else {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? [] : [.text(trimmed)]
+        }
+        var parts: [Part] = []
+        var pending: [Substring] = []
+        func flush() {
+            let prose = pending.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            pending.removeAll()
+            if !prose.isEmpty { parts.append(.text(prose)) }
+        }
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if let figure = figureLine(line) {
+                flush()
+                parts.append(.figure(figure))
+            } else {
+                pending.append(line)
+            }
+        }
+        flush()
+        return parts
+    }
+
+    /// The text without its figure lines, prose parts joined by a blank line:
+    /// what the model reads back of a stored reply, which never wrote them.
+    static func prose(of text: String) -> String {
+        split(text).compactMap { part -> String? in
+            if case .text(let prose) = part { return prose }
+            return nil
+        }.joined(separator: "\n\n")
+    }
+
+    /// The figures named in `text`, in order.
+    static func figures(in text: String) -> [ChatLookedAtFigure] {
+        split(text).compactMap { part -> ChatLookedAtFigure? in
+            if case .figure(let figure) = part { return figure }
+            return nil
+        }
+    }
+
+    /// The figure a line names when it is exactly `![label](foreverlm://image/<id>/page/<n>?…seen=figure)`.
+    private static func figureLine(_ line: Substring) -> ChatLookedAtFigure? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        // The alt holds no bracket (`markdown(alt:)` turns them into
+        // parentheses), so the first "](" ends it.
+        guard trimmed.hasPrefix("!["), trimmed.hasSuffix(")"),
+              let middle = trimmed.range(of: "](") else { return nil }
+        let destination = String(trimmed[middle.upperBound..<trimmed.index(before: trimmed.endIndex)])
+        guard !destination.contains(where: \.isWhitespace),
+              URLComponents(string: destination)?.queryItems?
+                .contains(where: { $0.name == markerName && $0.value == markerValue }) == true,
+              let reference = SourceImageReference(urlString: destination),
+              case .page = reference.location else { return nil }
+        let label = String(trimmed[trimmed.index(trimmed.startIndex, offsetBy: 2)..<middle.lowerBound])
+        return ChatLookedAtFigure(reference: reference, label: label)
+    }
+}
+
 /// A moment in a video or recording as a clock reading.
 enum MediaClock {
     /// "m:ss", or "h:mm:ss" from an hour up, rounded to the nearest second;

@@ -879,6 +879,8 @@ struct ReviewChatToolRow: View {
             return count == 1 ? "1 source" : "\(count) sources"
         }
         if presentsSourceCard(activity) { return "loaded" }
+        // The figure under the step is what it returned.
+        if activity.lookedAtFigure != nil { return nil }
         guard let preview = activity.resultPreview else { return "done" }
         let lines = preview.split(whereSeparator: \.isNewline).count
         let cut = preview.count >= 1_200 ? "+" : ""
@@ -968,6 +970,10 @@ struct ReviewChatToolRow: View {
 
     /// `title` for any step (`ChatTranscriptPage.workPart`).
     static func title(for activity: ReviewSessionManager.Message.ToolActivity) -> String {
+        // A figure the step looked at names itself: "Looked at Figure 1d".
+        if let figure = activity.lookedAtFigure, activity.state != .failed, !figure.label.isEmpty {
+            return activity.state == .running ? "Looking at \(figure.label)" : "Looked at \(figure.label)"
+        }
         guard ["get_source_content", "retrieve_sources"].contains(activity.toolName) else {
             return activity.title
         }

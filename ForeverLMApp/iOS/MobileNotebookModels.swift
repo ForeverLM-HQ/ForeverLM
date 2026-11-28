@@ -1733,15 +1733,17 @@ enum MobileChatTranscriptTurns {
     /// the lines the Mac stores at a reply's head for the pages its steps
     /// wrote, `[Title](foreverlm://doc/<id>?card=page)` or an animation's
     /// `?card=animation` (`ChatWrittenPage`),
-    /// and the cards it saved (`ChatSavedCards`), which the model never
-    /// wrote. The transcript still shows them, as links. The Mac's own rule
+    /// and the cards it saved (`ChatSavedCards`), and the figures its steps
+    /// looked at (`ChatLookedAtFigure`), which the model never wrote. The
+    /// transcript still shows them, as links and pictures. The Mac's own rule
     /// (`ReviewSessionManager.storedProse`): prose parts trimmed, joined by a
-    /// blank line. A reply with neither line is returned as it was.
+    /// blank line. A reply with none of those lines is returned as it was.
     static func modelLine(_ text: String) -> String {
-        // Most replies hold neither.
+        // Most replies hold none.
+        let figureMarker = "\(ChatLookedAtFigure.markerName)=\(ChatLookedAtFigure.markerValue)"
         guard text.contains("card=page") || text.contains("card=animation")
-            || text.contains("://\(ChatSavedCards.host)?") else { return text }
-        return ChatSavedCards.prose(of: withoutWrittenPageLines(text))
+            || text.contains("://\(ChatSavedCards.host)?") || text.contains(figureMarker) else { return text }
+        return ChatLookedAtFigure.prose(of: ChatSavedCards.prose(of: withoutWrittenPageLines(text)))
     }
 
     private static func withoutWrittenPageLines(_ text: String) -> String {

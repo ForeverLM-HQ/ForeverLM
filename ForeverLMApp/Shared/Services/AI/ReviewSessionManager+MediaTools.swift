@@ -82,53 +82,103 @@ extension ReviewSessionManager {
         return await resolver.resolve(PaperWalkthroughAnchor(figureLabel: figureLabel, panelLabel: panelLabel))
     }
 
-    /// Outline `figureLabel` (and `panelLabel` within it) on its page in a
-    /// Reader beside this chat, opening the paper there first. Nil when the
-    /// figure cannot be placed on its page or no Reader beside the chat can
-    /// show the paper's pages (a chat in a window of its own).
-    private func outlineFigureBesideChat(
-        _ article: StudioArticle,
-        figures: [PaperFigureRecord],
-        figureLabel: String,
-        panelLabel: String?
-    ) async -> WalkthroughResolvedAnchor? {
-        guard let resolved = await paperFigureGeometry(
-            sourceID: article.id,
-            figures: figures,
-            figureLabel: figureLabel,
-            panelLabel: panelLabel
-        ), await readerBesideChatShowsPDF(of: article) else { return nil }
-        walkthroughFocusHandler?(.outline(resolved.target, stepID: "figure-\(UUID().uuidString)", sourceID: article.id))
-        return resolved
-    }
-
-    /// What `inspect_paper_figure` says when the figure is indexed but its
-    /// vision reading was not had — `failure` is the reading's error, nil when
-    /// no model is set up to read figures. It names where the learner can
-    /// still see the figure: outlined in the Reader beside the chat when it
-    /// was pointed at before the reading was asked for, otherwise through
-    /// `show_source_image`. The caption is the paper's own text; nothing here
-    /// stands in for the reading.
+    /// What `inspect_paper_figure` says when the chat's model reads text
+    /// only and the figure's vision reading was not had — `failure` is the
+    /// reading's error, nil when no model is set up to read figures. The
+    /// learner still sees the figure under the step; the model, which could
+    /// read neither the picture nor a reading of it, is told not to describe
+    /// it. The caption is the paper's own text; nothing here stands in for
+    /// the reading.
     nonisolated static func figureReadingUnavailableMessage(
         figureLabel: String,
         pageNumber: Int,
         caption: String,
-        failure: String?,
-        outlinedBesideChat: Bool
+        failure: String?
     ) -> String {
-        var text = failure.map { reason in
+        let reason = failure.map { reason in
             let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
             let closed = trimmed.last.map { ".!?".contains($0) } == true ? trimmed : trimmed + "."
             return "Error: the visual reading of \(figureLabel) failed: \(closed)"
-        } ?? "Error: \(figureLabel) is indexed, but its visual understanding could not be prepared."
-        if outlinedBesideChat {
-            text += " \(figureLabel) is outlined on PDF page \(pageNumber) in the Reader beside this chat, so the learner can see it there."
-                + " Tell them its reading failed, and do not describe what the figure shows as if you had seen it."
-                + " Its printed caption, which is the paper's text rather than a reading of the picture: \(caption)"
-        } else {
-            text += " Use show_source_image for page \(pageNumber) to show the figure without an explanation."
+        } ?? "Error: \(figureLabel) could not be read: no model is set up to read figures."
+        return reason
+            + " The chat's model reads text only, so the picture could not be handed to you either."
+            + " The learner sees \(figureLabel) (PDF page \(pageNumber)) under this step in the chat."
+            + " Tell them its reading failed, and do not describe what the figure shows as if you had seen it."
+            + " Its printed caption, which is the paper's text rather than a reading of the picture: \(caption)"
+    }
+
+    /// What `inspect_paper_figure` says when the figure's page could not be
+    /// drawn on this Mac (its PDF is not here, or will not render): the
+    /// figure was not looked at, and the model must not talk as if it had.
+    nonisolated static func figureNotDrawnMessage(figureLabel: String, pageNumber: Int, caption: String) -> String {
+        "Error: \(figureLabel) is on PDF page \(pageNumber), but the page could not be drawn on this Mac, so the figure could not be looked at."
+            + " Tell the learner, and do not describe what the figure shows as if you had seen it."
+            + " Its printed caption, which is the paper's text rather than a reading of the picture: \(caption)"
+    }
+
+    /// What of `figure` is cut from its page for the chat, and what it is
+    /// called: the panel asked for when one can be placed — the vision pass's
+    /// rectangle, or the panel letters printed in the figure, by the resolver
+    /// the walkthrough outlines with — otherwise the whole figure. `panel` is
+    /// the vision pass's panel; `requestedPanel` is tried on the page's own
+    /// letters when the pass named none. The page alone when nothing places
+    /// the figure on it.
+    private func figureCut(
+        _ figure: PaperFigureRecord,
+        in figures: [PaperFigureRecord],
+        panel: PaperFigurePanel?,
+        requestedPanel: String?,
+        sourceID: String
+    ) async -> (figure: ChatLookedAtFigure, panelPlaced: Bool) {
+        let panelName = panel?.label ?? requestedPanel
+        // The same geometry the walkthrough outlines: the analysed
+        // rectangles, grown onto any ink their edges cut through.
+        let resolved = await paperFigureGeometry(
+            sourceID: sourceID,
+            figures: figures,
+            figureLabel: figure.figureLabel,
+            panelLabel: panelName
+        )
+        var crop = figure.analysis.flatMap { Self.paperFigureCrop(analysis: $0, panel: panel) }
+        // A panel nothing placed is shown as the whole figure, and the
+        // figure is the page's crop, not the stored rectangle.
+        if case .figure(_, let rect?, _, _) = resolved?.target, rect.isValid,
+           panel == nil || resolved?.panel != nil || panel?.rect?.isValid != true {
+            crop = rect
         }
-        return text
+        let panelPlaced = panelName != nil && (resolved?.panel != nil || panel?.rect?.isValid == true)
+        let label = panelPlaced
+            ? PaperWalkthroughValidation.figurePanelLabel(figure.figureLabel, panel: panelName)
+            : figure.figureLabel
+        let reference = SourceImageReference(sourceID: sourceID, location: .page(figure.pageNumber), crop: crop)
+        return (ChatLookedAtFigure(reference: reference, label: label), panelPlaced)
+    }
+
+    /// Puts `figure` under the step `id` in the transcript, or takes it off
+    /// when nil: the figure the step looked at, drawn small, as Codex shows
+    /// what it is looking at.
+    func showLookedAtFigure(_ figure: ChatLookedAtFigure?, onToolActivity id: UUID) {
+        guard let index = chatMessages.firstIndex(where: { $0.id == id }),
+              var activity = chatMessages[index].toolActivity,
+              activity.lookedAtFigure != figure else { return }
+        activity.lookedAtFigure = figure
+        chatMessages[index].toolActivity = activity
+    }
+
+    /// The figure drawn from the paper's page, off the main actor, and held
+    /// for the later turns that send it again. Nil when this Mac has no PDF
+    /// of the paper or the page will not draw.
+    func drawLookedAtFigure(_ figure: ChatLookedAtFigure, article: StudioArticle) async -> AttachedImage? {
+        if let held = ChatLookedAtFigure.cached(figure.reference) { return held }
+        let reference = figure.reference
+        let rendered = await Task.detached(priority: .userInitiated) { () -> SourceImageCatalog.RenderedImage? in
+            guard let path = article.resolvedFileLocation else { return nil }
+            return SourceImageCatalog.render(reference, filePath: path)
+        }.value
+        guard let rendered else { return nil }
+        let image = AttachedImage(data: rendered.data, mediaType: rendered.mediaType)
+        ChatLookedAtFigure.stage(image, for: reference)
+        return image
     }
 
     private nonisolated static func bareFigurePanelLabel(_ label: String) -> String {
@@ -147,7 +197,27 @@ extension ReviewSessionManager {
         return trimmed
     }
 
-    func inspectPaperFigure(arguments: [String: Any]) async -> AppToolResult {
+    /// `inspect_paper_figure`: the figure, or the panel asked for, cut from
+    /// the paper's own page and handed to the model as a picture, the way a
+    /// screenshot the learner attached would be (product owner, 2026-11-27:
+    /// "it's really important that it always actually looks at the figure").
+    /// Before then a second model's text reading of the figure stood in for
+    /// the picture, and a chat asked about Fig. 1d described it from that
+    /// reading without ever having seen it.
+    ///
+    /// The figure is drawn under the step in the chat, not outlined in the
+    /// Reader (same day: "Instead of maybe highlighting with the blue
+    /// rectangle, I think it makes more sense to have something similar to
+    /// Codex"), and it stays with the chat (`ChatLookedAtFigure`). `showing`
+    /// hands the step the figure as soon as its page places it, before the
+    /// vision pass has measured its panels. `modelSeesPictures` is false for
+    /// a chat model known to read text only, which gets the vision pass's
+    /// reading instead, named as one.
+    func inspectPaperFigure(
+        arguments: [String: Any],
+        modelSeesPictures: Bool = true,
+        showing: (@MainActor (ChatLookedAtFigure) -> Void)? = nil
+    ) async -> AppToolResult {
         guard let requestedID = (arguments["source_id"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !requestedID.isEmpty else {
@@ -168,6 +238,8 @@ extension ReviewSessionManager {
                 isError: true
             )
         }
+        let requestedPanel = ((arguments["panel_label"] as? String) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             // Preparing here is the point. Nothing else in a chat builds this
             // index — before this, the tool read a table that only a voice
@@ -181,42 +253,38 @@ extension ReviewSessionManager {
             // and "Extended Data Figure 1" would be refused on a paper that
             // prints it.
             var figures = try await paperFigureIndexer.figuresForReading(sourceID: sourceID)
-            let requestedPanel = ((arguments["panel_label"] as? String) ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            // Show the figure before explaining it. The vision reading takes
-            // seconds and can fail — a rate-limited free model fails it, and
-            // a learner walking through a paper's figures would see nothing,
-            // though where Figure 1 sits is known all along. The paper opens beside the chat with the figure outlined
-            // now; a failed reading is still reported as a failure.
-            var outlinedEarly: WalkthroughResolvedAnchor?
+            // Show the figure before the vision pass. It takes seconds and can
+            // fail — a rate-limited free model fails it — though where the
+            // figure sits is known from its caption all along.
             if let indexed = PaperFigureIndexer.figure(labelled: requested, in: figures),
                indexed.analysis?.analysisVersion != PaperFigureAnalysis.currentVersion {
-                outlinedEarly = await outlineFigureBesideChat(
-                    article,
-                    figures: figures,
-                    figureLabel: indexed.figureLabel,
-                    panelLabel: requestedPanel.isEmpty ? nil : requestedPanel
+                let early = await figureCut(
+                    indexed,
+                    in: figures,
+                    panel: nil,
+                    requestedPanel: requestedPanel.isEmpty ? nil : requestedPanel,
+                    sourceID: sourceID
                 )
+                showing?(early.figure)
             }
-            // Then the vision half: only the requested figure is explained,
-            // so the cost is one figure rather than the paper.
+            // Then the vision half, which measures the panels: only the
+            // requested figure, so the cost is one figure rather than the
+            // paper. Its failure no longer costs the picture — the caption
+            // index places the figure for free, and the chat's model reads the
+            // picture itself — so it is logged, and a panel it would have
+            // measured is placed from the figure's printed letters or shown
+            // within the whole figure.
+            var readingFailure: String?
             do {
                 figures = try await paperFigureIndexer.prepare(
                     sourceID: sourceID,
                     figureLabel: requested
                 )
             } catch {
-                guard let indexed = PaperFigureIndexer.figure(labelled: requested, in: figures) else { throw error }
-                return AppToolResult(
-                    text: Self.figureReadingUnavailableMessage(
-                        figureLabel: indexed.figureLabel,
-                        pageNumber: indexed.pageNumber,
-                        caption: indexed.caption,
-                        failure: error.localizedDescription,
-                        outlinedBesideChat: outlinedEarly != nil
-                    ),
-                    isError: true
-                )
+                guard !(error is CancellationError),
+                      PaperFigureIndexer.figure(labelled: requested, in: figures) != nil else { throw error }
+                readingFailure = error.localizedDescription
+                logger.warning("The vision reading of \(requested, privacy: .public) failed; the chat is shown the figure without it: \(error.localizedDescription, privacy: .public)")
             }
             guard let figure = PaperFigureIndexer.figure(labelled: requested, in: figures) else {
                 // A miss here rarely means the picture does not exist. A
@@ -236,20 +304,9 @@ extension ReviewSessionManager {
                     isError: true
                 )
             }
-            guard let analysis = figure.analysis else {
-                return AppToolResult(
-                    text: Self.figureReadingUnavailableMessage(
-                        figureLabel: figure.figureLabel,
-                        pageNumber: figure.pageNumber,
-                        caption: figure.caption,
-                        failure: nil,
-                        outlinedBesideChat: outlinedEarly != nil
-                    ),
-                    isError: true
-                )
-            }
-            let panel = Self.paperFigurePanel(labelled: requestedPanel, in: analysis)
-            if !requestedPanel.isEmpty, panel == nil {
+            let analysis = figure.analysis
+            let panel = analysis.flatMap { Self.paperFigurePanel(labelled: requestedPanel, in: $0) }
+            if !requestedPanel.isEmpty, let analysis, panel == nil {
                 let labels = analysis.panels.map(\.label).joined(separator: ", ")
                 let inventory = labels.isEmpty
                     ? "The vision analysis found no labelled panels in this figure."
@@ -260,94 +317,84 @@ extension ReviewSessionManager {
                     isError: true
                 )
             }
-            // The same geometry the walkthrough outlines: the analysed
-            // rectangles, grown onto any ink their edges cut through.
-            let resolved = await paperFigureGeometry(
-                sourceID: sourceID,
-                figures: figures,
-                figureLabel: figure.figureLabel,
-                panelLabel: panel?.label
+            let cut = await figureCut(
+                figure,
+                in: figures,
+                panel: panel,
+                requestedPanel: requestedPanel.isEmpty ? nil : requestedPanel,
+                sourceID: sourceID
             )
-            var crop = Self.paperFigureCrop(analysis: analysis, panel: panel)
-            // A panel nothing placed is shown as the whole figure, and the
-            // figure is the page's crop, not the stored rectangle.
-            if case .figure(_, let rect?, _, _) = resolved?.target, rect.isValid,
-               panel == nil || resolved?.panel != nil || panel?.rect?.isValid != true {
-                crop = rect
+            let looked = cut.figure
+            guard let picture = await drawLookedAtFigure(looked, article: article) else {
+                return AppToolResult(
+                    text: Self.figureNotDrawnMessage(
+                        figureLabel: looked.label,
+                        pageNumber: figure.pageNumber,
+                        caption: figure.caption
+                    ),
+                    isError: true
+                )
             }
-            let shownLabel = PaperWalkthroughValidation.figurePanelLabel(figure.figureLabel, panel: panel?.label)
-            // With the paper open in a Reader beside this chat, the figure is
-            // pointed at there — scrolled to and outlined on its own page —
-            // rather than copied into the reply (product owner, 2026-09-22: "better
-            // if it just highlights the relevant part of the paper"). The
-            // walkthrough's rule, and `focus_source_anchor`'s, for the same
-            // reason: the page beside the chat is the figure, with its
-            // neighbours and its caption, and a crop of it is the same
-            // figure twice, cut down.
-            var outline: WalkthroughResolvedAnchor?
-            if let resolved, await readerBesideChatShowsPDF(of: article) {
-                outline = resolved
-            }
-            let shown = outline == nil ? "The picture below is cropped to" : "The outline in the Reader is around"
+            showing?(looked)
             var lines = [
-                "\(shownLabel) (PDF page \(figure.pageNumber))",
+                "\(looked.label) of \u{201C}\(article.title)\u{201D} (PDF page \(figure.pageNumber))",
                 "Caption: \(figure.caption)",
-                "Explanation: \(panel?.explanation ?? analysis.summary)",
             ]
+            let missedPanel = !requestedPanel.isEmpty && !cut.panelPlaced
+            let zoomable = requestedPanel.isEmpty
+                ? (analysis?.panels ?? []).filter { $0.rect?.isValid == true }.map(\.label)
+                : []
+            let enlarging = "Each of these panels can be shown enlarged on its own: call inspect_paper_figure again with panel_label set to one of "
+                + zoomable.joined(separator: ", ") + "."
+            let shownInChat = "The learner sees this picture under the step in the chat, and it stays with the chat for the turns that follow. Do not put an image line of it in the reply."
+            if modelSeesPictures {
+                lines.append(
+                    "The picture of \(looked.label) is attached: it is the figure itself, cut from the paper's page. "
+                        + "Look at it and answer from what it shows; where something in it cannot be made out, say so rather than guess. "
+                        + "The caption is the paper's text, not a description of the picture."
+                )
+                if missedPanel {
+                    lines.append("Panel \(requestedPanel) could not be cut out on its own, so the picture is the whole \(figure.figureLabel): find panel \(requestedPanel) in it by its printed letter.")
+                }
+                if !zoomable.isEmpty { lines.append(enlarging) }
+                lines.append("")
+                lines.append(shownInChat)
+                return AppToolResult(
+                    text: lines.joined(separator: "\n"),
+                    isError: false,
+                    images: [AIChatImage(data: picture.data, mediaType: picture.mediaType)],
+                    lookedAtFigure: looked
+                )
+            }
+            // A chat model that reads text only cannot be handed the picture;
+            // the vision pass's reading is what it gets, named as a reading.
+            guard let analysis else {
+                return AppToolResult(
+                    text: Self.figureReadingUnavailableMessage(
+                        figureLabel: looked.label,
+                        pageNumber: figure.pageNumber,
+                        caption: figure.caption,
+                        failure: readingFailure
+                    ),
+                    isError: true,
+                    lookedAtFigure: looked
+                )
+            }
+            lines.append("The chat's model reads text only, so the picture was not handed to you. What follows is a vision model's reading of it, not the paper's text.")
+            lines.append("Reading: \(panel?.explanation ?? analysis.summary)")
             if !analysis.visualEvidence.isEmpty {
                 lines.append("Visible evidence: " + analysis.visualEvidence.joined(separator: "; "))
             }
             if !analysis.panels.isEmpty {
                 lines.append("Panels: " + analysis.panels.map { "\($0.label): \($0.explanation)" }.joined(separator: " | "))
             }
-            if let panel {
-                // Zoom is only ever as good as the rectangle the vision pass
-                // read off the ruled page. When a panel has none, the whole
-                // figure is what can honestly be shown, and the model is told
-                // so rather than left to describe a close-up that is not there.
-                lines.append(
-                    panel.rect?.isValid == true
-                        ? "\(shown) panel \(panel.label) alone."
-                        : "Panel \(panel.label) has no rectangle of its own, so \(outline == nil ? "the picture below is" : "the outline in the Reader is around") the whole \(figure.figureLabel)."
-                )
-            } else {
-                let zoomable = analysis.panels.filter { $0.rect?.isValid == true }.map(\.label)
-                if !zoomable.isEmpty {
-                    lines.append(
-                        "Each of these panels can be shown enlarged on its own: call inspect_paper_figure again with panel_label set to one of "
-                        + zoomable.joined(separator: ", ") + "."
-                    )
-                }
+            if missedPanel {
+                lines.append("Panel \(requestedPanel) could not be cut out on its own, so the learner sees the whole \(figure.figureLabel).")
             }
-            if let outline {
-                // The reading measured the figure, so the outline drawn before
-                // it moves onto the analysed rectangle or the panel asked for;
-                // one already there is left alone rather than drawn again.
-                if outline.target != outlinedEarly?.target {
-                    walkthroughFocusHandler?(.outline(outline.target, stepID: "figure-\(UUID().uuidString)", sourceID: sourceID))
-                }
-                lines.append("")
-                lines.append(
-                    "The paper is open in the Reader beside this chat, and \(shownLabel) is now outlined on its page there. "
-                    + "Do not add an image of it to the reply: refer to it as the outlined figure in the paper beside the chat."
-                )
-                return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
-            }
-            // The picture travels as a portable reference — source ID, page,
-            // and the analysis crop — that every client renders from its own
-            // copy of the PDF. An absolute `file://` path to a rendered JPEG was
-            // tried before and resolved only on the Mac that produced it.
-            let reference = SourceImageReference(
-                sourceID: sourceID,
-                location: .page(figure.pageNumber),
-                crop: crop
-            )
+            if !zoomable.isEmpty { lines.append(enlarging) }
             lines.append("")
-            lines.append(
-                "Include this Markdown image line verbatim, on its own line, so the learner sees the figure: "
-                + reference.markdown(alt: "\(shownLabel) (page \(figure.pageNumber))")
-            )
-            return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
+            lines.append(shownInChat)
+            return AppToolResult(text: lines.joined(separator: "\n"), isError: false, lookedAtFigure: looked)
         } catch {
             return AppToolResult(text: "Error: \(error.localizedDescription)", isError: true)
         }
@@ -1058,16 +1105,5 @@ extension ReviewSessionManager {
         #else
         return figure.analysis?.figureRect
         #endif
-    }
-
-    /// Whether a Reader beside this chat shows `sourceID` as pages an outline
-    /// can be drawn on — opening it there first when none does. A figure the
-    /// tutor explains is shown in the paper, outlined, not copied into the
-    /// reply (product owner, 2026-09-22: "better if it just highlights the relevant
-    /// part of the paper"; asked whether to open the paper when it was not
-    /// open: "yes").
-    private func readerBesideChatShowsPDF(of article: StudioArticle) async -> Bool {
-        guard WalkthroughAnchorResolver.readerShowsPDF(article) else { return false }
-        return await readerBesideChatShowsOpening(article)
     }
 }

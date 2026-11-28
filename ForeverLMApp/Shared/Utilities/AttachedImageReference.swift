@@ -365,6 +365,29 @@ enum VideoMomentFrames {
     }
 }
 
+// MARK: - Pictures of the figures the chat looked at
+
+/// The pictures of the figures the chat looked at (`ChatLookedAtFigure`),
+/// held for the turns that send them, as `VideoMomentFrames` holds frames:
+/// `inspect_paper_figure` stages the picture it drew, and a chat resumed from
+/// history draws them again off the main actor before a turn is assembled.
+extension ChatLookedAtFigure {
+    private static let memoryLock = AppLock()
+    nonisolated(unsafe) private static var memory: [String: AttachedImage] = [:]
+
+    static func stage(_ image: AttachedImage, for reference: SourceImageReference) {
+        memoryLock.lock()
+        memory[reference.urlString] = image
+        memoryLock.unlock()
+    }
+
+    static func cached(_ reference: SourceImageReference) -> AttachedImage? {
+        memoryLock.lock()
+        defer { memoryLock.unlock() }
+        return memory[reference.urlString]
+    }
+}
+
 // MARK: - What a picture address in a reply names
 
 /// What a `foreverlm://image` address in a chat reply names, by what can

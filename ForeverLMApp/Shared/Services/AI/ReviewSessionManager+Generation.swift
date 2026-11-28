@@ -246,6 +246,21 @@ extension ReviewSessionManager {
         }.value
     }
 
+    /// Draws, off the main actor, every figure the transcript's steps looked
+    /// at whose picture is not held yet — a chat resumed from history — so
+    /// turn assembly can stay synchronous and send it again. A figure this
+    /// Mac cannot draw stays out, and its turn says so.
+    private func hydrateLookedAtFigures() async {
+        var seen = Set<SourceImageReference>()
+        let figures = chatMessages
+            .compactMap { $0.isFromFailedAttempt ? nil : $0.toolActivity?.lookedAtFigure }
+            .filter { ChatLookedAtFigure.cached($0.reference) == nil && seen.insert($0.reference).inserted }
+        for figure in figures {
+            guard let article = await librarySourceArticle(forRequestedID: figure.reference.sourceID) else { continue }
+            _ = await drawLookedAtFigure(figure, article: article)
+        }
+    }
+
     // MARK: - AI Generation
 
     /// Generation driver. If a turn is already running, the just-sent message
@@ -686,6 +701,7 @@ extension ReviewSessionManager {
         // in Pages; they are not the next reply's.
         stagedSavedCards = nil
         stagedWrittenPages = []
+        stagedLookedAtFigures = []
         await refreshNotebookImportFiling()
         // Every turn: the log changes as the learner works, and a failed read
         // leaves it out of this turn only.
@@ -985,6 +1001,7 @@ extension ReviewSessionManager {
     ) async throws {
         await hydrateAttachedImages()
         await hydrateVideoMomentFrames()
+        await hydrateLookedAtFigures()
         // A resumed/failed opening turn can contain learner messages without a
         // persisted tutor question. That is steering context, not a retrieval
         // attempt, so it must not be graded or rejected as an unrecorded answer.
@@ -1388,13 +1405,25 @@ extension ReviewSessionManager {
                     let activityID = appendToolActivity(
                         for: AppToolCall(name: call.name, arguments: call.arguments)
                     )
-                    let inspected = await inspectPaperFigure(arguments: call.arguments)
+                    // The figure is drawn under the step as soon as its page
+                    // places it, and handed to the model as a picture.
+                    let inspected = await inspectPaperFigure(
+                        arguments: call.arguments,
+                        modelSeesPictures: imagesReadable
+                    ) { [weak self] figure in
+                        self?.showLookedAtFigure(figure, onToolActivity: activityID)
+                    }
                     completeToolActivity(activityID, result: inspected)
+                    showLookedAtFigure(inspected.lookedAtFigure, onToolActivity: activityID)
+                    if let figure = inspected.lookedAtFigure {
+                        stagedLookedAtFigures.append(figure)
+                    }
                     results.append(AIToolResultPayload(
                         callID: call.id,
                         toolName: call.name,
                         text: inspected.text,
-                        isError: inspected.isError
+                        isError: inspected.isError,
+                        images: inspected.images
                     ))
                 case "show_source_image":
                     let activityID = appendToolActivity(

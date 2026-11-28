@@ -240,6 +240,77 @@ struct VideoMomentFrameTurnTests {
         #expect(routed[0].content.contains("this route sends text only"))
     }
 
+    @Test("A figure the chat looked at is one marked picture line, read back whole; an unmarked picture stays prose")
+    func lookedAtFigureLine() throws {
+        let reference = SourceImageReference(
+            sourceID: "src-paper",
+            location: .page(2),
+            crop: PaperFigureRect(x: 0.1, y: 0.2, width: 0.5, height: 0.3)
+        )
+        let figure = ChatLookedAtFigure(reference: reference, label: "Figure 1d [main]")
+        #expect(figure.pictureLine == reference.markdown(alt: "Figure 1d [main]"))
+        #expect(figure.line.hasPrefix("![Figure 1d (main)](foreverlm://image/src-paper/page/2?crop="))
+        #expect(figure.line.hasSuffix("&seen=figure)"))
+        // The marked address is still the same picture to every renderer.
+        let address = try #require(SourceImageReference.pictureAddresses(in: figure.line).first)
+        #expect(SourceImageReference(urlString: address) == reference)
+
+        let shown = "Here is " + reference.markdown(alt: "Figure 2") + " inline."
+        let stored = ChatLookedAtFigure.storing(shown, with: [figure, figure])
+        #expect(stored == figure.line + "\n\n" + shown)
+        #expect(ChatLookedAtFigure.split(stored) == [.figure(ChatLookedAtFigure(reference: reference, label: "Figure 1d (main)")), .text(shown)])
+        #expect(ChatLookedAtFigure.prose(of: stored) == shown)
+        #expect(ChatLookedAtFigure.figures(in: reference.markdown(alt: "Figure 2")).isEmpty)
+        #expect(ChatLookedAtFigure.storing("Done.", with: []) == "Done.")
+        #expect(ChatLookedAtFigure.split("  Plain.\n") == [.text("Plain.")])
+    }
+
+    @Test("A figure line in a learner-side turn is the figure's picture, or a note where it cannot be sent")
+    func lookedAtFigureInATurn() {
+        let reference = SourceImageReference(sourceID: "src-paper", location: .page(2))
+        let figure = ChatLookedAtFigure(reference: reference, label: "Figure 1d")
+        let content = "What does it show?\n\n" + figure.line
+        let bytes = Data([4, 5])
+
+        guard case .user(let text, let images) = ReviewSessionManager.userTurn(
+            content: content,
+            lookedAtFigure: { _ in AttachedImage(data: bytes, mediaType: "image/jpeg") }
+        ) else {
+            Issue.record("expected a user turn")
+            return
+        }
+        #expect(images == [AIChatImage(data: bytes, mediaType: "image/jpeg")])
+        #expect(text.hasPrefix("What does it show?\n[The picture of Figure 1d"))
+
+        guard case .user(let missingText, let none) = ReviewSessionManager.userTurn(
+            content: content,
+            lookedAtFigure: { _ in nil }
+        ) else {
+            Issue.record("expected a user turn")
+            return
+        }
+        #expect(none.isEmpty)
+        #expect(missingText.contains("cannot be drawn on this device"))
+
+        guard case .user(let textOnly, let noImages) = ReviewSessionManager.userTurn(
+            content: content,
+            imagesReadable: false,
+            lookedAtFigure: { _ in AttachedImage(data: bytes, mediaType: "image/jpeg") }
+        ) else {
+            Issue.record("expected a user turn")
+            return
+        }
+        #expect(noImages.isEmpty)
+        #expect(textOnly.contains("the selected model reads text only"))
+        #expect(!textOnly.contains("foreverlm://image"))
+
+        let routed = ReviewSessionManager.textOnlyProviderMessages([(role: "user", content: content)])
+        #expect(!routed[0].content.contains("foreverlm://image"))
+        #expect(routed[0].content.contains("this route sends text only"))
+        let untouched = ReviewSessionManager.textOnlyProviderMessages([(role: "user", content: "  Plain words  ")])
+        #expect(untouched[0].content == "  Plain words  ")
+    }
+
     @Test("A frame staged in memory is the one the turn reads")
     func stagedFrameIsCached() {
         let reference = SourceImageReference(sourceID: "src-staged-\(UUID().uuidString)", location: .moment(42))

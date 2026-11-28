@@ -78,14 +78,25 @@ extension ReviewSessionManager {
             // carried on from the words it was stopped in.
             if message.isFromFailedAttempt { continue }
             var content: String
+            var role = message.role == .user ? "user" : "assistant"
             if message.role == .tool {
                 // Tool rows are display-only. The model already gets the real tool output via
                 // `appToolResultContext`; echoing these back would duplicate it in the prompt.
-                // The one exception is a source-turn heading: that is the tutor's own tag
-                // line, and it goes back exactly as written so the convention holds.
-                guard let activity = message.toolActivity,
-                      let sourceID = activity.turnTargetID else { continue }
-                content = MemoryReviewSourceTurn.line(sourceID: sourceID)
+                // A source-turn heading is the tutor's own tag line, and it goes back exactly
+                // as written so the convention holds. A figure a step looked at goes back as
+                // a picture where it was looked at, in a learner-side message, which is the
+                // only kind that carries one (`ChatLookedAtFigure`, `userTurn`): the chat keeps
+                // seeing the figure it is talking about, as it would a screenshot the learner
+                // attached.
+                guard let activity = message.toolActivity else { continue }
+                if let figure = activity.lookedAtFigure {
+                    content = figure.line
+                    role = "user"
+                } else if let sourceID = activity.turnTargetID {
+                    content = MemoryReviewSourceTurn.line(sourceID: sourceID)
+                } else {
+                    continue
+                }
             } else if message.role == .user {
                 // Raw, not displayable: the picture lines stay in so the turn
                 // assembly can turn them into image parts.
@@ -95,7 +106,6 @@ extension ReviewSessionManager {
                     .map { tutorHistoryContent($0) }?
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             }
-            let role = message.role == .user ? "user" : "assistant"
             guard !content.isEmpty else { continue }
 
             if message.role == .user {
@@ -228,10 +238,11 @@ extension ReviewSessionManager {
     }
 
     /// A stored reply's prose without the lines the app put at its head for
-    /// the turn's pages, saved cards and review plan (`ChatWrittenPage`,
-    /// `ChatSavedCards`, `ChatReviewPlan`).
+    /// the turn's pages, saved cards, review plan and the figures it looked
+    /// at (`ChatWrittenPage`, `ChatSavedCards`, `ChatReviewPlan`,
+    /// `ChatLookedAtFigure`).
     static func storedProse(_ text: String) -> String {
-        ChatSavedCards.prose(of: ChatWrittenPage.prose(of: ChatReviewPlan.prose(of: text)))
+        ChatLookedAtFigure.prose(of: ChatSavedCards.prose(of: ChatWrittenPage.prose(of: ChatReviewPlan.prose(of: text))))
     }
 
     func messages(

@@ -592,6 +592,28 @@ body {
 .browser-preview:hover { filter: brightness(0.97); }
 .browser-preview-spinner { position: absolute; right: 8px; bottom: 8px; }
 
+/* ---- A figure a step looked at: small, the size of the Browser's picture,
+   under its step and under the folded line. A click opens it full-window. */
+
+.figure-previews { display: flex; flex-wrap: wrap; gap: 8px; }
+.figure-preview.chat-rendered { width: 260px; max-width: 100%; }
+.work-card .figure-preview.chat-rendered { margin: 2px 0 4px 24px; }
+.figure-preview.chat-rendered p { margin: 0; }
+.figure-preview.chat-rendered .source-image-figure {
+  margin: 0;
+  max-width: 100%;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px color-mix(in srgb, CanvasText 12%, transparent);
+}
+.figure-preview.chat-rendered .source-image-figure img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 0;
+}
+.figure-preview.chat-rendered .source-image-figure.source-image-pending { min-width: 260px; min-height: 120px; }
+
 /* ---- A memory review turning to a source or topic: a heading in the chat. */
 
 .turn-heading {

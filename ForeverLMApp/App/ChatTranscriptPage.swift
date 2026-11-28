@@ -154,6 +154,11 @@ struct ChatTranscriptPage: NSViewRepresentable {
         /// "running", "succeeded" or "failed".
         var state: String?
         var summary: String?
+        /// The figure the step looked at (`ChatLookedAtFigure`), as the
+        /// picture line the reply renderer draws: small under the step, and
+        /// under the line while the steps are folded, as Codex shows what it
+        /// is looking at.
+        var figure: String?
     }
 
     struct PageCard: Encodable, Equatable {
@@ -334,7 +339,8 @@ struct ChatTranscriptPage: NSViewRepresentable {
                 kind: "tool",
                 title: ReviewChatToolRow.title(for: activity),
                 state: stateName(activity.state),
-                summary: ReviewChatToolRow.resultSummary(for: activity)
+                summary: ReviewChatToolRow.resultSummary(for: activity),
+                figure: activity.lookedAtFigure?.pictureLine
             )
         }
         return Part(

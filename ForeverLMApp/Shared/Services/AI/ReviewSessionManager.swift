@@ -343,6 +343,11 @@ final class ReviewSessionManager {
     /// they belong to: `persistAssistantResponse` stores a line for each at
     /// its head, so a reopened chat draws their cards again.
     @ObservationIgnored var stagedWrittenPages: [ChatWrittenPage] = []
+    /// The figures this turn looked at (`ChatLookedAtFigure`), waiting for the
+    /// reply they belong to: `persistAssistantResponse` stores a line for
+    /// each at its head, so a reopened chat shows them under their step and
+    /// sends them to the model again.
+    @ObservationIgnored var stagedLookedAtFigures: [ChatLookedAtFigure] = []
     /// The review plan this chat is working through (`ChatReviewPlan`),
     /// drawn beside the composer. Set by `update_review_plan` and read back
     /// off the transcript when the chat reopens.

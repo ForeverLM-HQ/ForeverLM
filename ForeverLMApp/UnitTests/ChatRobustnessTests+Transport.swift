@@ -690,9 +690,12 @@ extension ChatRobustnessTests {
         )
         let inspect = specs.first { $0.name == "inspect_paper_figure" }
         #expect(inspect?.description.contains("cropped to that panel") == true)
-        // With the paper beside the chat the figure is outlined there, not
-        // copied into the reply (product owner, 2026-09-22).
-        #expect(inspect?.description.contains("outlined on its page there") == true)
+        // The model is handed the figure itself, and the learner sees it under
+        // the step rather than outlined in the Reader or copied into the reply
+        // (product owner, 2026-11-27).
+        #expect(inspect?.description.contains("returned to you as a picture") == true)
+        #expect(inspect?.description.contains("under this step in the chat") == true)
+        #expect(inspect?.description.contains("Do not put an image line of the figure in the reply") == true)
         let properties = inspect?.inputSchema["properties"] as? [String: Any]
         let panelProperty = properties?["panel_label"] as? [String: Any]
         #expect((panelProperty?["description"] as? String)?.contains("zoomed") == true)

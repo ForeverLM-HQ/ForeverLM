@@ -92,17 +92,22 @@ extension ReviewSessionManager {
         // stamp below matches; the turn's own tool row draws the cards.
         // The pages it wrote go first, the same way (`ChatWrittenPage`).
         // A plan that changed since the transcript last stored one goes
-        // first of all (`ChatReviewPlan`).
+        // first of all (`ChatReviewPlan`). The figures its steps looked at
+        // sit right above the prose (`ChatLookedAtFigure`).
         let planToStore = reviewPlan != storedReviewPlan ? reviewPlan : nil
         let stored = ChatReviewPlan.storing(
             ChatWrittenPage.storing(
-                ChatSavedCards.storing(response, with: stagedSavedCards),
+                ChatSavedCards.storing(
+                    ChatLookedAtFigure.storing(response, with: stagedLookedAtFigures),
+                    with: stagedSavedCards
+                ),
                 with: stagedWrittenPages
             ),
             with: planToStore
         )
         stagedSavedCards = nil
         stagedWrittenPages = []
+        stagedLookedAtFigures = []
         if planToStore != nil { storedReviewPlan = reviewPlan }
 
         if isFirst {

@@ -1331,32 +1331,41 @@ struct ChatReaderFocusTests {
         #expect(events.isEmpty)
     }
 
-    @Test("A figure whose reading failed is reported as a failure that says where it is outlined, and never reads the picture")
-    func failedFigureReadingSaysWhereTheFigureIs() {
-        let outlined = ReviewSessionManager.figureReadingUnavailableMessage(
+    @Test("A chat that reads text only and has no reading of the figure is told so, and never describes it")
+    func failedFigureReadingOnATextOnlyChat() {
+        // The picture itself goes to every chat model that reads images; one
+        // that reads text only is handed the vision pass's reading, and when
+        // that failed there is nothing it may describe.
+        let failed = ReviewSessionManager.figureReadingUnavailableMessage(
             figureLabel: "Figure 1",
             pageNumber: 2,
             caption: "Fig. 1 | Three layers of regulation.",
-            failure: "The free model is rate-limited upstream (429)",
-            outlinedBesideChat: true
+            failure: "The free model is rate-limited upstream (429)"
         )
-        #expect(outlined.hasPrefix("Error: the visual reading of Figure 1 failed: The free model is rate-limited upstream (429)."))
-        #expect(outlined.contains("outlined on PDF page 2 in the Reader beside this chat"))
-        #expect(outlined.contains("do not describe what the figure shows as if you had seen it"))
-        #expect(outlined.contains("Fig. 1 | Three layers of regulation."))
-        #expect(!outlined.contains("show_source_image"))
+        #expect(failed.hasPrefix("Error: the visual reading of Figure 1 failed: The free model is rate-limited upstream (429)."))
+        #expect(failed.contains("reads text only"))
+        #expect(failed.contains("The learner sees Figure 1 (PDF page 2) under this step in the chat."))
+        #expect(failed.contains("do not describe what the figure shows as if you had seen it"))
+        #expect(failed.contains("Fig. 1 | Three layers of regulation."))
+        #expect(!failed.contains("outlined"))
 
-        // No Reader beside the chat, and no model set up to read figures:
-        // the picture is still one call away.
-        let unopened = ReviewSessionManager.figureReadingUnavailableMessage(
+        // No model set up to read figures.
+        let unread = ReviewSessionManager.figureReadingUnavailableMessage(
             figureLabel: "Figure 1",
             pageNumber: 2,
             caption: "Fig. 1 | Three layers of regulation.",
-            failure: nil,
-            outlinedBesideChat: false
+            failure: nil
         )
-        #expect(unopened.hasPrefix("Error: Figure 1 is indexed, but its visual understanding could not be prepared."))
-        #expect(unopened.contains("show_source_image for page 2"))
-        #expect(!unopened.contains("outlined"))
+        #expect(unread.hasPrefix("Error: Figure 1 could not be read: no model is set up to read figures."))
+        #expect(unread.contains("do not describe what the figure shows as if you had seen it"))
+
+        // A page this Mac cannot draw: the figure was not looked at at all.
+        let undrawn = ReviewSessionManager.figureNotDrawnMessage(
+            figureLabel: "Figure 1d",
+            pageNumber: 2,
+            caption: "Fig. 1 | Three layers of regulation."
+        )
+        #expect(undrawn.hasPrefix("Error: Figure 1d is on PDF page 2, but the page could not be drawn on this Mac"))
+        #expect(undrawn.contains("do not describe what the figure shows as if you had seen it"))
     }
 }
