@@ -6864,8 +6864,6 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **Chat looks at the figure you ask about.** Ask what Fig. 1d of a paper shows and Chat now reads the figure itself, cut from the paper's page, as if you had pasted a screenshot; before, it answered from a written reading of the figure and could describe things the figure does not show. The figure appears small under the step, as **Looked at Figure 1d**, in place of the outline on the paper, and it stays with the chat, so follow-up questions are answered from the picture too.
-- **Write a team's Page together, live.** Everyone who can change the team now types straight into a team's Page on the Mac, the iPhone and iPad, or in the web library, at the same time: each teammate's words appear as they type, with their caret and name in their colour, and the initials of who else is on the page in its top-right corner. Undo takes back only your own typing. A member who can only read sees the page being written. What you type is sealed with a key only the team holds before it passes through ForeverLM's relay. **Edit**, **Continue Draft**, **Publish** and **Discard Draft** are gone from team Pages, and on the iPhone a team's Page is no longer read-only for members who can change the team.
 - **The iPhone says it works with the Mac app.** The sign-in screen, the empty library (with a link to get ForeverLM for Mac), the Add Sources sheet and a source that has no text yet now say plainly that ForeverLM on your Mac adds your sources and prepares their text, and that they reach the phone through iCloud.
 - **The iPhone opens straight to Home on a first launch.** The full-screen "Get started while iCloud syncs" page is gone: the library arrives in the background, and the sync line above the player on every screen says how far it is.
 - **The iPhone asks which voice ForeverLM should speak in, once.** Before your first voice conversation, when no voice has been picked on any device, you choose one of the ten and tap **Start Talking**. It never asks in the car.
@@ -6892,6 +6890,24 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Links in a page on the iPhone are the app's blue**, not the web's old default.
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
+
+## 1.0.18 (build 336) — 2026-11-27
+
+**Highlights:**
+- **Listening lives with the icons at the bottom left.**
+- **Listen goes up to 3×.**
+- **Chat looks at the figure you ask about.**
+
+- **Chat looks at the figure you ask about.** Ask what Fig. 1d of a paper shows and Chat now reads the figure itself, cut from the paper's page, as if you had pasted a screenshot; before, it answered from a written reading of the figure and could describe things the figure does not show. The figure appears small under the step, as **Looked at Figure 1d**, in place of the outline on the paper, and it stays with the chat, so follow-up questions are answered from the picture too.
+- **Write a team's Page together, live.** Everyone who can change the team now types straight into a team's Page on the Mac, the iPhone and iPad, or in the web library, at the same time: each teammate's words appear as they type, with their caret and name in their colour, and the initials of who else is on the page in its top-right corner. Undo takes back only your own typing. A member who can only read sees the page being written. What you type is sealed with a key only the team holds before it passes through ForeverLM's relay. **Edit**, **Continue Draft**, **Publish** and **Discard Draft** are gone from team Pages, and on the iPhone a team's Page is no longer read-only for members who can change the team.
+- **Listening lives with the icons at the bottom left.** The player bar that ran along the foot of the window, of every window when two were open, is gone. While a source is read aloud, a speaker icon stands with the strip's bottom icons: hover it for what is playing, click it for the player, with the title (click to open the source), chapter skips, play and pause, speed, the scrubber, options and stop. The Reader's toolbar keeps its Listen control, and a Text to Speech error now shows in the window in front only.
+- **Listen goes up to 3×.** The speed button in the player and **Settings → Text to Speech** now step through 2.25×, 2.5×, 2.75× and 3×, as the iPhone does.
+- **Tabs are lighter, and close at once.** Every tab stands on a faint fill, the one in front darker; the icons are lighter, a chat's is one round bubble, and the × and + are thin. The + menu shows a grey row under the pointer and each place's key (⌘N, ⇧⌘L, ⌘P). Closing a tab is instant, and the chat beside it comes forward already loaded.
+- **Delete a comment thread in one click.** In a Page's Comments panel, hover a thread for its trash button, or a chat row for an × that takes the chat off the page (it stays in Chats). The ticking timers beside chats and comments are gone.
+- **A teammate without a source still gets somewhere.** A Page's source link now carries where the source came from on the web, so someone whose library lacks it sees a web card with **Add to Library** instead of a missing source. Pages you saved before get the addresses once, after this update.
+- **Typing a Page's heading no longer brings up "Changed elsewhere".** Pausing mid-word in a page's opening heading let the automatic rename rewrite it behind the editor's back.
+- **Switching tabs no longer moves the Split View divider** between two ForeverLM windows side by side.
+- **Ask an assistant which of your sources are paywalled.** The new `list_paywalled_sources` tool lists every source marked paywalled with its journal, year and DOI, and a count per journal, so "how many paywalled Nature papers do I have?" has an answer.
 
 ## 1.0.17 (build 335) — 2026-11-26
 
