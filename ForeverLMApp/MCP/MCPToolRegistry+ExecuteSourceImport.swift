@@ -105,6 +105,12 @@ extension MCPToolRegistry {
                 sourceIDs: arguments["source_ids"] as? [String],
                 limit: arguments["limit"] as? Int
             )
+        case "list_paywalled_sources":
+            return try store.listPaywalledSources(
+                journal: arguments["journal"] as? String,
+                publishedFromYear: arguments["published_from_year"] as? Int,
+                includeArchived: arguments["include_archived"] as? Bool ?? false
+            )
         case "rename_group":
             return try store.renameGroup(
                 groupType: arguments["group_type"] as? String ?? "",

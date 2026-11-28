@@ -338,6 +338,108 @@ extension MCPDataStore {
         return lines.joined(separator: "\n")
     }
 
+    /// Every source marked paywalled, counted by journal: "how many of my
+    /// paywalled papers are Nature's, and would a subscription be worth it"
+    /// (2026-11-27). A paper whose readable PDF the app could not get keeps its
+    /// mark and its landing page, so its journal, year and DOI are what a
+    /// subscription is weighed against. A journal or year that was never
+    /// recorded is said, never guessed: the link's host labels a source with no
+    /// journal, and with a year filter a source with no year is listed apart.
+    func listPaywalledSources(journal: String?, publishedFromYear: Int?, includeArchived: Bool) throws -> String {
+        func text(_ value: Any?) -> String {
+            (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+        let needle = text(journal).isEmpty ? nil : text(journal)
+        let excludedSourceIDs = try knowledgeStore().knowledgeSearchExcludedSourceIDs(includeArchived: true)
+        let rows: [[String: Any]] = try withDB { db in
+            try query(db, """
+                SELECT sp.id, sp.title, sp.source_type, sp.journal, sp.published_year,
+                       COALESCE(NULLIF(sp.published_doi, ''), sp.doi) AS doi,
+                       sp.url, sp.local_file_path, sp.status
+                FROM source_projection sp
+                WHERE COALESCE(sp.is_paywalled, 0) = 1
+                \(includeArchived ? "" : "AND sp.status = 'active'")
+                ORDER BY sp.date_added DESC
+            """)
+        }
+
+        struct Entry { let group: String; let year: Int?; let line: String }
+        var entries: [Entry] = []
+        for row in rows {
+            guard let id = row["id"] as? String, !excludedSourceIDs.contains(id) else { continue }
+            let journalName = text(row["journal"])
+            let url = text(row["url"])
+            if let needle,
+               journalName.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) == nil,
+               url.range(of: needle, options: .caseInsensitive) == nil {
+                continue
+            }
+            var host = URL(string: url)?.host?.lowercased() ?? ""
+            if host.hasPrefix("www.") { host.removeFirst(4) }
+            let group = !journalName.isEmpty ? journalName
+                : host.isEmpty ? "journal not recorded" : "journal not recorded (\(host))"
+            let year = (row["published_year"] as? Int) ?? Int(text(row["published_year"]).prefix(4))
+            let knownYear = year.flatMap { $0 > 0 ? $0 : nil }
+
+            var details = ["id: \(id)", group]
+            if let knownYear { details.append(String(knownYear)) }
+            let doi = text(row["doi"])
+            if !doi.isEmpty { details.append("doi \(doi)") } else if !url.isEmpty { details.append(url) }
+            if !text(row["local_file_path"]).isEmpty { details.append("has a PDF") }
+            if text(row["status"]) == "archived" { details.append("archived") }
+            let title = text(row["title"]).isEmpty ? "Untitled" : text(row["title"])
+            entries.append(Entry(
+                group: group, year: knownYear,
+                line: "- [\(text(row["source_type"]))] \(title) (\(details.joined(separator: ", ")))"
+            ))
+        }
+
+        var filters: [String] = []
+        if let needle { filters.append("the journal or link contains '\(needle)'") }
+        if let publishedFromYear { filters.append("published \(publishedFromYear) or later") }
+        let filterNote = filters.isEmpty ? "" : " where \(filters.joined(separator: ", "))"
+        let archivedNote = includeArchived ? "" : " Archived sources are left out."
+
+        let dated = entries.filter { entry in
+            guard let publishedFromYear else { return true }
+            return (entry.year ?? .min) >= publishedFromYear
+        }
+        let undated = publishedFromYear == nil ? [] : entries.filter { $0.year == nil }
+        let older = entries.count - dated.count - undated.count
+        guard !dated.isEmpty || !undated.isEmpty else {
+            let olderNote = older > 0 ? " \(older) published before \(publishedFromYear ?? 0) are left out." : ""
+            return "No source marked paywalled\(filterNote).\(olderNote)\(archivedNote)"
+        }
+
+        // One count per journal, however its name was cased when it was read.
+        var counts: [String: (name: String, count: Int)] = [:]
+        for entry in dated {
+            let key = entry.group.lowercased()
+            counts[key] = (counts[key]?.name ?? entry.group, (counts[key]?.count ?? 0) + 1)
+        }
+        let byJournal = counts.values
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .map { "\($0.name) \($0.count)" }
+        func ordered(_ list: [Entry]) -> [String] {
+            list.sorted { a, b in
+                let order = a.group.localizedCaseInsensitiveCompare(b.group)
+                return order != .orderedSame ? order == .orderedAscending : (a.year ?? 0) > (b.year ?? 0)
+            }.map(\.line)
+        }
+
+        var lines = ["\(dated.count) paywalled source\(dated.count == 1 ? "" : "s")\(filterNote).\(archivedNote)"]
+        if older > 0, let publishedFromYear {
+            lines.append("\(older) more published before \(publishedFromYear) are left out.")
+        }
+        if !dated.isEmpty { lines.append("By journal: \(byJournal.joined(separator: ", ")).") }
+        lines.append(contentsOf: ordered(dated))
+        if !undated.isEmpty, let publishedFromYear {
+            lines.append("Year not recorded (\(undated.count)), so not known to be \(publishedFromYear) or later:")
+            lines.append(contentsOf: ordered(undated))
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// The source rows `filter_sources` and `browse_library` list, newest
     /// first: every filter a case-insensitive substring, combined with AND, and
     /// the knowledge boundary's hidden sources left out.
@@ -2125,7 +2227,7 @@ extension MCPToolRegistry {
         // Notebooks and Goals
         "list_notebooks", "list_goals", "list_notebook_collections", "list_notebook_sources",
         // Sources
-        "list_sources", "filter_sources", "list_shows", "search_sources_semantic", "search_sources_keyword",
+        "list_sources", "filter_sources", "list_paywalled_sources", "list_shows", "search_sources_semantic", "search_sources_keyword",
         "get_app_context", "get_today_sources", "list_courses", "search_source_highlights", "list_meeting_groups",
         // The learner's own work
         "list_docs", "list_animations", "list_spaces", "list_ideas", "list_images", "list_scheduled_tasks",

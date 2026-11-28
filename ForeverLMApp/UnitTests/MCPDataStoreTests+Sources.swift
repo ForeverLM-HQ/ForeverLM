@@ -428,6 +428,65 @@ extension MCPDataStoreTests {
         #expect(!saved.hasPaywallMarker)
     }
 
+    /// 2026-11-27: "how many paywalled Nature articles are there now, would a
+    /// monthly subscription be worth it" had no tool to ask; filter_sources
+    /// knows nothing of the mark. The list counts by journal, matches a link
+    /// whose journal was never read, and keeps a source with no year apart.
+    @Test("list_paywalled_sources counts by journal, matches the link, and lists a yearless source apart")
+    func listPaywalledSourcesByJournalAndYear() throws {
+        let (store, tmpPath) = try TestStores.mcp()
+        defer { cleanup(tmpPath) }
+        let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
+
+        func paper(_ url: String, _ title: String, journal: String?, year: String?, doi: String?, paywalled: Bool = true) throws -> String {
+            let source = StudioArticle(url: url, title: title, sourceType: .paper)
+            try store.knowledgeStore().saveSource(source)
+            let sets = [journal.map { "journal = '\($0)'" }, year.map { "published_year = '\($0)'" }, doi.map { "doi = '\($0)'" }]
+                .compactMap { $0 }
+            if !sets.isEmpty {
+                try execSQL(dbPath: dbPath, "UPDATE papers SET \(sets.joined(separator: ", ")) WHERE source_id = '\(source.id)'")
+            }
+            if paywalled { _ = try store.setSourcePaywallStatus(sourceID: source.id, isPaywalled: true) }
+            return source.id
+        }
+        _ = try paper("https://doi.org/10.1038/nature04779", "Drosophila pink1", journal: "Nature", year: "2006", doi: "10.1038/nature04779")
+        let recent = try paper("https://doi.org/10.1038/s41586-019-1405-y", "Intestinal infection", journal: "Nature", year: "2019", doi: "10.1038/s41586-019-1405-y")
+        _ = try paper("https://doi.org/10.1038/ng.95", "DNA deletions", journal: "nature genetics", year: "2008", doi: nil)
+        let unread = try paper("https://www.nature.com/articles/s43587-026-01105-2", "The case for space", journal: nil, year: nil, doi: nil)
+        let cell = try paper("https://www.cell.com/cell/fulltext/x", "A Cell paper", journal: "Cell", year: "2020", doi: nil)
+        let open = try paper("https://www.nature.com/articles/s41467-020-1", "An open paper", journal: "Nature Communications", year: "2020", doi: nil, paywalled: false)
+
+        let all = try store.listPaywalledSources(journal: nil, publishedFromYear: nil, includeArchived: false)
+        #expect(all.hasPrefix("5 paywalled sources. Archived sources are left out."))
+        #expect(all.contains(cell) && !all.contains(open))
+
+        let nature = try store.listPaywalledSources(journal: "nature", publishedFromYear: nil, includeArchived: false)
+        #expect(nature.hasPrefix("4 paywalled sources where the journal or link contains 'nature'."))
+        #expect(nature.contains("By journal: Nature 2, journal not recorded (nature.com) 1, nature genetics 1."))
+        #expect(nature.contains(unread) && !nature.contains(cell))
+        #expect(nature.contains("doi 10.1038/s41586-019-1405-y"))
+
+        let lines = try store.listPaywalledSources(journal: "Nature", publishedFromYear: 2017, includeArchived: false)
+            .components(separatedBy: "\n")
+        #expect(lines.count == 6)
+        #expect(lines[0] == "1 paywalled source where the journal or link contains 'Nature', published 2017 or later. Archived sources are left out.")
+        #expect(lines[1] == "2 more published before 2017 are left out.")
+        #expect(lines[2] == "By journal: Nature 1.")
+        #expect(lines[3].contains(recent) && lines[3].contains("2019"))
+        #expect(lines[4] == "Year not recorded (1), so not known to be 2017 or later:")
+        #expect(lines[5].contains(unread) && lines[5].contains("https://www.nature.com/articles/s43587-026-01105-2"))
+
+        try execSQL(dbPath: dbPath, "UPDATE sources SET status = 'archived' WHERE id = '\(cell)'")
+        let active = try store.listPaywalledSources(journal: "Cell", publishedFromYear: nil, includeArchived: false)
+        #expect(active == "No source marked paywalled where the journal or link contains 'Cell'. Archived sources are left out.")
+        let archived = try store.listPaywalledSources(journal: "Cell", publishedFromYear: nil, includeArchived: true)
+        #expect(archived.hasPrefix("1 paywalled source where the journal or link contains 'Cell'."))
+        #expect(archived.contains("archived)"))
+
+        #expect(MCPToolRegistry.isReadOnlyTool("list_paywalled_sources"))
+        #expect(MCPToolRegistry.screenRecordNarrowedToolNames.contains("list_paywalled_sources"))
+    }
+
     @Test("paper download failures are classified as paywall evidence or transient")
     func paperPaywallEvidenceClassification() {
         // Paywall-shaped failures: the bulk download pass auto-marks these paywalled.

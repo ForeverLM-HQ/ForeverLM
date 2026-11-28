@@ -249,6 +249,19 @@ extension MCPToolRegistry {
                 ]
             ),
             MCPToolDef(
+                name: "list_paywalled_sources",
+                description: "List every source marked paywalled (the papers ForeverLM could not get a readable PDF for) with each one's journal, year and DOI, and a count per journal. It answers \"how many of my paywalled papers are in Nature journals\" and \"which would a subscription unlock\": pass journal to keep one publisher's titles and published_from_year to keep the recent ones. A journal or year that was never recorded is said, never guessed, and with published_from_year a source with no year is listed apart rather than dropped. It reads metadata only. To look again for a free PDF use recheck_paywalled_papers; to set or clear the mark, set_source_paywall_status.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "journal": ["type": "string", "description": "Text the journal's name or the source's link contains, case-insensitive. \"Nature\" keeps Nature, Nature Genetics and the rest, and nature.com links whose journal was never recorded."],
+                        "published_from_year": ["type": "integer", "description": "Keep sources published in this year or later (e.g. 2017). A source with no recorded year is listed apart, not left out."],
+                        "include_archived": ["type": "boolean", "description": "Also list archived sources (default false)."],
+                    ],
+                    "required": [],
+                ]
+            ),
+            MCPToolDef(
                 name: "rename_group",
                 description: "Rename a course, video playlist, or meeting group (sets its display title). group_key is the course name, video-playlist id, or meeting group name.",
                 inputSchema: [

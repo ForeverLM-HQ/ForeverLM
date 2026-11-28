@@ -689,6 +689,9 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   // the hosted account has no copy of that boundary to filter with.
   "list_shows",
   "filter_sources",
+  // The paywall mark and the journal each paper was read with are the Mac's
+  // own source metadata, read inside the same knowledge boundary.
+  "list_paywalled_sources",
   // Today's memory review is scheduled by the Mac: the due concepts, their
   // rubrics and retrieval history live in the app's own SQLite, and starting
   // the session marks items served there. The hosted projection holds none of

@@ -6507,6 +6507,31 @@
     "readOnlyHint" : true
   },
   {
+    "description" : "List every source marked paywalled (the papers ForeverLM could not get a readable PDF for) with each one's journal, year and DOI, and a count per journal. It answers \"how many of my paywalled papers are in Nature journals\" and \"which would a subscription unlock\": pass journal to keep one publisher's titles and published_from_year to keep the recent ones. A journal or year that was never recorded is said, never guessed, and with published_from_year a source with no year is listed apart rather than dropped. It reads metadata only. To look again for a free PDF use recheck_paywalled_papers; to set or clear the mark, set_source_paywall_status.",
+    "inputSchema" : {
+      "properties" : {
+        "include_archived" : {
+          "description" : "Also list archived sources (default false).",
+          "type" : "boolean"
+        },
+        "journal" : {
+          "description" : "Text the journal's name or the source's link contains, case-insensitive. \"Nature\" keeps Nature, Nature Genetics and the rest, and nature.com links whose journal was never recorded.",
+          "type" : "string"
+        },
+        "published_from_year" : {
+          "description" : "Keep sources published in this year or later (e.g. 2017). A source with no recorded year is listed apart, not left out.",
+          "type" : "integer"
+        }
+      },
+      "required" : [
+
+      ],
+      "type" : "object"
+    },
+    "name" : "list_paywalled_sources",
+    "readOnlyHint" : true
+  },
+  {
     "description" : "The learner's study practices: each with practice_id, title (the practice in one sentence), why, status (proposed, adopted, dismissed or retired), origin (rule: found in the learner's history by ForeverLM; user: set by the learner; ai: suggested by an assistant), rule (what the card queue, drafting and the tutor follow once it is adopted: {kind, params}), setting_change when adopting it changes a Setting, the evidence and minimum sample behind a rule's proposal, and when it was decided. status narrows the list. ForeverLM's own rules are off until they are signed off (engine.proposes), so practices come from set_practice for now. Needs the Mac on ForeverLM's new iCloud sync. Reads only.",
     "inputSchema" : {
       "properties" : {
