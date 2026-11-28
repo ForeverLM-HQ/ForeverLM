@@ -361,7 +361,7 @@ final class ArticleSpeechService: NSObject, ObservableObject {
 
     override init() {
         // Deliberately reads no Keychain-backed setting. `shared` is created
-        // during SwiftUI view construction — StudioAudiobookPlayerHost sits in
+        // during SwiftUI view construction — StudioListeningSessionHost sits in
         // StudioView's overlay chain, and SourceReaderPanel, ArticleReaderView
         // and SourceReaderWindow each hold it as a stored `@ObservedObject` —
         // so anything blocking here blocks a view body. Reading the provider

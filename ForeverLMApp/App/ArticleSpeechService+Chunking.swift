@@ -130,7 +130,7 @@ extension ArticleSpeechService {
     }
 
     static func audioPlaybackRate(for speed: Double) -> Float {
-        min(max(Float(MacArticleSpeechSpeed.clamped(speed)), 0.5), 2.0)
+        min(max(Float(MacArticleSpeechSpeed.clamped(speed)), 0.5), Float(MacArticleSpeechSpeed.maximum))
     }
 
     static func syncedAudioFileExtension(provider: MacArticleSpeechMode, model: String) -> String {

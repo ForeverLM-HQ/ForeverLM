@@ -303,18 +303,7 @@ struct SourceReaderPanel: View {
                     .onDisappear {
                         vm.clearActiveReaderSelection(forSourceID: article.id)
                     }
-
-                    // The player belongs to the reader showing the narrated
-                    // source, at its foot. Leave this source and the window's
-                    // own bar takes over (`StudioAudiobookPlayerPlacement`),
-                    // so the audio always has a visible pause.
-                    if !isDisplayingExternalPage, isNarrating(article) {
-                        Divider()
-                        StudioAudiobookPlayer(speech: speech, sourceID: article.id, showsOpenSource: false)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
                 }
-                .animation(.easeInOut(duration: 0.18), value: isNarrating(article))
                 .studioBandOverlay {
                         // No row-wide drag blocker: mounted behind this row it
                         // took the mouse-down away from the controls on top of

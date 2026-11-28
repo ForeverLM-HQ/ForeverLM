@@ -479,35 +479,55 @@ struct ReaderToolbarPolicyTests {
     }
 }
 
-// Where the Text to Speech player sits: the reader showing the narrated source, or the window bar.
+// What the strip's Listening icon says: what the audio is doing, then the title.
 
-struct StudioAudiobookPlayerPlacementTests {
-    @Test("no narration, no window bar")
-    func idle() {
-        #expect(!StudioAudiobookPlayerPlacement.showsWindowPlayer(
-            narratingSourceID: nil,
-            readerSourceIDsOnScreen: ["chapter-2"]
-        ))
+struct StudioListeningLineTests {
+    @Test("preparing says the service's own status, then the title")
+    func preparing() {
+        #expect(StudioListeningLine.text(
+            title: "Mitochondrial psychobiology",
+            preparationStatus: "Preparing narration…",
+            isPreparing: true,
+            isPaused: false
+        ) == "Preparing narration… · Mitochondrial psychobiology")
+        #expect(StudioListeningLine.text(
+            title: nil, preparationStatus: nil, isPreparing: true, isPaused: false
+        ) == "Preparing audio…")
     }
 
-    @Test("the reader showing the narrated source carries the player, so the window bar stays away")
-    func narratedSourceOnScreen() {
-        #expect(!StudioAudiobookPlayerPlacement.showsWindowPlayer(
-            narratingSourceID: "chapter-2",
-            readerSourceIDsOnScreen: ["chapter-2", "paper-7"]
-        ))
+    @Test("playing and paused say so; a status left over from preparing is not read")
+    func playingAndPaused() {
+        #expect(StudioListeningLine.text(
+            title: "Chapter 2", preparationStatus: "Preparing audio…", isPreparing: false, isPaused: false
+        ) == "Listening · Chapter 2")
+        #expect(StudioListeningLine.text(
+            title: "Chapter 2", preparationStatus: nil, isPreparing: false, isPaused: true
+        ) == "Paused · Chapter 2")
+        #expect(StudioListeningLine.text(
+            title: "", preparationStatus: nil, isPreparing: false, isPaused: true
+        ) == "Paused")
+    }
+}
+
+// Listen plays up to 3×, as the iPhone does.
+
+@MainActor
+struct MacArticleSpeechSpeedTests {
+    @Test("the speeds run from 0.75× to 3×, and the player is asked for 3× unclamped")
+    func threeTimes() {
+        #expect(MacArticleSpeechSpeed.options.first == 0.75)
+        #expect(MacArticleSpeechSpeed.options.last == 3.0)
+        #expect(MacArticleSpeechSpeed.clamped(3.0) == 3.0)
+        #expect(MacArticleSpeechSpeed.label(for: 3.0) == "3x")
+        #expect(MacArticleSpeechSpeed.label(for: 2.25) == "2.25x")
+        #expect(ArticleSpeechService.audioPlaybackRate(for: 3.0) == 3.0)
     }
 
-    @Test("navigating away from the narrated source brings the window bar")
-    func narratedSourceOffScreen() {
-        #expect(StudioAudiobookPlayerPlacement.showsWindowPlayer(
-            narratingSourceID: "chapter-2",
-            readerSourceIDsOnScreen: ["chapter-3"]
-        ))
-        #expect(StudioAudiobookPlayerPlacement.showsWindowPlayer(
-            narratingSourceID: "chapter-2",
-            readerSourceIDsOnScreen: []
-        ))
+    @Test("the speed button steps through 3× and then wraps to the slowest")
+    func cycling() {
+        #expect(MacArticleSpeechSpeed.nextOption(after: 2.0) == 2.25)
+        #expect(MacArticleSpeechSpeed.nextOption(after: 2.75) == 3.0)
+        #expect(MacArticleSpeechSpeed.nextOption(after: 3.0) == 0.75)
     }
 }
 

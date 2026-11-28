@@ -9,7 +9,7 @@ Text to Speech lets you listen to articles and other text sources in ForeverLM. 
 
 ## Start listening
 
-Open a source in the Reader and choose **Listen** from the Reader's **⋯** menu, or right-click inside the Reader and choose **Text to Speech**. While the audio is prepared or plays, its control sits on the Reader's toolbar. ForeverLM extracts the readable text, prepares audio, and shows playback controls at the bottom of the reader. Playback is not tied to the reader: switch to another source, close the reader or move to Chat and the audio keeps going, and a Now Playing bar appears at the bottom of the window with the same controls, so there is always a visible way to pause or stop. Click its title to return to the source, and the bar folds back into the reader. To prepare the complete audio without starting playback, right-click the source in Studio and choose **Generate Audio**.
+Open a source in the Reader and choose **Listen** from the Reader's **⋯** menu, or right-click inside the Reader and choose **Text to Speech**. While the audio is prepared or plays, its control sits on the Reader's toolbar, and a speaker icon joins the icons at the bottom of the strip on the left of every window. Hover it to see what is playing; click it for the player: the title, chapter skips, play and pause, speed, the scrubber, options and stop. Playback is not tied to the reader: switch to another source, close the reader or move to Chat and the audio keeps going, and the speaker icon stays, so there is always a visible way to pause or stop. Click the player's title to return to the source. Like the strip's other bottom icons, it can be dragged to another place or hidden from its right-click menu. To prepare the complete audio without starting playback, right-click the source in Studio and choose **Generate Audio**.
 
 While a source's audio is being generated, its row in the Library shows a spinner where the speaker badge appears once the audio is ready. While cloud audio is being generated, the progress status names the exact model handling that generation alongside its completion percentage. It remains tied to the in-flight generation even if the model selected in Settings changes before the remaining chunks finish. Web Studio shows the same model and percentage while it generates each chunk.
 
@@ -20,7 +20,7 @@ Playback controls include:
 - Pause and resume
 - Back 15 seconds
 - Forward 15 seconds
-- Speed selection from 0.75x to 2x
+- Speed selection from 0.75x to 3x
 - Stop
 
 The first time the iPhone has to make audio, and you have not picked a voice on any device or listened to anything yet, it stops to ask **Who should read to you?**: pick the model and the voice (each voice has a preview), then tap **Listen** and what you asked for goes ahead. After that it never asks again; change the voice in **Settings** -> **Text to Speech**.

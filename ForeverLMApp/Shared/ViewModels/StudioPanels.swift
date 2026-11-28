@@ -1097,10 +1097,9 @@ final class StudioWindowState: Identifiable {
     /// `Snapshot`: pane identities are new after a relaunch.
     @ObservationIgnored var focusedGroupID: UUID?
     /// The sources this window's readers are displaying right now. Each docked
-    /// reader registers what it shows while it is mounted, so the window-wide
-    /// audiobook bar can stay away while the narrated source is on screen with
-    /// its own player, and appear the moment it is not
-    /// (`StudioAudiobookPlayerPlacement`). Presentation, so not in `Snapshot`.
+    /// reader registers what it shows while it is mounted, so work that asks
+    /// whether a source is on screen here (a chat's routing, card drafting, a
+    /// mnemonic reading) can tell. Presentation, so not in `Snapshot`.
     var readerSourceIDsOnScreen: Set<String> = []
     /// The linked pages (Docs, Sites, animations) this window's panes are
     /// showing right now, by artifact id; each `LinkedDocView` registers what

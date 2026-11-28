@@ -445,6 +445,10 @@ struct StudioNavigationRail: View {
     @ViewBuilder
     private func footerStripButton(_ item: StudioStripFooterItem) -> some View {
         switch item {
+        // The source being listened to, while it is, and its player in a
+        // popover (product owner, 2026-11-27: "just be here in the bottom
+        // left; as something that i can click and then see more details for").
+        case .listening: StudioListeningButton()
         // Voice mode, one click from anywhere (product owner, 2026-11-08:
         // "I should just be able to open voice mode ... in the bottom left
         // where those icons are"): the assistant that knows the plan, the

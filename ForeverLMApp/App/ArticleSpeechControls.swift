@@ -404,79 +404,103 @@ struct ArticleSpeechTransportControls: View {
     }
 }
 
-/// Where the Studio window's own player belongs. Playback is app-wide and
-/// outlives any reader, so the audio needs a visible handle somewhere; the
-/// reader showing the narrated source carries the player at its foot, and the
-/// window-wide bar exists only for the moment that reader is gone — closed,
-/// switched to another source, hidden behind Chat — so the audio never plays
-/// on with nothing on screen to pause it.
-enum StudioAudiobookPlayerPlacement {
-    /// Whether the window should show its own bar at the bottom, given the
-    /// sources the readers in that window are currently displaying.
-    static func showsWindowPlayer(
-        narratingSourceID: String?,
-        readerSourceIDsOnScreen: Set<String>
-    ) -> Bool {
-        guard let narratingSourceID else { return false }
-        return !readerSourceIDsOnScreen.contains(narratingSourceID)
+/// What the strip's Listening icon says on hover and to VoiceOver: what the
+/// audio is doing, then the source's title.
+enum StudioListeningLine {
+    static func text(title: String?, preparationStatus: String?, isPreparing: Bool, isPaused: Bool) -> String {
+        let state = isPreparing
+            ? (preparationStatus ?? "Preparing audio…")
+            : (isPaused ? "Paused" : "Listening")
+        guard let title, !title.isEmpty else { return state }
+        return "\(state) · \(title)"
     }
 }
 
-/// Persistent audiobook chrome for Studio. It lives outside the reader so
-/// closing a source or working in another pane does not end the listening
-/// session. The bar itself shows only while no reader in this window displays
-/// the narrated source (`StudioAudiobookPlayerPlacement`); the reader has the
-/// same player at its foot. Chapter auto-advance and error reporting stay here
-/// regardless, because they belong to the session, not to a view of it.
-struct StudioAudiobookPlayerHost: View {
+/// The strip's icon while a source is narrated or being prepared for it, and
+/// the player it opens (product owner, 2026-11-27, of the bar along the foot
+/// of both his windows: "maybe it should just be here in the bottom left; as
+/// something that i can click and then see more details for"). Listening is
+/// the app's, not one window's, so every window's strip carries the icon, as
+/// it carries the bell: one small icon each, where the bar was a whole second
+/// player in every window. The Reader's toolbar keeps its own Listen control.
+struct StudioListeningButton: View {
+    @Environment(StudioViewModel.self) private var vm
+    @ObservedObject private var speech = ArticleSpeechService.shared
+    @State private var isShowingPlayer = false
+
+    var body: some View {
+        if speech.isVisible, let sourceID = speech.narratingArticleID {
+            let line = StudioListeningLine.text(
+                title: speech.nowPlayingTitle,
+                preparationStatus: speech.preparationStatus,
+                isPreparing: speech.preparingArticleID != nil,
+                isPaused: speech.isPaused
+            )
+            Button {
+                isShowingPlayer.toggle()
+            } label: {
+                RailGlyph(systemImage: speech.isPaused ? "speaker" : "speaker.wave.2")
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
+            .railTooltip(line)
+            .accessibilityLabel(line)
+            .accessibilityHint("Shows the player")
+            .accessibilityIdentifier("rail.listening")
+            .popover(isPresented: $isShowingPlayer, arrowEdge: .trailing) {
+                StudioAudiobookPlayer(
+                    speech: speech,
+                    sourceID: sourceID,
+                    afterOpeningSource: { isShowingPlayer = false }
+                )
+                .frame(width: 400)
+                .environment(vm)
+            }
+            .transition(.opacity)
+        }
+    }
+}
+
+/// The listening session's work that belongs to no view of it: chapter
+/// auto-advance and the error alert. Every Studio window mounts one, drawing
+/// nothing; the alert shows in the window used last alone, where it showed in
+/// every window at once.
+struct StudioListeningSessionHost: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     @ObservedObject private var speech = ArticleSpeechService.shared
 
-    private var shownSourceID: String? {
-        guard speech.isVisible, let sourceID = speech.narratingArticleID,
-              StudioAudiobookPlayerPlacement.showsWindowPlayer(
-                  narratingSourceID: sourceID,
-                  readerSourceIDsOnScreen: windowState.readerSourceIDsOnScreen
-              ) else { return nil }
-        return sourceID
-    }
-
     var body: some View {
-        Group {
-            if let sourceID = shownSourceID {
-                Divider()
-                StudioAudiobookPlayer(speech: speech, sourceID: sourceID)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+        let isActiveWindow = StudioWindowRegistry.shared.activeState === windowState
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .onChange(of: speech.finishedListeningArticleID) { _, sourceID in
+                guard let sourceID else { return }
+                // A visible book reader gets the first chance to follow its native
+                // Contents order, which can differ from stored chapter order. If no
+                // reader consumes the event this turn, continue from the library
+                // order so background listening still flows into the next chapter.
+                Task { @MainActor in
+                    await Task.yield()
+                    guard speech.finishedListeningArticleID == sourceID else { return }
+                    continueBookAfterFinishedChapter(sourceID)
+                }
             }
-        }
-        .animation(.easeInOut(duration: 0.18), value: shownSourceID)
-        .onChange(of: speech.finishedListeningArticleID) { _, sourceID in
-            guard let sourceID else { return }
-            // A visible book reader gets the first chance to follow its native
-            // Contents order, which can differ from stored chapter order. If no
-            // reader consumes the event this turn, continue from the library
-            // order so background listening still flows into the next chapter.
-            Task { @MainActor in
-                await Task.yield()
-                guard speech.finishedListeningArticleID == sourceID else { return }
-                continueBookAfterFinishedChapter(sourceID)
+            .alert("Text to Speech Error", isPresented: Binding(
+                get: { isActiveWindow && speech.errorMessage != nil },
+                set: { if !$0 { speech.errorMessage = nil } }
+            )) {
+                Button(speech.errorSuggestsProviderSwitch ? "Switch Voice Provider" : "Text to Speech Settings") {
+                    speech.errorMessage = nil
+                    TextToSpeechSettingsNavigation.open()
+                }
+                Button("OK", role: .cancel) {
+                    speech.errorMessage = nil
+                }
+            } message: {
+                Text(speech.errorMessage ?? "")
             }
-        }
-        .alert("Text to Speech Error", isPresented: Binding(
-            get: { speech.errorMessage != nil },
-            set: { if !$0 { speech.errorMessage = nil } }
-        )) {
-            Button(speech.errorSuggestsProviderSwitch ? "Switch Voice Provider" : "Text to Speech Settings") {
-                speech.errorMessage = nil
-                TextToSpeechSettingsNavigation.open()
-            }
-            Button("OK", role: .cancel) {
-                speech.errorMessage = nil
-            }
-        } message: {
-            Text(speech.errorMessage ?? "")
-        }
     }
 
     private func continueBookAfterFinishedChapter(_ sourceID: String) {
@@ -500,16 +524,15 @@ struct StudioAudiobookPlayerHost: View {
     }
 }
 
-/// The player for one narrated source — title, chapter skip, transport,
-/// options, stop, and the scrubber — mounted at the foot of the reader showing
-/// that source, and in the window-wide bar when no reader does.
+/// The player for the narrated source — title, chapter skip, transport,
+/// options, stop and the scrubber — in the strip's Listening popover
+/// (`StudioListeningButton`). Its title opens the source.
 struct StudioAudiobookPlayer: View {
     @Environment(StudioViewModel.self) private var vm
     @ObservedObject var speech: ArticleSpeechService
     let sourceID: String
-    /// In the window bar the title opens the source; at the foot of the
-    /// reader already showing it, the title is only a title.
-    var showsOpenSource = true
+    /// Run as the title opens the source: the popover closes.
+    var afterOpeningSource: () -> Void = {}
 
     @State private var previousChapterID: String?
     @State private var nextChapterID: String?
@@ -520,7 +543,7 @@ struct StudioAudiobookPlayer: View {
             sourceID: sourceID,
             previousChapterID: previousChapterID,
             nextChapterID: nextChapterID,
-            openSource: showsOpenSource ? { openSource(sourceID) } : nil,
+            openSource: { openSource(sourceID) },
             playPreviousChapter: { playChapter(previousChapterID, from: sourceID) },
             playNextChapter: { playChapter(nextChapterID, from: sourceID) }
         )
@@ -546,6 +569,7 @@ struct StudioAudiobookPlayer: View {
     }
 
     private func openSource(_ sourceID: String) {
+        afterOpeningSource()
         Task { await vm.revealSourceInReader(sourceID) }
     }
 
@@ -566,30 +590,24 @@ private struct ArticleSpeechMiniPlayer: View {
     let sourceID: String
     let previousChapterID: String?
     let nextChapterID: String?
-    /// Nil where the source is already on screen behind the player.
-    let openSource: (() -> Void)?
+    let openSource: () -> Void
     let playPreviousChapter: () -> Void
     let playNextChapter: () -> Void
 
     var body: some View {
         VStack(spacing: 7) {
             HStack(spacing: 12) {
-                if let openSource {
-                    Button(action: openSource) {
-                        nowPlayingTitle
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -2))
-                    .help("Open the source")
-                } else {
+                Button(action: openSource) {
                     nowPlayingTitle
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -2))
+                .help("Open the source")
 
                 Spacer(minLength: 0)
 
-                // Chapter skips only where there are chapters: an article's
-                // two disabled buttons made the bar wider than a narrow
-                // Reader, which then drew past its pane's left edge.
+                // Chapter skips only where there are chapters: an article
+                // has none, and two disabled buttons only crowd the row.
                 if hasChapters {
                     chapterButton(
                         systemImage: "backward.end.fill",
@@ -643,8 +661,7 @@ private struct ArticleSpeechMiniPlayer: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(.regularMaterial)
+        .padding(.vertical, 12)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("studio.audiobookPlayer")
     }

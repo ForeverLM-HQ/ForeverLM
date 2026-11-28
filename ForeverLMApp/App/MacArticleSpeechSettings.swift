@@ -93,10 +93,14 @@ enum MacArticleSpeechMode: String, CaseIterable, Identifiable {
 }
 
 enum MacArticleSpeechSpeed {
-    static let options: [Double] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    /// Up to 3×, as the iPhone offers (product owner, 2026-11-27: "make sure
+    /// that 3x the speed is also supported"). `AVAudioPlayer`'s documentation
+    /// gives 2× as its top rate, but it plays 3× in time: measured on this
+    /// macOS, 3.1 s of audio went by in 1.05 s at rate 3.
+    static let options: [Double] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0]
     static let defaultSpeed = 1.0
     static let minimum = 0.25
-    static let maximum = 2.0
+    static let maximum = 3.0
 
     static var stored: Double {
         get {

@@ -185,7 +185,7 @@ final class ReviewSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     private static func audioPlaybackRate() -> Float {
         let storedSpeed = Preferences.value(Prefs.ReadAloud.speed)
         let speed = MacArticleSpeechSpeed.clamped(storedSpeed ?? MacArticleSpeechSpeed.defaultSpeed)
-        return min(max(Float(speed), 0.5), 2.0)
+        return min(max(Float(speed), 0.5), Float(MacArticleSpeechSpeed.maximum))
     }
 
     private static func chunkLimit(for provider: MacArticleSpeechMode) -> Int {

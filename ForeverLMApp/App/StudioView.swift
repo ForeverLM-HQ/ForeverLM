@@ -516,7 +516,7 @@ struct StudioView: View {
             : StudioTopBar.leadingControlsLeading
         return VStack(spacing: 0) {
             content
-            StudioAudiobookPlayerHost()
+            StudioListeningSessionHost()
         }
             // The window's own controls, pinned to the top-left on the macOS
             // traffic lights' row as Codex draws them (the window hides its

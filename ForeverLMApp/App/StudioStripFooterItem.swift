@@ -3,10 +3,12 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-/// An icon on the strip below the ⋯: voice, the work running for an AI app,
-/// AI Usage, the day, the bell, MCP, Settings and the account. Each is one
+/// An icon on the strip below the ⋯: the source being listened to, voice,
+/// the work running for an AI app, AI Usage, the day, the bell, MCP,
+/// Settings and the account. Each is one
 /// the learner can drag up or down among the others (`StudioStripOrder`).
 enum StudioStripFooterItem: String, CaseIterable, Identifiable, Sendable {
+    case listening
     case voice
     case work
     case aiUsage
@@ -21,6 +23,7 @@ enum StudioStripFooterItem: String, CaseIterable, Identifiable, Sendable {
     /// Its name in Show in Sidebar and its Hide item.
     var title: String {
         switch self {
+        case .listening: return "Listening"
         case .voice: return "Voice"
         case .work: return "AI App Work"
         case .aiUsage: return "AI Usage"
@@ -36,6 +39,7 @@ enum StudioStripFooterItem: String, CaseIterable, Identifiable, Sendable {
     /// symbol, a near one where it draws a logo or the avatar.
     var systemImage: String {
         switch self {
+        case .listening: return "speaker.wave.2"
         case .voice: return "waveform"
         case .work: return "sparkles"
         case .aiUsage: return "chart.bar"
